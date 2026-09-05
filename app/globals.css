@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------- Dark theme (default) ---------- */
+:root,
+.dark {
+  --c-bg: 10 18 28;           /* #0A121C */
+  --c-surface: 15 27 41;      /* #0F1B29 */
+  --c-surface-2: 20 31 46;    /* #141F2E */
+  --c-ink: 243 246 247;       /* #F3F6F7 */
+  --c-muted: 140 160 172;     /* #8CA0AC */
+  --c-faint: 91 110 120;      /* #5B6E78 */
+  --c-line-rgb: 255 255 255;
+  --c-line-a: 0.08;
+  --c-line-a-strong: 0.14;
+  --c-shadow-a: 0.35;
+  --c-glass-bg: 255 255 255;
+  --c-glass-a: 0.035;
+  --c-glass-a-strong: 0.06;
+  --c-glass-blur: 14px;
+  --c-glass-blur-strong: 18px;
+}
+
+/* ---------- Light theme ---------- */
+.light {
+  --c-bg: 244 243 240;        /* soft paper background */
+  --c-surface: 255 255 255;
+  --c-surface-2: 237 236 232;
+  --c-ink: 17 27 36;
+  --c-muted: 91 106 115;
+  --c-faint: 148 158 165;
+  --c-line-rgb: 15 27 41;
+  --c-line-a: 0.09;
+  --c-line-a-strong: 0.16;
+  --c-shadow-a: 0.08;
+  --c-glass-bg: 255 255 255;
+  --c-glass-a: 0.65;
+  --c-glass-a-strong: 0.82;
+  --c-glass-blur: 14px;
+  --c-glass-blur-strong: 18px;
+}
+
+html, body {
+  background: rgb(var(--c-bg));
+  color: rgb(var(--c-ink));
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background: rgba(34, 176, 138, 0.35);
+}
+
+input, textarea, select {
+  color-scheme: dark;
+}
+.light input, .light textarea, .light select {
+  color-scheme: light;
+}
+
+input::placeholder, textarea::placeholder {
+  color: rgb(var(--c-faint));
+}
+
+/* subtle glass surface used across cards/panels — adapts per theme */
+.glass {
+  background: rgb(var(--c-glass-bg) / var(--c-glass-a));
+  backdrop-filter: blur(var(--c-glass-blur));
+  -webkit-backdrop-filter: blur(var(--c-glass-blur));
+  border: 1px solid rgb(var(--c-line-rgb) / var(--c-line-a));
+}
+
+.glass-strong {
+  background: rgb(var(--c-glass-bg) / var(--c-glass-a-strong));
+  backdrop-filter: blur(var(--c-glass-blur-strong));
+  -webkit-backdrop-filter: blur(var(--c-glass-blur-strong));
+  border: 1px solid rgb(var(--c-line-rgb) / var(--c-line-a-strong));
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--c-line-rgb) / var(--c-line-a-strong));
+  border-radius: 999px;
+}
