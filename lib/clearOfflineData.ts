@@ -21,11 +21,13 @@ export async function clearOfflineData(): Promise<{
     try {
       const dbNames = await indexedDB.databases();
       for (const db of dbNames) {
-        const req = indexedDB.deleteDatabase(db.name);
-        await new Promise((resolve, reject) => {
-          req.onsuccess = resolve;
-          req.onerror = reject;
-        });
+        if (db.name) {
+          const req = indexedDB.deleteDatabase(db.name);
+          await new Promise((resolve, reject) => {
+            req.onsuccess = resolve;
+            req.onerror = reject;
+          });
+        }
       }
       result.cleared.indexedDb = true;
       console.log('[CLEANUP] IndexedDB borrada completamente');
