@@ -98,7 +98,7 @@ export async function safeLogout(): Promise<boolean> {
 
     await new Promise<void>((resolve) => {
       const tx = db.transaction('pending-reports', 'readonly');
-      const countReq = tx.store.count();
+      const countReq = tx.objectStore('pending-reports').count();
       countReq.onsuccess = (e: any) => {
         hasPendingReports = (e.target.result as number) > 0;
         resolve();
