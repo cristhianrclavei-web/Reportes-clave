@@ -47,25 +47,16 @@ export default function LogoutButton({ compacto = false }: { compacto?: boolean 
     setSaliendo(true);
     setError('');
     try {
-      // ===== PASO 1: LIMPIAR DATOS OFFLINE PRIMERO (OWASP A04) con TIMEOUT =====
-      console.log('[LOGOUT] Limpiando datos offline (IndexedDB, localStorage, caches)...');
-      try {
-        const cleanupResult = await Promise.race([
-          clearOfflineData(),
-          new Promise<any>((_, reject) => 
-            setTimeout(() => reject(new Error('Timeout limpieza')), 2000)
-          )
-        ]);
-        if (!cleanupResult.success) {
-          console.warn('[LOGOUT] Limpieza parcialmente fallida:', cleanupResult);
-        }
-      } catch (err) {
-        console.warn('[LOGOUT] Timeout o error en limpieza, continuando logout:', err);
-      }
+      // ===== PASO 1: INICIAR LIMPIEZA EN BACKGROUND (no esperar) =====
+      // La limpieza es lenta, así que la hacemos en paralelo sin bloquear logout
+      clearOfflineData().catch(err => 
+        console.warn('[LOGOUT] Limpieza en background falló:', err)
+      );
 
-      // ===== PASO 2: CERRAR SESIÓN EN SUPABASE =====
+      // ===== PASO 2: CERRAR SESIÓN INMEDIATAMENTE =====
       console.log('[LOGOUT] Cerrando sesión Supabase...');
-      await createClient().auth.signOut();
+      const client = createClient();
+      await client.auth.signOut();
 
       // ===== PASO 3: LIMPIAR SESSION STORAGE =====
       try { sessionStorage.removeItem('puedeAlmacen'); } catch { /* modo privado */ }
