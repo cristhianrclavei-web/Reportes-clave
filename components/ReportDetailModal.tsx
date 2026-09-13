@@ -20,6 +20,9 @@ export type ReportDetail = {
   sub_tipo_servicio: string | null;
   data: any;
   profiles?: any;
+  // Quien creó el reporte. Se usa para avisarle cuando su solicitud de
+  // corrección se autoriza o se cierra.
+  created_by?: string | null;
   correccion_habilitada?: boolean;
   correccion_solicitada?: boolean;
   correccion_motivo?: string | null;

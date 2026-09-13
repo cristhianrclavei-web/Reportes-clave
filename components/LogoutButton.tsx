@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabaseClient';
 import { countOfflineReports } from '@/lib/offlineQueue';
 import { clearOfflineData } from '@/lib/clearOfflineData'; // NUEVO - OWASP A04
+import { desactivarNotificaciones } from '@/lib/push';
 import ModalOverlay from '@/components/ModalOverlay';
 import { LogOut, AlertTriangle } from 'lucide-react';
 
@@ -64,6 +65,17 @@ export default function LogoutButton({ compacto = false }: { compacto?: boolean 
     // Primero se cierra la sesion en el servidor, despues se limpia el
     // dispositivo, y la redireccion ocurre pase lo que pase: quedarse
     // atrapado en esta pantalla es peor que una limpieza incompleta.
+    //
+    // La suscripcion push va antes que todo lo demas porque darla de baja
+    // necesita sesion. Si no se suelta, este telefono sigue registrado a
+    // nombre de quien acaba de salir: el siguiente en entrar recibe avisos
+    // que no le tocan, y eso ya paso.
+    try {
+      await conLimite(desactivarNotificaciones(), 4000);
+    } catch (error) {
+      console.warn('[LOGOUT] No se pudo dar de baja el push:', error);
+    }
+
     try {
       await conLimite(createClient().auth.signOut(), 5000);
     } catch (error) {

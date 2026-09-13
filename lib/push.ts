@@ -64,21 +64,36 @@ export async function activarNotificaciones(): Promise<{ ok: boolean; motivo?: s
   });
 
   const datos = suscripcion.toJSON();
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, motivo: 'No hay sesión activa.' };
 
-  const { error } = await supabase.from('push_suscripciones').upsert(
-    {
-      usuario_id: user.id,
-      endpoint: datos.endpoint,
-      p256dh: datos.keys?.p256dh,
-      auth: datos.keys?.auth,
-      user_agent: navigator.userAgent.slice(0, 200),
-    },
-    { onConflict: 'endpoint' }
-  );
-  if (error) return { ok: false, motivo: error.message };
+  // El alta pasa por el servidor y no por un upsert desde aquí. El endpoint
+  // identifica al dispositivo, no a la persona: si en este aparato entró
+  // alguien más antes, su fila sigue viva y hay que soltarla primero. Desde
+  // el navegador no se puede — la RLS solo deja tocar las propias, y el
+  // borrado fallaba en silencio.
+  try {
+    const respuesta = await fetch('/api/push/suscribir', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        endpoint: datos.endpoint,
+        p256dh: datos.keys?.p256dh,
+        auth: datos.keys?.auth,
+        user_agent: navigator.userAgent.slice(0, 200),
+      }),
+    });
+
+    if (!respuesta.ok) {
+      const cuerpo = await respuesta.json().catch(() => ({}));
+      // La suscripción del navegador ya existe pero el servidor no la
+      // registró: se deshace para no dejar un dispositivo suscrito que nunca
+      // va a recibir nada.
+      await suscripcion.unsubscribe().catch(() => {});
+      return { ok: false, motivo: cuerpo?.error || 'No se pudo registrar el dispositivo.' };
+    }
+  } catch {
+    await suscripcion.unsubscribe().catch(() => {});
+    return { ok: false, motivo: 'No hay conexión con el servidor.' };
+  }
 
   return { ok: true };
 }
@@ -91,7 +106,19 @@ export async function desactivarNotificaciones(): Promise<void> {
 
   const endpoint = suscripcion.endpoint;
   await suscripcion.unsubscribe();
-  await createClient().from('push_suscripciones').delete().eq('endpoint', endpoint);
+
+  // El borrado también va por el servidor: la fila puede ser de quien usó
+  // este teléfono antes, y esa no se puede borrar con la sesión de ahora.
+  try {
+    await fetch('/api/push/suscribir', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint }),
+    });
+  } catch {
+    // El navegador ya está desuscrito, que es lo que evita que siga sonando.
+    // La fila huérfana se limpiará sola en el primer envío que falle con 410.
+  }
 }
 
 export async function tieneSuscripcionActiva(): Promise<boolean> {
@@ -115,6 +142,7 @@ export type TipoAviso =
   | 'bitacora_fin'
   | 'reporte_nuevo'
   | 'correccion_solicitada'
+  | 'correccion_resuelta'
   | 'aviso_servicio';
 
 export const TIPOS_AVISO: { valor: TipoAviso; label: string; detalle: string; paraTecnico?: boolean }[] = [
@@ -129,6 +157,7 @@ export const TIPOS_AVISO: { valor: TipoAviso; label: string; detalle: string; pa
   { valor: 'bitacora_inicio', label: 'Inicio de actividades', detalle: 'Cuando alguien abre una actividad en bitácora' },
   { valor: 'bitacora_fin', label: 'Cierre de actividades', detalle: 'Cuando alguien concluye una actividad' },
   { valor: 'servicio_asignado', label: 'Servicios asignados', detalle: 'Cuando te programan un servicio', paraTecnico: true },
+  { valor: 'correccion_resuelta', label: 'Respuesta a tus correcciones', detalle: 'Cuando autorizan o cierran una corrección que pediste', paraTecnico: true },
 ];
 
 // Estos llegan apagados: son seguimiento del día y esa información ya está en

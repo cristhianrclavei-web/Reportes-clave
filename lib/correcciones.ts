@@ -41,7 +41,7 @@ export async function solicitarCorreccion(
 
 // Solo un supervisor llega aquí; el trigger de la base de datos lo respalda.
 export async function habilitarCorreccion(
-  report: { id: string; empresa_cliente: string; data: any }
+  report: { id: string; empresa_cliente: string; data: any; created_by?: string | null }
 ): Promise<void> {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -64,10 +64,24 @@ export async function habilitarCorreccion(
     report.id,
     `Autorizó corregir el reporte de «${report.empresa_cliente}»${folio} — el técnico puede agregar fotos y cambiar el servicio vinculado`
   );
+
+  // El técnico pidió la corrección y hasta ahora no se enteraba de la
+  // respuesta: tenía que volver a abrir el reporte para descubrir si ya podía
+  // tocarlo. El aviso cierra ese hueco.
+  if (report.created_by) {
+    await notificar({
+      usuarios: [report.created_by],
+      tipo: 'correccion_resuelta',
+      titulo: 'Ya puedes corregir tu reporte',
+      mensaje: `Autorizaron la corrección de ${report.empresa_cliente}${folio}`,
+      url: '/mis-reportes',
+      tag: `correccion-${report.id}`,
+    });
+  }
 }
 
 export async function cancelarCorreccion(
-  report: { id: string; empresa_cliente: string; data: any }
+  report: { id: string; empresa_cliente: string; data: any; created_by?: string | null }
 ): Promise<void> {
   const supabase = createClient();
   const { error } = await supabase
@@ -82,6 +96,21 @@ export async function cancelarCorreccion(
     report.id,
     `Cerró el permiso de corrección del reporte de «${report.empresa_cliente}» sin que se aplicaran cambios`
   );
+
+  // Sin este aviso el técnico se queda esperando una respuesta que ya
+  // ocurrió. El texto no dice por qué se cerró porque el flujo no lo pide;
+  // si hace falta explicar, se habla, y para eso conviene que lo sepa.
+  if (report.created_by) {
+    const folio = report.data?.claveFormato ? ` (folio ${report.data.claveFormato})` : '';
+    await notificar({
+      usuarios: [report.created_by],
+      tipo: 'correccion_resuelta',
+      titulo: 'Corrección cerrada',
+      mensaje: `No se autorizó corregir ${report.empresa_cliente}${folio}`,
+      url: '/mis-reportes',
+      tag: `correccion-${report.id}`,
+    });
+  }
 }
 
 // El técnico aplica la corrección: nuevas fotos y/o cambio de servicio
