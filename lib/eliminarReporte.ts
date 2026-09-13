@@ -27,14 +27,16 @@ export async function eliminarReporte(report: {
 
   if (fotoPaths.length > 0) {
     try {
-      await supabase.storage.from('evidencias').remove(fotoPaths);
+      const { error: errorFotos } = await supabase.storage.from('evidencias').remove(fotoPaths);
+      if (errorFotos) console.error('No se pudieron limpiar las fotos del reporte eliminado:', errorFotos);
     } catch (e) {
       console.error('No se pudieron limpiar las fotos del reporte eliminado:', e);
     }
   }
   if (facturaPath) {
     try {
-      await supabase.storage.from('facturas').remove([facturaPath]);
+      const { error: errorFactura } = await supabase.storage.from('facturas').remove([facturaPath]);
+      if (errorFactura) console.error('No se pudo limpiar la factura del reporte eliminado:', errorFactura);
     } catch (e) {
       console.error('No se pudo limpiar la factura del reporte eliminado:', e);
     }
