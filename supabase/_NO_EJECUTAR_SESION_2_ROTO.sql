@@ -1,5 +1,21 @@
 -- ==========================================
--- SESIÓN 2: AUDITORÍA SECURITY DEFINER
+-- NO EJECUTAR — ESTE ARCHIVO ESTÁ ROTO
+-- ==========================================
+-- Referencia tablas/columnas/parámetros que no existen en la base real:
+--   - Tabla `push_subscripciones`   → la real es `push_suscripciones`
+--   - Columnas `auth_secret`, `p256dh_key` → las reales son `auth`, `p256dh`
+--   - Parámetro `p_tecnicos_ids`    → la ruta usa `p_usuarios`
+--   - INSERT a `auditoria_global` con columnas (tabla, operacion,
+--     registro_id, usuario_id, cambios, timestamp) que no existen; las
+--     reales son (actor_id, accion, entidad, entidad_id, detalle).
+-- Ya rompió el push una vez, en septiembre 2026.
+-- Ver PATCH_RESTAURAR_PUSH.sql para la reparación aplicada.
+--
+-- Se conserva sin ejecutar porque documenta preocupaciones de seguridad
+-- reales (funciones SECURITY DEFINER sin validar rol) que pueden seguir
+-- pendientes de corregir con SQL escrito contra el esquema real.
+-- ==========================================
+-- SESIÓN 2: AUDITORÍA SECURITY DEFINER (documento original, roto)
 -- ==========================================
 -- Fecha: 2026-09-12
 -- Propósito: Revisar y asegurar 14 funciones SECURITY DEFINER
