@@ -13,5 +13,10 @@ export default async function ActividadPage({ params }: { params: { id: string }
   const { data: actividad, error } = await supabase.from('actividades').select('*').eq('id', params.id).single();
   if (error || !actividad) notFound();
 
-  return <ActividadDetail actividadInicial={actividad as any} />;
+  // La RLS de `actividades` ya garantiza que solo llega aquí el dueño o un
+  // supervisor (lectura). Si no es el dueño, es supervisor: vista de solo
+  // lectura, sin los botones de acción del técnico.
+  const soloLectura = actividad.created_by !== user.id;
+
+  return <ActividadDetail actividadInicial={actividad as any} soloLectura={soloLectura} />;
 }

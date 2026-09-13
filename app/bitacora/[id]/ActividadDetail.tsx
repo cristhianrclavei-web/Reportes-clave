@@ -34,7 +34,13 @@ function fechaLocal(iso: string): string {
   return new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
 }
 
-export default function ActividadDetail({ actividadInicial }: { actividadInicial: Actividad }) {
+export default function ActividadDetail({
+  actividadInicial,
+  soloLectura = false,
+}: {
+  actividadInicial: Actividad;
+  soloLectura?: boolean;
+}) {
   const theme = useTheme();
   const [actividad, setActividad] = useState<Actividad>(actividadInicial);
   const [eventos, setEventos] = useState<ActividadEvento[]>([]);
@@ -187,6 +193,12 @@ export default function ActividadDetail({ actividadInicial }: { actividadInicial
       </div>
 
       <div className="px-4 pt-5">
+        {soloLectura && (
+          <p className="text-[11px] font-semibold text-muted mb-3 uppercase tracking-wider">
+            Viendo como supervisor · solo lectura
+          </p>
+        )}
+
         {/* Actividad activa */}
         <div className={`glass card rounded-2xl p-4 mb-5 ${actividad.estado !== 'concluida' ? 'border border-teal/35' : ''}`}>
           <div className="flex justify-between items-start mb-2.5">
@@ -211,7 +223,7 @@ export default function ActividadDetail({ actividadInicial }: { actividadInicial
             <span>Duración: <b className="text-ink">{duracion()}</b></span>
           </div>
 
-          {actividad.estado !== 'concluida' && (
+          {!soloLectura && actividad.estado !== 'concluida' && (
             <div className="flex gap-2">
               {actividad.estado === 'en_curso' && !showPausaNota && (
                 <button onClick={() => setShowPausaNota(true)} disabled={busy} className="flex-1 min-h-[48px] rounded-xl bg-amber text-inkOnAccent text-[14.5px] font-semibold flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60">
@@ -231,7 +243,7 @@ export default function ActividadDetail({ actividadInicial }: { actividadInicial
             </div>
           )}
 
-          {showPausaNota && (
+          {!soloLectura && showPausaNota && (
             <div className="mt-2">
               <label className="text-[11px] uppercase tracking-wider text-muted block mb-1">¿Por qué se pausa?</label>
               <input
@@ -255,7 +267,7 @@ export default function ActividadDetail({ actividadInicial }: { actividadInicial
         {error && <p className="text-red text-[13px] mb-3">{error}</p>}
 
         {/* Agregar avance */}
-        {actividad.estado !== 'concluida' && (
+        {!soloLectura && actividad.estado !== 'concluida' && (
           <>
             {!showAvance ? (
               <button
