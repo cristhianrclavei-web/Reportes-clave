@@ -1,4 +1,4 @@
-const CACHE_NAME = 'reportes-ci-v1';
+const CACHE_NAME = 'reportes-ci-v2';
 const APP_SHELL = ['/manifest.json'];
 
 self.addEventListener('install', (event) => {
@@ -13,11 +13,37 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Network-first: reports need fresh data, but this keeps the app shell available offline.
+// Network-first: los reportes necesitan datos frescos, pero esto mantiene
+// disponible el armazon de la app sin conexion.
+//
+// Dos reglas que antes faltaban y rompian las imagenes de evidencias:
+//
+// 1. Solo se interviene en peticiones al propio origen. Las de Supabase
+//    (URLs firmadas de Storage, API, Realtime) pasan directo al navegador.
+//    No tiene caso cachearlas: la firma expira y el caché nunca va a tener
+//    una copia util.
+//
+// 2. Nunca se responde con undefined. caches.match() devuelve undefined
+//    cuando no hay coincidencia, y respondWith(undefined) hace fallar la
+//    peticion con "resolved with non-Response value". Eso era lo que
+//    impedia ver las fotos: el Service Worker se quedaba con la respuesta
+//    y no entregaba nada.
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin) return;
+
   event.respondWith(
-    fetch(event.request).catch(() => caches.match(event.request))
+    fetch(event.request).catch(async () => {
+      const enCache = await caches.match(event.request);
+      if (enCache) return enCache;
+      return new Response('Sin conexion', {
+        status: 503,
+        statusText: 'Service Unavailable',
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      });
+    })
   );
 });
 

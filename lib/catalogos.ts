@@ -14,8 +14,28 @@ import { createClient } from './supabaseClient';
 export type Vehiculo = { id: string; nombre: string; placas: string };
 export type Persona = { id: string; full_name: string; role: string };
 
-const CACHE_VEHICULOS = 'catalogoVehiculos';
-const CACHE_PERSONAL = 'catalogoPersonal';
+// La clave del cache lleva version. Cuando cambia la forma de los datos que
+// devuelve el servidor, basta con subir el numero: la clave vieja deja de
+// leerse y cada dispositivo vuelve a descargar sin que nadie tenga que
+// limpiar nada a mano.
+//
+// v2: listar_personal devolvia la columna como "nombre" y la app espera
+// "full_name". Los equipos que alcanzaron a guardar la forma vieja mostraban
+// los nombres en blanco en los campos de autocompletado.
+const CACHE_VEHICULOS = 'catalogoVehiculos_v2';
+const CACHE_PERSONAL = 'catalogoPersonal_v2';
+
+// Claves de versiones anteriores. Se borran al arrancar para no dejar
+// basura ocupando espacio en equipos que ya venian usando la app.
+const CACHES_OBSOLETOS = ['catalogoVehiculos', 'catalogoPersonal'];
+
+function limpiarCachesObsoletos() {
+  try {
+    CACHES_OBSOLETOS.forEach((clave) => localStorage.removeItem(clave));
+  } catch {
+    /* modo privado o almacenamiento bloqueado: no es critico */
+  }
+}
 
 function leerCache<T>(clave: string): T[] {
   try {
@@ -35,10 +55,12 @@ function guardarCache(clave: string, valor: unknown) {
 }
 
 export function vehiculosEnCache(): Vehiculo[] {
+  limpiarCachesObsoletos();
   return leerCache<Vehiculo>(CACHE_VEHICULOS);
 }
 
 export function personalEnCache(): Persona[] {
+  limpiarCachesObsoletos();
   return leerCache<Persona>(CACHE_PERSONAL);
 }
 

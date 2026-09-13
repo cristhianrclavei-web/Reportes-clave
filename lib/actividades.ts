@@ -78,7 +78,12 @@ async function subirFotoEvento(actividadId: string, file: File): Promise<string 
   const ext = file.name.split('.').pop() || 'jpg';
   const path = `actividades/${actividadId}/${Date.now()}.${ext}`;
   const { error } = await supabase.storage.from('evidencias').upload(path, file, { contentType: file.type || 'image/jpeg' });
-  if (error) return null;
+  if (error) {
+    // Antes esto devolvia null y el avance se guardaba sin foto sin avisar
+    // a nadie. El tecnico creia haber documentado algo que no quedo. Ahora
+    // se propaga: es preferible que el guardado falle a que mienta.
+    throw new Error(`No se pudo subir la foto: ${error.message}`);
+  }
   return path;
 }
 
