@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { createClient } from '@/lib/supabaseClient';
-import SignaturePad, { SignaturePadHandle } from './SignaturePad';
 import { vincularReporteAServicio, Servicio, listarServiciosVinculables } from '@/lib/serviciosProgramados';
 import { eliminarReporte } from '@/lib/eliminarReporte';
 import { registrarAccionGlobal } from '@/lib/auditoriaGlobal';
@@ -10,6 +9,7 @@ import { Check, X, FileText, Trash2, Unlock, LockKeyhole, MessageSquareWarning, 
 import { solicitarCorreccion, habilitarCorreccion, cancelarCorreccion, aplicarCorreccion } from '@/lib/correcciones';
 import { showToast } from '@/components/Toast';
 import FacturacionSection from '@/components/FacturacionSection';
+import RevisionFinalSection, { Revision } from '@/components/RevisionFinalSection';
 import { hoyLocal } from '@/lib/fechaHoy';
 
 export type ReportDetail = {
@@ -43,12 +43,17 @@ export default function ReportDetailModal({
   onClose,
   canDelete = false,
   onDeleted,
+  onUpdated,
   esSupervisor = false,
 }: {
   report: ReportDetail;
   onClose: () => void;
   canDelete?: boolean;
   onDeleted?: (reportId: string) => void;
+  // Igual que onDeleted: avisa hacia arriba cuando algo del reporte cambia
+  // (firma de revisión, facturación, corrección, vínculo con servicio) para
+  // que la lista actualice su copia sin esperar una recarga de la página.
+  onUpdated?: (reportId: string, patch: Partial<ReportDetail>) => void;
   esSupervisor?: boolean;
 }) {
   const [eliminando, setEliminando] = useState(false);
@@ -100,6 +105,7 @@ export default function ReportDetailModal({
     try {
       await solicitarCorreccion(report, motivoSolicitud);
       setCorreccionSolicitada(true);
+      onUpdated?.(report.id, { correccion_solicitada: true });
       showToast('Solicitud enviada al supervisor', 'success');
       setShowSolicitud(false);
       setMotivoSolicitud('');
@@ -117,6 +123,7 @@ export default function ReportDetailModal({
       await habilitarCorreccion(report);
       setCorreccionHabilitada(true);
       setCorreccionSolicitada(false);
+      onUpdated?.(report.id, { correccion_habilitada: true, correccion_solicitada: false });
       showToast('Corrección autorizada', 'success');
     } catch (e: any) {
       alert('No se pudo autorizar: ' + (e?.message || 'error'));
@@ -131,6 +138,7 @@ export default function ReportDetailModal({
       await cancelarCorreccion(report);
       setCorreccionHabilitada(false);
       setCorreccionSolicitada(false);
+      onUpdated?.(report.id, { correccion_habilitada: false, correccion_solicitada: false });
       showToast('Permiso de corrección cerrado', 'success');
     } catch (e: any) {
       alert('No se pudo cerrar el permiso: ' + (e?.message || 'error'));
@@ -179,6 +187,7 @@ export default function ReportDetailModal({
       setCorreccionHabilitada(false);
       setFotosCorreccion([]);
       setServicioVinculadoId(servicioCorreccionId);
+      onUpdated?.(report.id, { data: report.data, correccion_habilitada: false });
       showToast(
         nuevasFotos.length > 0
           ? `Corrección aplicada · ${nuevasFotos.length} foto(s) agregada(s)`
@@ -200,12 +209,7 @@ export default function ReportDetailModal({
     setErrorVinculo(null);
     try {
       await vincularReporteAServicio(servicioParaVincular, report.id);
-      const supabase = createClient();
-      const { error } = await supabase
-        .from('reports')
-        .update({ data: { ...report.data, servicioProgramadoId: servicioParaVincular } })
-        .eq('id', report.id);
-      if (error) throw error;
+      await updateReportData({ servicioProgramadoId: servicioParaVincular });
       setServicioVinculadoId(servicioParaVincular);
     } catch (e: any) {
       setErrorVinculo(e?.message || 'No se pudo vincular el servicio.');
@@ -214,19 +218,27 @@ export default function ReportDetailModal({
     }
   }
 
-  const [revision, setRevision] = useState({
-    nombre: report.data?.firmaRevisionNombre as string | undefined,
-    data: report.data?.firmaRevisionData as string | undefined,
-    fecha: report.data?.firmaRevisionFecha as string | undefined,
+  const [revision, setRevision] = useState<Revision>({
+    nombre: report.data?.firmaRevisionNombre,
+    data: report.data?.firmaRevisionData,
+    fecha: report.data?.firmaRevisionFecha,
   });
   const [canApproveReview, setCanApproveReview] = useState(false);
   const [canManageBilling, setCanManageBilling] = useState(false);
   const [servicioConcluido, setServicioConcluido] = useState(Boolean(report.data?.servicioConcluido));
   const [marcandoConcluido, setMarcandoConcluido] = useState(false);
-  const [showApproveSig, setShowApproveSig] = useState(false);
-  const [approving, setApproving] = useState(false);
-  const [approveError, setApproveError] = useState<string | null>(null);
-  const approveSigRef = useRef<SignaturePadHandle>(null);
+
+  function handleRevisionAprobada(r: Revision) {
+    setRevision(r);
+    onUpdated?.(report.id, {
+      data: {
+        ...report.data,
+        firmaRevisionNombre: r.nombre,
+        firmaRevisionData: r.data,
+        firmaRevisionFecha: r.fecha,
+      },
+    });
+  }
 
 
   async function updateReportData(patch: Record<string, any>) {
@@ -234,6 +246,7 @@ export default function ReportDetailModal({
     const newData = { ...report.data, ...patch };
     const { error } = await supabase.from('reports').update({ data: newData }).eq('id', report.id);
     if (error) throw error;
+    onUpdated?.(report.id, { data: newData });
     return newData;
   }
 
@@ -284,40 +297,6 @@ export default function ReportDetailModal({
     });
   }, []);
 
-  async function handleApproveReview() {
-    if (!approveSigRef.current || approveSigRef.current.isEmpty()) {
-      setApproveError('Falta la firma.');
-      return;
-    }
-    setApproving(true);
-    setApproveError(null);
-    try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user!.id).single();
-      const nombre = profile?.full_name || user?.email || 'Revisor';
-      const firmaData = approveSigRef.current.getDataURL();
-      const fecha = new Date().toLocaleDateString('es-MX');
-
-      const newData = {
-        ...report.data,
-        revisionEstado: 'aprobado',
-        firmaRevisionNombre: nombre,
-        firmaRevisionData: firmaData,
-        firmaRevisionFecha: fecha,
-      };
-      const { error } = await supabase.from('reports').update({ data: newData }).eq('id', report.id);
-      if (error) throw error;
-
-      setRevision({ nombre, data: firmaData || undefined, fecha });
-      setShowApproveSig(false);
-      registrarAccionGlobal('aprobo_revision', 'reporte', report.id, `Aprobó la revisión final del reporte de «${report.empresa_cliente}»${report.data?.claveFormato ? ` (folio ${report.data.claveFormato})` : ''}`);
-    } catch (e: any) {
-      setApproveError(e?.message || 'No se pudo guardar la firma. Intenta de nuevo.');
-    } finally {
-      setApproving(false);
-    }
-  }
 
   async function handleVerFotos() {
     const raw: any[] = report.data?.fotos || [];
@@ -630,60 +609,15 @@ export default function ReportDetailModal({
           </div>
         )}
 
-        {/* Revisión final — Ing. Everardo Sánchez */}
-        <div className="mt-5 p-4 bg-surface-2 rounded-2xl border border-line">
-          <div className="text-[11px] uppercase tracking-wider font-bold text-teal mb-3">Revisión final</div>
-
-          {revision.data ? (
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Check size={17} strokeWidth={3} className="text-teal shrink-0" />
-                <span className="text-[14px] font-semibold">Aprobado por {revision.nombre}</span>
-              </div>
-              <p className="text-[12px] text-muted mb-2">{revision.fecha}</p>
-              <img src={revision.data} alt="Firma de revisión" className="w-full max-w-[300px] rounded-xl border border-line bg-surface" />
-            </div>
-          ) : (
-            <div>
-              <p className="text-[13px] text-ink/80 mb-3">
-                Este reporte está <b>pendiente de firma del Ing. Everardo Sánchez</b>. No se considera completado hasta que la revisión final quede firmada.
-              </p>
-
-              {canApproveReview && !showApproveSig && (
-                <button
-                  onClick={() => setShowApproveSig(true)}
-                  className="text-xs bg-teal text-inkOnAccent rounded-full px-4 py-2 font-semibold active:scale-95 transition-transform"
-                >
-                  Revisar y firmar
-                </button>
-              )}
-
-              {canApproveReview && showApproveSig && (
-                <div>
-                  <div className="rounded-xl overflow-hidden border border-line mb-2">
-                    <SignaturePad ref={approveSigRef} height={130} />
-                  </div>
-                  {approveError && <p className="text-red text-[12px] mb-2">{approveError}</p>}
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setShowApproveSig(false)}
-                      className="text-xs border border-line-strong text-ink/80 rounded-full px-4 py-2 active:scale-95 transition-transform"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      onClick={handleApproveReview}
-                      disabled={approving}
-                      className="text-[14px] bg-teal text-inkOnAccent rounded-full px-4 min-h-[44px] inline-flex items-center gap-2 font-semibold active:scale-95 transition-transform disabled:opacity-60"
-                    >
-                      {approving ? 'Guardando...' : 'Confirmar aprobación'}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+        <RevisionFinalSection
+          reportId={report.id}
+          empresaCliente={report.empresa_cliente}
+          claveFormato={report.data?.claveFormato}
+          reportData={report.data}
+          revision={revision}
+          puedeAprobar={canApproveReview}
+          onAprobada={handleRevisionAprobada}
+        />
 
         <FacturacionSection
           reportId={report.id}

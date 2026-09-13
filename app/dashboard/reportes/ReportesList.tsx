@@ -55,6 +55,13 @@ export default function ReportesList({
     showToast('Reporte eliminado', 'success');
   }
 
+  // Mismo patrón que handleReporteEliminado: el modal avisa qué cambió
+  // (firma de revisión, facturación, corrección, vínculo con servicio) y
+  // aquí se refleja al instante, sin esperar a recargar la página.
+  function handleReporteActualizado(reportId: string, patch: Partial<Report>) {
+    setReports((prev) => prev.map((r) => (r.id === reportId ? { ...r, ...patch } : r)));
+  }
+
 
   const filtered = useMemo(() => {
     return reports.filter((r) => {
@@ -235,7 +242,16 @@ export default function ReportesList({
         </div>
       </div>
 
-      {open && <ReportDetailModal report={open} onClose={() => setOpen(null)} canDelete esSupervisor onDeleted={handleReporteEliminado} />}
+      {open && (
+        <ReportDetailModal
+          report={open}
+          onClose={() => setOpen(null)}
+          canDelete
+          esSupervisor
+          onDeleted={handleReporteEliminado}
+          onUpdated={handleReporteActualizado}
+        />
+      )}
 
     </div>
   );

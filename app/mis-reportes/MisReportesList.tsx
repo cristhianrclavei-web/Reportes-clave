@@ -22,11 +22,19 @@ function formatFecha(fecha: string): string {
   return `${d}/${m}/${y}`;
 }
 
-export default function MisReportesList({ reports, userName, errorCarga }: { reports: Report[]; userName?: string; errorCarga?: string | null }) {
+export default function MisReportesList({ reports: reportsIniciales, userName, errorCarga }: { reports: Report[]; userName?: string; errorCarga?: string | null }) {
+  // Copia local: si algo del reporte cambia dentro del modal (firma de
+  // revisión, facturación, corrección), se refleja aquí al instante sin
+  // esperar a recargar la página. Mismo patrón que ReportesList.
+  const [reports, setReports] = useState<Report[]>(reportsIniciales);
   const [search, setSearch] = useState('');
   const [showFilter, setShowFilter] = useState(false);
   const [filterType, setFilterType] = useState('');
   const [open, setOpen] = useState<Report | null>(null);
+
+  function handleReporteActualizado(reportId: string, patch: Partial<Report>) {
+    setReports((prev) => prev.map((r) => (r.id === reportId ? { ...r, ...patch } : r)));
+  }
 
 
   const filtered = useMemo(() => {
@@ -168,7 +176,9 @@ export default function MisReportesList({ reports, userName, errorCarga }: { rep
         </div>
       </div>
 
-      {open && <ReportDetailModal report={open} onClose={() => setOpen(null)} />}
+      {open && (
+        <ReportDetailModal report={open} onClose={() => setOpen(null)} onUpdated={handleReporteActualizado} />
+      )}
 
     </div>
   );
