@@ -57,7 +57,7 @@ export function evaluarVentanaServicio(
     return {
       permitido: false,
       fechaTexto,
-      motivo: `Este servicio está programado para el ${fechaTexto}. Faltan ${falta} día${falta === 1 ? '' : 's'} y todavía no se puede iniciar ni vincular a un reporte. Si la fecha cambió, repórtalo con un supervisor para que la ajuste.`,
+      motivo: `Este servicio está programado para el ${fechaTexto}. ${falta === 1 ? 'Falta 1 día' : `Faltan ${falta} días`} y todavía no se puede iniciar ni vincular a un reporte. Si la fecha cambió, repórtalo con un supervisor para que la ajuste.`,
     };
   }
 

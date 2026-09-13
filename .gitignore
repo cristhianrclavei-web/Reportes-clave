@@ -6,3 +6,10 @@ node_modules/
 *.zip
 .vercel
 .env*
+
+# Cache de compilacion de TypeScript
+*.tsbuildinfo
+
+# Carpeta de trabajo suelta, no forma parte del proyecto
+fix-cache/
+fix-cache.zip
