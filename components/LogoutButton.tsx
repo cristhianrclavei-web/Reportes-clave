@@ -43,32 +43,42 @@ export default function LogoutButton({ compacto = false }: { compacto?: boolean 
     setPreguntando(true);
   }
 
+  // Corre una promesa con limite de tiempo. Si tarda de mas, sigue
+  // adelante en vez de dejar el boton en «Saliendo...» para siempre.
+  function conLimite<T>(promesa: Promise<T>, ms: number): Promise<T | null> {
+    return Promise.race([
+      promesa.catch(() => null),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+    ]);
+  }
+
   async function handleSalir() {
     setSaliendo(true);
     setError('');
+
+    // El orden importa. La limpieza hace localStorage.clear(), y ahi es
+    // donde supabase-js guarda el token de sesion. Si corre antes o en
+    // paralelo, signOut() se queda esperando un token que ya no existe y
+    // el logout nunca redirige.
+    //
+    // Primero se cierra la sesion en el servidor, despues se limpia el
+    // dispositivo, y la redireccion ocurre pase lo que pase: quedarse
+    // atrapado en esta pantalla es peor que una limpieza incompleta.
     try {
-      // ===== PASO 1: LIMPIAR DATOS OFFLINE PRIMERO (OWASP A04) =====
-      console.log('[LOGOUT] Limpiando datos offline (IndexedDB, localStorage, caches)...');
-      const cleanupResult = await clearOfflineData();
-      if (!cleanupResult.success) {
-        console.warn('[LOGOUT] Limpieza parcialmente fallida:', cleanupResult);
-        // Continuar de todas formas; es mejor perder la sesión que quedar atrapado
-      }
-
-      // ===== PASO 2: CERRAR SESIÓN EN SUPABASE =====
-      console.log('[LOGOUT] Cerrando sesión Supabase...');
-      await createClient().auth.signOut();
-
-      // ===== PASO 3: LIMPIAR SESSION STORAGE =====
-      try { sessionStorage.removeItem('puedeAlmacen'); } catch { /* modo privado */ }
-
-      // ===== PASO 4: REDIRIGIR =====
-      window.location.href = '/login';
-    } catch {
-      setSaliendo(false);
-      setError('No se pudo cerrar la sesión. Revisa tu conexión.');
-      console.error('[LOGOUT] Error durante cierre de sesión:', error);
+      await conLimite(createClient().auth.signOut(), 5000);
+    } catch (error) {
+      console.warn('[LOGOUT] signOut no completo:', error);
     }
+
+    try {
+      await conLimite(clearOfflineData(), 5000);
+    } catch (error) {
+      console.warn('[LOGOUT] Limpieza no completo:', error);
+    }
+
+    try { sessionStorage.removeItem('puedeAlmacen'); } catch { /* modo privado */ }
+
+    window.location.href = '/login';
   }
 
   const hayPendientes = (pendientes ?? 0) > 0;

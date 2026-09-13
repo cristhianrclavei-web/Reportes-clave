@@ -2,8 +2,11 @@
  * Utilidad para limpiar datos offline (IndexedDB, localStorage, Service Worker cache)
  * OWASP A04:2021 - Insecure Design (offline data retention)
  * 
- * Debe llamarse ANTES de cerrar sesión para garantizar que no queden
- * datos sensibles (firmas, fotos) en el dispositivo.
+ * IMPORTANTE: llamarla DESPUES de signOut(), no antes ni en paralelo.
+ * El PASO 2 hace localStorage.clear(), y ahi es donde supabase-js guarda
+ * el token de sesion. Si se borra mientras signOut() esta en vuelo, esa
+ * llamada se queda esperando un token que ya no existe y el logout se
+ * cuelga sin redirigir.
  */
 
 export async function clearOfflineData(): Promise<{
@@ -23,9 +26,16 @@ export async function clearOfflineData(): Promise<{
       for (const db of dbNames) {
         if (db.name) {
           const req = indexedDB.deleteDatabase(db.name);
-          await new Promise((resolve, reject) => {
-            req.onsuccess = resolve;
-            req.onerror = reject;
+          // deleteDatabase se queda en 'blocked' mientras haya alguna
+          // conexion abierta a esa base, y en ese caso no dispara ni
+          // onsuccess ni onerror. Sin manejarlo, la promesa quedaba
+          // colgada para siempre y la limpieza nunca terminaba.
+          await new Promise<void>((resolve) => {
+            req.onsuccess = () => resolve();
+            req.onerror = () => resolve();
+            req.onblocked = () => resolve();
+            // Red de seguridad por si el navegador no dispara ninguno.
+            setTimeout(resolve, 2000);
           });
         }
       }
