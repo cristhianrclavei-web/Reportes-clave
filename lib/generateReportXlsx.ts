@@ -31,6 +31,16 @@ const SEG_XLSX_CELL: Record<string, string> = {
   'Otra': 'G27',
 };
 
+// ExcelJS comparte el mismo objeto de estilo entre celdas que en la
+// plantilla original tenían el estilo idéntico (para no duplicarlo). Sin
+// clonarlo antes de tocarlo, cambiar la fuente de una celda muta ese objeto
+// compartido y revierte en silencio el cambio que ya se le había hecho a
+// otra celda que lo compartía — el encogido de texto largo dejaba de
+// aplicarse según qué otra celda se procesara después.
+function ownStyle(cell: ExcelJS.Cell) {
+  cell.style = { ...cell.style };
+}
+
 function setValueShrinkToFit(
   cell: ExcelJS.Cell,
   value: string,
@@ -38,6 +48,7 @@ function setValueShrinkToFit(
   baseSize = 10,
   minSize = 6
 ) {
+  ownStyle(cell);
   cell.value = value;
   cell.alignment = { ...(cell.alignment || {}), wrapText: false, shrinkToFit: true, vertical: 'middle' };
   const len = (value || '').length;
@@ -112,6 +123,7 @@ export async function generateReportXlsx(report: ReportRow): Promise<Buffer> {
   };
   if (report.tipo_servicio && tipoCellMap[report.tipo_servicio]) {
     const c = sheet.getCell(tipoCellMap[report.tipo_servicio]);
+    ownStyle(c);
     c.font = { ...(c.font || {}), bold: true, color: { argb: 'FF15614F' }, size: 11 };
     if (report.tipo_servicio === 'Otro' && data.tipoServicioOtroTexto) {
       c.value = `Otro: ${data.tipoServicioOtroTexto}`;
@@ -119,6 +131,7 @@ export async function generateReportXlsx(report: ReportRow): Promise<Buffer> {
   }
   if (report.sub_tipo_servicio && subTipoCellMap[report.sub_tipo_servicio]) {
     const c = sheet.getCell(subTipoCellMap[report.sub_tipo_servicio]);
+    ownStyle(c);
     c.font = { ...(c.font || {}), bold: true, color: { argb: 'FF15614F' }, size: 11 };
   }
 
@@ -141,6 +154,7 @@ export async function generateReportXlsx(report: ReportRow): Promise<Buffer> {
     const coord = SEG_XLSX_CELL[s];
     if (coord) {
       const c = sheet.getCell(coord);
+      ownStyle(c);
       c.font = { ...(c.font || {}), bold: true, color: { argb: 'FF15614F' } };
     }
   });
@@ -219,6 +233,7 @@ export async function generateReportXlsx(report: ReportRow): Promise<Buffer> {
 
       // Subtítulo: negrita, tamaño 10 (se deja el texto que ya trae la plantilla)
       const labelCell = sheet.getCell(`A${labelRow}`);
+      ownStyle(labelCell);
       labelCell.font = { name: labelCell.font?.name || 'Calibri', size: 10, bold: true };
 
       const lines = puntos
@@ -226,6 +241,7 @@ export async function generateReportXlsx(report: ReportRow): Promise<Buffer> {
         .filter(Boolean);
       if (lines.length > 0) {
         const contentCell = sheet.getCell(`A${contentRow}`);
+        ownStyle(contentCell);
         contentCell.value = lines.join('\n');
         contentCell.alignment = { wrapText: true, vertical: 'top', horizontal: 'left' };
         contentCell.font = { name: 'Calibri', size: 8 };
@@ -240,6 +256,7 @@ export async function generateReportXlsx(report: ReportRow): Promise<Buffer> {
   if (data.observaciones) {
     sheet.mergeCells('C70:G72');
     const cell = sheet.getCell('C70');
+    ownStyle(cell);
     cell.value = data.observaciones;
     cell.alignment = { wrapText: true, vertical: 'top', horizontal: 'left' };
     cell.font = { name: 'Calibri', size: 10 };
