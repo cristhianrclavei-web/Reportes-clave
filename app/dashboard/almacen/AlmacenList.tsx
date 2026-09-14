@@ -230,13 +230,23 @@ export default function AlmacenList({ userName }: { userName?: string }) {
                     </span>
 
                     <div className="flex items-center gap-2 mt-2 lg:mt-0 lg:justify-center">
-                      {e.tieneFactura && (
-                        <span className="text-[12px] text-teal flex items-center gap-1"><FileText size={13} strokeWidth={2.4} />Factura</span>
+                      {e.facturaPath && (
+                        <button
+                          onClick={() => abrirDocumento(e.facturaPath!)}
+                          className="text-[12px] text-teal flex items-center gap-1 min-h-[32px] active:scale-95 transition-transform"
+                        >
+                          <FileText size={13} strokeWidth={2.4} />Factura
+                        </button>
                       )}
-                      {e.tieneOrdenCompra && (
-                        <span className="text-[12px] text-teal flex items-center gap-1"><ScrollText size={13} strokeWidth={2.4} />OC</span>
+                      {e.ordenCompraPath && (
+                        <button
+                          onClick={() => abrirDocumento(e.ordenCompraPath!)}
+                          className="text-[12px] text-teal flex items-center gap-1 min-h-[32px] active:scale-95 transition-transform"
+                        >
+                          <ScrollText size={13} strokeWidth={2.4} />OC
+                        </button>
                       )}
-                      {!e.tieneFactura && !e.tieneOrdenCompra && <span className="text-[12px] text-muted">—</span>}
+                      {!e.facturaPath && !e.ordenCompraPath && <span className="text-[12px] text-muted">—</span>}
                     </div>
 
                     <span className="text-[12.5px] text-muted mt-1 lg:mt-0 block">

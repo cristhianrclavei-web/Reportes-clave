@@ -55,8 +55,11 @@ export type Existencia = {
   proyecto: string | null;
   cantidad: number;
   ultimaEntrada: string | null;
-  tieneFactura: boolean;
-  tieneOrdenCompra: boolean;
+  // Documento de la entrada más reciente que trajo cada uno: una existencia
+  // puede venir de varias entradas con distinto respaldo, así que no hay un
+  // solo "el" documento — se muestra el más nuevo.
+  facturaPath: string | null;
+  ordenCompraPath: string | null;
 };
 
 export async function puedoGestionarAlmacen(): Promise<boolean> {
@@ -251,7 +254,10 @@ export async function listarExistencias(): Promise<Existencia[]> {
       const entradas = (movs || []).filter(
         (m: any) => m.articulo_id === s.articulo_id && m.inventario === s.inventario && m.grupo_id === s.grupo_id
       );
-      const ultima = entradas.map((m: any) => m.created_at).sort().pop() || null;
+      const porFecha = [...entradas].sort((a: any, b: any) => a.created_at.localeCompare(b.created_at));
+      const ultima = porFecha.map((m: any) => m.created_at).pop() || null;
+      const conFactura = porFecha.filter((m: any) => m.factura_path).pop();
+      const conOrdenCompra = porFecha.filter((m: any) => m.orden_compra_path).pop();
       return {
         articulo: porId[s.articulo_id],
         inventario: s.inventario,
@@ -259,8 +265,8 @@ export async function listarExistencias(): Promise<Existencia[]> {
         proyecto: s.grupo_id ? nombreProyecto[s.grupo_id] || 'Proyecto eliminado' : null,
         cantidad: Number(s.existencia) || 0,
         ultimaEntrada: ultima,
-        tieneFactura: entradas.some((m: any) => m.factura_path),
-        tieneOrdenCompra: entradas.some((m: any) => m.orden_compra_path),
+        facturaPath: conFactura?.factura_path || null,
+        ordenCompraPath: conOrdenCompra?.orden_compra_path || null,
       };
     })
     .sort((a, b) => a.articulo.descripcion.localeCompare(b.articulo.descripcion));
