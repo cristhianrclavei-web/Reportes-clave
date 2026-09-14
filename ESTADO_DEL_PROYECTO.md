@@ -166,7 +166,10 @@ Permisos individuales sobre el rol (columnas en `profiles`):
 - **RLS recursivo**: una política con subconsulta a su propia tabla causa "infinite recursion". Se resuelve con función `SECURITY DEFINER` o trigger.
 - **Relaciones ambiguas**: si una tabla tiene dos claves foráneas a `profiles`, PostgREST falla al pedir `profiles(full_name)`. Hay que nombrar la relación o resolver los nombres en consulta aparte.
 - **`crypto.randomUUID`** no existe fuera de HTTPS. Se usa `lib/uuid.ts`.
-- **Storage**: las rutas `servicios/…` y `resguardos/…` necesitan su política; si no, las fotos se rechazan.
+- **Storage**: las rutas `servicios/…` y `resguardos/…` necesitan su política; si no, las fotos se rechazan. Los buckets (`evidencias`, `facturas`, `almacen`) **sí tienen RLS aplicada** — no es una carencia pendiente, pese a lo que decía una nota de una sesión de seguridad anterior.
+- **`.remove()` de Storage no lanza excepción en error.** Devuelve `{ error }` en el resultado; si no se revisa a mano, un archivo huérfano no deja rastro (pasó en `eliminarReporte`).
+- **Un componente hijo con estado propio no avisa al padre solo.** Al extraer estado a un componente (ej. `RevisionFinalSection`, `FacturacionSection`), el hijo puede actualizar su copia y verse bien él solo, mientras la lista que abrió el modal se queda con datos viejos hasta recargar. Se resuelve con un callback explícito hacia arriba (`onUpdated`, mismo patrón que `onDeleted`).
+- **Pantalla que resuelve sesión pero no rol ni propiedad.** La RLS puede ya bloquear la escritura, pero si la pantalla no lo sabe, sigue mostrando botones de acción que fallarán en silencio. Hay que resolver dueño/rol en el server component y ocultar los controles, no solo confiar en que el backend rechace.
 - **Click fantasma en móvil**: los modales se cierran solos si el fondo recibe el click que los abrió. Se usa `components/ModalOverlay.tsx`.
 - **Caché de la PWA**: tras cada despliegue hay que cerrar la app por completo y reabrirla.
 - **Nunca usar emojis** en la interfaz: se ven distintos en cada Android. Se usa `lucide-react`.

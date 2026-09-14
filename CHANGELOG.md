@@ -1,5 +1,46 @@
 # Registro de cambios
 
+## Septiembre 2026 — Endurecimiento de seguridad y limpieza del refactor
+
+### Seguridad
+
+- **Next.js actualizado a 14.2.35** por los CVEs de la línea 14.2.15.
+- **Headers de seguridad** endurecidos (CSP y relacionados).
+- **Push ya no sigue al dispositivo, sigue a la persona.** Evita que las
+  notificaciones lleguen a quien ya no debería recibirlas.
+- **Logout instantáneo y confiable.** Ya no se queda trabado y restaura
+  correctamente las suscripciones push.
+- **Bitácora de actividades en modo solo lectura para supervisores.** La
+  base de datos (RLS) ya bloqueaba las escrituras de quien no era el
+  dueño de la actividad, pero la pantalla mostraba igual los botones de
+  pausar, agregar avance y concluir a cualquiera con sesión — un botón
+  que falla en silencio es peor que no tenerlo. Ahora la página resuelve
+  dueño vs. supervisor y oculta los controles de acción para quien solo
+  debe mirar.
+- **`eliminarReporte` ahora revisa los errores de Storage.** `.remove()`
+  de Supabase no lanza excepción cuando falla — devolvía el error sin que
+  nadie lo viera, y un archivo podía quedar huérfano. Ahora se registra
+  en consola.
+- **`SESION_2_SECURITY_DEFINER.sql` marcado como no ejecutable.**
+  Referenciaba una tabla, columnas y un parámetro que no existen en la
+  base real; ya rompió el push una vez, en septiembre. Se renombró a
+  `_NO_EJECUTAR_SESION_2_ROTO.sql` con nota de advertencia arriba.
+- **Corrección de documentación:** los buckets de Storage (`evidencias`,
+  `facturas`, `almacen`) **sí tienen políticas RLS** aplicadas desde hace
+  tiempo — una nota de una sesión anterior los listaba como pendientes.
+
+### Refactor de `ReportDetailModal`
+
+- Se extrajeron `FacturacionSection` y `RevisionFinalSection` del modal
+  monolítico (venía de 1099 líneas y 35 estados).
+- El modal ahora avisa a la lista cuando algo cambia adentro — firma de
+  revisión, facturación, corrección, vínculo con servicio — con un
+  `onUpdated` (mismo patrón que ya usaba `onDeleted`). Antes el badge del
+  modal se actualizaba al instante pero la tarjeta en la lista seguía
+  mostrando el estado viejo hasta recargar la página.
+
+---
+
 ## Septiembre 2026 — Gestión de perfiles y admin de usuarios
 
 ### Requiere ejecutar en Supabase
