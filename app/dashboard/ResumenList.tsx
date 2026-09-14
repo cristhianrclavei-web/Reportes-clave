@@ -52,13 +52,22 @@ export default function ResumenList({
   const [resolviendo, setResolviendo] = useState<string | null>(null);
   const [existencias, setExistencias] = useState<Record<string, number>>({});
   const [bajoMinimo, setBajoMinimo] = useState<ArticuloBajoMinimo[]>([]);
+  // Estos tres alimentan avisos que el supervisor usa para decidir ("no hay
+  // nada pendiente"). Si la carga falla y se descarta en silencio, una lista
+  // vacía es indistinguible de que de verdad no hay nada — así que el fallo
+  // se muestra en vez de tragarse.
+  const [erroresAvisos, setErroresAvisos] = useState<string[]>([]);
+
+  function marcarErrorAviso(descripcion: string) {
+    setErroresAvisos((prev) => (prev.includes(descripcion) ? prev : [...prev, descripcion]));
+  }
 
   useEffect(() => {
-    listarSolicitudesPendientes().then(setSolicitudesInsumo).catch(() => {});
+    listarSolicitudesPendientes().then(setSolicitudesInsumo).catch(() => marcarErrorAviso('las solicitudes de herramienta pendientes'));
     // Sirve para avisar al aprobar si no alcanza: autorizar 20 tubos cuando
     // hay 4 solo mueve el problema al mostrador del almacén.
-    mapaDeExistencias().then(setExistencias).catch(() => {});
-    listarBajoMinimo().then(setBajoMinimo).catch(() => {});
+    mapaDeExistencias().then(setExistencias).catch(() => marcarErrorAviso('las existencias del almacén'));
+    listarBajoMinimo().then(setBajoMinimo).catch(() => marcarErrorAviso('los artículos bajo el mínimo'));
     // Los indicadores de desempeño se calculan sobre los servicios ya
     // concluidos; si falla la carga, las tarjetas muestran que no hay datos
     // en lugar de romper el resumen.
@@ -122,6 +131,16 @@ export default function ResumenList({
             <p className="text-[13px] text-ink/80 leading-relaxed">{errorCarga}</p>
             <p className="text-[12.5px] text-muted mt-2 leading-relaxed">
               Si el mensaje habla de una columna o tabla que no existe, falta correr un patch de SQL en Supabase.
+            </p>
+          </div>
+        )}
+
+        {erroresAvisos.length > 0 && (
+          <div className="mb-4 p-4 rounded-2xl bg-red/10 border border-red/30">
+            <p className="text-[14px] font-semibold text-red mb-1">Algunos avisos no se pudieron comprobar</p>
+            <p className="text-[13px] text-ink/80 leading-relaxed">
+              No se pudo revisar {erroresAvisos.join(', ')}. Puede que falten avisos aquí arriba aunque no
+              se muestre ninguno — recarga la página o revisa esas secciones directamente.
             </p>
           </div>
         )}
@@ -245,8 +264,6 @@ export default function ResumenList({
             <p className="text-[13px] text-amber font-semibold mt-2">Ver en Reportes para autorizarlas</p>
           </Link>
         )}
-
-        <AvisosPendientes />
 
         <AvisosPendientes />
 
