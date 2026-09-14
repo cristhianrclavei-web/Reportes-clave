@@ -9,15 +9,16 @@ import DashboardTabs from '@/components/DashboardTabs';
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
 import {
-  Articulo, Existencia, CATEGORIAS, UNIDADES, CategoriaInsumo,
-  listarArticulos, crearArticulo, desactivarArticulo, listarExistencias,
-  registrarEntrada, listarProyectosParaAlmacen, urlDeDocumento,
+  Articulo, Existencia, CATEGORIAS, CategoriaInsumo,
+  listarArticulos, desactivarArticulo, listarExistencias,
+  listarProyectosParaAlmacen, urlDeDocumento,
   listarMovimientos, MovimientoDetallado, listarBajoMinimo, ArticuloBajoMinimo, editarArticulo,
   Sistema, listarSistemas, crearSistema, desactivarSistema, articulosPorSistema,
 } from '@/lib/almacen';
+import EntradaAlmacenWizard, { ModalNuevoArticulo } from '@/components/almacen/EntradaAlmacenWizard';
 import {
-  Plus, X, FileText, ScrollText, Wrench, Package, HardHat,
-  Warehouse, Trash2, Boxes, ArrowLeftRight, ArrowDown, ArrowUp, RotateCcw, AlertTriangle, LayoutGrid,
+  Plus, FileText, ScrollText, Wrench, Package, HardHat,
+  Trash2, Boxes, ArrowLeftRight, ArrowDown, ArrowUp, RotateCcw, AlertTriangle, LayoutGrid,
 } from 'lucide-react';
 
 const ICONO: Record<CategoriaInsumo, any> = { herramienta: Wrench, material: Package, equipo: HardHat };
@@ -35,35 +36,14 @@ export default function AlmacenList({ userName }: { userName?: string }) {
   const [proyectos, setProyectos] = useState<{ grupoId: string; proyecto: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
-  // Entrada
-  const [articuloId, setArticuloId] = useState('');
-  const [cantidad, setCantidad] = useState('');
-  const [inventario, setInventario] = useState<'general' | 'proyecto'>('general');
-  const [grupoId, setGrupoId] = useState('');
-  const [proveedor, setProveedor] = useState('');
-  const [notaEntrada, setNotaEntrada] = useState('');
-  const [factura, setFactura] = useState<File | null>(null);
-  const [ordenCompra, setOrdenCompra] = useState<File | null>(null);
-
-  // Alta de artículo
+  // Alta de artículo (desde la pestaña Catálogo; el flujo de Entrada tiene
+  // su propio modal igual, ver EntradaAlmacenWizard)
   const [showNuevoArticulo, setShowNuevoArticulo] = useState(false);
-  const [nuevaCategoria, setNuevaCategoria] = useState<CategoriaInsumo>('material');
-  const [nuevaDescripcion, setNuevaDescripcion] = useState('');
-  const [nuevaUnidad, setNuevaUnidad] = useState('pza');
-  const [nuevoRetornable, setNuevoRetornable] = useState(false);
-  const [nuevoMinimo, setNuevoMinimo] = useState('');
   const [bajoMinimo, setBajoMinimo] = useState<ArticuloBajoMinimo[]>([]);
   const [editandoMinimo, setEditandoMinimo] = useState<Articulo | null>(null);
   const [minimoEdit, setMinimoEdit] = useState('');
   const [sistemas, setSistemas] = useState<Sistema[]>([]);
-  const [sistemaId, setSistemaId] = useState<string | null>(null);
-  const [numerosSerie, setNumerosSerie] = useState('');
-  // Sistema preseleccionado al dar de alta un artículo desde el flujo de entrada.
-  const [nuevoSistemaId, setNuevoSistemaId] = useState<string | null>(null);
-  const [nuevaMarca, setNuevaMarca] = useState('');
-  const [nuevoModelo, setNuevoModelo] = useState('');
 
   const [filtro, setFiltro] = useState<'todos' | CategoriaInsumo>('todos');
 
@@ -88,15 +68,6 @@ export default function AlmacenList({ userName }: { userName?: string }) {
 
   useEffect(() => { cargar(); }, []);
 
-  // La herramienta es de uso general: no se reserva por proyecto, porque no
-  // se compra para una obra específica.
-  const articuloElegido = articulos.find((a) => a.id === articuloId);
-  const soloGeneral = articuloElegido?.categoria === 'herramienta';
-
-  useEffect(() => {
-    if (soloGeneral) setInventario('general');
-  }, [soloGeneral]);
-
   const existenciasFiltradas = useMemo(
     () => (filtro === 'todos' ? existencias : existencias.filter((e) => e.articulo.categoria === filtro)),
     [existencias, filtro]
@@ -106,65 +77,11 @@ export default function AlmacenList({ userName }: { userName?: string }) {
     const nombre = prompt('¿Qué sistema? (ej. Telefonía, Videoporteros)');
     if (!nombre || !nombre.trim()) return;
     try {
-      const nuevo = await crearSistema(nombre);
+      await crearSistema(nombre);
       setSistemas(await listarSistemas());
-      setSistemaId(nuevo.id);
       showToast('Sistema agregado', 'success');
     } catch (e: any) {
       alert('No se pudo agregar: ' + (e?.message || 'error'));
-    }
-  }
-
-  async function handleRegistrarEntrada() {
-    const cant = parseFloat(cantidad);
-    if (!articuloId) { alert('Elige el artículo.'); return; }
-    if (isNaN(cant) || cant <= 0) { alert('Escribe la cantidad que entró.'); return; }
-    if (inventario === 'proyecto' && !grupoId) { alert('Elige el proyecto al que se reserva.'); return; }
-
-    setBusy(true);
-    try {
-      await registrarEntrada({
-        articuloId, cantidad: cant, inventario,
-        grupoId: grupoId || null, proveedor, nota: notaEntrada, factura, ordenCompra,
-        numerosSerie,
-      });
-      showToast('Entrada registrada', 'success');
-      setArticuloId(''); setCantidad(''); setProveedor(''); setNotaEntrada('');
-      setFactura(null); setOrdenCompra(null); setGrupoId(''); setInventario('general');
-      setNumerosSerie(''); setSistemaId(null);
-      setSeccion('existencias');
-      await cargar();
-    } catch (e: any) {
-      alert('No se pudo registrar: ' + (e?.message || 'error'));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleCrearArticulo() {
-    if (!nuevaDescripcion.trim()) { alert('Escribe qué es.'); return; }
-    setBusy(true);
-    try {
-      const nuevo = await crearArticulo({
-        categoria: nuevaCategoria,
-        descripcion: nuevaDescripcion,
-        unidad: nuevaUnidad,
-        retornable: nuevoRetornable,
-        minimo: parseFloat(nuevoMinimo) || 0,
-        sistemaId: nuevoSistemaId,
-        marca: nuevaMarca,
-        modelo: nuevoModelo,
-      });
-      showToast('Artículo agregado', 'success');
-      setShowNuevoArticulo(false);
-      setNuevaDescripcion(''); setNuevaUnidad('pza'); setNuevoRetornable(false); setNuevoMinimo('');
-      setNuevaMarca(''); setNuevoModelo('');
-      await cargar();
-      setArticuloId(nuevo.id);
-    } catch (e: any) {
-      alert('No se pudo agregar: ' + (e?.message || 'error'));
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -173,9 +90,6 @@ export default function AlmacenList({ userName }: { userName?: string }) {
     if (url) window.open(url, '_blank');
     else alert('No se pudo abrir el archivo.');
   }
-
-  const inputCls = 'w-full px-3.5 min-h-[48px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]';
-  const labelCls = 'text-[13px] text-ink/75 block mb-1.5';
 
   return (
     <div className="max-w-2xl lg:max-w-6xl mx-auto pb-16 lg:px-6">
@@ -337,169 +251,17 @@ export default function AlmacenList({ userName }: { userName?: string }) {
 
         {/* --- Registrar entrada --- */}
         {!loading && seccion === 'entrada' && (
-          <div className="glass rounded-2xl p-4">
-            <p className="font-display font-semibold text-[16px] mb-1">Entrada de almacén</p>
-            <p className="text-[12.5px] text-muted mb-5 leading-relaxed">
-              Lo que llega de una compra. Se registra paso por paso para que nada quede sin capturar.
-            </p>
-
-            {/* Paso 1 — Sistema. Filtra el catálogo antes de buscar el
-                artículo: es más rápido que recorrer una lista plana. */}
-            <Paso numero={1} titulo="¿De qué sistema es?" />
-            <div className="flex flex-wrap gap-2 mb-2">
-              {sistemas.map((sis) => (
-                <button
-                  key={sis.id}
-                  onClick={() => { setSistemaId(sis.id); setArticuloId(''); }}
-                  className={`min-h-[44px] px-3.5 rounded-xl text-[13.5px] font-medium border transition-colors ${
-                    sistemaId === sis.id ? 'bg-teal text-inkOnAccent border-teal' : 'bg-surface-2 border-line-strong text-ink/80'
-                  }`}
-                >
-                  {sis.nombre}
-                </button>
-              ))}
-              <button
-                onClick={handleNuevoSistema}
-                className="min-h-[44px] px-3.5 rounded-xl text-[13.5px] font-medium border border-dashed border-teal/50 text-teal flex items-center gap-1.5"
-              >
-                <Plus size={15} strokeWidth={2.6} />
-                Otro sistema
-              </button>
-            </div>
-            <p className="text-[12.5px] text-muted mb-5">
-              Los sistemas nuevos quedan guardados para las próximas entradas.
-            </p>
-
-            {/* Paso 2 — Artículo */}
-            <Paso numero={2} titulo="¿Qué artículo?" />
-            <select
-              value={articuloId}
-              onChange={(e) => setArticuloId(e.target.value)}
-              disabled={!sistemaId}
-              className={`${inputCls} mb-2 disabled:opacity-50`}
-            >
-              <option value="">{sistemaId ? 'Elegir del catálogo…' : 'Primero elige el sistema'}</option>
-              {CATEGORIAS.map((c) => {
-                const delTipo = articulos.filter((a) => a.categoria === c.valor && a.sistema_id === sistemaId);
-                if (delTipo.length === 0) return null;
-                return (
-                  <optgroup key={c.valor} label={c.label}>
-                    {delTipo.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.descripcion}{a.marca ? ` · ${a.marca}` : ''}{a.modelo ? ` ${a.modelo}` : ''} ({a.unidad})
-                      </option>
-                    ))}
-                  </optgroup>
-                );
-              })}
-            </select>
-            <button
-              onClick={() => { setShowNuevoArticulo(true); setNuevoSistemaId(sistemaId); }}
-              disabled={!sistemaId}
-              className="w-full min-h-[46px] mb-5 rounded-xl border border-dashed border-teal/50 text-teal text-[14px] font-medium flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-40"
-            >
-              <Plus size={16} strokeWidth={2.6} />
-              No está en el catálogo
-            </button>
-
-            {/* Paso 3 — Inventario */}
-            <Paso numero={3} titulo="¿A qué inventario entra?" />
-            <div className="flex gap-2 mb-2">
-              <button
-                onClick={() => setInventario('general')}
-                className={`flex-1 min-h-[48px] rounded-xl text-[14px] font-semibold border ${
-                  inventario === 'general' ? 'bg-teal text-inkOnAccent border-teal' : 'bg-surface-2 border-line-strong text-ink/80'
-                }`}
-              >
-                General
-              </button>
-              <button
-                onClick={() => setInventario('proyecto')}
-                disabled={soloGeneral}
-                className={`flex-1 min-h-[48px] rounded-xl text-[14px] font-semibold border disabled:opacity-40 ${
-                  inventario === 'proyecto' ? 'bg-teal text-inkOnAccent border-teal' : 'bg-surface-2 border-line-strong text-ink/80'
-                }`}
-              >
-                De un proyecto
-              </button>
-            </div>
-            {soloGeneral && (
-              <p className="text-[12.5px] text-muted mb-4 leading-relaxed">
-                La herramienta es de uso general: no se reserva por proyecto.
-              </p>
-            )}
-            {inventario === 'proyecto' && (
-              <select value={grupoId} onChange={(e) => setGrupoId(e.target.value)} className={`${inputCls} mb-4`}>
-                <option value="">Elegir proyecto…</option>
-                {proyectos.map((pr) => (
-                  <option key={pr.grupoId} value={pr.grupoId}>{pr.proyecto}</option>
-                ))}
-              </select>
-            )}
-            <div className="mb-5" />
-
-            {/* Paso 4 — Cantidad y series */}
-            <Paso numero={4} titulo="¿Cuánto entró?" />
-            <div className="flex items-center gap-2 mb-4">
-              <input
-                type="number"
-                inputMode="decimal"
-                min={0}
-                value={cantidad}
-                onChange={(e) => setCantidad(e.target.value)}
-                className={inputCls}
-              />
-              <span className="text-[15px] text-muted shrink-0 w-[60px]">{articuloElegido?.unidad || ''}</span>
-            </div>
-
-            <label className={labelCls}>Números de serie (si aplica)</label>
-            <textarea
-              value={numerosSerie}
-              onChange={(e) => setNumerosSerie(e.target.value)}
-              placeholder="Uno por línea, si el equipo los tiene"
-              className="w-full px-3.5 py-2.5 mb-1 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[14px] min-h-[70px]"
-            />
-            <p className="text-[12.5px] text-muted mb-5 leading-relaxed">
-              Sirve para rastrear una pieza concreta si falla o se pierde. Déjalo vacío en material a granel.
-            </p>
-
-            {/* Paso 5 — Respaldo */}
-            <Paso numero={5} titulo="Respaldo de la compra" />
-            <label className={labelCls}>Proveedor (opcional)</label>
-            <input type="text" value={proveedor} onChange={(e) => setProveedor(e.target.value)} className={`${inputCls} mb-4`} />
-
-            <label className={labelCls}>Factura</label>
-            <input
-              type="file"
-              accept="application/pdf,image/*"
-              onChange={(e) => setFactura(e.target.files?.[0] || null)}
-              className="w-full text-[13.5px] mb-1 text-muted file:mr-3 file:min-h-[42px] file:px-4 file:rounded-xl file:border file:border-line-strong file:bg-surface-2 file:text-ink/80 file:text-[13.5px]"
-            />
-            {factura && <p className="text-[12.5px] text-teal mb-3">{factura.name}</p>}
-
-            <label className={`${labelCls} mt-3`}>Orden de compra</label>
-            <input
-              type="file"
-              accept="application/pdf,image/*"
-              onChange={(e) => setOrdenCompra(e.target.files?.[0] || null)}
-              className="w-full text-[13.5px] mb-1 text-muted file:mr-3 file:min-h-[42px] file:px-4 file:rounded-xl file:border file:border-line-strong file:bg-surface-2 file:text-ink/80 file:text-[13.5px]"
-            />
-            {ordenCompra && <p className="text-[12.5px] text-teal mb-3">{ordenCompra.name}</p>}
-
-            <label className={`${labelCls} mt-3`}>Nota (opcional)</label>
-            <input type="text" value={notaEntrada} onChange={(e) => setNotaEntrada(e.target.value)} className={`${inputCls} mb-5`} />
-
-            <button
-              onClick={handleRegistrarEntrada}
-              disabled={busy}
-              className="w-full min-h-[52px] rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15px] active:scale-95 transition-transform disabled:opacity-60"
-            >
-              {busy ? 'Guardando...' : 'Registrar entrada'}
-            </button>
-            <p className="text-[12.5px] text-muted mt-2 text-center">
-              Se guarda con la fecha de hoy y tu nombre.
-            </p>
-          </div>
+          <EntradaAlmacenWizard
+            sistemas={sistemas}
+            articulos={articulos}
+            proyectos={proyectos}
+            onCancelar={() => setSeccion('existencias')}
+            onCatalogoActualizado={cargar}
+            onRegistrada={async () => {
+              setSeccion('existencias');
+              await cargar();
+            }}
+          />
         )}
 
         {/* --- Movimientos --- */}
@@ -694,120 +456,17 @@ export default function AlmacenList({ userName }: { userName?: string }) {
       )}
 
       {showNuevoArticulo && (
-        <ModalOverlay onClose={() => setShowNuevoArticulo(false)}>
-          <div className="glass-strong rounded-3xl max-w-md w-full p-5 max-h-[92vh] overflow-y-auto">
-            <p className="font-display font-semibold text-[16px] mb-4">Nuevo artículo</p>
-
-            <label className={labelCls}>Tipo</label>
-            <div className="flex gap-2 mb-4">
-              {CATEGORIAS.map((c) => (
-                <button
-                  key={c.valor}
-                  onClick={() => {
-                    setNuevaCategoria(c.valor);
-                    // La herramienta siempre vuelve; el material se consume.
-                    setNuevoRetornable(c.valor === 'herramienta');
-                  }}
-                  className={`flex-1 min-h-[46px] rounded-xl text-[13.5px] font-semibold border ${
-                    nuevaCategoria === c.valor ? 'bg-teal text-inkOnAccent border-teal' : 'bg-surface border-line-strong text-ink/80'
-                  }`}
-                >
-                  {c.label}
-                </button>
-              ))}
-            </div>
-
-            <label className={labelCls}>¿Qué es?</label>
-            <input
-              type="text"
-              value={nuevaDescripcion}
-              onChange={(e) => setNuevaDescripcion(e.target.value)}
-              placeholder="Cable calibre 12, taladro, panel solar…"
-              className={`${inputCls} mb-4`}
-            />
-
-            <div className="flex gap-2 mb-4">
-              <div className="flex-1 min-w-0">
-                <label className={labelCls}>Marca</label>
-                <input type="text" value={nuevaMarca} onChange={(e) => setNuevaMarca(e.target.value)} placeholder="Hikvision" className={inputCls} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <label className={labelCls}>Modelo</label>
-                <input type="text" value={nuevoModelo} onChange={(e) => setNuevoModelo(e.target.value)} placeholder="DS-2CD" className={inputCls} />
-              </div>
-            </div>
-
-            <label className={labelCls}>Sistema</label>
-            <select
-              value={nuevoSistemaId || ''}
-              onChange={(e) => setNuevoSistemaId(e.target.value || null)}
-              className={`${inputCls} mb-4`}
-            >
-              <option value="">Sin clasificar</option>
-              {sistemas.map((sis) => <option key={sis.id} value={sis.id}>{sis.nombre}</option>)}
-            </select>
-
-            <label className={labelCls}>Unidad</label>
-            <select value={nuevaUnidad} onChange={(e) => setNuevaUnidad(e.target.value)} className={`${inputCls} mb-4`}>
-              {UNIDADES.map((u) => <option key={u} value={u}>{u}</option>)}
-            </select>
-
-            <label className={labelCls}>Mínimo antes de reponer (opcional)</label>
-            <div className="flex items-center gap-2 mb-1">
-              <input
-                type="number"
-                inputMode="decimal"
-                min={0}
-                value={nuevoMinimo}
-                onChange={(e) => setNuevoMinimo(e.target.value)}
-                placeholder="0"
-                className={inputCls}
-              />
-              <span className="text-[15px] text-muted shrink-0 w-[60px]">{nuevaUnidad}</span>
-            </div>
-            <p className="text-[12.5px] text-muted mb-4 leading-relaxed">
-              Cuando el inventario general baje de aquí, aparecerá un aviso. Déjalo en 0 si no lo quieres controlar.
-            </p>
-
-            <label className="flex items-start gap-2.5 min-h-[44px] cursor-pointer mb-4">
-              <input
-                type="checkbox"
-                checked={nuevoRetornable}
-                onChange={(e) => setNuevoRetornable(e.target.checked)}
-                className="w-5 h-5 accent-teal mt-0.5"
-              />
-              <span className="text-[14px] text-ink/85 leading-snug">
-                Regresa al almacén
-                <span className="block text-[12.5px] text-muted">
-                  La herramienta vuelve; el material se queda instalado.
-                </span>
-              </span>
-            </label>
-
-            <div className="flex gap-2">
-              <button onClick={() => setShowNuevoArticulo(false)} className="flex-1 min-h-[48px] rounded-xl border border-line-strong text-ink/80 text-[14.5px] font-medium">
-                Cancelar
-              </button>
-              <button onClick={handleCrearArticulo} disabled={busy} className="flex-1 min-h-[48px] rounded-xl bg-teal text-inkOnAccent text-[14.5px] font-semibold disabled:opacity-60">
-                {busy ? 'Guardando...' : 'Agregar'}
-              </button>
-            </div>
-          </div>
-        </ModalOverlay>
+        <ModalNuevoArticulo
+          sistemas={sistemas}
+          sistemaSugerido={null}
+          descripcionSugerida=""
+          onCancelar={() => setShowNuevoArticulo(false)}
+          onCreado={async () => {
+            setShowNuevoArticulo(false);
+            await cargar();
+          }}
+        />
       )}
-    </div>
-  );
-}
-
-// Numerar los pasos hace legible un formulario largo: se ve cuánto falta y
-// dónde se quedó uno si lo interrumpen.
-function Paso({ numero, titulo }: { numero: number; titulo: string }) {
-  return (
-    <div className="flex items-center gap-2.5 mb-2.5">
-      <span className="w-7 h-7 rounded-full bg-teal/15 text-teal text-[13px] font-display font-bold flex items-center justify-center shrink-0">
-        {numero}
-      </span>
-      <p className="text-[14.5px] font-semibold">{titulo}</p>
     </div>
   );
 }
