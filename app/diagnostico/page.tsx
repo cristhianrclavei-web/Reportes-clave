@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabaseServer';
 
 export const dynamic = 'force-dynamic';
@@ -6,14 +7,21 @@ export const revalidate = 0;
 // Página temporal de diagnóstico: muestra exactamente lo que ve el SERVIDOR
 // (no el navegador) al consultar Supabase. Sirve para distinguir un problema
 // de sesión, de permisos (RLS) o de configuración. Se puede borrar después.
+//
+// Expone información interna (rol, conteo y nombres de reportes visibles),
+// así que no puede quedar abierta a cualquiera: antes no verificaba sesión
+// ni rol.
 export default async function DiagnosticoPage() {
   const supabase = createClient();
 
+  const { data: { user }, error: errorUser } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
+
+  const { data: role, error: errorRole } = await supabase.rpc('get_my_role');
+  if (role !== 'supervisor') redirect('/dashboard');
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '(no definida)';
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-
-  const { data: { user }, error: errorUser } = await supabase.auth.getUser();
-  const { data: role, error: errorRole } = await supabase.rpc('get_my_role');
 
   const { data: reports, error: errorReports, count } = await supabase
     .from('reports')
