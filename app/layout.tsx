@@ -28,12 +28,21 @@ export const metadata: Metadata = {
     icon: '/icons/icon-192.png',
     apple: '/icons/icon-192.png',
   },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Reportes CI',
+  },
 };
 
 export const viewport: Viewport = {
   themeColor: '#0A121C',
   width: 'device-width',
   initialScale: 1,
+  // Sin esto, env(safe-area-inset-*) vale 0 siempre: el contenido y las
+  // barras fijas quedan bajo el notch y la barra de inicio del iPhone
+  // cuando la app corre instalada (sin la UI de Safari alrededor).
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

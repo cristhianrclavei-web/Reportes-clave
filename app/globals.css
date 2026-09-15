@@ -65,6 +65,14 @@ input::placeholder, textarea::placeholder {
   color: rgb(var(--c-faint));
 }
 
+/* Encabezados sticky pegados al borde superior real de la pantalla: con
+   status bar "black-translucent" en iOS, el contenido corre por debajo del
+   notch/Dynamic Island salvo que se sume el inset. Se engancha por clases
+   en vez de tocar los 16 archivos que repiten este encabezado. */
+.sticky.top-0.glass-strong {
+  padding-top: calc(0.875rem + env(safe-area-inset-top));
+}
+
 /* subtle glass surface used across cards/panels — adapts per theme */
 .glass {
   background: rgb(var(--c-glass-bg) / var(--c-glass-a));

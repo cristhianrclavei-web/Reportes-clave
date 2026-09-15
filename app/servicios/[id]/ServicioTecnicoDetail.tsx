@@ -23,6 +23,7 @@ import { evaluarVentanaServicio } from '@/lib/ventanaServicio';
 import { ResultadoBadges } from '@/components/ResultadoServicioBadges';
 import { createClient } from '@/lib/supabaseClient';
 import { showToast } from '@/components/Toast';
+import { distanciaMetros } from '@/lib/geocerca';
 
 const MOTIVOS_RETRASO = [
   'Falta de material',
@@ -74,6 +75,13 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
 
   const [ahora, setAhora] = useState(Date.now());
 
+  // Geocerca: mientras el servicio no llega a "en sitio" y el supervisor
+  // capturó dónde debe ocurrir, se compara la posición del técnico contra
+  // ese punto y se marca llegada sola al entrar al radio — sin botón.
+  const [distanciaSitio, setDistanciaSitio] = useState<number | null>(null);
+  const [geoError, setGeoError] = useState<string | null>(null);
+  const geocercaDisparadaRef = useRef(false);
+
   const [showEvidenciaExtra, setShowEvidenciaExtra] = useState(false);
   const [notaEvidenciaExtra, setNotaEvidenciaExtra] = useState('');
   const [fotoEvidenciaExtra, setFotoEvidenciaExtra] = useState<File | null>(null);
@@ -123,6 +131,36 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
     const id = setInterval(() => setAhora(Date.now()), 30000);
     return () => clearInterval(id);
   }, []);
+
+  // Detección automática de llegada: solo mientras el técnico tiene esta
+  // pantalla abierta (no hay rastreo en segundo plano — iOS no lo permite a
+  // una PWA). Si no hay ubicación programada, el botón manual sigue siendo
+  // el único camino, como antes.
+  useEffect(() => {
+    if (!servicio) return;
+    if (servicio.estado !== 'programado') return;
+    if (!servicio.ubicacion_programada) return;
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return;
+
+    const destino = servicio.ubicacion_programada;
+    const radio = servicio.radio_geocerca_m || 120;
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const d = distanciaMetros({ lat: pos.coords.latitude, lng: pos.coords.longitude }, destino);
+        setDistanciaSitio(Math.round(d));
+        setGeoError(null);
+        if (d <= radio && !geocercaDisparadaRef.current) {
+          geocercaDisparadaRef.current = true;
+          handleMarcarLlegada();
+        }
+      },
+      () => setGeoError('No se pudo usar tu ubicación. Puedes marcar llegada manualmente.'),
+      { enableHighAccuracy: true, maximumAge: 20000, timeout: 15000 }
+    );
+    return () => navigator.geolocation.clearWatch(watchId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [servicio?.id, servicio?.estado]);
 
   async function handleMarcarLlegada() {
     setBusy(true);
@@ -364,14 +402,27 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
         )}
 
         {servicio.estado === 'programado' && ventana.permitido && (
-          <button
-            onClick={handleMarcarLlegada}
-            disabled={busy}
-            className="w-full min-h-[56px] mb-4 rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[16px] flex items-center justify-center gap-2.5 active:scale-95 transition-transform disabled:opacity-60"
-          >
-            <MapPin size={20} strokeWidth={2.4} />
-            Marcar llegada a sitio
-          </button>
+          <>
+            {servicio.ubicacion_programada && !geoError && (
+              <p className="text-[12.5px] text-muted mb-2 flex items-center gap-1.5">
+                <MapPin size={13} strokeWidth={2.4} className="shrink-0" />
+                {distanciaSitio === null
+                  ? 'Detectando tu llegada automáticamente…'
+                  : distanciaSitio <= (servicio.radio_geocerca_m || 120)
+                    ? 'Estás en el sitio — registrando llegada…'
+                    : `A ${distanciaSitio >= 1000 ? `${(distanciaSitio / 1000).toFixed(1)} km` : `${distanciaSitio} m`} del sitio. Se marca sola al llegar.`}
+              </p>
+            )}
+            {geoError && <p className="text-[12.5px] text-amber mb-2">{geoError}</p>}
+            <button
+              onClick={handleMarcarLlegada}
+              disabled={busy}
+              className="w-full min-h-[56px] mb-4 rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[16px] flex items-center justify-center gap-2.5 active:scale-95 transition-transform disabled:opacity-60"
+            >
+              <MapPin size={20} strokeWidth={2.4} />
+              Marcar llegada a sitio
+            </button>
+          </>
         )}
         {servicio.estado === 'en_sitio' && !tiempoExcedido && ventana.permitido && (
           <button

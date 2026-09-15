@@ -698,7 +698,7 @@ export default function NuevoReportePage() {
 
               {serviciosVinculables.length === 0 && (
                 <p className="text-[12.5px] text-amber mt-2 leading-relaxed">
-                  Ninguno de tus servicios asignados corresponde a hoy, así que no hay nada que vincular. Llena el reporte manualmente o repórtalo con un supervisor.
+                  Ninguno de tus servicios programados corresponde a hoy, así que no hay nada que vincular. Llena el reporte manualmente o repórtalo con un supervisor.
                 </p>
               )}
 
@@ -1181,7 +1181,10 @@ export default function NuevoReportePage() {
       {showPreview && <ReportPreviewModal preview={getPreviewData()} onClose={() => setShowPreview(false)} />}
 
       {/* Floating bottom nav */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 flex justify-center pb-4 px-4 pointer-events-none">
+      <div
+        className="fixed bottom-0 left-0 right-0 z-30 flex justify-center px-4 pointer-events-none"
+        style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
+      >
         <div className="pointer-events-auto glass-strong rounded-full px-2 py-2 flex items-center gap-1 shadow-glow">
           <Link
             href="/mis-reportes"

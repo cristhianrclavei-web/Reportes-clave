@@ -5,7 +5,12 @@ import Link from 'next/link';
 import ThemeToggle from '@/components/ThemeToggle';
 import LogoutButton from '@/components/LogoutButton';
 import Logo from '@/components/Logo';
-import { listarMisServicios, Servicio, filtrarSiguienteDiaPorGrupo, listarProgresoPorGrupo, ProgresoTareas } from '@/lib/serviciosProgramados';
+import {
+  listarMisServicios, Servicio, filtrarSiguienteDiaPorGrupo, listarProgresoPorGrupo, ProgresoTareas,
+  listarSitiosActivosHoy, avisarTecnicoFueraDeSitio,
+} from '@/lib/serviciosProgramados';
+import { getCurrentLocation } from '@/lib/geolocation';
+import { distanciaMetros } from '@/lib/geocerca';
 import ProgressBar from '@/components/ProgressBar';
 import { MapPin, Play, Check, Clock } from 'lucide-react';
 import { calcularResultadoServicio } from '@/lib/resultadoServicio';
@@ -42,6 +47,32 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
       })
       .catch((e) => setError(e?.message || 'No se pudieron cargar tus servicios'))
       .finally(() => setLoading(false));
+  }, []);
+
+  // Revisión de "¿estoy parado en un sitio que no es el mío?": una sola
+  // lectura de GPS al abrir esta pantalla (no rastreo continuo) contra los
+  // demás sitios programados de hoy. Si hay uno cerca, avisa a los
+  // supervisores — una sola vez por sitio y por día, para no repetir el
+  // aviso cada vez que el técnico reabre la app.
+  useEffect(() => {
+    let cancelado = false;
+    listarSitiosActivosHoy()
+      .then(async (sitios) => {
+        if (cancelado || sitios.length === 0) return;
+        const hoy = new Date().toISOString().slice(0, 10);
+        const pendientes = sitios.filter((s) => sessionStorage.getItem(`anomalia_${s.servicio_id}_${hoy}`) !== '1');
+        if (pendientes.length === 0) return;
+        const loc = await getCurrentLocation();
+        if (cancelado || !loc) return;
+        for (const s of pendientes) {
+          if (distanciaMetros(loc, s) <= (s.radio_m || 120)) {
+            sessionStorage.setItem(`anomalia_${s.servicio_id}_${hoy}`, '1');
+            await avisarTecnicoFueraDeSitio(s.servicio_id).catch(() => {});
+          }
+        }
+      })
+      .catch(() => {});
+    return () => { cancelado = true; };
   }, []);
 
   const pendientes = filtrarSiguienteDiaPorGrupo(servicios);
@@ -127,7 +158,7 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
         )}
 
         {!loading && servicios.length === 0 && !error && (
-          <p className="text-center text-muted py-10 text-[14px]">No tienes servicios asignados. Tu supervisor te avisará cuando programe uno.</p>
+          <p className="text-center text-muted py-10 text-[14px]">No tienes servicios programados. Tu supervisor te avisará cuando programe uno.</p>
         )}
       </div>
     </div>

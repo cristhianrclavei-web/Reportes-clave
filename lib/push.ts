@@ -143,10 +143,14 @@ export type TipoAviso =
   | 'reporte_nuevo'
   | 'correccion_solicitada'
   | 'correccion_resuelta'
-  | 'aviso_servicio';
+  | 'aviso_servicio'
+  | 'tecnico_fuera_de_sitio'
+  | 'recordatorio_iniciar_servicio';
 
 export const TIPOS_AVISO: { valor: TipoAviso; label: string; detalle: string; paraTecnico?: boolean }[] = [
   { valor: 'aviso_servicio', label: 'Avisos sobre días programados', detalle: 'Cuando un técnico avisa que un día no se va a poder' },
+  { valor: 'tecnico_fuera_de_sitio', label: 'Técnico en sitio sin asignar', detalle: 'Cuando alguien está en un sitio programado que no es el suyo' },
+  { valor: 'recordatorio_iniciar_servicio', label: 'Recordatorio de iniciar servicio', detalle: 'Cada 10 min mientras estés en sitio sin haber iniciado', paraTecnico: true },
   { valor: 'solicitud_herramienta', label: 'Solicitudes de herramienta', detalle: 'Cuando un técnico pide material o equipo' },
   { valor: 'correccion_solicitada', label: 'Correcciones de reportes', detalle: 'Cuando un técnico pide corregir un reporte' },
   { valor: 'reporte_nuevo', label: 'Reportes concluidos', detalle: 'Cuando se guarda un reporte de servicio' },
@@ -156,7 +160,7 @@ export const TIPOS_AVISO: { valor: TipoAviso; label: string; detalle: string; pa
   { valor: 'inicio_servicio', label: 'Inicios de servicio', detalle: 'Cada vez que un técnico arranca un servicio' },
   { valor: 'bitacora_inicio', label: 'Inicio de actividades', detalle: 'Cuando alguien abre una actividad en bitácora' },
   { valor: 'bitacora_fin', label: 'Cierre de actividades', detalle: 'Cuando alguien concluye una actividad' },
-  { valor: 'servicio_asignado', label: 'Servicios asignados', detalle: 'Cuando te programan un servicio', paraTecnico: true },
+  { valor: 'servicio_asignado', label: 'Servicios programados', detalle: 'Cuando te programan un servicio', paraTecnico: true },
   { valor: 'correccion_resuelta', label: 'Respuesta a tus correcciones', detalle: 'Cuando autorizan o cierran una corrección que pediste', paraTecnico: true },
 ];
 

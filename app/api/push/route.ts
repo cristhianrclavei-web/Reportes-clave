@@ -21,6 +21,7 @@ const TIPOS_VALIDOS = new Set([
   'correccion_solicitada',
   'correccion_resuelta',
   'aviso_servicio',
+  'tecnico_fuera_de_sitio',
   'general',
 ]);
 

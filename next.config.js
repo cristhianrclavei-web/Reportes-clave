@@ -25,7 +25,9 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   `img-src 'self' data: blob: ${SUPABASE_ORIGIN}`,
   "font-src 'self' data:",
-  `connect-src 'self' ${SUPABASE_ORIGIN} wss://sxtedvxqnqrzuxpvgpih.supabase.co`,
+  // nominatim: búsqueda de direcciones (gratis, sin llave) al capturar la
+  // ubicación de un sitio programado.
+  `connect-src 'self' ${SUPABASE_ORIGIN} wss://sxtedvxqnqrzuxpvgpih.supabase.co https://nominatim.openstreetmap.org`,
   "media-src 'self' blob:",
   "worker-src 'self' blob:",
   "manifest-src 'self'",
@@ -38,6 +40,13 @@ const csp = [
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
+
+  // Sin esto, "next dev" bloquea las peticiones a /_next/* (el bundle de
+  // JS, HMR, fuentes) cuando la app se abre desde otra IP de la red local
+  // -por ejemplo un celular probando contra la compu-. React nunca hidrata
+  // y el login (y cualquier formulario) deja de responder sin avisar nada:
+  // el <form> se envía como HTML plano y solo recarga la página.
+  ...(esDesarrollo && { allowedDevOrigins: ['192.168.1.71'] }),
 
   async headers() {
     return [

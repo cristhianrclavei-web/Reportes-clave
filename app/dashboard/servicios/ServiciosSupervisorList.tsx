@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import ThemeToggle from '@/components/ThemeToggle';
 import LogoutButton from '@/components/LogoutButton';
@@ -21,6 +21,9 @@ import DashboardTabs from '@/components/DashboardTabs';
 import { showToast } from '@/components/Toast';
 import SelectorArticulo from '@/components/SelectorArticulo';
 import { hoyLocal } from '@/lib/fechaHoy';
+import { getCurrentLocation } from '@/lib/geolocation';
+import { extraerCoordenadas } from '@/lib/geocerca';
+import { buscarDirecciones, SugerenciaDireccion } from '@/lib/geocoding';
 
 const ESTADO_CFG: Record<Servicio['estado'], { label: string; cls: string; Icono: any }> = {
   programado: { label: 'Programado', cls: 'bg-surface-2 text-muted', Icono: Clock },
@@ -107,6 +110,16 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   // obligatoria, la gente escribe cualquier cosa con tal de guardar y el
   // indicador de puntualidad queda midiendo ruido.
   const [horaProgramada, setHoraProgramada] = useState('');
+  const [horaSalidaProgramada, setHoraSalidaProgramada] = useState('');
+  const [ubicLat, setUbicLat] = useState('');
+  const [ubicLng, setUbicLng] = useState('');
+  const [ubicDireccion, setUbicDireccion] = useState('');
+  const [ubicSugerencias, setUbicSugerencias] = useState<SugerenciaDireccion[]>([]);
+  const [ubicBuscandoDireccion, setUbicBuscandoDireccion] = useState(false);
+  const ubicDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [ubicEnlace, setUbicEnlace] = useState('');
+  const [ubicBuscando, setUbicBuscando] = useState(false);
+  const [ubicError, setUbicError] = useState<string | null>(null);
   // Festivos: se avisa AL AGENDAR, no al reportar. Si el aviso sale antes de
   // guardar, el viaje perdido no llega a ocurrir.
   const [festivos, setFestivos] = useState<Festivo[]>(() => festivosEnCache());
@@ -202,6 +215,80 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
     });
   }, [servicios, rango, busquedaServicio]);
 
+  // Con llegada y salida acordadas, la duración ya no hay que estimarla a
+  // ojo: es la diferencia entre las dos. Si falta cualquiera de las dos
+  // horas, se sigue capturando a mano como hasta ahora.
+  const duracionCalculada = useMemo(() => {
+    if (!horaProgramada || !horaSalidaProgramada) return null;
+    const [h1, m1] = horaProgramada.split(':').map(Number);
+    const [h2, m2] = horaSalidaProgramada.split(':').map(Number);
+    let minutos = (h2 * 60 + m2) - (h1 * 60 + m1);
+    if (minutos <= 0) minutos += 24 * 60; // cruza medianoche
+    return minutos;
+  }, [horaProgramada, horaSalidaProgramada]);
+
+  useEffect(() => {
+    if (duracionCalculada !== null) setDuracionMin(duracionCalculada);
+  }, [duracionCalculada]);
+
+  async function handleUsarUbicacionActual() {
+    setUbicBuscando(true);
+    setUbicError(null);
+    const loc = await getCurrentLocation();
+    setUbicBuscando(false);
+    if (!loc) {
+      setUbicError('No se pudo obtener tu ubicación. Revisa el permiso de ubicación del navegador.');
+      return;
+    }
+    setUbicLat(String(loc.lat));
+    setUbicLng(String(loc.lng));
+    setUbicDireccion('');
+    setUbicSugerencias([]);
+  }
+
+  function handleUsarEnlaceUbicacion() {
+    const punto = extraerCoordenadas(ubicEnlace);
+    if (!punto) {
+      setUbicError('No se encontraron coordenadas en ese texto. Pega el enlace de Google Maps o "lat, lng".');
+      return;
+    }
+    setUbicError(null);
+    setUbicLat(String(punto.lat));
+    setUbicLng(String(punto.lng));
+    setUbicDireccion('');
+    setUbicSugerencias([]);
+  }
+
+  // Igual que escribir en el buscador de Google Maps: cada tecla dispara una
+  // búsqueda con medio segundo de margen, para no mandar un request por
+  // letra mientras la persona sigue escribiendo.
+  function handleCambiarDireccion(texto: string) {
+    setUbicDireccion(texto);
+    setUbicError(null);
+    if (ubicDebounceRef.current) clearTimeout(ubicDebounceRef.current);
+    if (texto.trim().length < 3) {
+      setUbicSugerencias([]);
+      return;
+    }
+    ubicDebounceRef.current = setTimeout(async () => {
+      setUbicBuscandoDireccion(true);
+      try {
+        setUbicSugerencias(await buscarDirecciones(texto));
+      } catch {
+        setUbicSugerencias([]);
+      } finally {
+        setUbicBuscandoDireccion(false);
+      }
+    }, 500);
+  }
+
+  function handleElegirSugerencia(s: SugerenciaDireccion) {
+    setUbicLat(String(s.lat));
+    setUbicLng(String(s.lng));
+    setUbicDireccion(s.direccion);
+    setUbicSugerencias([]);
+  }
+
   function toggleTecnico(id: string) {
     setTecnicoIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
@@ -295,6 +382,13 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
       setError('Hay fechas repetidas. Cada día debe tener una fecha distinta.');
       return;
     }
+    const ubicacionProgramada = ubicLat.trim() && ubicLng.trim()
+      ? { lat: parseFloat(ubicLat), lng: parseFloat(ubicLng), ...(ubicDireccion.trim() ? { direccion: ubicDireccion.trim() } : {}) }
+      : null;
+    if ((ubicLat.trim() || ubicLng.trim()) && !ubicacionProgramada) {
+      setError('La ubicación del sitio quedó incompleta.');
+      return;
+    }
     setGuardando(true);
     setError(null);
     try {
@@ -303,6 +397,8 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
         descripcion: descripcion.trim(),
         fechas: fechasFinales,
         horaProgramada: horaProgramada || null,
+        horaSalidaProgramada: horaSalidaProgramada || null,
+        ubicacionProgramada,
         duracionMin,
         tecnicoIds,
         tareas: tareasLimpias,
@@ -311,7 +407,10 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
       showToast(fechasFinales.length > 1 ? `Proyecto programado (${fechasFinales.length} días)` : 'Servicio programado', 'success');
       setShowNuevo(false);
       setSeccion('agendados');
-      setProyecto(''); setDescripcion(''); setTecnicoIds([]); setTareas(['']); setDuracionMin(120); setHoraProgramada(''); setDiasTotales(1);
+      setProyecto(''); setDescripcion(''); setTecnicoIds([]); setTareas(['']); setDuracionMin(120);
+      setHoraProgramada(''); setHoraSalidaProgramada('');
+      setUbicLat(''); setUbicLng(''); setUbicDireccion(''); setUbicSugerencias([]); setUbicEnlace(''); setUbicError(null);
+      setDiasTotales(1);
       setDiasSeguidos(true); setFechasSalteadas([]); setOmitirFinDeSemana(false);
       setInsumos([]);
       await cargar();
@@ -501,7 +600,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
                 <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="w-full px-3.5 min-h-[48px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]" />
               </div>
               <div>
-                <label className="text-[13px] text-ink/75 block mb-1.5">Hora acordada</label>
+                <label className="text-[13px] text-ink/75 block mb-1.5">Hora de llegada programada</label>
                 <input
                   type="time"
                   value={horaProgramada}
@@ -514,16 +613,98 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
 
             <div className="grid grid-cols-2 gap-3 mb-3">
               <div>
+                <label className="text-[13px] text-ink/75 block mb-1.5">Hora de salida programada</label>
+                <input
+                  type="time"
+                  value={horaSalidaProgramada}
+                  onChange={(e) => setHoraSalidaProgramada(e.target.value)}
+                  className="w-full px-3.5 min-h-[48px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]"
+                />
+              </div>
+              <div>
                 <label className="text-[13px] text-ink/75 block mb-1.5">Duración estimada (min/día)</label>
                 <input
                   type="number"
                   value={duracionMin === 0 ? '' : duracionMin}
                   onChange={(e) => setDuracionMin(e.target.value === '' ? 0 : parseInt(e.target.value) || 0)}
                   placeholder="120"
-                  className="w-full px-3.5 min-h-[48px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]"
+                  readOnly={duracionCalculada !== null}
+                  className={`w-full px-3.5 min-h-[48px] rounded-xl border border-line focus:border-teal focus:outline-none text-[15px] ${duracionCalculada !== null ? 'bg-surface text-muted' : 'bg-surface-2'}`}
                 />
+                {duracionCalculada !== null && (
+                  <p className="text-[11px] text-faint mt-1">Calculada de llegada a salida.</p>
+                )}
               </div>
             </div>
+
+            <label className="text-[13px] text-ink/75 block mb-1.5">Ubicación del sitio (opcional)</label>
+            <div className="mb-1 p-3.5 rounded-xl bg-surface-2 border border-line">
+              <div className="relative mb-2.5">
+                <input
+                  placeholder="Escribe la dirección…"
+                  value={ubicDireccion}
+                  onChange={(e) => handleCambiarDireccion(e.target.value)}
+                  className="w-full px-3 min-h-[44px] rounded-lg bg-surface border border-line focus:border-teal focus:outline-none text-[14px]"
+                />
+                {ubicBuscandoDireccion && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-faint">Buscando…</span>
+                )}
+                {ubicSugerencias.length > 0 && (
+                  <div className="absolute z-10 top-full left-0 right-0 mt-1 rounded-lg bg-surface border border-line-strong shadow-glow overflow-hidden">
+                    {ubicSugerencias.map((s, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => handleElegirSugerencia(s)}
+                        className="w-full text-left px-3 py-2.5 text-[13px] border-b border-line last:border-b-0 active:bg-surface-2"
+                      >
+                        {s.direccion}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2.5 mb-2.5">
+                <input
+                  type="number" step="any" placeholder="Latitud" value={ubicLat}
+                  onChange={(e) => setUbicLat(e.target.value)}
+                  className="w-full px-3 min-h-[44px] rounded-lg bg-surface border border-line focus:border-teal focus:outline-none text-[14px]"
+                />
+                <input
+                  type="number" step="any" placeholder="Longitud" value={ubicLng}
+                  onChange={(e) => setUbicLng(e.target.value)}
+                  className="w-full px-3 min-h-[44px] rounded-lg bg-surface border border-line focus:border-teal focus:outline-none text-[14px]"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={handleUsarUbicacionActual}
+                disabled={ubicBuscando}
+                className="w-full min-h-[40px] mb-2.5 rounded-lg bg-surface border border-line text-[13px] font-medium flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform disabled:opacity-60"
+              >
+                <MapPin size={14} strokeWidth={2.4} />
+                {ubicBuscando ? 'Buscando…' : 'Usar mi ubicación actual'}
+              </button>
+              <div className="flex gap-2">
+                <input
+                  placeholder="O pega un enlace de Google Maps"
+                  value={ubicEnlace}
+                  onChange={(e) => setUbicEnlace(e.target.value)}
+                  className="flex-1 min-w-0 px-3 min-h-[40px] rounded-lg bg-surface border border-line focus:border-teal focus:outline-none text-[13px]"
+                />
+                <button
+                  type="button"
+                  onClick={handleUsarEnlaceUbicacion}
+                  className="px-3.5 min-h-[40px] rounded-lg bg-surface border border-line text-[13px] font-medium shrink-0 active:scale-95 transition-transform"
+                >
+                  Usar
+                </button>
+              </div>
+              {ubicError && <p className="text-[12px] text-red mt-2">{ubicError}</p>}
+            </div>
+            <p className="text-[11px] text-faint mb-3">
+              Con esto el técnico puede marcar llegada solo, comparando su GPS contra este punto.
+            </p>
 
             <label className="text-[13px] text-ink/75 block mb-1.5">¿Cuántos días va a durar este proyecto?</label>
             <input

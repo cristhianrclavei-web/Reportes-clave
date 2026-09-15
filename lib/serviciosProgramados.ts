@@ -12,6 +12,9 @@ export type Servicio = {
   descripcion: string | null;
   fecha: string;
   hora_programada: string | null;
+  hora_salida_programada: string | null;
+  ubicacion_programada: { lat: number; lng: number; direccion?: string } | null;
+  radio_geocerca_m: number;
   duracion_estimada_min: number;
   hora_llegada: string | null;
   hora_inicio: string | null;
@@ -87,6 +90,12 @@ export async function crearServicio(input: {
   // Hora de llegada acordada. Opcional: sin ella no se mide puntualidad,
   // pero el servicio se programa igual.
   horaProgramada?: string | null;
+  // Hora de salida acordada. Junto con horaProgramada permite calcular
+  // cuánto debe durar el servicio en vez de estimarlo a ojo.
+  horaSalidaProgramada?: string | null;
+  // Dónde debe ocurrir el servicio. Con esto el técnico puede detectar su
+  // llegada solo, comparando su GPS contra este punto.
+  ubicacionProgramada?: { lat: number; lng: number; direccion?: string } | null;
   duracionMin: number;
   tecnicoIds: string[];
   tareas: string[];
@@ -115,6 +124,8 @@ export async function crearServicio(input: {
         descripcion: input.descripcion || null,
         fecha: fechas[dia - 1],
         hora_programada: input.horaProgramada || null,
+        hora_salida_programada: input.horaSalidaProgramada || null,
+        ubicacion_programada: input.ubicacionProgramada || null,
         duracion_estimada_min: input.duracionMin,
         grupo_id: grupoId,
         numero_dia: dia,
@@ -355,6 +366,32 @@ export async function listarMisServicios(): Promise<Servicio[]> {
     .order('fecha', { ascending: false });
   if (error) throw error;
   return (data as Servicio[]) || [];
+}
+
+// Sitios de HOY donde el técnico actual NO está asignado, para comparar su
+// posición y detectar si está parado en un servicio ajeno. No trae nombre de
+// proyecto ni de nadie — ver sitiosActivosHoy() en la base para el porqué.
+export async function listarSitiosActivosHoy(): Promise<{ servicio_id: string; lat: number; lng: number; radio_m: number }[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc('sitios_activos_hoy');
+  if (error) throw error;
+  return (data as any[]) || [];
+}
+
+// Avisa a los supervisores que un técnico fue detectado en un sitio
+// programado que no le corresponde. `servicioId` es el del sitio ajeno, no
+// el del propio técnico — así el supervisor cae directo en el servicio
+// afectado al tocar la notificación.
+export async function avisarTecnicoFueraDeSitio(servicioId: string): Promise<void> {
+  const quien = await nombreDelUsuario();
+  await notificar({
+    destino: 'supervisores',
+    tipo: 'tecnico_fuera_de_sitio',
+    titulo: 'Técnico en sitio sin asignar',
+    mensaje: `${quien} está en un sitio programado donde no tiene servicio asignado.`,
+    url: `/dashboard/servicios/${servicioId}`,
+    tag: 'anomalia-sitio',
+  });
 }
 
 export type DiaAgenda = Servicio & { tecnicos: string[] };

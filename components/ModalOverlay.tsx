@@ -60,7 +60,7 @@ export default function ModalOverlay({
         if (Date.now() - montadoEn.current < 400) return;
         onClose();
       }}
-      className={`fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-4 ${className}`}
+      className={`fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-4 ${className}`}
     >
       {children}
     </div>
