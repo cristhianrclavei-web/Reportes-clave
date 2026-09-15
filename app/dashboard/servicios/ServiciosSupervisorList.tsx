@@ -111,6 +111,11 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   // indicador de puntualidad queda midiendo ruido.
   const [horaProgramada, setHoraProgramada] = useState('');
   const [horaSalidaProgramada, setHoraSalidaProgramada] = useState('');
+  // Cuál de los dos campos capturó la persona por última vez: el otro se
+  // deriva de llegada + este. Null hasta que toque uno de los dos, para no
+  // forzar el cálculo con la duración por defecto sin que nadie la haya
+  // tocado.
+  const [ultimoCampoEditado, setUltimoCampoEditado] = useState<'salida' | 'duracion' | null>(null);
   const [ubicLat, setUbicLat] = useState('');
   const [ubicLng, setUbicLng] = useState('');
   const [ubicDireccion, setUbicDireccion] = useState('');
@@ -216,20 +221,38 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   }, [servicios, rango, busquedaServicio]);
 
   // Con llegada y salida acordadas, la duración ya no hay que estimarla a
-  // ojo: es la diferencia entre las dos. Si falta cualquiera de las dos
-  // horas, se sigue capturando a mano como hasta ahora.
+  // ojo: es la diferencia entre las dos. Solo se deriva cuando la salida fue
+  // el último campo que la persona tocó — si en cambio tocó la duración, es
+  // la salida la que se deriva (ver salidaCalculada), no al revés.
   const duracionCalculada = useMemo(() => {
+    if (ultimoCampoEditado !== 'salida') return null;
     if (!horaProgramada || !horaSalidaProgramada) return null;
     const [h1, m1] = horaProgramada.split(':').map(Number);
     const [h2, m2] = horaSalidaProgramada.split(':').map(Number);
     let minutos = (h2 * 60 + m2) - (h1 * 60 + m1);
     if (minutos <= 0) minutos += 24 * 60; // cruza medianoche
     return minutos;
-  }, [horaProgramada, horaSalidaProgramada]);
+  }, [horaProgramada, horaSalidaProgramada, ultimoCampoEditado]);
 
   useEffect(() => {
     if (duracionCalculada !== null) setDuracionMin(duracionCalculada);
   }, [duracionCalculada]);
+
+  // Caso inverso: llegada + duración capturadas a mano → la salida se deriva
+  // sumando los minutos a la llegada.
+  const salidaCalculada = useMemo(() => {
+    if (ultimoCampoEditado !== 'duracion') return null;
+    if (!horaProgramada || !duracionMin) return null;
+    const [h1, m1] = horaProgramada.split(':').map(Number);
+    const totalMin = ((h1 * 60 + m1 + duracionMin) % (24 * 60) + 24 * 60) % (24 * 60);
+    const h2 = Math.floor(totalMin / 60);
+    const m2 = totalMin % 60;
+    return `${String(h2).padStart(2, '0')}:${String(m2).padStart(2, '0')}`;
+  }, [horaProgramada, duracionMin, ultimoCampoEditado]);
+
+  useEffect(() => {
+    if (salidaCalculada !== null) setHoraSalidaProgramada(salidaCalculada);
+  }, [salidaCalculada]);
 
   async function handleUsarUbicacionActual() {
     setUbicBuscando(true);
@@ -408,7 +431,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
       setShowNuevo(false);
       setSeccion('agendados');
       setProyecto(''); setDescripcion(''); setTecnicoIds([]); setTareas(['']); setDuracionMin(120);
-      setHoraProgramada(''); setHoraSalidaProgramada('');
+      setHoraProgramada(''); setHoraSalidaProgramada(''); setUltimoCampoEditado(null);
       setUbicLat(''); setUbicLng(''); setUbicDireccion(''); setUbicSugerencias([]); setUbicEnlace(''); setUbicError(null);
       setDiasTotales(1);
       setDiasSeguidos(true); setFechasSalteadas([]); setOmitirFinDeSemana(false);
@@ -617,16 +640,20 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
                 <input
                   type="time"
                   value={horaSalidaProgramada}
-                  onChange={(e) => setHoraSalidaProgramada(e.target.value)}
-                  className="w-full px-3.5 min-h-[48px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]"
+                  onChange={(e) => { setHoraSalidaProgramada(e.target.value); setUltimoCampoEditado('salida'); }}
+                  readOnly={salidaCalculada !== null}
+                  className={`w-full px-3.5 min-h-[48px] rounded-xl border border-line focus:border-teal focus:outline-none text-[15px] ${salidaCalculada !== null ? 'bg-surface text-muted' : 'bg-surface-2'}`}
                 />
+                {salidaCalculada !== null && (
+                  <p className="text-[11px] text-faint mt-1">Calculada de llegada + duración.</p>
+                )}
               </div>
               <div>
                 <label className="text-[13px] text-ink/75 block mb-1.5">Duración estimada (min/día)</label>
                 <input
                   type="number"
                   value={duracionMin === 0 ? '' : duracionMin}
-                  onChange={(e) => setDuracionMin(e.target.value === '' ? 0 : parseInt(e.target.value) || 0)}
+                  onChange={(e) => { setDuracionMin(e.target.value === '' ? 0 : parseInt(e.target.value) || 0); setUltimoCampoEditado('duracion'); }}
                   placeholder="120"
                   readOnly={duracionCalculada !== null}
                   className={`w-full px-3.5 min-h-[48px] rounded-xl border border-line focus:border-teal focus:outline-none text-[15px] ${duracionCalculada !== null ? 'bg-surface text-muted' : 'bg-surface-2'}`}
