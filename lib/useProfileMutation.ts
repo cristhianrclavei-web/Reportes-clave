@@ -136,5 +136,40 @@ export function useUsersAdmin() {
     []
   );
 
-  return { updateUserName, setUsuarioActivo, loading, error, setError };
+  const setUsuarioPermiso = useCallback(
+    async (
+      userId: string,
+      campo: 'can_manage_almacen' | 'can_manage_billing',
+      valor: boolean
+    ): Promise<UpdateResult> => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetch('/api/perfil/usuarios', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, [campo]: valor }),
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          const errorMsg = data.error || `Error ${response.status}`;
+          setError(errorMsg);
+          return { success: false, error: errorMsg };
+        }
+
+        return { success: true };
+      } catch (err: any) {
+        const msg = err?.message || 'Error de conexión';
+        setError(msg);
+        return { success: false, error: msg };
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
+  return { updateUserName, setUsuarioActivo, setUsuarioPermiso, loading, error, setError };
 }

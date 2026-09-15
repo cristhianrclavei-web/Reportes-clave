@@ -25,7 +25,7 @@ export async function GET() {
 
   const { data: usuarios, error } = await supabase
     .from('profiles')
-    .select('id, full_name, role, telefono, activo, can_manage_usuarios, created_at')
+    .select('id, full_name, role, telefono, activo, can_manage_usuarios, can_manage_almacen, can_manage_billing, created_at')
     .order('full_name', { ascending: true });
 
   if (error) {
@@ -45,7 +45,7 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'No tiene permiso para gestionar usuarios' }, { status: 403 });
   }
 
-  const { userId, full_name, activo } = await req.json();
+  const { userId, full_name, activo, can_manage_almacen, can_manage_billing } = await req.json();
 
   if (!userId) {
     return NextResponse.json({ error: 'Falta el usuario' }, { status: 400 });
@@ -63,6 +63,14 @@ export async function PUT(req: NextRequest) {
 
   if (activo !== undefined) {
     cambios.activo = activo === true;
+  }
+
+  if (can_manage_almacen !== undefined) {
+    cambios.can_manage_almacen = can_manage_almacen === true;
+  }
+
+  if (can_manage_billing !== undefined) {
+    cambios.can_manage_billing = can_manage_billing === true;
   }
 
   if (Object.keys(cambios).length === 0) {

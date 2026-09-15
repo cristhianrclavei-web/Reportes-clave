@@ -12,6 +12,8 @@ interface User {
   telefono?: string;
   activo?: boolean;
   can_manage_usuarios?: boolean;
+  can_manage_almacen?: boolean;
+  can_manage_billing?: boolean;
   created_at: string;
 }
 
@@ -21,7 +23,7 @@ export default function AdminUsersSection({ initialUsers = [] }: { initialUsers?
   const [nombreEditado, setNombreEditado] = useState('');
   const [abiertoId, setAbiertoId] = useState<string | null>(null);
 
-  const { updateUserName, setUsuarioActivo, loading: guardando } = useUsersAdmin();
+  const { updateUserName, setUsuarioActivo, setUsuarioPermiso, loading: guardando } = useUsersAdmin();
 
   const iniciarEdicion = (u: User) => {
     setAbiertoId(u.id);
@@ -49,6 +51,19 @@ export default function AdminUsersSection({ initialUsers = [] }: { initialUsers?
       cancelarEdicion();
     } else {
       showToast(result.error || 'No se pudo actualizar', 'error');
+    }
+  };
+
+  const alternarPermiso = async (u: User, campo: 'can_manage_almacen' | 'can_manage_billing') => {
+    const valorNuevo = !u[campo];
+    setUsuarios((prev) => prev.map((x) => (x.id === u.id ? { ...x, [campo]: valorNuevo } : x)));
+
+    const result = await setUsuarioPermiso(u.id, campo, valorNuevo);
+    if (result.success) {
+      showToast(valorNuevo ? 'Permiso otorgado' : 'Permiso retirado', 'success');
+    } else {
+      setUsuarios((prev) => prev.map((x) => (x.id === u.id ? { ...x, [campo]: !valorNuevo } : x)));
+      showToast(result.error || 'No se pudo cambiar', 'error');
     }
   };
 
@@ -136,6 +151,34 @@ export default function AdminUsersSection({ initialUsers = [] }: { initialUsers?
                         <p className={u.telefono ? 'text-ink font-mono' : 'text-faint'}>
                           {u.telefono || 'Sin registrar'}
                         </p>
+                      </div>
+                    )}
+
+                    {!editando && (
+                      <div>
+                        <p className="text-[11px] uppercase tracking-wider text-faint mb-2">Permisos</p>
+                        <div className="flex flex-col gap-2">
+                          <label className="flex items-center gap-2.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={!!u.can_manage_almacen}
+                              onChange={() => alternarPermiso(u, 'can_manage_almacen')}
+                              disabled={guardando}
+                              className="w-5 h-5 accent-teal shrink-0"
+                            />
+                            <span className="text-[14px]">Almacén</span>
+                          </label>
+                          <label className="flex items-center gap-2.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={!!u.can_manage_billing}
+                              onChange={() => alternarPermiso(u, 'can_manage_billing')}
+                              disabled={guardando}
+                              className="w-5 h-5 accent-teal shrink-0"
+                            />
+                            <span className="text-[14px]">Facturación</span>
+                          </label>
+                        </div>
                       </div>
                     )}
 
