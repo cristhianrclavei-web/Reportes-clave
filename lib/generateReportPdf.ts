@@ -1,6 +1,5 @@
-import { PDFDocument, rgb, degrees, StandardFonts } from 'pdf-lib';
+import { PDFDocument, rgb, degrees, LineCapStyle, StandardFonts } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
-import { CI_MARK_BASE64, ICON_STRIP_BASE64 } from './brandAssets';
 import { BARLOW_CONDENSED_BOLD_BASE64, INTER_REGULAR_BASE64, INTER_SEMIBOLD_BASE64 } from './brandFonts';
 
 type ReportRow = {
@@ -25,12 +24,61 @@ const TEAL_DARK = rgb(0.07, 0.25, 0.21);
 const GRAY_LINE = rgb(0.55, 0.55, 0.55);
 const GRAY_TEXT = rgb(0.42, 0.48, 0.5);
 const WHITE = rgb(1, 1, 1);
-const MARK_BG = rgb(0.9, 0.9, 0.9);
+const VERDE = rgb(0x2f / 255, 0x7d / 255, 0x5c / 255);
+const ROJO = rgb(0xe0 / 255, 0x65 / 255, 0x4a / 255);
 
 const MARGIN = 34;
 const PAGE_W = 612;
 const PAGE_H = 792;
 const SIGNATURE_ZONE_H = 150;
+
+// El logo, en vectores — los mismos paths SVG que components/Logo.tsx (no una
+// imagen recortada de una foto). Se ve nítido a cualquier tamaño y es la
+// marca real de la empresa, íconos de servicios incluidos.
+function circlePath(cx: number, cy: number, r: number): string {
+  return `M${cx - r},${cy} a${r},${r} 0 1,0 ${2 * r},0 a${r},${r} 0 1,0 ${-2 * r},0`;
+}
+function rectPath(x: number, y: number, w: number, h: number): string {
+  return `M${x},${y} h${w} v${h} h${-w} Z`;
+}
+
+// Hexágono con nodos, viewBox 0 0 100 100 — igual que Badge() en Logo.tsx.
+const BADGE_HEX_PATH = 'M50 8 L84 26 V64 L50 92 L16 64 V26 Z';
+const BADGE_NODES: [number, number, number][] = [[50, 8, 7], [16, 45, 7], [50, 92, 7]];
+const BADGE_LINE_PATH = 'M16 45 L50 92';
+
+// Los seis servicios, viewBox 0 0 24 24 — mismos paths que ICONOS en Logo.tsx.
+const ICONOS_PATHS: string[][] = [
+  ['M12.4 2.6c2.9 2.9 4.8 5.6 4.8 8.6a5.2 5.2 0 0 1-10.4 0c0-1.5.5-2.8 1.5-3.9.1 1.4.8 2.3 1.9 2.5-.7-2.7-.1-5 2.2-7.2Z'],
+  [
+    'M3.6 8.9 16.8 5.4l1.3 4.8-13.2 3.5Z',
+    'm18.1 10.2 2.6-.7-.9-3.2-2.6.7',
+    'M7.5 13.4v2.4a2 2 0 0 0 2 2h.6',
+    circlePath(10.4, 19.6, 1.6),
+  ],
+  [
+    'M12 3 19 5.6v5.6c0 4-2.8 7.3-7 8.8-4.2-1.5-7-4.8-7-8.8V5.6Z',
+    rectPath(9.4, 10.8, 5.2, 4.6),
+    'M10.6 10.8V9.6a1.4 1.4 0 0 1 2.8 0v1.2',
+  ],
+  [
+    'M3.6 4.4h16.8l-1.9 8.4H5.5Z',
+    'M9.8 4.4 8.7 12.8M14.2 4.4l1.1 8.4M4.5 8.6h15',
+    'M12 12.8v5.4M8.8 20.6h6.4',
+  ],
+  [
+    'M4.5 20.6h8.4',
+    'M7.6 20.6v-6.4l3.6-6.2',
+    'm11.6 7.6 5.1 2.2',
+    circlePath(11.2, 7.2, 1.9),
+    'm16.6 8 2.6 1.1-1.1 2.6-2.6-1.1Z',
+  ],
+  [
+    'M4.4 12.4a7.6 7.6 0 0 1 15.2 0',
+    rectPath(3, 12.4, 18, 2.8),
+    'M7.4 18h9.2',
+  ],
+];
 
 const SEG_OPTIONS = ['CCTV', 'Automatización', 'Alarma & Det.', 'Control de acceso', 'Alarma intrusión', 'Red contra incendio', 'Supresión', 'Inst. eléctricas', 'Paneles solares', 'Otra'];
 const CASO_FIELDS: [string, string][] = [
@@ -64,46 +112,73 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
     display = bold;
   }
 
-  // Hexágono + "CI", recortado del logo real con el fondo hecho transparente
-  // (lib/brandAssets.ts). Las letras son blancas, por eso se apoya en un
-  // pequeño fondo gris claro (MARK_BG) donde se usa como logo del
-  // encabezado — sobre la hoja blanca directa se perderían.
-  let logoImg = null as Awaited<ReturnType<typeof pdfDoc.embedPng>> | null;
-  try {
-    logoImg = await pdfDoc.embedPng(Buffer.from(CI_MARK_BASE64, 'base64'));
-  } catch {
-    logoImg = null;
+  // Escudo (hexágono + "CI"), anclado en (x, yTop) = esquina superior
+  // izquierda del viewBox 100x100 — igual que Badge() en Logo.tsx.
+  function drawBadge(
+    pg: typeof page,
+    x: number,
+    yTop: number,
+    size: number,
+    opts: { textColor?: ReturnType<typeof rgb>; markColor?: ReturnType<typeof rgb>; opacity?: number; rotate?: ReturnType<typeof degrees> } = {}
+  ) {
+    const scale = size / 100;
+    const opacity = opts.opacity ?? 1;
+    const markColor = opts.markColor ?? VERDE;
+    const rotate = opts.rotate;
+    pg.drawSvgPath(BADGE_HEX_PATH, { x, y: yTop, scale, borderColor: markColor, borderWidth: 6, borderOpacity: opacity, borderLineCap: LineCapStyle.Round, rotate });
+    for (const [cx, cy, r] of BADGE_NODES) {
+      pg.drawSvgPath(circlePath(cx, cy, r), { x, y: yTop, scale, color: markColor, opacity, rotate });
+    }
+    pg.drawSvgPath(BADGE_LINE_PATH, { x, y: yTop, scale, borderColor: markColor, borderWidth: 5, borderOpacity: opacity, borderLineCap: LineCapStyle.Round, rotate });
+
+    // El texto no pasa por la misma matriz que drawSvgPath (que invierte Y
+    // internamente), así que su rotación y el punto de anclaje se calculan
+    // aparte, sobre el mismo círculo trigonométrico que usa el resto del PDF.
+    const fontSize = 38 * scale;
+    const textW = display.widthOfTextAtSize('CI', fontSize);
+    const localX = scale * 50 - textW / 2;
+    const localY = -scale * 62;
+    const rad = rotate ? (rotate.angle * Math.PI) / 180 : 0;
+    pg.drawText('CI', {
+      x: x + localX * Math.cos(rad) - localY * Math.sin(rad),
+      y: yTop + localX * Math.sin(rad) + localY * Math.cos(rad),
+      size: fontSize,
+      font: display,
+      color: opts.textColor ?? NAVY,
+      opacity,
+      rotate,
+    });
   }
-  let stripImg = null as Awaited<ReturnType<typeof pdfDoc.embedPng>> | null;
-  try {
-    stripImg = await pdfDoc.embedPng(Buffer.from(ICON_STRIP_BASE64, 'base64'));
-  } catch {
-    stripImg = null;
+  // Los seis íconos de servicio en fila, anclados en (x, yTop) = tope de cada
+  // ícono (viewBox 24x24) — igual que TiraIconos() en Logo.tsx.
+  function drawIconStrip(pg: typeof page, x: number, yTop: number, size: number, color: ReturnType<typeof rgb>) {
+    const scale = size / 24;
+    const gap = 5;
+    let cx = x;
+    for (const paths of ICONOS_PATHS) {
+      for (const d of paths) {
+        pg.drawSvgPath(d, { x: cx, y: yTop, scale, borderColor: color, borderWidth: 1.9, borderLineCap: LineCapStyle.Round });
+      }
+      cx += size + gap;
+    }
   }
 
   const data = report.data || {};
   const contentW = PAGE_W - MARGIN * 2;
   let y = PAGE_H - MARGIN;
 
-  // Marca de agua: el logo (hexágono + "CI") en diagonal, muy tenue, de
-  // fondo en cada hoja — le da autenticidad al documento (igual que un
-  // membrete de seguridad) sin estorbar la lectura. Se dibuja primero para
-  // quedar detrás de todo lo demás.
-  const watermarkAngle = 30;
-  const watermarkRad = (watermarkAngle * Math.PI) / 180;
-  const wmH = 260;
-  const wmW = logoImg ? (logoImg.width / logoImg.height) * wmH : 0;
-  const watermarkX = PAGE_W / 2 - (wmW / 2) * Math.cos(watermarkRad) + (wmH / 2) * Math.sin(watermarkRad);
-  const watermarkY = PAGE_H / 2 - (wmW / 2) * Math.sin(watermarkRad) - (wmH / 2) * Math.cos(watermarkRad);
+  // Marca de agua: el escudo en diagonal, muy tenue, de fondo en cada hoja —
+  // le da autenticidad al documento (igual que un membrete de seguridad) sin
+  // estorbar la lectura. Se dibuja primero para quedar detrás de todo lo
+  // demás.
+  const watermarkAngle = degrees(30);
+  const watermarkRad = (30 * Math.PI) / 180;
+  const wmSize = 230;
+  const watermarkX = PAGE_W / 2 - (wmSize / 2) * Math.cos(watermarkRad) + (wmSize / 2) * Math.sin(watermarkRad);
+  const watermarkY = PAGE_H / 2 - (wmSize / 2) * Math.sin(watermarkRad) - (wmSize / 2) * Math.cos(watermarkRad);
   function drawWatermark(pg: typeof page) {
-    if (!logoImg) return;
-    pg.drawImage(logoImg, {
-      x: watermarkX,
-      y: watermarkY,
-      width: wmW,
-      height: wmH,
-      opacity: 0.08,
-      rotate: degrees(watermarkAngle),
+    drawBadge(pg, watermarkX, watermarkY, wmSize, {
+      markColor: NAVY, textColor: NAVY, opacity: 0.08, rotate: watermarkAngle,
     });
   }
   drawWatermark(page);
@@ -146,28 +221,20 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
   }
 
   // ================= HEADER =================
-  // Encabezado limpio: sin bloques de color de fondo, solo tipografía de
-  // marca, buen espacio y una línea de acento — se lee como un documento
-  // serio, no como una tarjeta de app.
+  // Encabezado limpio: sin bloques de color de fondo, solo el logo completo
+  // (escudo + nombre + íconos de servicio, igual que en la app) y una línea
+  // de acento — se lee como un documento serio, no como una tarjeta de app.
   const headerTop = y;
-  const logoH = 52;
-  if (logoImg) {
-    const scale = logoH / logoImg.height;
-    const logoW = logoImg.width * scale;
-    const pad = 10;
-    // Las letras "CI" del logo son blancas: sin este fondo se pierden contra
-    // la hoja blanca. El gris es el mismo que usa el logo original.
-    page.drawRectangle({
-      x: MARGIN,
-      y: headerTop - logoH - pad * 2,
-      width: logoW + pad * 2,
-      height: logoH + pad * 2,
-      color: MARK_BG,
-    });
-    page.drawImage(logoImg, { x: MARGIN + pad, y: headerTop - logoH - pad, width: logoW, height: logoH });
-  } else {
-    page.drawText('CLAVE INTELIGENTE', { x: MARGIN, y: headerTop - 20, size: 14, font: bold, color: NAVY });
-  }
+  const badgeSize = 46;
+  drawBadge(page, MARGIN, headerTop, badgeSize);
+
+  const wordX = MARGIN + badgeSize + 12;
+  const wordSize = 15;
+  page.drawText('CLAVE INTELIGENTE', { x: wordX, y: headerTop - 15, size: wordSize, font: display, color: NAVY });
+  const wordmarkW = display.widthOfTextAtSize('CLAVE INTELIGENTE', wordSize);
+  const lineY = headerTop - 24;
+  page.drawLine({ start: { x: wordX, y: lineY }, end: { x: wordX + wordmarkW, y: lineY }, thickness: 1, color: ROJO });
+  drawIconStrip(page, wordX, lineY - 8, 14, GRAY_TEXT);
 
   page.drawText('REPORTE DE SERVICIO', { x: PAGE_W - MARGIN - 210, y: headerTop - 10, size: 14, font: display, color: NAVY });
   page.drawText(`Clave: ${data.claveFormato || 'CRM0851'}  ·  Folio: ${report.id.slice(0, 8).toUpperCase()}`, {
@@ -181,7 +248,7 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
   // Cliente como dato protagonista — el detalle (horas, orden de compra,
   // técnicos) sigue abajo en "Personal / Datos del servicio", esto es solo
   // el resumen.
-  const clienteY = headerTop - logoH - 20 - 14;
+  const clienteY = headerTop - badgeSize - 20;
   page.drawText(report.empresa_cliente || 'Cliente sin especificar', {
     x: MARGIN,
     y: clienteY,
@@ -194,17 +261,7 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
 
   y = clienteY - 26;
   page.drawLine({ start: { x: MARGIN, y }, end: { x: PAGE_W - MARGIN, y }, thickness: 1.5, color: NAVY });
-  y -= 10;
-
-  if (stripImg) {
-    const stripH = 18;
-    const scale = stripH / stripImg.height;
-    page.drawImage(stripImg, { x: MARGIN, y: y - stripH, width: stripImg.width * scale, height: stripH });
-    y -= stripH + 8;
-  } else {
-    page.drawLine({ start: { x: MARGIN, y }, end: { x: PAGE_W - MARGIN, y }, thickness: 1, color: GRAY_LINE });
-    y -= 12;
-  }
+  y -= 12;
 
   // ================= PERSONAL / DATOS DEL SERVICIO =================
   const colGap = 12;
