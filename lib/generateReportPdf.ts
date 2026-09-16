@@ -1,8 +1,7 @@
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { PDFDocument, rgb, degrees, StandardFonts } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { LOGO_BADGE_BASE64, ICON_STRIP_BASE64 } from './brandAssets';
 import { BARLOW_CONDENSED_BOLD_BASE64, INTER_REGULAR_BASE64, INTER_SEMIBOLD_BASE64 } from './brandFonts';
-import type { ResultadoServicio } from './resultadoServicio';
 
 type ReportRow = {
   id: string;
@@ -26,11 +25,6 @@ const TEAL_DARK = rgb(0.07, 0.25, 0.21);
 const GRAY_LINE = rgb(0.55, 0.55, 0.55);
 const GRAY_TEXT = rgb(0.42, 0.48, 0.5);
 const WHITE = rgb(1, 1, 1);
-const TEAL_BG = rgb(0.9, 0.96, 0.94);
-const BADGE_GREEN_BG = rgb(0.85, 0.95, 0.88);
-const BADGE_GREEN_TEXT = rgb(0.09, 0.45, 0.25);
-const BADGE_AMBER_BG = rgb(0.99, 0.93, 0.8);
-const BADGE_AMBER_TEXT = rgb(0.55, 0.35, 0.05);
 
 const MARGIN = 34;
 const PAGE_W = 612;
@@ -47,24 +41,7 @@ const CASO_FIELDS: [string, string][] = [
   ['pasosFuturos', 'Pasos futuros'],
 ];
 
-// Qué tan bien salió el servicio, traducido a la pastilla del encabezado.
-// No repite la lógica de calcularResultadoServicio (lib/resultadoServicio.ts)
-// — solo decide cómo se ve cada combinación de marcas.
-function badgeInfo(resultado?: ResultadoServicio | null): { label: string; bg: ReturnType<typeof rgb>; texto: ReturnType<typeof rgb> } | null {
-  if (!resultado || resultado.marcas.length === 0) return null;
-  const incompleto = resultado.marcas.includes('incompleto');
-  const retrasado = resultado.marcas.includes('retrasado');
-  if (incompleto && retrasado) return { label: 'INCOMPLETO Y CON RETRASO', bg: BADGE_AMBER_BG, texto: BADGE_AMBER_TEXT };
-  if (incompleto) return { label: 'TAREAS INCOMPLETAS', bg: BADGE_AMBER_BG, texto: BADGE_AMBER_TEXT };
-  if (retrasado) return { label: `CON RETRASO${resultado.retrasoMin ? ` (${resultado.retrasoMin} min)` : ''}`, bg: BADGE_AMBER_BG, texto: BADGE_AMBER_TEXT };
-  return { label: 'COMPLETO EN TIEMPO', bg: BADGE_GREEN_BG, texto: BADGE_GREEN_TEXT };
-}
-
-export async function generateReportPdf(
-  report: ReportRow,
-  supabase?: any,
-  resultado?: ResultadoServicio | null
-): Promise<Uint8Array> {
+export async function generateReportPdf(report: ReportRow, supabase?: any): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   let page = pdfDoc.addPage([PAGE_W, PAGE_H]);
 
@@ -103,9 +80,35 @@ export async function generateReportPdf(
   const contentW = PAGE_W - MARGIN * 2;
   let y = PAGE_H - MARGIN;
 
+  // Marca de agua: el nombre de la empresa en diagonal, muy tenue, de fondo
+  // en cada hoja — le da autenticidad al documento (igual que un membrete de
+  // seguridad) sin estorbar la lectura. Se dibuja primero para quedar detrás
+  // de todo lo demás.
+  const WATERMARK_TEXT = 'CLAVE INTELIGENTE';
+  const watermarkSize = 46;
+  const watermarkAngle = 35;
+  const watermarkRad = (watermarkAngle * Math.PI) / 180;
+  const wmW = display.widthOfTextAtSize(WATERMARK_TEXT, watermarkSize);
+  const wmH = watermarkSize * 0.72;
+  const watermarkX = PAGE_W / 2 - (wmW / 2) * Math.cos(watermarkRad) + (wmH / 2) * Math.sin(watermarkRad);
+  const watermarkY = PAGE_H / 2 - (wmW / 2) * Math.sin(watermarkRad) - (wmH / 2) * Math.cos(watermarkRad);
+  function drawWatermark(pg: typeof page) {
+    pg.drawText(WATERMARK_TEXT, {
+      x: watermarkX,
+      y: watermarkY,
+      size: watermarkSize,
+      font: display,
+      color: NAVY,
+      opacity: 0.06,
+      rotate: degrees(watermarkAngle),
+    });
+  }
+  drawWatermark(page);
+
   function newPage() {
     page = pdfDoc.addPage([PAGE_W, PAGE_H]);
     y = PAGE_H - MARGIN;
+    drawWatermark(page);
   }
   function ensureSpace(needed: number) {
     if (y - needed < MARGIN + SIGNATURE_ZONE_H) newPage();
@@ -139,24 +142,23 @@ export async function generateReportPdf(
     page.drawText(label, { x: x + 13, y: yBase + 0.7, size: 8.5, font: fnt, color: NAVY });
   }
 
-  // ================= HEADER / RESUMEN =================
-  // Franja de ancho completo: de un vistazo se ve el cliente, la fecha y el
-  // resultado del servicio, sin tener que leer el detalle de más abajo.
-  const headerH = 78;
+  // ================= HEADER =================
+  // Encabezado limpio: sin bloques de color de fondo, solo tipografía de
+  // marca, buen espacio y una línea de acento — se lee como un documento
+  // serio, no como una tarjeta de app.
   const headerTop = y;
-  page.drawRectangle({ x: MARGIN, y: headerTop - headerH, width: contentW, height: headerH, color: TEAL_BG });
-
+  const logoH = 40;
   if (logoImg) {
-    const logoH = 28;
     const scale = logoH / logoImg.height;
-    page.drawImage(logoImg, { x: MARGIN + 10, y: headerTop - 12 - logoH, width: logoImg.width * scale, height: logoH });
+    page.drawImage(logoImg, { x: MARGIN, y: headerTop - logoH, width: logoImg.width * scale, height: logoH });
   } else {
-    page.drawText('CLAVE INTELIGENTE', { x: MARGIN + 10, y: headerTop - 26, size: 12, font: bold, color: NAVY });
+    page.drawText('CLAVE INTELIGENTE', { x: MARGIN, y: headerTop - 20, size: 14, font: bold, color: NAVY });
   }
-  page.drawText('REPORTE DE SERVICIO', { x: PAGE_W - MARGIN - 200, y: headerTop - 20, size: 15, font: display, color: NAVY });
+
+  page.drawText('REPORTE DE SERVICIO', { x: PAGE_W - MARGIN - 210, y: headerTop - 10, size: 14, font: display, color: NAVY });
   page.drawText(`Clave: ${data.claveFormato || 'CRM0851'}  ·  Folio: ${report.id.slice(0, 8).toUpperCase()}`, {
-    x: PAGE_W - MARGIN - 200,
-    y: headerTop - 33,
+    x: PAGE_W - MARGIN - 210,
+    y: headerTop - 24,
     size: 7.5,
     font,
     color: GRAY_TEXT,
@@ -165,29 +167,21 @@ export async function generateReportPdf(
   // Cliente como dato protagonista — el detalle (horas, orden de compra,
   // técnicos) sigue abajo en "Personal / Datos del servicio", esto es solo
   // el resumen.
-  const clienteY = headerTop - headerH + 22;
+  const clienteY = headerTop - logoH - 20;
   page.drawText(report.empresa_cliente || 'Cliente sin especificar', {
-    x: MARGIN + 10,
+    x: MARGIN,
     y: clienteY,
     size: 17,
     font: display,
     color: NAVY,
-    maxWidth: contentW - 190,
+    maxWidth: contentW,
   });
-  page.drawText(`Servicio del ${report.fecha || '—'}`, { x: MARGIN + 10, y: clienteY - 14, size: 8.5, font, color: GRAY_TEXT });
+  page.drawText(`Servicio del ${report.fecha || '—'}`, { x: MARGIN, y: clienteY - 14, size: 8.5, font, color: GRAY_TEXT });
 
-  const badge = badgeInfo(resultado);
-  if (badge) {
-    const badgeSize = 8;
-    const badgeW = bold.widthOfTextAtSize(badge.label, badgeSize) + 20;
-    const badgeH = 18;
-    const badgeX = PAGE_W - MARGIN - 10 - badgeW;
-    const badgeY = headerTop - headerH + 14;
-    page.drawRectangle({ x: badgeX, y: badgeY, width: badgeW, height: badgeH, color: badge.bg });
-    page.drawText(badge.label, { x: badgeX + 10, y: badgeY + 5.5, size: badgeSize, font: bold, color: badge.texto });
-  }
+  y = clienteY - 26;
+  page.drawLine({ start: { x: MARGIN, y }, end: { x: PAGE_W - MARGIN, y }, thickness: 1.5, color: NAVY });
+  y -= 10;
 
-  y = headerTop - headerH - 10;
   if (stripImg) {
     const stripH = 18;
     const scale = stripH / stripImg.height;
@@ -568,15 +562,14 @@ export async function generateReportPdf(
   await drawSignature(MARGIN, 'Ing. responsable de ejecución', data.firmaIngNombre, data.firmaIngData);
   await drawSignature(MARGIN + sigW + 16, 'Nombre, fecha y firma cliente', `${data.firmaClienteNombre || '—'}${data.firmaClienteFecha ? ' · ' + data.firmaClienteFecha : ''}`, data.firmaClienteData);
 
-  const revY = y - 18 - sigBoxH - 14;
-  page.drawText('REVISIÓN FINAL', { x: MARGIN, y: revY, size: 6.5, font: bold, color: GRAY_TEXT });
+  // La revisión interna solo se muestra cuando ya está aprobada — es un
+  // paso de control de calidad propio, no algo que el cliente necesite ver
+  // como "pendiente" en su copia del reporte.
   if (data.firmaRevisionData) {
+    const revY = y - 18 - sigBoxH - 14;
+    page.drawText('REVISIÓN FINAL', { x: MARGIN, y: revY, size: 6.5, font: bold, color: GRAY_TEXT });
     page.drawText(`Aprobado por ${data.firmaRevisionNombre || 'Ing. Everardo Sánchez'} · ${data.firmaRevisionFecha || ''}`, {
       x: MARGIN + 100, y: revY, size: 8.5, font: bold, color: TEAL_DARK,
-    });
-  } else {
-    page.drawText('PENDIENTE DE FIRMA — ING. EVERARDO SÁNCHEZ', {
-      x: MARGIN + 100, y: revY, size: 8.5, font: bold, color: rgb(0.75, 0.42, 0.15),
     });
   }
 

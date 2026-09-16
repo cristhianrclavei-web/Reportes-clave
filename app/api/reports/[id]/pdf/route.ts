@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabaseServer';
 import { generateReportPdf } from '@/lib/generateReportPdf';
 import { auditarDescarga } from '@/lib/auditarDescarga'; // NUEVO - OWASP A09
-import { calcularResultadoServicio } from '@/lib/resultadoServicio';
-import { calcularProgresoTareas } from '@/lib/serviciosProgramados';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,32 +48,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     );
   }
 
-  // Badge de resultado del encabezado: se busca el servicio_programado que
-  // apunta a este reporte (no todos los reportes tienen uno — los viejos o
-  // sueltos simplemente no muestran badge). Si lo hay y es el último día del
-  // proyecto, se trae también el progreso de tareas para detectar
-  // "incompleto" — en días intermedios calcularResultadoServicio ya sabe
-  // ignorar pendientes, así que ahí no hace falta la consulta extra.
-  const { data: servicio } = await supabase
-    .from('servicios_programados')
-    .select('estado, hora_llegada, hora_inicio, hora_fin, duracion_estimada_min, numero_dia, dias_totales, grupo_id')
-    .eq('report_id', params.id)
-    .maybeSingle();
-
-  let progreso = null as { total: number; completadas: number; pct: number } | null;
-  if (servicio && servicio.numero_dia >= servicio.dias_totales) {
-    const { data: tareas } = await supabase
-      .from('servicio_tareas')
-      .select('completada, avance_pct')
-      .eq('grupo_id', servicio.grupo_id);
-    progreso = calcularProgresoTareas(tareas || []);
-  }
-  const resultado = servicio ? calcularResultadoServicio(servicio as any, progreso) : null;
-
   // Generar PDF
   let pdfBytes: Uint8Array;
   try {
-    pdfBytes = await generateReportPdf(report as any, supabase, resultado);
+    pdfBytes = await generateReportPdf(report as any, supabase);
   } catch (err: any) {
     console.error('[pdf-route] Error generando PDF:', err?.message, err?.stack);
     return NextResponse.json({ error: 'Error al generar el PDF: ' + (err?.message || 'desconocido') }, { status: 500 });
