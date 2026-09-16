@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabaseClient';
 import { vincularReporteAServicio, Servicio, listarServiciosVinculables } from '@/lib/serviciosProgramados';
 import { eliminarReporte } from '@/lib/eliminarReporte';
 import { registrarAccionGlobal } from '@/lib/auditoriaGlobal';
-import { Check, X, FileText, Trash2, Unlock, LockKeyhole, MessageSquareWarning, Camera, FolderKanban } from 'lucide-react';
+import { Check, X, CircleX, FileText, FileSpreadsheet, Share2, Trash2, Unlock, LockKeyhole, MessageSquareWarning, Camera, FolderKanban } from 'lucide-react';
 import { solicitarCorreccion, habilitarCorreccion, cancelarCorreccion, aplicarCorreccion } from '@/lib/correcciones';
 import { showToast } from '@/components/Toast';
 import FacturacionSection from '@/components/FacturacionSection';
@@ -379,7 +379,14 @@ export default function ReportDetailModal({
 
   return (
     <div onClick={onClose} className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex justify-center items-start overflow-y-auto p-4">
-      <div onClick={(e) => e.stopPropagation()} className="glass-strong rounded-3xl max-w-xl lg:max-w-2xl w-full p-6 lg:p-8 mt-4 mb-8 shadow-glow">
+      <div onClick={(e) => e.stopPropagation()} className="relative glass-strong rounded-3xl max-w-xl lg:max-w-2xl w-full p-6 lg:p-8 mt-4 mb-8 shadow-glow">
+        <button
+          onClick={onClose}
+          aria-label="Cerrar"
+          className="absolute top-3.5 right-3.5 z-10 text-ink/60 hover:text-ink active:scale-90 transition-transform"
+        >
+          <CircleX size={26} strokeWidth={1.8} />
+        </button>
         {/* Vínculo con el servicio programado: lo primero del reporte, porque
             determina a qué trabajo pertenece. */}
         {servicioVinculadoId ? (
@@ -466,7 +473,7 @@ export default function ReportDetailModal({
           </div>
         )}
 
-        <div className="flex justify-between items-center mb-5 flex-wrap gap-2">
+        <div className="flex justify-between items-center mb-5 flex-wrap gap-2 pr-8">
           <div className="flex items-center gap-2.5 flex-wrap">
             <h2 className="font-display font-semibold text-xl tracking-wide">{report.empresa_cliente}</h2>
             {revision.data ? (
@@ -475,48 +482,51 @@ export default function ReportDetailModal({
               <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-amber/15 text-amber border border-amber/30">Pendiente de revisión</span>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={() => window.open(`/api/reports/${report.id}/pdf?t=${Date.now()}`, '_blank', 'noopener,noreferrer')}
-              className="text-xs bg-teal text-inkOnAccent rounded-full px-3.5 py-2 font-semibold active:scale-95 transition-transform"
+              className="min-h-[38px] flex items-center gap-1.5 text-[12.5px] bg-teal text-inkOnAccent rounded-full px-3.5 py-2 font-semibold active:scale-95 transition-transform shadow-glow-teal"
             >
+              <FileText size={15} strokeWidth={2.4} />
               Ver PDF
             </button>
             <button
               onClick={() => { window.location.href = `/api/reports/${report.id}/xlsx?t=${Date.now()}`; }}
-              className="text-xs bg-teal-dark text-white rounded-full px-3.5 py-2 font-semibold active:scale-95 transition-transform"
+              className="min-h-[38px] flex items-center gap-1.5 text-[12.5px] bg-teal-dark text-white rounded-full px-3.5 py-2 font-semibold active:scale-95 transition-transform"
             >
+              <FileSpreadsheet size={15} strokeWidth={2.4} />
               Descargar Excel
             </button>
             <button
               onClick={handleVerFotos}
-              className="text-xs bg-amber text-inkOnAccent rounded-full px-3.5 py-2 font-semibold active:scale-95 transition-transform"
+              className="min-h-[38px] flex items-center gap-1.5 text-[12.5px] bg-amber text-inkOnAccent rounded-full px-3.5 py-2 font-semibold active:scale-95 transition-transform"
             >
+              <Camera size={15} strokeWidth={2.4} />
               Fotos {(report.data?.fotos?.length || 0) > 0 ? `(${report.data.fotos.length})` : ''}
             </button>
             <div className="relative">
               <button
                 onClick={() => setShareMenuOpen((v) => !v)}
                 disabled={sharing}
-                className="text-xs text-white rounded-full px-3.5 py-2 font-semibold active:scale-95 transition-transform disabled:opacity-60"
+                className="min-h-[38px] flex items-center gap-1.5 text-[12.5px] text-white rounded-full px-3.5 py-2 font-semibold active:scale-95 transition-transform disabled:opacity-60"
                 style={{ backgroundColor: '#25D366' }}
               >
+                <Share2 size={15} strokeWidth={2.4} />
                 {sharing ? 'Preparando...' : 'Compartir'}
               </button>
               {shareMenuOpen && (
-                <div className="absolute right-0 top-full mt-2 glass-strong rounded-2xl p-1.5 flex flex-col gap-1 z-10 min-w-[140px] shadow-glow">
-                  <button onClick={() => handleShare('pdf')} className="text-left text-xs px-3 py-2 rounded-xl hover:bg-white/10 active:scale-95 transition-transform">
+                <div className="absolute right-0 top-full mt-2 glass-strong rounded-2xl p-1.5 flex flex-col gap-1 z-10 min-w-[150px] shadow-glow">
+                  <button onClick={() => handleShare('pdf')} className="flex items-center gap-2 text-left text-[12.5px] font-medium px-3 py-2 rounded-xl hover:bg-white/10 active:scale-95 transition-transform">
+                    <FileText size={14} strokeWidth={2.4} className="text-teal" />
                     Como PDF
                   </button>
-                  <button onClick={() => handleShare('xlsx')} className="text-left text-xs px-3 py-2 rounded-xl hover:bg-white/10 active:scale-95 transition-transform">
+                  <button onClick={() => handleShare('xlsx')} className="flex items-center gap-2 text-left text-[12.5px] font-medium px-3 py-2 rounded-xl hover:bg-white/10 active:scale-95 transition-transform">
+                    <FileSpreadsheet size={14} strokeWidth={2.4} className="text-teal" />
                     Como Excel
                   </button>
                 </div>
               )}
             </div>
-            <button onClick={onClose} className="text-ink/60 text-xl leading-none active:scale-90 transition-transform">
-              <X size={20} strokeWidth={2.6} />
-            </button>
           </div>
         </div>
 
