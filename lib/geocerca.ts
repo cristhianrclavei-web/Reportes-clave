@@ -27,3 +27,30 @@ export function extraerCoordenadas(texto: string): Punto | null {
   if (Number.isNaN(lat) || Number.isNaN(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
   return { lat, lng };
 }
+
+// Los enlaces cortos de Google Maps (maps.app.goo.gl, goo.gl/maps/...) no
+// llevan coordenadas en la URL — hay que abrirlos para saberlas. Esta
+// función solo reconoce el dominio, para decidir si vale la pena mandarlo al
+// servidor a resolver.
+export function esEnlaceCortoMaps(texto: string): boolean {
+  try {
+    const host = new URL(texto.trim()).hostname;
+    return host === 'maps.app.goo.gl' || host === 'goo.gl';
+  } catch {
+    return false;
+  }
+}
+
+// Al resolver un enlace corto, Google devuelve la página del lugar. Esa
+// página no siempre trae "@lat,lng" en la URL final (los links de negocio
+// usan un ID en vez de coordenadas), pero SIEMPRE trae un meta og:image con
+// un mapa estático cuyo parámetro `center` sí es lat,lng — es el dato más
+// confiable que se puede sacar sin ejecutar JavaScript.
+export function extraerCoordenadasDeHtml(html: string): Punto | null {
+  const m = html.match(/staticmap\?center=(-?\d{1,3}\.\d+)(?:,|%2C)(-?\d{1,3}\.\d+)/);
+  if (!m) return null;
+  const lat = parseFloat(m[1]);
+  const lng = parseFloat(m[2]);
+  if (Number.isNaN(lat) || Number.isNaN(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return { lat, lng };
+}

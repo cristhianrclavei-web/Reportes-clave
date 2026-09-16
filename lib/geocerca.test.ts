@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { distanciaMetros, extraerCoordenadas } from './geocerca';
+import { distanciaMetros, extraerCoordenadas, esEnlaceCortoMaps, extraerCoordenadasDeHtml } from './geocerca';
 
 describe('distanciaMetros', () => {
   it('da 0 para el mismo punto', () => {
@@ -39,5 +39,39 @@ describe('extraerCoordenadas', () => {
 
   it('rechaza valores fuera de rango de lat/lng', () => {
     expect(extraerCoordenadas('200.0, 300.0')).toBeNull();
+  });
+});
+
+describe('esEnlaceCortoMaps', () => {
+  it('reconoce maps.app.goo.gl', () => {
+    expect(esEnlaceCortoMaps('https://maps.app.goo.gl/TVDa7YC3BTC7cpck6?g_st=ac')).toBe(true);
+  });
+
+  it('reconoce goo.gl/maps', () => {
+    expect(esEnlaceCortoMaps('https://goo.gl/maps/abc123')).toBe(true);
+  });
+
+  it('no confunde un link largo de Maps con uno corto', () => {
+    expect(esEnlaceCortoMaps('https://www.google.com/maps/@19.4326,-99.1332,15z')).toBe(false);
+  });
+
+  it('devuelve false para texto que no es URL', () => {
+    expect(esEnlaceCortoMaps('19.4326, -99.1332')).toBe(false);
+  });
+});
+
+describe('extraerCoordenadasDeHtml', () => {
+  it('saca lat,lng del og:image de vista previa del mapa (coma codificada)', () => {
+    const html = `<meta content="https://maps.google.com/maps/api/staticmap?center=20.6434994%2C-103.2814592&amp;zoom=14&amp;size=900x900" property="og:image">`;
+    expect(extraerCoordenadasDeHtml(html)).toEqual({ lat: 20.6434994, lng: -103.2814592 });
+  });
+
+  it('también acepta la coma sin codificar', () => {
+    const html = `<meta content="https://maps.google.com/maps/api/staticmap?center=20.6434994,-103.2814592&zoom=14" property="og:image">`;
+    expect(extraerCoordenadasDeHtml(html)).toEqual({ lat: 20.6434994, lng: -103.2814592 });
+  });
+
+  it('devuelve null si el HTML no trae el mapa estático', () => {
+    expect(extraerCoordenadasDeHtml('<html><body>Sin mapa aquí</body></html>')).toBeNull();
   });
 });

@@ -22,8 +22,8 @@ import { showToast } from '@/components/Toast';
 import SelectorArticulo from '@/components/SelectorArticulo';
 import { hoyLocal } from '@/lib/fechaHoy';
 import { getCurrentLocation } from '@/lib/geolocation';
-import { extraerCoordenadas } from '@/lib/geocerca';
-import { buscarDirecciones, SugerenciaDireccion } from '@/lib/geocoding';
+import { extraerCoordenadas, esEnlaceCortoMaps } from '@/lib/geocerca';
+import { buscarDirecciones, resolverEnlaceMapa, SugerenciaDireccion } from '@/lib/geocoding';
 
 const ESTADO_CFG: Record<Servicio['estado'], { label: string; cls: string; Icono: any }> = {
   programado: { label: 'Programado', cls: 'bg-surface-2 text-muted', Icono: Clock },
@@ -124,6 +124,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   const ubicDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [ubicEnlace, setUbicEnlace] = useState('');
   const [ubicBuscando, setUbicBuscando] = useState(false);
+  const [ubicResolviendoEnlace, setUbicResolviendoEnlace] = useState(false);
   const [ubicError, setUbicError] = useState<string | null>(null);
   // Festivos: se avisa AL AGENDAR, no al reportar. Si el aviso sale antes de
   // guardar, el viaje perdido no llega a ocurrir.
@@ -269,17 +270,40 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
     setUbicSugerencias([]);
   }
 
-  function handleUsarEnlaceUbicacion() {
-    const punto = extraerCoordenadas(ubicEnlace);
-    if (!punto) {
+  async function handleUsarEnlaceUbicacion() {
+    const directo = extraerCoordenadas(ubicEnlace);
+    if (directo) {
+      setUbicError(null);
+      setUbicLat(String(directo.lat));
+      setUbicLng(String(directo.lng));
+      setUbicDireccion('');
+      setUbicSugerencias([]);
+      return;
+    }
+
+    // Los enlaces cortos (maps.app.goo.gl) no traen coordenadas en la URL:
+    // hay que resolverlos en el servidor. Cualquier otro texto sin
+    // coordenadas es simplemente un texto inválido.
+    if (!esEnlaceCortoMaps(ubicEnlace)) {
       setUbicError('No se encontraron coordenadas en ese texto. Pega el enlace de Google Maps o "lat, lng".');
       return;
     }
+
     setUbicError(null);
-    setUbicLat(String(punto.lat));
-    setUbicLng(String(punto.lng));
-    setUbicDireccion('');
-    setUbicSugerencias([]);
+    setUbicResolviendoEnlace(true);
+    try {
+      const resultado = await resolverEnlaceMapa(ubicEnlace.trim());
+      if ('error' in resultado) {
+        setUbicError(resultado.error);
+        return;
+      }
+      setUbicLat(String(resultado.punto.lat));
+      setUbicLng(String(resultado.punto.lng));
+      setUbicDireccion('');
+      setUbicSugerencias([]);
+    } finally {
+      setUbicResolviendoEnlace(false);
+    }
   }
 
   // Igual que escribir en el buscador de Google Maps: cada tecla dispara una
@@ -717,14 +741,16 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
                   placeholder="O pega un enlace de Google Maps"
                   value={ubicEnlace}
                   onChange={(e) => setUbicEnlace(e.target.value)}
-                  className="flex-1 min-w-0 px-3 min-h-[40px] rounded-lg bg-surface border border-line focus:border-teal focus:outline-none text-[13px]"
+                  disabled={ubicResolviendoEnlace}
+                  className="flex-1 min-w-0 px-3 min-h-[40px] rounded-lg bg-surface border border-line focus:border-teal focus:outline-none text-[13px] disabled:opacity-60"
                 />
                 <button
                   type="button"
                   onClick={handleUsarEnlaceUbicacion}
-                  className="px-3.5 min-h-[40px] rounded-lg bg-surface border border-line text-[13px] font-medium shrink-0 active:scale-95 transition-transform"
+                  disabled={ubicResolviendoEnlace}
+                  className="px-3.5 min-h-[40px] rounded-lg bg-surface border border-line text-[13px] font-medium shrink-0 active:scale-95 transition-transform disabled:opacity-60"
                 >
-                  Usar
+                  {ubicResolviendoEnlace ? 'Resolviendo…' : 'Usar'}
                 </button>
               </div>
               {ubicError && <p className="text-[12px] text-red mt-2">{ubicError}</p>}
