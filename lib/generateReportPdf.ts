@@ -174,8 +174,8 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
   const watermarkAngle = degrees(30);
   const watermarkRad = (30 * Math.PI) / 180;
   const wmSize = 230;
-  const watermarkX = PAGE_W / 2 - (wmSize / 2) * Math.cos(watermarkRad) + (wmSize / 2) * Math.sin(watermarkRad);
-  const watermarkY = PAGE_H / 2 - (wmSize / 2) * Math.sin(watermarkRad) - (wmSize / 2) * Math.cos(watermarkRad);
+  const watermarkX = PAGE_W / 2 - (wmSize / 2) * Math.cos(watermarkRad) - (wmSize / 2) * Math.sin(watermarkRad);
+  const watermarkY = PAGE_H / 2 - (wmSize / 2) * Math.sin(watermarkRad) + (wmSize / 2) * Math.cos(watermarkRad);
   function drawWatermark(pg: typeof page) {
     drawBadge(pg, watermarkX, watermarkY, wmSize, {
       markColor: NAVY, textColor: NAVY, opacity: 0.08, rotate: watermarkAngle,
