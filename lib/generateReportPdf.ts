@@ -1,6 +1,6 @@
 import { PDFDocument, rgb, degrees, StandardFonts } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
-import { LOGO_BADGE_BASE64, ICON_STRIP_BASE64 } from './brandAssets';
+import { CI_MARK_BASE64, ICON_STRIP_BASE64 } from './brandAssets';
 import { BARLOW_CONDENSED_BOLD_BASE64, INTER_REGULAR_BASE64, INTER_SEMIBOLD_BASE64 } from './brandFonts';
 
 type ReportRow = {
@@ -25,6 +25,7 @@ const TEAL_DARK = rgb(0.07, 0.25, 0.21);
 const GRAY_LINE = rgb(0.55, 0.55, 0.55);
 const GRAY_TEXT = rgb(0.42, 0.48, 0.5);
 const WHITE = rgb(1, 1, 1);
+const MARK_BG = rgb(0.9, 0.9, 0.9);
 
 const MARGIN = 34;
 const PAGE_W = 612;
@@ -63,9 +64,13 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
     display = bold;
   }
 
+  // Hexágono + "CI", recortado del logo real con el fondo hecho transparente
+  // (lib/brandAssets.ts). Las letras son blancas, por eso se apoya en un
+  // pequeño fondo gris claro (MARK_BG) donde se usa como logo del
+  // encabezado — sobre la hoja blanca directa se perderían.
   let logoImg = null as Awaited<ReturnType<typeof pdfDoc.embedPng>> | null;
   try {
-    logoImg = await pdfDoc.embedPng(Buffer.from(LOGO_BADGE_BASE64, 'base64'));
+    logoImg = await pdfDoc.embedPng(Buffer.from(CI_MARK_BASE64, 'base64'));
   } catch {
     logoImg = null;
   }
@@ -80,26 +85,24 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
   const contentW = PAGE_W - MARGIN * 2;
   let y = PAGE_H - MARGIN;
 
-  // Marca de agua: el nombre de la empresa en diagonal, muy tenue, de fondo
-  // en cada hoja — le da autenticidad al documento (igual que un membrete de
-  // seguridad) sin estorbar la lectura. Se dibuja primero para quedar detrás
-  // de todo lo demás.
-  const WATERMARK_TEXT = 'CLAVE INTELIGENTE';
-  const watermarkSize = 46;
-  const watermarkAngle = 35;
+  // Marca de agua: el logo (hexágono + "CI") en diagonal, muy tenue, de
+  // fondo en cada hoja — le da autenticidad al documento (igual que un
+  // membrete de seguridad) sin estorbar la lectura. Se dibuja primero para
+  // quedar detrás de todo lo demás.
+  const watermarkAngle = 30;
   const watermarkRad = (watermarkAngle * Math.PI) / 180;
-  const wmW = display.widthOfTextAtSize(WATERMARK_TEXT, watermarkSize);
-  const wmH = watermarkSize * 0.72;
+  const wmH = 260;
+  const wmW = logoImg ? (logoImg.width / logoImg.height) * wmH : 0;
   const watermarkX = PAGE_W / 2 - (wmW / 2) * Math.cos(watermarkRad) + (wmH / 2) * Math.sin(watermarkRad);
   const watermarkY = PAGE_H / 2 - (wmW / 2) * Math.sin(watermarkRad) - (wmH / 2) * Math.cos(watermarkRad);
   function drawWatermark(pg: typeof page) {
-    pg.drawText(WATERMARK_TEXT, {
+    if (!logoImg) return;
+    pg.drawImage(logoImg, {
       x: watermarkX,
       y: watermarkY,
-      size: watermarkSize,
-      font: display,
-      color: NAVY,
-      opacity: 0.06,
+      width: wmW,
+      height: wmH,
+      opacity: 0.08,
       rotate: degrees(watermarkAngle),
     });
   }
@@ -147,10 +150,21 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
   // marca, buen espacio y una línea de acento — se lee como un documento
   // serio, no como una tarjeta de app.
   const headerTop = y;
-  const logoH = 40;
+  const logoH = 52;
   if (logoImg) {
     const scale = logoH / logoImg.height;
-    page.drawImage(logoImg, { x: MARGIN, y: headerTop - logoH, width: logoImg.width * scale, height: logoH });
+    const logoW = logoImg.width * scale;
+    const pad = 10;
+    // Las letras "CI" del logo son blancas: sin este fondo se pierden contra
+    // la hoja blanca. El gris es el mismo que usa el logo original.
+    page.drawRectangle({
+      x: MARGIN,
+      y: headerTop - logoH - pad * 2,
+      width: logoW + pad * 2,
+      height: logoH + pad * 2,
+      color: MARK_BG,
+    });
+    page.drawImage(logoImg, { x: MARGIN + pad, y: headerTop - logoH - pad, width: logoW, height: logoH });
   } else {
     page.drawText('CLAVE INTELIGENTE', { x: MARGIN, y: headerTop - 20, size: 14, font: bold, color: NAVY });
   }
@@ -167,7 +181,7 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
   // Cliente como dato protagonista — el detalle (horas, orden de compra,
   // técnicos) sigue abajo en "Personal / Datos del servicio", esto es solo
   // el resumen.
-  const clienteY = headerTop - logoH - 20;
+  const clienteY = headerTop - logoH - 20 - 14;
   page.drawText(report.empresa_cliente || 'Cliente sin especificar', {
     x: MARGIN,
     y: clienteY,
