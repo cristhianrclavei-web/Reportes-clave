@@ -1,5 +1,8 @@
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import fontkit from '@pdf-lib/fontkit';
 import { LOGO_BADGE_BASE64, ICON_STRIP_BASE64 } from './brandAssets';
+import { BARLOW_CONDENSED_BOLD_BASE64, INTER_REGULAR_BASE64, INTER_SEMIBOLD_BASE64 } from './brandFonts';
+import type { ResultadoServicio } from './resultadoServicio';
 
 type ReportRow = {
   id: string;
@@ -23,6 +26,11 @@ const TEAL_DARK = rgb(0.07, 0.25, 0.21);
 const GRAY_LINE = rgb(0.55, 0.55, 0.55);
 const GRAY_TEXT = rgb(0.42, 0.48, 0.5);
 const WHITE = rgb(1, 1, 1);
+const TEAL_BG = rgb(0.9, 0.96, 0.94);
+const BADGE_GREEN_BG = rgb(0.85, 0.95, 0.88);
+const BADGE_GREEN_TEXT = rgb(0.09, 0.45, 0.25);
+const BADGE_AMBER_BG = rgb(0.99, 0.93, 0.8);
+const BADGE_AMBER_TEXT = rgb(0.55, 0.35, 0.05);
 
 const MARGIN = 34;
 const PAGE_W = 612;
@@ -39,11 +47,44 @@ const CASO_FIELDS: [string, string][] = [
   ['pasosFuturos', 'Pasos futuros'],
 ];
 
-export async function generateReportPdf(report: ReportRow, supabase?: any): Promise<Uint8Array> {
+// Qué tan bien salió el servicio, traducido a la pastilla del encabezado.
+// No repite la lógica de calcularResultadoServicio (lib/resultadoServicio.ts)
+// — solo decide cómo se ve cada combinación de marcas.
+function badgeInfo(resultado?: ResultadoServicio | null): { label: string; bg: ReturnType<typeof rgb>; texto: ReturnType<typeof rgb> } | null {
+  if (!resultado || resultado.marcas.length === 0) return null;
+  const incompleto = resultado.marcas.includes('incompleto');
+  const retrasado = resultado.marcas.includes('retrasado');
+  if (incompleto && retrasado) return { label: 'INCOMPLETO Y CON RETRASO', bg: BADGE_AMBER_BG, texto: BADGE_AMBER_TEXT };
+  if (incompleto) return { label: 'TAREAS INCOMPLETAS', bg: BADGE_AMBER_BG, texto: BADGE_AMBER_TEXT };
+  if (retrasado) return { label: `CON RETRASO${resultado.retrasoMin ? ` (${resultado.retrasoMin} min)` : ''}`, bg: BADGE_AMBER_BG, texto: BADGE_AMBER_TEXT };
+  return { label: 'COMPLETO EN TIEMPO', bg: BADGE_GREEN_BG, texto: BADGE_GREEN_TEXT };
+}
+
+export async function generateReportPdf(
+  report: ReportRow,
+  supabase?: any,
+  resultado?: ResultadoServicio | null
+): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   let page = pdfDoc.addPage([PAGE_W, PAGE_H]);
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  // Fuentes de marca (Barlow Condensed + Inter, las mismas que la app) en vez
+  // de Helvetica genérica. Si el embed fallara por lo que sea, un PDF con
+  // tipografía estándar es mejor que un PDF que no se genera.
+  let font: Awaited<ReturnType<typeof pdfDoc.embedFont>>;
+  let bold: Awaited<ReturnType<typeof pdfDoc.embedFont>>;
+  let display: Awaited<ReturnType<typeof pdfDoc.embedFont>>;
+  try {
+    pdfDoc.registerFontkit(fontkit);
+    font = await pdfDoc.embedFont(Buffer.from(INTER_REGULAR_BASE64, 'base64'));
+    bold = await pdfDoc.embedFont(Buffer.from(INTER_SEMIBOLD_BASE64, 'base64'));
+    display = await pdfDoc.embedFont(Buffer.from(BARLOW_CONDENSED_BOLD_BASE64, 'base64'));
+  } catch (e) {
+    console.error('No se pudieron incrustar las fuentes de marca, usando Helvetica:', e);
+    font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    display = bold;
+  }
 
   let logoImg = null as Awaited<ReturnType<typeof pdfDoc.embedPng>> | null;
   try {
@@ -98,19 +139,55 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
     page.drawText(label, { x: x + 13, y: yBase + 0.7, size: 8.5, font: fnt, color: NAVY });
   }
 
-  // ================= HEADER =================
-  const headerH = 52;
+  // ================= HEADER / RESUMEN =================
+  // Franja de ancho completo: de un vistazo se ve el cliente, la fecha y el
+  // resultado del servicio, sin tener que leer el detalle de más abajo.
+  const headerH = 78;
+  const headerTop = y;
+  page.drawRectangle({ x: MARGIN, y: headerTop - headerH, width: contentW, height: headerH, color: TEAL_BG });
+
   if (logoImg) {
-    const logoH = 46;
+    const logoH = 28;
     const scale = logoH / logoImg.height;
-    page.drawImage(logoImg, { x: MARGIN, y: y - logoH, width: logoImg.width * scale, height: logoH });
+    page.drawImage(logoImg, { x: MARGIN + 10, y: headerTop - 12 - logoH, width: logoImg.width * scale, height: logoH });
   } else {
-    page.drawText('CLAVE INTELIGENTE', { x: MARGIN, y: y - 20, size: 14, font: bold, color: NAVY });
+    page.drawText('CLAVE INTELIGENTE', { x: MARGIN + 10, y: headerTop - 26, size: 12, font: bold, color: NAVY });
   }
-  page.drawText('REPORTE DE SERVICIO', { x: PAGE_W - MARGIN - 210, y: y - 4, size: 13, font: bold, color: NAVY });
-  page.drawText(`Clave de formato: ${data.claveFormato || 'CRM0851'}`, { x: PAGE_W - MARGIN - 210, y: y - 19, size: 8, font, color: GRAY_TEXT });
-  page.drawText(`Folio: ${report.id.slice(0, 8).toUpperCase()}`, { x: PAGE_W - MARGIN - 210, y: y - 30, size: 8, font, color: GRAY_TEXT });
-  y -= headerH;
+  page.drawText('REPORTE DE SERVICIO', { x: PAGE_W - MARGIN - 200, y: headerTop - 20, size: 15, font: display, color: NAVY });
+  page.drawText(`Clave: ${data.claveFormato || 'CRM0851'}  ·  Folio: ${report.id.slice(0, 8).toUpperCase()}`, {
+    x: PAGE_W - MARGIN - 200,
+    y: headerTop - 33,
+    size: 7.5,
+    font,
+    color: GRAY_TEXT,
+  });
+
+  // Cliente como dato protagonista — el detalle (horas, orden de compra,
+  // técnicos) sigue abajo en "Personal / Datos del servicio", esto es solo
+  // el resumen.
+  const clienteY = headerTop - headerH + 22;
+  page.drawText(report.empresa_cliente || 'Cliente sin especificar', {
+    x: MARGIN + 10,
+    y: clienteY,
+    size: 17,
+    font: display,
+    color: NAVY,
+    maxWidth: contentW - 190,
+  });
+  page.drawText(`Servicio del ${report.fecha || '—'}`, { x: MARGIN + 10, y: clienteY - 14, size: 8.5, font, color: GRAY_TEXT });
+
+  const badge = badgeInfo(resultado);
+  if (badge) {
+    const badgeSize = 8;
+    const badgeW = bold.widthOfTextAtSize(badge.label, badgeSize) + 20;
+    const badgeH = 18;
+    const badgeX = PAGE_W - MARGIN - 10 - badgeW;
+    const badgeY = headerTop - headerH + 14;
+    page.drawRectangle({ x: badgeX, y: badgeY, width: badgeW, height: badgeH, color: badge.bg });
+    page.drawText(badge.label, { x: badgeX + 10, y: badgeY + 5.5, size: badgeSize, font: bold, color: badge.texto });
+  }
+
+  y = headerTop - headerH - 10;
   if (stripImg) {
     const stripH = 18;
     const scale = stripH / stripImg.height;
