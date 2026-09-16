@@ -22,6 +22,8 @@ const TIPOS_VALIDOS = new Set([
   'correccion_resuelta',
   'aviso_servicio',
   'tecnico_fuera_de_sitio',
+  'devolucion_herramienta',
+  'confirmacion_devolucion',
   'general',
 ]);
 

@@ -81,6 +81,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
   const [distanciaSitio, setDistanciaSitio] = useState<number | null>(null);
   const [geoError, setGeoError] = useState<string | null>(null);
   const geocercaDisparadaRef = useRef(false);
+  const geocercaInicioDisparadaRef = useRef(false);
 
   const [showEvidenciaExtra, setShowEvidenciaExtra] = useState(false);
   const [notaEvidenciaExtra, setNotaEvidenciaExtra] = useState('');
@@ -132,30 +133,38 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
     return () => clearInterval(id);
   }, []);
 
-  // Detección automática de llegada: solo mientras el técnico tiene esta
-  // pantalla abierta (no hay rastreo en segundo plano — iOS no lo permite a
-  // una PWA). Si no hay ubicación programada, el botón manual sigue siendo
-  // el único camino, como antes.
+  // Detección automática de llegada e inicio: solo mientras el técnico tiene
+  // esta pantalla abierta (no hay rastreo en segundo plano — iOS no lo
+  // permite a una PWA). Si no hay ubicación programada, el botón manual
+  // sigue siendo el único camino, como antes. Al pasar de "programado" a
+  // "en_sitio" este efecto se reinicia solo (depende de servicio.estado) y
+  // pasa a vigilar el siguiente paso: seguir dentro del radio también
+  // arranca el servicio, sin que haga falta tocar el botón.
   useEffect(() => {
     if (!servicio) return;
-    if (servicio.estado !== 'programado') return;
+    if (servicio.estado !== 'programado' && servicio.estado !== 'en_sitio') return;
     if (!servicio.ubicacion_programada) return;
     if (typeof navigator === 'undefined' || !navigator.geolocation) return;
 
     const destino = servicio.ubicacion_programada;
     const radio = servicio.radio_geocerca_m || 120;
+    const estadoAlIniciar = servicio.estado;
 
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
         const d = distanciaMetros({ lat: pos.coords.latitude, lng: pos.coords.longitude }, destino);
         setDistanciaSitio(Math.round(d));
         setGeoError(null);
-        if (d <= radio && !geocercaDisparadaRef.current) {
+        if (d > radio) return;
+        if (estadoAlIniciar === 'programado' && !geocercaDisparadaRef.current) {
           geocercaDisparadaRef.current = true;
           handleMarcarLlegada();
+        } else if (estadoAlIniciar === 'en_sitio' && !geocercaInicioDisparadaRef.current) {
+          geocercaInicioDisparadaRef.current = true;
+          handleIniciar();
         }
       },
-      () => setGeoError('No se pudo usar tu ubicación. Puedes marcar llegada manualmente.'),
+      () => setGeoError('No se pudo usar tu ubicación. Puedes continuar manualmente.'),
       { enableHighAccuracy: true, maximumAge: 20000, timeout: 15000 }
     );
     return () => navigator.geolocation.clearWatch(watchId);
@@ -425,14 +434,25 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
           </>
         )}
         {servicio.estado === 'en_sitio' && !tiempoExcedido && ventana.permitido && (
-          <button
-            onClick={handleIniciar}
-            disabled={busy}
-            className="w-full min-h-[56px] mb-4 rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[16px] flex items-center justify-center gap-2.5 active:scale-95 transition-transform disabled:opacity-60"
-          >
-            <Play size={19} strokeWidth={2.6} fill="currentColor" />
-            Iniciar servicio
-          </button>
+          <>
+            {servicio.ubicacion_programada && !geoError && (
+              <p className="text-[12.5px] text-muted mb-2 flex items-center gap-1.5">
+                <MapPin size={13} strokeWidth={2.4} className="shrink-0" />
+                {distanciaSitio !== null && distanciaSitio <= (servicio.radio_geocerca_m || 120)
+                  ? 'Sigues en el sitio — iniciando…'
+                  : 'Se inicia solo mientras sigas dentro del sitio.'}
+              </p>
+            )}
+            {geoError && <p className="text-[12.5px] text-amber mb-2">{geoError}</p>}
+            <button
+              onClick={handleIniciar}
+              disabled={busy}
+              className="w-full min-h-[56px] mb-4 rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[16px] flex items-center justify-center gap-2.5 active:scale-95 transition-transform disabled:opacity-60"
+            >
+              <Play size={19} strokeWidth={2.6} fill="currentColor" />
+              Iniciar servicio
+            </button>
+          </>
         )}
         {servicio.estado === 'en_sitio' && tiempoExcedido && (
           <p className="text-[13.5px] text-red mb-4 leading-relaxed">

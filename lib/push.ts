@@ -145,13 +145,21 @@ export type TipoAviso =
   | 'correccion_resuelta'
   | 'aviso_servicio'
   | 'tecnico_fuera_de_sitio'
-  | 'recordatorio_iniciar_servicio';
+  | 'recordatorio_iniciar_servicio'
+  | 'recordatorio_llegada_pendiente'
+  | 'reporte_pendiente'
+  | 'devolucion_herramienta'
+  | 'confirmacion_devolucion';
 
 export const TIPOS_AVISO: { valor: TipoAviso; label: string; detalle: string; paraTecnico?: boolean }[] = [
   { valor: 'aviso_servicio', label: 'Avisos sobre días programados', detalle: 'Cuando un técnico avisa que un día no se va a poder' },
   { valor: 'tecnico_fuera_de_sitio', label: 'Técnico en sitio sin asignar', detalle: 'Cuando alguien está en un sitio programado que no es el suyo' },
   { valor: 'recordatorio_iniciar_servicio', label: 'Recordatorio de iniciar servicio', detalle: 'Cada 10 min mientras estés en sitio sin haber iniciado', paraTecnico: true },
+  { valor: 'recordatorio_llegada_pendiente', label: 'Recordatorio de llegada pendiente', detalle: 'Cada 10 min si ya pasó tu hora programada y no has marcado llegada', paraTecnico: true },
+  { valor: 'reporte_pendiente', label: 'Reporte de servicio pendiente', detalle: 'A las 6pm si no has hecho el reporte, y cada mañana a las 8:30 mientras siga pendiente', paraTecnico: true },
   { valor: 'solicitud_herramienta', label: 'Solicitudes de herramienta', detalle: 'Cuando un técnico pide material o equipo' },
+  { valor: 'devolucion_herramienta', label: 'Devoluciones de herramienta', detalle: 'Cuando un técnico firma que devolvió herramienta, para que almacén confirme' },
+  { valor: 'confirmacion_devolucion', label: 'Confirmación de tu devolución', detalle: 'Cuando almacén confirma que recibió lo que devolviste', paraTecnico: true },
   { valor: 'correccion_solicitada', label: 'Correcciones de reportes', detalle: 'Cuando un técnico pide corregir un reporte' },
   { valor: 'reporte_nuevo', label: 'Reportes concluidos', detalle: 'Cuando se guarda un reporte de servicio' },
   { valor: 'cierre_servicio', label: 'Cierre de servicios', detalle: 'Cuando un técnico termina un servicio' },

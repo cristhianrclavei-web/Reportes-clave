@@ -712,6 +712,15 @@ export async function firmarResguardo(
         ? `Devolvió herramienta de «${proyecto}»: ${marcados} de ${items.length}. No regresaron: ${detalleFaltantes}`
         : `Devolvió herramienta de «${proyecto}»: las ${items.length} piezas completas`
     );
+
+    await notificar({
+      destino: 'almacen',
+      tipo: 'devolucion_herramienta',
+      titulo: 'Devolución de herramienta',
+      mensaje: `${proyecto}: ${marcados} de ${items.length} piezas devueltas. Falta confirmar recepción.`,
+      url: '/dashboard/almacen',
+      tag: `devolucion-${servicioId}`,
+    });
   }
 }
 
@@ -733,7 +742,7 @@ export async function confirmarRecepcion(
     .update({ recibido_por: user?.id, recibido_en: new Date().toISOString() })
     .eq('servicio_id', servicioId)
     .eq('tipo', 'devolucion')
-    .select('id')
+    .select('id, firmado_por')
     .maybeSingle();
   if (error) throw error;
 
@@ -752,6 +761,19 @@ export async function confirmarRecepcion(
     servicioId,
     `Confirmó la recepción en almacén de «${proyecto}». Lo devuelto entra al inventario ${destino === 'proyecto' ? 'del proyecto' : 'general'}.`
   );
+
+  // Cierra el ciclo: quien firmó la devolución sabe que ya no es responsable
+  // de esas piezas, sin tener que preguntar.
+  if (resguardo?.firmado_por) {
+    await notificar({
+      usuarios: [resguardo.firmado_por],
+      tipo: 'confirmacion_devolucion',
+      titulo: 'Devolución confirmada',
+      mensaje: `Almacén confirmó la recepción de lo que devolviste de «${proyecto}».`,
+      url: `/servicios/${servicioId}`,
+      tag: `confirmacion-devolucion-${servicioId}`,
+    });
+  }
 }
 
 // --- Plantillas ---
