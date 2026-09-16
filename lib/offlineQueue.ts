@@ -28,6 +28,10 @@ export type PendingReport = {
   subTipoServicio: string | null;
   data: Record<string, any>; // igual a "baseData" pero sin claveFormato todavía
   fotos: PendingFoto[];
+  // Fotos que ya estaban subidas al servicio (avances, evidencia, tareas) al
+  // momento de guardar sin conexión: solo llevan su path, no dataURL, porque
+  // ya viven en Storage y no hace falta volver a subirlas al sincronizar.
+  fotosExistentes?: { path: string; caption: string }[];
   servicioProgramadoId?: string | null;
 };
 

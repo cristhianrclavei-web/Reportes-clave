@@ -932,6 +932,55 @@ export async function vincularReporteAServicio(servicioId: string, reportId: str
   if (error) throw error;
 }
 
+export type FotoDelDia = { path: string; caption: string; previewUrl: string };
+
+// Fotos ya capturadas en campo ese día puntual, para precargarlas en el
+// reporte y que el técnico no tenga que volver a tomarlas: evidencia de
+// avance/retraso/extra (servicio_eventos, ya está acotada a este día por
+// servicio_id) y fotos de tareas completadas ese día (servicio_tareas vive a
+// nivel de grupo_id porque el checklist se comparte entre días de un mismo
+// proyecto, así que aquí sí hace falta filtrar por la fecha de este día).
+export async function listarFotosDelDia(servicio: Pick<Servicio, 'id' | 'grupo_id' | 'fecha'>): Promise<FotoDelDia[]> {
+  const supabase = createClient();
+  const [y, m, d] = servicio.fecha.split('-').map(Number);
+  const inicio = new Date(y, (m || 1) - 1, d || 1);
+  const fin = new Date(y, (m || 1) - 1, (d || 1) + 1);
+
+  const [{ data: tareas }, { data: eventos }] = await Promise.all([
+    supabase
+      .from('servicio_tareas')
+      .select('descripcion, foto_path, completada_en')
+      .eq('grupo_id', servicio.grupo_id)
+      .not('foto_path', 'is', null)
+      .gte('completada_en', inicio.toISOString())
+      .lt('completada_en', fin.toISOString()),
+    supabase
+      .from('servicio_eventos')
+      .select('tipo, nota, foto_path')
+      .eq('servicio_id', servicio.id)
+      .not('foto_path', 'is', null),
+  ]);
+
+  const ETIQUETAS: Record<string, string> = {
+    avance: 'Avance de tarea',
+    retraso: 'Evidencia de retraso',
+    evidencia: 'Evidencia adicional',
+  };
+
+  const items: { path: string; caption: string }[] = [
+    ...(tareas || []).map((t: any) => ({ path: t.foto_path as string, caption: t.descripcion || 'Tarea completada' })),
+    ...(eventos || []).map((e: any) => ({ path: e.foto_path as string, caption: e.nota || ETIQUETAS[e.tipo] || 'Evidencia del servicio' })),
+  ];
+  if (items.length === 0) return [];
+
+  const { data: signed } = await supabase.storage.from('evidencias').createSignedUrls(items.map((i) => i.path), 3600);
+  const urlByPath = new Map((signed || []).map((s: any) => [s.path, s.signedUrl as string]));
+
+  return items
+    .map((i) => ({ ...i, previewUrl: urlByPath.get(i.path) || '' }))
+    .filter((i) => i.previewUrl);
+}
+
 export type EstadoTiempo = { tipo: 'a_tiempo' | 'retraso' | 'excedido' | null; minutos?: number };
 
 export type ProgresoTareas = { total: number; completadas: number; pct: number };

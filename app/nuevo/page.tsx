@@ -12,7 +12,7 @@ import { saveOfflineReport, fileToDataUrl, countOfflineReports } from '@/lib/off
 import { showToast } from '@/components/Toast';
 import SavingOverlay from '@/components/SavingOverlay';
 import ReportPreviewModal, { PreviewData } from '@/components/ReportPreviewModal';
-import { listarMisServicios, vincularReporteAServicio, Servicio, filtrarSiguienteDiaPorGrupo, listarTecnicosDeServicio } from '@/lib/serviciosProgramados';
+import { listarMisServicios, vincularReporteAServicio, Servicio, filtrarSiguienteDiaPorGrupo, listarTecnicosDeServicio, listarFotosDelDia, FotoDelDia } from '@/lib/serviciosProgramados';
 import { X, Camera, Images, Plus, AlertTriangle, Eye } from 'lucide-react';
 import { generarUUID } from '@/lib/uuid';
 import { notificar } from '@/lib/push';
@@ -208,13 +208,21 @@ export default function NuevoReportePage() {
   const [fotos, setFotos] = useState<{ file: File; previewUrl: string; caption: string }[]>([]);
   const fotoInputRef = useRef<HTMLInputElement>(null);
   const fotoGaleriaRef = useRef<HTMLInputElement>(null);
+  // Fotos que ya se tomaron en campo ese día (avances, evidencia extra,
+  // retraso, tareas completadas) y se precargan solas al elegir el servicio,
+  // para que el técnico no tenga que volver a tomarlas. Siguen siendo
+  // editables: se pueden quitar o ajustar el comentario antes de guardar.
+  const [fotosServicio, setFotosServicio] = useState<FotoDelDia[]>([]);
+  const [cargandoFotosServicio, setCargandoFotosServicio] = useState(false);
 
-  // Al elegir un servicio asignado: se llena el cliente y se traen los
-  // técnicos que el supervisor le asignó, para ofrecerlos como sugerencia.
+  // Al elegir un servicio asignado: se llena el cliente, se traen los
+  // técnicos que el supervisor le asignó (para ofrecerlos como sugerencia) y
+  // las fotos que ya se capturaron ese día en el servicio.
   async function handleSeleccionServicio(id: string) {
     if (!id) {
       setServicioSeleccionadoId(null);
       setPersonalAsignado([]);
+      setFotosServicio([]);
       return;
     }
     setServicioSeleccionadoId(id);
@@ -227,6 +235,25 @@ export default function NuevoReportePage() {
       // sin conexión no se puede consultar: los campos siguen siendo manuales
       setPersonalAsignado([]);
     }
+    if (s) {
+      setCargandoFotosServicio(true);
+      try {
+        setFotosServicio(await listarFotosDelDia(s));
+      } catch {
+        // sin conexión no se pueden traer: el técnico las agrega a mano
+        setFotosServicio([]);
+      } finally {
+        setCargandoFotosServicio(false);
+      }
+    }
+  }
+
+  function removeFotoServicio(i: number) {
+    setFotosServicio((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  function updateFotoServicioCaption(i: number, caption: string) {
+    setFotosServicio((prev) => prev.map((f, idx) => (idx === i ? { ...f, caption } : f)));
   }
 
   // Campos sin los que el reporte no sirve como comprobante del servicio.
@@ -422,6 +449,7 @@ export default function NuevoReportePage() {
     sigClienteRef.current?.clear();
     fotos.forEach((f) => URL.revokeObjectURL(f.previewUrl));
     setFotos([]);
+    setFotosServicio([]);
   }
 
   function buildSharedData() {
@@ -466,7 +494,10 @@ export default function NuevoReportePage() {
       tipoServicio,
       subTipo,
       data: buildSharedData(),
-      fotos: fotos.map((f) => ({ previewUrl: f.previewUrl, caption: f.caption })),
+      fotos: [
+        ...fotosServicio.map((f) => ({ previewUrl: f.previewUrl, caption: f.caption })),
+        ...fotos.map((f) => ({ previewUrl: f.previewUrl, caption: f.caption })),
+      ],
       firmaIngListo: Boolean(sigIngRef.current && !sigIngRef.current.isEmpty()),
       firmaClienteListo: Boolean(sigClienteRef.current && !sigClienteRef.current.isEmpty()),
     };
@@ -523,6 +554,7 @@ export default function NuevoReportePage() {
           subTipoServicio: subTipo,
           data: sharedData,
           fotos: fotosForOffline,
+          fotosExistentes: fotosServicio.map((f) => ({ path: f.path, caption: f.caption.trim() })),
           servicioProgramadoId: servicioSeleccionadoId,
         });
 
@@ -581,8 +613,13 @@ export default function NuevoReportePage() {
         return;
       }
 
-      // Subir fotos de evidencia, si hay
-      const fotoData: { path: string; caption: string }[] = [];
+      // Fotos ya capturadas en el servicio: solo se referencia su path, ya
+      // están subidas en el mismo bucket — no hace falta volver a subirlas.
+      const fotoData: { path: string; caption: string }[] = fotosServicio.map((f) => ({
+        path: f.path,
+        caption: f.caption.trim(),
+      }));
+      // Subir fotos de evidencia nuevas, si hay
       for (let i = 0; i < fotos.length; i++) {
         const f = fotos[i].file;
         const ext = f.name.split('.').pop() || 'jpg';
@@ -1053,6 +1090,44 @@ export default function NuevoReportePage() {
         {/* Fotos de evidencia */}
         <div className={cardCls}>
           <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Fotos de evidencia</p>
+
+          {servicioSeleccionadoId && (cargandoFotosServicio || fotosServicio.length > 0) && (
+            <div className="mb-4">
+              <p className="text-[11px] font-semibold text-teal uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Camera size={12} strokeWidth={2.6} /> Capturadas en este servicio
+              </p>
+              {cargandoFotosServicio ? (
+                <p className="text-[12px] text-muted">Buscando fotos que ya tomaste en campo hoy…</p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                    {fotosServicio.map((f, i) => (
+                      <div key={f.path} className="relative">
+                        <img src={f.previewUrl} alt={`Foto del servicio ${i + 1}`} className="w-full h-20 object-cover rounded-lg border border-line" />
+                        <button
+                          type="button"
+                          onClick={() => removeFotoServicio(i)}
+                          aria-label="Quitar foto"
+                          className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red text-white text-[11px] leading-none active:scale-90 transition-transform"
+                        >
+                          <X size={19} strokeWidth={2.6} />
+                        </button>
+                        <input
+                          type="text"
+                          placeholder="Comentario..."
+                          value={f.caption}
+                          onChange={(e) => updateFotoServicioCaption(i, e.target.value)}
+                          className="w-full mt-1.5 px-2 py-1 text-[11px] rounded-md bg-surface-2 border border-line focus:border-teal focus:outline-none"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-muted mt-2.5">Se agregaron solas porque ya las tomaste en el servicio de hoy — quita las que no apliquen.</p>
+                </>
+              )}
+            </div>
+          )}
+
           <input
             ref={fotoInputRef}
             type="file"

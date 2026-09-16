@@ -48,8 +48,10 @@ async function syncOne(item: PendingReport): Promise<void> {
   });
   if (error) throw error;
 
+  // Las que ya estaban subidas al servicio solo se referencian, sin volver a
+  // subirlas; las nuevas (tomadas sin conexión) sí hay que subirlas ahora.
+  const fotoData: { path: string; caption: string }[] = [...(item.fotosExistentes || [])];
   if (item.fotos && item.fotos.length > 0) {
-    const fotoData: { path: string; caption: string }[] = [];
     for (let i = 0; i < item.fotos.length; i++) {
       const f = item.fotos[i];
       const blob = dataUrlToBlob(f.fileDataUrl);
@@ -60,9 +62,9 @@ async function syncOne(item: PendingReport): Promise<void> {
       });
       if (!upErr) fotoData.push({ path, caption: f.caption });
     }
-    if (fotoData.length > 0) {
-      await supabase.from('reports').update({ data: { ...baseData, fotos: fotoData } }).eq('id', reportId);
-    }
+  }
+  if (fotoData.length > 0) {
+    await supabase.from('reports').update({ data: { ...baseData, fotos: fotoData } }).eq('id', reportId);
   }
 
   if (item.servicioProgramadoId) {
