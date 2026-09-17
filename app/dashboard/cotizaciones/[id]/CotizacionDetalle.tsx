@@ -137,11 +137,20 @@ export default function CotizacionDetalle({
   // El enlace público solo resuelve si ya está aprobada/enviada (ver
   // supabase/patch_cotizaciones_publico.sql) — antes de eso no tiene caso
   // ofrecer el botón.
+  //
+  // Se probó adjuntar el PDF de verdad vía Web Share API, pero requería un
+  // fetch antes de abrir el share/link — en el celular eso rompe el gesto
+  // de usuario que WhatsApp y los navegadores exigen (el share/popup se
+  // bloquea en silencio si no ocurre al toque, sin ningún error visible).
+  // Por eso se quedó en el link, que dispara al instante y sí funciona.
   function handleEnviarWhatsapp() {
-    const tel = limpiarTelefonoWhatsapp(cotizacion.telefono || '');
     const link = `${window.location.origin}/api/cotizaciones/${cotizacion.id}/pdf-cliente`;
     const saludo = cotizacion.atencion ? `Hola ${cotizacion.atencion}` : 'Hola';
     const mensaje = `${saludo}, te comparto la cotización ${cotizacion.folio} de Clave Inteligente para ${cotizacion.empresa}. Puedes verla aquí: ${link}`;
+    // Sin teléfono del cliente, wa.me sin número abre WhatsApp con el
+    // mensaje listo y deja elegir el contacto ahí mismo — no hace falta
+    // tenerlo capturado para poder mandarla.
+    const tel = cotizacion.telefono ? limpiarTelefonoWhatsapp(cotizacion.telefono) : '';
     window.open(`https://wa.me/${tel}?text=${encodeURIComponent(mensaje)}`, '_blank');
   }
 
@@ -196,8 +205,6 @@ export default function CotizacionDetalle({
 
   const grupos = agruparPorSistema(lineas);
   const habilitaEnviar = puedeMarcarEnviada(cotizacion);
-  const puedeCompartir = cotizacion.estado === 'aprobada' || cotizacion.estado === 'enviada';
-  const habilitaWhatsapp = puedeCompartir && !!cotizacion.telefono;
   // Solo informativo para quien la arma — nunca se muestra en el PDF que
   // recibe el cliente.
   const costoTotal = lineas.reduce((acc, l) => acc + l.costo * l.cantidad, 0);
@@ -417,7 +424,7 @@ export default function CotizacionDetalle({
           (solo quien aprueba cotizaciones) — el de WhatsApp queda activo
           siempre, sin importar el estado, para poder reenviarla cuando haga
           falta. */}
-      <div className="flex gap-2.5 mb-2.5">
+      <div className="flex gap-2.5 mb-1.5">
         <a
           href={`/api/cotizaciones/${cotizacion.id}/pdf?t=${Date.now()}`}
           target="_blank"
@@ -430,15 +437,7 @@ export default function CotizacionDetalle({
         {puedeAprobar && (
           <button
             onClick={handleEnviarWhatsapp}
-            disabled={!habilitaWhatsapp}
-            title={
-              !puedeCompartir
-                ? 'Primero hay que aprobarla y firmarla'
-                : !cotizacion.telefono
-                ? 'Agrega un teléfono del cliente para poder enviarla'
-                : undefined
-            }
-            className="flex-1 min-h-[52px] rounded-2xl bg-[#25D366] text-white font-display font-semibold text-[15px] flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-40"
+            className="flex-1 min-h-[52px] rounded-2xl bg-[#25D366] text-white font-display font-semibold text-[15px] flex items-center justify-center gap-2 active:scale-95 transition-transform"
           >
             <MessageCircle size={18} strokeWidth={2.4} />
             WhatsApp
