@@ -2,10 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import ThemeToggle from '@/components/ThemeToggle';
-import LogoutButton from '@/components/LogoutButton';
-import Logo from '@/components/Logo';
-import DashboardTabs from '@/components/DashboardTabs';
+import SupervisorShell from '@/components/SupervisorShell';
 import { listarAuditoriaGlobal, EntradaAuditoria, AccionGlobal } from '@/lib/auditoriaGlobal';
 import { CalendarPlus, Pencil, Users, Plus, Trash2, BadgeCheck, Flag, Banknote, AlertTriangle, MessageSquareWarning, Unlock, LockKeyhole, FileCheck, CalendarClock, PackagePlus, PackageCheck, PackageX, Warehouse, CalendarX } from 'lucide-react';
 
@@ -107,21 +104,12 @@ export default function EventosList({ userName }: { userName?: string }) {
   }, [filtradas]);
 
   return (
-    <div className="max-w-2xl lg:max-w-6xl mx-auto pb-28 lg:pb-16 lg:px-6">
-      <div className="sticky top-0 z-20 glass-strong px-5 py-3.5 flex items-center justify-between gap-3">
-        <Logo variante="completo" size={32} className="min-w-0" compactoEnMovil />
-        <div className="flex items-center gap-1 shrink-0">
-          <ThemeToggle />
-          <LogoutButton compacto />
-        </div>
-      </div>
-
-      <div className="px-4 pt-5">
-        <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-wide mb-4">Actividad del equipo</h1>
-        {userName && <p className="text-[15px] text-muted font-medium mb-4 -mt-2.5">{userName}</p>}
-
-        <DashboardTabs active="eventos" />
-
+    <SupervisorShell
+      active="eventos"
+      title="Actividad del equipo"
+      userName={userName}
+      wrapperClassName="max-w-2xl lg:max-w-6xl mx-auto pb-28 lg:pb-16 lg:px-6"
+    >
         <p className="text-[12.5px] text-muted mb-4">
           Registro de todas las acciones de los supervisores: servicios programados, ediciones, eliminaciones, revisiones y facturación. Las eliminaciones quedan aquí de forma permanente aunque el registro original ya no exista.
         </p>
@@ -183,7 +171,6 @@ export default function EventosList({ userName }: { userName?: string }) {
             </div>
           </div>
         ))}
-      </div>
-    </div>
+    </SupervisorShell>
   );
 }

@@ -3,14 +3,11 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabaseClient';
-import ThemeToggle from '@/components/ThemeToggle';
-import LogoutButton from '@/components/LogoutButton';
 import ReportDetailModal, { ReportDetail, techName } from '@/components/ReportDetailModal';
-import DashboardTabs from '@/components/DashboardTabs';
+import SupervisorShell from '@/components/SupervisorShell';
 import { facturaChip } from '@/lib/reportStatus';
 import { showToast } from '@/components/Toast';
 import { Check, MessageSquareWarning } from 'lucide-react';
-import Logo from '@/components/Logo';
 import SelectorSemana, { RangoSeleccionado } from '@/components/SelectorSemana';
 
 type Report = ReportDetail;
@@ -20,16 +17,6 @@ function formatFecha(fecha: string): string {
   const [y, m, d] = fecha.split('-');
   if (!y || !m || !d) return fecha;
   return `${d}/${m}/${y}`;
-}
-
-function iniciales(nombre: string): string {
-  return (nombre || '')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() || '')
-    .join('');
 }
 
 export default function ReportesList({
@@ -85,34 +72,12 @@ export default function ReportesList({
   );
 
   return (
-    <div className="max-w-3xl lg:max-w-6xl mx-auto pb-10 px-0 lg:px-4">
-      {/* Header */}
-      <div className="sticky top-0 z-20 glass-strong px-5 lg:px-6 py-3.5 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <Logo variante="completo" size={34} className="min-w-0" />
-        </div>
-        <div className="flex items-center gap-2.5 shrink-0">
-          <div className="hidden lg:flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-teal text-inkOnAccent flex items-center justify-center text-[11px] font-display font-bold shrink-0">
-              {iniciales(userName || '') || '?'}
-            </div>
-            <span className="text-[13px] font-medium truncate max-w-[140px]">{userName || 'Supervisor'}</span>
-          </div>
-          <ThemeToggle />
-          <LogoutButton />
-        </div>
-      </div>
-
-      <div className="px-4 lg:px-0 pt-5">
-        <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-wide mb-4">
-          Reportes de servicio
-        </h1>
-        {userName && (
-          <p className="text-[15px] text-muted font-medium mb-4 -mt-2.5">{userName}</p>
-        )}
-
-        <DashboardTabs active="reportes" />
-
+    <SupervisorShell
+      active="reportes"
+      title="Reportes de servicio"
+      userName={userName}
+      wrapperClassName="max-w-3xl lg:max-w-6xl mx-auto pb-10 px-0 lg:px-4"
+    >
         {solicitudesPendientes.length > 0 && (
           <div className="mb-4 p-4 rounded-2xl bg-amber/12 border-2 border-amber/40">
             <p className="font-display font-semibold text-[15px] text-amber mb-2 flex items-center gap-2">
@@ -240,7 +205,6 @@ export default function ReportesList({
             </div>
           ))}
         </div>
-      </div>
 
       {open && (
         <ReportDetailModal
@@ -253,6 +217,6 @@ export default function ReportesList({
         />
       )}
 
-    </div>
+    </SupervisorShell>
   );
 }

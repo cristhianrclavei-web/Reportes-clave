@@ -2,10 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import ThemeToggle from '@/components/ThemeToggle';
-import LogoutButton from '@/components/LogoutButton';
-import Logo from '@/components/Logo';
-import DashboardTabs from '@/components/DashboardTabs';
+import SupervisorShell from '@/components/SupervisorShell';
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
 import {
@@ -92,21 +89,13 @@ export default function AlmacenList({ userName }: { userName?: string }) {
   }
 
   return (
-    <div className="max-w-2xl lg:max-w-6xl mx-auto pb-16 lg:px-6">
-      <div className="sticky top-0 z-20 glass-strong px-5 py-3.5 flex items-center justify-between gap-3">
-        <Logo variante="completo" size={32} className="min-w-0" compactoEnMovil />
-        <div className="flex items-center gap-1 shrink-0">
-          <ThemeToggle />
-          <LogoutButton compacto />
-        </div>
-      </div>
-
-      <div className="px-4 lg:px-0 pt-5">
-        <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-wide mb-4">Almacén</h1>
-        {userName && <p className="text-[15px] text-muted font-medium mb-4 -mt-2.5">{userName}</p>}
-
-        <DashboardTabs active="almacen" mostrarAlmacen />
-
+    <SupervisorShell
+      active="almacen"
+      title="Almacén"
+      userName={userName}
+      mostrarAlmacen
+      wrapperClassName="max-w-2xl lg:max-w-6xl mx-auto pb-16 lg:px-6"
+    >
         <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-5">
           {([
             { k: 'existencias', label: 'Existencias', Icono: Boxes },
@@ -420,7 +409,6 @@ export default function AlmacenList({ userName }: { userName?: string }) {
             </div>
           </>
         )}
-      </div>
 
       {editandoMinimo && (
         <ModalOverlay onClose={() => setEditandoMinimo(null)}>
@@ -477,6 +465,6 @@ export default function AlmacenList({ userName }: { userName?: string }) {
           }}
         />
       )}
-    </div>
+    </SupervisorShell>
   );
 }

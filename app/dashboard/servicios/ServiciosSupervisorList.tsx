@@ -2,9 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import ThemeToggle from '@/components/ThemeToggle';
-import LogoutButton from '@/components/LogoutButton';
-import Logo from '@/components/Logo';
+import SupervisorShell from '@/components/SupervisorShell';
 import SelectorSemana, { RangoSeleccionado } from '@/components/SelectorSemana';
 import { useTheme } from '@/lib/useTheme';
 import { listarFestivos, festivoDe, festivosEnCache, Festivo } from '@/lib/avisos';
@@ -17,7 +15,6 @@ import {
 import { Plus, X, FileText, AlertTriangle, Timer, MapPin, Play, Check, Clock, FolderKanban, Bookmark, Pencil, Copy, Trash2, PackageCheck, TrendingUp, ChevronRight } from 'lucide-react';
 import { calcularResultadoServicio } from '@/lib/resultadoServicio';
 import { ResultadoIconos } from '@/components/ResultadoServicioBadges';
-import DashboardTabs from '@/components/DashboardTabs';
 import { showToast } from '@/components/Toast';
 import SelectorArticulo from '@/components/SelectorArticulo';
 import { hoyLocal } from '@/lib/fechaHoy';
@@ -469,21 +466,12 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   }
 
   return (
-    <div className="max-w-2xl lg:max-w-6xl mx-auto pb-28 lg:pb-16 lg:px-6">
-      <div className="sticky top-0 z-20 glass-strong px-5 py-3.5 flex items-center justify-between gap-3">
-        <Logo variante="completo" size={32} className="min-w-0" compactoEnMovil />
-        <div className="flex items-center gap-1 shrink-0">
-          <ThemeToggle />
-          <LogoutButton compacto />
-        </div>
-      </div>
-
-      <div className="px-4 pt-5">
-        <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-wide mb-4">Servicios</h1>
-        {userName && <p className="text-[15px] text-muted font-medium mb-4 -mt-2.5">{userName}</p>}
-
-        <DashboardTabs active="servicios" />
-
+    <SupervisorShell
+      active="servicios"
+      title="Servicios"
+      userName={userName}
+      wrapperClassName="max-w-2xl lg:max-w-6xl mx-auto pb-28 lg:pb-16 lg:px-6"
+    >
         {/* Cuatro secciones con su nombre: en una sola fila no caben cuatro
             etiquetas en un celular, así que se acomodan en dos por dos y pasan
             a una fila en pantallas anchas. Un ícono solo obliga a adivinar. */}
@@ -1032,7 +1020,6 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
             );
           })}
         </div>
-      </div>
 
       {/* Editar plantilla */}
       {plantillaEditando && (
@@ -1110,6 +1097,6 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
           </div>
         </div>
       )}
-    </div>
+    </SupervisorShell>
   );
 }

@@ -2,10 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import ThemeToggle from '@/components/ThemeToggle';
-import LogoutButton from '@/components/LogoutButton';
-import Logo from '@/components/Logo';
-import DashboardTabs from '@/components/DashboardTabs';
+import SupervisorShell from '@/components/SupervisorShell';
 import ProgressBar from '@/components/ProgressBar';
 import {
   Servicio, listarServiciosSupervisor, listarTecnicosPorServicio,
@@ -86,21 +83,12 @@ export default function AgendaList({ userName }: { userName?: string }) {
   }
 
   return (
-    <div className="max-w-2xl lg:max-w-6xl mx-auto pb-28 lg:pb-16 lg:px-6">
-      <div className="sticky top-0 z-20 glass-strong px-5 py-3.5 flex items-center justify-between gap-3">
-        <Logo variante="completo" size={32} className="min-w-0" compactoEnMovil />
-        <div className="flex items-center gap-1 shrink-0">
-          <ThemeToggle />
-          <LogoutButton compacto />
-        </div>
-      </div>
-
-      <div className="px-4 pt-5">
-        <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-wide mb-4">Agenda</h1>
-        {userName && <p className="text-[15px] text-muted font-medium mb-4 -mt-2.5">{userName}</p>}
-
-        <DashboardTabs active="agenda" />
-
+    <SupervisorShell
+      active="agenda"
+      title="Agenda"
+      userName={userName}
+      wrapperClassName="max-w-2xl lg:max-w-6xl mx-auto pb-28 lg:pb-16 lg:px-6"
+    >
         {tecnicosUnicos.length > 0 && (
           <select
             value={filtroTecnico}
@@ -234,7 +222,6 @@ export default function AgendaList({ userName }: { userName?: string }) {
             </div>
           </div>
         ))}
-      </div>
-    </div>
+    </SupervisorShell>
   );
 }

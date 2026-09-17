@@ -1,9 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabaseClient';
 import { FileText, FolderKanban, History, CalendarDays, LayoutDashboard, Warehouse } from 'lucide-react';
+import { usePuedeAlmacen } from '@/lib/usePuedeAlmacen';
 
 // Pestañas superiores del panel del supervisor. Una sola fuente de verdad
 // para que las pantallas se sientan como secciones de un mismo panel y no
@@ -25,23 +24,7 @@ export default function DashboardTabs({ active, mostrarAlmacen }: { active: Dash
   // El permiso se consulta aquí para no tener que pasarlo desde cada
   // pantalla. El resultado se guarda en la sesión: no cambia mientras el
   // usuario esté dentro.
-  const [puedeAlmacen, setPuedeAlmacen] = useState(mostrarAlmacen ?? false);
-
-  useEffect(() => {
-    if (mostrarAlmacen) return;
-    const guardado = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('puedeAlmacen') : null;
-    if (guardado !== null) {
-      setPuedeAlmacen(guardado === 'true');
-      return;
-    }
-    createClient()
-      .rpc('puedo_gestionar_almacen')
-      .then(({ data }) => {
-        const valor = !!data;
-        setPuedeAlmacen(valor);
-        try { sessionStorage.setItem('puedeAlmacen', String(valor)); } catch { /* modo privado */ }
-      });
-  }, [mostrarAlmacen]);
+  const puedeAlmacen = usePuedeAlmacen(mostrarAlmacen);
 
   const tabs = puedeAlmacen ? [...TABS, TAB_ALMACEN] : TABS;
   return (

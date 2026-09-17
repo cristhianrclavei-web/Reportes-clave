@@ -3,19 +3,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabaseClient';
-import ThemeToggle from '@/components/ThemeToggle';
-import PerfilChip from '@/components/PerfilChip';
 import NotificacionesToggle from '@/components/NotificacionesToggle';
 import AvisoCuentaPrueba from '@/components/AvisoCuentaPrueba';
-import LogoutButton from '@/components/LogoutButton';
 import { ReportDetail, techName } from '@/components/ReportDetailModal';
 import KpiSection from '@/components/KpiSection';
 import KpiOperativos from '@/components/KpiOperativos';
 import AvisosPendientes from '@/components/AvisosPendientes';
 import { listarServiciosSupervisor, Servicio } from '@/lib/serviciosProgramados';
 import BitacoraSupervisorSection from '@/components/BitacoraSupervisorSection';
-import DashboardTabs from '@/components/DashboardTabs';
-import Logo from '@/components/Logo';
+import SupervisorShell from '@/components/SupervisorShell';
 import { CalendarClock, MessageSquareWarning, PackagePlus, AlertTriangle, PackageOpen } from 'lucide-react';
 import { listarSolicitudesPendientes, resolverSolicitudInsumo } from '@/lib/insumos';
 import { mapaDeExistencias, listarBajoMinimo, ArticuloBajoMinimo } from '@/lib/almacen';
@@ -105,22 +101,7 @@ export default function ResumenList({
   const porFacturar = reports.filter((r) => r.data?.servicioConcluido && r.data?.facturaEstado !== 'facturado').length;
 
   return (
-    <div className="max-w-2xl lg:max-w-6xl mx-auto pb-10 lg:px-8">
-      <div className="sticky top-0 z-20 glass-strong px-5 py-3.5 flex items-center justify-between gap-3">
-        <Logo variante="completo" size={34} className="min-w-0" />
-        <div className="flex items-center gap-1 shrink-0">
-          <PerfilChip nombre={userName} respaldo="Supervisor" />
-          <ThemeToggle />
-          <LogoutButton compacto />
-        </div>
-      </div>
-
-      <div className="px-4 lg:px-0 pt-5">
-        <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-wide mb-4">Resumen</h1>
-        {userName && <p className="text-[15px] text-muted font-medium mb-4 -mt-2.5">{userName}</p>}
-
-        <DashboardTabs active="resumen" />
-
+    <SupervisorShell active="resumen" title="Resumen" userName={userName}>
         <AvisoCuentaPrueba />
 
         <NotificacionesToggle />
@@ -278,8 +259,7 @@ export default function ResumenList({
           <Stat label="Técnicos activos" value={tecnicosActivos} accent="teal" />
           <Stat label="Por facturar" value={porFacturar} accent="amber" />
         </div>
-      </div>
-    </div>
+    </SupervisorShell>
   );
 }
 
