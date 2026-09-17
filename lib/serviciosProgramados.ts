@@ -1023,6 +1023,116 @@ export async function vincularReporteAServicio(servicioId: string, reportId: str
   if (error) throw error;
 }
 
+export type ServicioSinReporte = {
+  id: string;
+  proyecto: string;
+  fecha: string;
+  estado: Servicio['estado'];
+  numero_dia: number;
+  dias_totales: number;
+  tecnicos: { id: string; nombre: string }[];
+};
+
+// El recordatorio push (ver /api/cron/recordatorio-reporte) le avisa al
+// técnico; esto es lo mismo pero visible para el supervisor, con la
+// intención de que sea "comprobable": no basta con confiar en que el
+// técnico reaccionó al aviso, aquí se puede revisar y, si el reporte sí
+// existe pero quedó sin vincular (ver buscarReportesParaVincular), cerrarlo
+// a mano en vez de dejar la alarma sonando por un dato mal capturado.
+export async function listarServiciosSinReporte(): Promise<ServicioSinReporte[]> {
+  const supabase = createClient();
+  const { data: servicios, error } = await supabase
+    .from('servicios_programados')
+    .select('id, proyecto, fecha, estado, numero_dia, dias_totales')
+    .in('estado', ['en_curso', 'concluido'])
+    .is('report_id', null)
+    .order('fecha', { ascending: true });
+  if (error) throw error;
+  if (!servicios || servicios.length === 0) return [];
+
+  const ids = servicios.map((s: any) => s.id);
+  const { data: asignaciones } = await supabase
+    .from('servicio_tecnicos')
+    .select('servicio_id, tecnico_id, profiles(full_name)')
+    .in('servicio_id', ids);
+
+  const tecnicosPorServicio: Record<string, { id: string; nombre: string }[]> = {};
+  (asignaciones || []).forEach((r: any) => {
+    const nombre = Array.isArray(r.profiles) ? r.profiles[0]?.full_name : r.profiles?.full_name;
+    if (!tecnicosPorServicio[r.servicio_id]) tecnicosPorServicio[r.servicio_id] = [];
+    tecnicosPorServicio[r.servicio_id].push({ id: r.tecnico_id, nombre: nombre || 'Técnico' });
+  });
+
+  return (servicios as any[]).map((s) => ({ ...s, tecnicos: tecnicosPorServicio[s.id] || [] }));
+}
+
+export type ReporteParaVincular = {
+  id: string;
+  empresa_cliente: string;
+  fecha: string;
+  claveFormato: string;
+  tecnico: string;
+};
+
+function fechaISO(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Reportes de los técnicos asignados a este servicio, cerca de su fecha, que
+// todavía no están vinculados a NINGÚN servicio (ni a este ni a otro) — el
+// candidato típico es un reporte que sí se hizo pero el técnico no
+// seleccionó el servicio al capturarlo.
+export async function buscarReportesParaVincular(servicioId: string): Promise<ReporteParaVincular[]> {
+  const supabase = createClient();
+  const { data: sv, error: eSv } = await supabase
+    .from('servicios_programados')
+    .select('fecha')
+    .eq('id', servicioId)
+    .single();
+  if (eSv) throw eSv;
+
+  const { data: asignaciones, error: eAsig } = await supabase
+    .from('servicio_tecnicos')
+    .select('tecnico_id')
+    .eq('servicio_id', servicioId);
+  if (eAsig) throw eAsig;
+  const tecnicoIds = (asignaciones || []).map((a: any) => a.tecnico_id);
+  if (tecnicoIds.length === 0) return [];
+
+  // Ventana de un par de días alrededor de la fecha: a veces el reporte se
+  // hace un día después de trabajado.
+  const centro = new Date(`${(sv as any).fecha}T00:00:00`);
+  const desde = new Date(centro); desde.setDate(desde.getDate() - 2);
+  const hasta = new Date(centro); hasta.setDate(hasta.getDate() + 2);
+
+  const { data: reportes, error: eRep } = await supabase
+    .from('reports')
+    .select('id, empresa_cliente, fecha, data, created_by, profiles!reports_created_by_profiles_fkey(full_name)')
+    .in('created_by', tecnicoIds)
+    .gte('fecha', fechaISO(desde))
+    .lte('fecha', fechaISO(hasta))
+    .order('fecha', { ascending: false });
+  if (eRep) throw eRep;
+
+  // Un reporte no debería servir de comprobante de dos servicios distintos:
+  // se excluyen los que ya están vinculados a algún otro servicio.
+  const { data: yaVinculados } = await supabase
+    .from('servicios_programados')
+    .select('report_id')
+    .not('report_id', 'is', null);
+  const vinculadosSet = new Set((yaVinculados || []).map((v: any) => v.report_id));
+
+  return (reportes || [])
+    .filter((r: any) => !vinculadosSet.has(r.id))
+    .map((r: any) => ({
+      id: r.id,
+      empresa_cliente: r.empresa_cliente,
+      fecha: r.fecha,
+      claveFormato: r.data?.claveFormato || '—',
+      tecnico: Array.isArray(r.profiles) ? r.profiles[0]?.full_name : r.profiles?.full_name || 'Técnico',
+    }));
+}
+
 export type FotoDelDia = { path: string; caption: string; previewUrl: string };
 
 // Fotos ya capturadas en campo ese día puntual, para precargarlas en el

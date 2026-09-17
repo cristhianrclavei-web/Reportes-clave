@@ -5,10 +5,12 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabaseClient';
 import NotificacionesToggle from '@/components/NotificacionesToggle';
 import AvisoCuentaPrueba from '@/components/AvisoCuentaPrueba';
+import AvisoActualizarCredenciales from '@/components/AvisoActualizarCredenciales';
 import { ReportDetail, techName } from '@/components/ReportDetailModal';
 import KpiSection from '@/components/KpiSection';
 import KpiOperativos from '@/components/KpiOperativos';
 import AvisosPendientes from '@/components/AvisosPendientes';
+import ServiciosSinReporteSection from '@/components/ServiciosSinReporteSection';
 import { listarServiciosSupervisor, Servicio } from '@/lib/serviciosProgramados';
 import BitacoraSupervisorSection from '@/components/BitacoraSupervisorSection';
 import SupervisorShell from '@/components/SupervisorShell';
@@ -102,6 +104,7 @@ export default function ResumenList({
 
   return (
     <SupervisorShell active="resumen" title="Resumen" userName={userName}>
+        <AvisoActualizarCredenciales />
         <AvisoCuentaPrueba />
 
         <NotificacionesToggle />
@@ -247,6 +250,7 @@ export default function ResumenList({
         )}
 
         <AvisosPendientes />
+        <ServiciosSinReporteSection />
 
         <KpiSection reports={reports} />
         <KpiOperativos servicios={servicios} reports={reports} />
