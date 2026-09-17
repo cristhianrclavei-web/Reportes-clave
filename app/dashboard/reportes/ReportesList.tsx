@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabaseClient';
 import ReportDetailModal, { ReportDetail, techName } from '@/components/ReportDetailModal';
 import SupervisorShell from '@/components/SupervisorShell';
+import TablaLista, { ColumnaTabla } from '@/components/TablaLista';
+import { VistaCondicional } from '@/lib/vistaSupervisor';
 import { facturaChip } from '@/lib/reportStatus';
 import { showToast } from '@/components/Toast';
 import { Check, MessageSquareWarning } from 'lucide-react';
@@ -70,6 +72,28 @@ export default function ReportesList({
     () => reports.filter((r) => r.correccion_solicitada && !r.correccion_habilitada),
     [reports]
   );
+
+  const columnas: ColumnaTabla<Report>[] = [
+    { header: 'Cliente / Empresa', render: (r) => <span className="font-semibold">{r.empresa_cliente}</span> },
+    { header: 'Folio', render: (r) => <span className="font-mono text-teal">{r.data?.claveFormato || '—'}</span> },
+    { header: 'Técnico', render: (r) => techName(r.profiles) },
+    {
+      header: 'Estado',
+      render: (r) => (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {r.data?.firmaRevisionData ? (
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-teal/15 text-teal flex items-center gap-1 whitespace-nowrap"><Check size={11} strokeWidth={3} />Completado</span>
+          ) : (
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber/15 text-amber whitespace-nowrap">Pend. revisión</span>
+          )}
+          {r.correccion_solicitada && !r.correccion_habilitada && (
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber/20 text-amber whitespace-nowrap">Corrección</span>
+          )}
+        </div>
+      ),
+    },
+    { header: 'Fecha', render: (r) => formatFecha(r.fecha) },
+  ];
 
   return (
     <SupervisorShell
@@ -144,67 +168,73 @@ export default function ReportesList({
           </p>
         )}
 
-        {/* Lista de reportes: 1 columna en celular, 2-3 en pantallas grandes */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map((r) => (
-            <div
-              key={r.id}
-              onClick={() => setOpen(r)}
-              className="rounded-2xl border-l-4 border-teal bg-surface p-4 sm:p-5 cursor-pointer active:scale-[0.99] hover:shadow-glow transition-all shadow-glow"
-            >
-              <div className="flex justify-between items-start gap-3 mb-3">
-                <div className="min-w-0">
-                  <div className="text-[10px] uppercase tracking-wider text-muted mb-0.5">Cliente / Empresa</div>
-                  <strong className="font-display font-bold text-[16px] tracking-wide block truncate">{r.empresa_cliente}</strong>
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="text-[10px] uppercase tracking-wider text-muted mb-0.5">Folio</div>
-                  <span className="text-[12px] font-mono font-semibold text-teal">{r.data?.claveFormato || '—'}</span>
-                </div>
-              </div>
+        {filtered.length > 0 && (
+          <VistaCondicional
+            tabla={<TablaLista columnas={columnas} filas={filtered} keyFn={(r) => r.id} onDetalle={(r) => setOpen(r)} />}
+            tarjetas={
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {filtered.map((r) => (
+                  <div
+                    key={r.id}
+                    onClick={() => setOpen(r)}
+                    className="rounded-2xl border-l-4 border-teal bg-surface p-4 sm:p-5 cursor-pointer active:scale-[0.99] hover:shadow-glow transition-all shadow-glow"
+                  >
+                    <div className="flex justify-between items-start gap-3 mb-3">
+                      <div className="min-w-0">
+                        <div className="text-[10px] uppercase tracking-wider text-muted mb-0.5">Cliente / Empresa</div>
+                        <strong className="font-display font-bold text-[16px] tracking-wide block truncate">{r.empresa_cliente}</strong>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-[10px] uppercase tracking-wider text-muted mb-0.5">Folio</div>
+                        <span className="text-[12px] font-mono font-semibold text-teal">{r.data?.claveFormato || '—'}</span>
+                      </div>
+                    </div>
 
-              <div className="text-[12px] text-muted mb-3 flex items-center gap-1.5 flex-wrap">
-                <span>{r.tipo_servicio || 'Sin tipo'}{r.sub_tipo_servicio ? ` · ${r.sub_tipo_servicio}` : ''}</span>
-                <span className="text-faint">·</span>
-                <span className="truncate">{techName(r.profiles)}</span>
-                <span className="text-faint">·</span>
-                {r.data?.firmaRevisionData ? (
-                  <span className="text-[12px] font-semibold px-2.5 py-1 rounded-full bg-teal/15 text-teal flex items-center gap-1.5"><Check size={12} strokeWidth={3} />Completado</span>
-                ) : (
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber/15 text-amber">Pend. revisión</span>
-                )}
-                {r.correccion_solicitada && !r.correccion_habilitada && (
-                  <span className="text-[12px] font-semibold px-2.5 py-1 rounded-full bg-amber/20 text-amber flex items-center gap-1.5">
-                    <MessageSquareWarning size={12} strokeWidth={2.6} />Corrección pedida
-                  </span>
-                )}
-                {(() => {
-                  const chip = facturaChip(r.data, r.fecha);
-                  return chip ? <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${chip.className}`}>{chip.label}</span> : null;
-                })()}
-              </div>
+                    <div className="text-[12px] text-muted mb-3 flex items-center gap-1.5 flex-wrap">
+                      <span>{r.tipo_servicio || 'Sin tipo'}{r.sub_tipo_servicio ? ` · ${r.sub_tipo_servicio}` : ''}</span>
+                      <span className="text-faint">·</span>
+                      <span className="truncate">{techName(r.profiles)}</span>
+                      <span className="text-faint">·</span>
+                      {r.data?.firmaRevisionData ? (
+                        <span className="text-[12px] font-semibold px-2.5 py-1 rounded-full bg-teal/15 text-teal flex items-center gap-1.5"><Check size={12} strokeWidth={3} />Completado</span>
+                      ) : (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber/15 text-amber">Pend. revisión</span>
+                      )}
+                      {r.correccion_solicitada && !r.correccion_habilitada && (
+                        <span className="text-[12px] font-semibold px-2.5 py-1 rounded-full bg-amber/20 text-amber flex items-center gap-1.5">
+                          <MessageSquareWarning size={12} strokeWidth={2.6} />Corrección pedida
+                        </span>
+                      )}
+                      {(() => {
+                        const chip = facturaChip(r.data, r.fecha);
+                        return chip ? <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${chip.className}`}>{chip.label}</span> : null;
+                      })()}
+                    </div>
 
-              <div className="flex justify-between items-end">
-                <div className="flex gap-4">
-                  <div>
-                    <div className="text-[10px] uppercase tracking-wider text-muted mb-0.5">Fecha</div>
-                    <span className="text-[13px] font-medium">{formatFecha(r.fecha)}</span>
+                    <div className="flex justify-between items-end">
+                      <div className="flex gap-4">
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wider text-muted mb-0.5">Fecha</div>
+                          <span className="text-[13px] font-medium">{formatFecha(r.fecha)}</span>
+                        </div>
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wider text-muted mb-0.5">Hora</div>
+                          <span className="text-[13px] font-medium">{r.data?.horaLlegada || '—'} hrs</span>
+                        </div>
+                      </div>
+                      <span className="text-teal text-[13px] font-semibold flex items-center gap-0.5 shrink-0">
+                        Ver
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <div className="text-[10px] uppercase tracking-wider text-muted mb-0.5">Hora</div>
-                    <span className="text-[13px] font-medium">{r.data?.horaLlegada || '—'} hrs</span>
-                  </div>
-                </div>
-                <span className="text-teal text-[13px] font-semibold flex items-center gap-0.5 shrink-0">
-                  Ver
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </span>
+                ))}
               </div>
-            </div>
-          ))}
-        </div>
+            }
+          />
+        )}
 
       {open && (
         <ReportDetailModal

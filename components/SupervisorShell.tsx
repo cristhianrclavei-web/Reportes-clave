@@ -1,19 +1,20 @@
 'use client';
 
 import Link from 'next/link';
-import { ReactNode } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import Logo from './Logo';
 import PerfilChip from './PerfilChip';
 import ThemeToggle from './ThemeToggle';
 import LogoutButton from './LogoutButton';
 import DashboardTabs, { DashboardTabKey } from './DashboardTabs';
 import { usePuedeAlmacen } from '@/lib/usePuedeAlmacen';
-import { useVistaSupervisor } from '@/lib/vistaSupervisor';
-import { LayoutDashboard, FileText, FolderKanban, CalendarDays, History, Warehouse, LayoutGrid, PanelLeft } from 'lucide-react';
+import { VistaSupervisorContext, VistaSupervisor, KEY_VISTA_SUPERVISOR } from '@/lib/vistaSupervisor';
+import { LayoutDashboard, FileText, FolderKanban, CalendarDays, History, Warehouse, LayoutGrid, PanelLeft, Receipt } from 'lucide-react';
 
 const SIDEBAR_ITEMS = [
   { key: 'resumen', label: 'Resumen', href: '/dashboard', Icono: LayoutDashboard },
   { key: 'reportes', label: 'Reportes', href: '/dashboard/reportes', Icono: FileText },
+  { key: 'cotizaciones', label: 'Cotizaciones', href: '/dashboard/cotizaciones', Icono: Receipt },
   { key: 'servicios', label: 'Servicios', href: '/dashboard/servicios', Icono: FolderKanban },
   { key: 'agenda', label: 'Agenda', href: '/dashboard/agenda', Icono: CalendarDays },
   { key: 'eventos', label: 'Eventos', href: '/dashboard/eventos', Icono: History },
@@ -46,7 +47,21 @@ export default function SupervisorShell({
   wrapperClassName?: string;
   children: ReactNode;
 }) {
-  const [vista, setVista] = useVistaSupervisor();
+  // Dueño real del estado: useState + localStorage. Se comparte hacia abajo
+  // por contexto (ver lib/vistaSupervisor.tsx) para que el cuerpo de la
+  // pantalla pueda leer y reaccionar a la misma preferencia, no solo el
+  // sidebar/header de este componente.
+  const [vista, setVistaState] = useState<VistaSupervisor>('clasica');
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(KEY_VISTA_SUPERVISOR) === 'nueva') setVistaState('nueva');
+    } catch { /* modo privado o almacenamiento bloqueado: se queda en clásica */ }
+  }, []);
+  function setVista(v: VistaSupervisor) {
+    setVistaState(v);
+    try { localStorage.setItem(KEY_VISTA_SUPERVISOR, v); } catch { /* no crítico */ }
+  }
+
   const puedeAlmacen = usePuedeAlmacen(mostrarAlmacen);
   const items = puedeAlmacen ? [...SIDEBAR_ITEMS, ITEM_ALMACEN] : SIDEBAR_ITEMS;
 
@@ -74,12 +89,14 @@ export default function SupervisorShell({
   );
 
   const cuerpo = (
-    <div className="px-4 lg:px-0 pt-5">
-      <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-wide mb-4">{title}</h1>
-      {userName && <p className="text-[15px] text-muted font-medium mb-4 -mt-2.5">{userName}</p>}
-      {vista === 'clasica' && <DashboardTabs active={active} mostrarAlmacen={mostrarAlmacen} />}
-      {children}
-    </div>
+    <VistaSupervisorContext.Provider value={{ vista, setVista }}>
+      <div className="px-4 lg:px-0 pt-5">
+        <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-wide mb-4">{title}</h1>
+        {userName && <p className="text-[15px] text-muted font-medium mb-4 -mt-2.5">{userName}</p>}
+        {vista === 'clasica' && <DashboardTabs active={active} mostrarAlmacen={mostrarAlmacen} />}
+        {children}
+      </div>
+    </VistaSupervisorContext.Provider>
   );
 
   if (vista === 'nueva') {
