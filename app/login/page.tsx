@@ -55,7 +55,15 @@ function LoginForm() {
     }
 
     // ===== PASO 3: Si todo está bien, redirigir =====
-    router.push(searchParams.get('next') || '/');
+    // Solo se acepta una ruta interna. "next" viene de la URL, así que
+    // alguien podría meter una URL externa (ej. ?next=https://evil.com)
+    // para que, justo después de un login real, el navegador termine en
+    // un sitio de phishing. Se descarta cualquier valor que no sea una
+    // ruta relativa (rechaza también "//evil.com", que el navegador trata
+    // como externa aunque empiece con una sola barra... con dos).
+    const next = searchParams.get('next');
+    const destino = next && next.startsWith('/') && !next.startsWith('//') ? next : '/';
+    router.push(destino);
     router.refresh();
   }
 
