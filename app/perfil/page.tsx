@@ -21,11 +21,13 @@ type UsuarioLista = {
   can_manage_usuarios?: boolean;
   can_manage_almacen?: boolean;
   can_manage_billing?: boolean;
+  can_approve_review?: boolean;
+  can_approve_cotizacion?: boolean;
   created_at: string;
 };
 
 export default async function PerfilPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
@@ -45,7 +47,7 @@ export default async function PerfilPage() {
   if (esGestor) {
     const { data } = await supabase
       .from('profiles')
-      .select('id, full_name, role, telefono, activo, can_manage_usuarios, can_manage_almacen, can_manage_billing, created_at')
+      .select('id, full_name, role, telefono, activo, can_manage_usuarios, can_manage_almacen, can_manage_billing, can_approve_review, can_approve_cotizacion, created_at')
       .order('full_name', { ascending: true });
     usuarios = data || [];
   }

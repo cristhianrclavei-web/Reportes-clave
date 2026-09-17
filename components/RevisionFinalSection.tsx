@@ -112,8 +112,8 @@ export default function RevisionFinalSection({
       ) : (
         <div>
           <p className="text-[13px] text-ink/80 mb-3">
-            Este reporte está <b>pendiente de firma del Ing. Everardo Sánchez</b>. No se
-            considera completado hasta que la revisión final quede firmada.
+            Este reporte está <b>pendiente de firma de revisión final</b>. No se
+            considera completado hasta que quede firmada.
           </p>
 
           {puedeAprobar && !mostrandoFirma && (
