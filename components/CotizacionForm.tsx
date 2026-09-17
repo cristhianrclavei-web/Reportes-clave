@@ -43,12 +43,17 @@ export default function CotizacionForm({
   inicial,
   nombreUsuario,
   correoUsuario,
+  onGuardado,
 }: {
   modo: 'crear' | 'editar';
   cotizacionId?: string;
   inicial?: { cotizacion: Cotizacion; lineas: LineaCotizacion[] };
   nombreUsuario?: string;
   correoUsuario?: string;
+  // Solo para modo "editar": se llama en vez de navegar, porque el destino
+  // sería la misma ruta en la que ya está el detalle (Next no la remonta,
+  // así que un router.push aquí dejaba el formulario abierto en pantalla).
+  onGuardado?: () => void;
 }) {
   const router = useRouter();
   const [guardando, setGuardando] = useState(false);
@@ -191,7 +196,11 @@ export default function CotizacionForm({
       if (modo === 'editar' && cotizacionId) {
         await actualizarCotizacion(cotizacionId, input);
         showToast('Cotización actualizada', 'success');
-        router.push(`/dashboard/cotizaciones/${cotizacionId}`);
+        if (onGuardado) {
+          onGuardado();
+        } else {
+          router.push(`/dashboard/cotizaciones/${cotizacionId}`);
+        }
       } else {
         const id = await crearCotizacion(input);
         showToast('Cotización guardada', 'success');

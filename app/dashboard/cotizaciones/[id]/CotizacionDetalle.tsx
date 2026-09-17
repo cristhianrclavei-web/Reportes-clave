@@ -9,7 +9,7 @@ import SignaturePad, { SignaturePadHandle } from '@/components/SignaturePad';
 import {
   Cotizacion, LineaCotizacion, EstadoCotizacion,
   aprobarCotizacion, marcarEnviada, puedeMarcarEnviada, actualizarEstadoCotizacion,
-  eliminarCotizacion, agruparPorSistema,
+  eliminarCotizacion, agruparPorSistema, obtenerCotizacion,
 } from '@/lib/cotizaciones';
 import { showToast } from '@/components/Toast';
 import { FileText, Pencil, Trash2, ChevronLeft, X, Check, Send, Ban, MessageCircle } from 'lucide-react';
@@ -65,7 +65,7 @@ export default function CotizacionDetalle({
 }) {
   const router = useRouter();
   const [cotizacion, setCotizacion] = useState(cotizacionInicial);
-  const [lineas] = useState(lineasIniciales);
+  const [lineas, setLineas] = useState(lineasIniciales);
   const [editando, setEditando] = useState(false);
   const [eliminando, setEliminando] = useState(false);
 
@@ -145,6 +145,20 @@ export default function CotizacionDetalle({
     window.open(`https://wa.me/${tel}?text=${encodeURIComponent(mensaje)}`, '_blank');
   }
 
+  async function handleGuardadoEdicion() {
+    try {
+      const { cotizacion: actualizada, lineas: lineasActualizadas } = await obtenerCotizacion(cotizacion.id);
+      setCotizacion(actualizada);
+      setLineas(lineasActualizadas);
+    } catch {
+      // El guardado ya tuvo éxito (CotizacionForm lo confirma antes de
+      // llamar aquí); si falla nada más este refetch, se sale del modo
+      // edición igual y el usuario ve los datos frescos al recargar.
+    } finally {
+      setEditando(false);
+    }
+  }
+
   async function handleEliminar() {
     if (!confirm(`¿Eliminar la cotización de «${cotizacion.empresa}» (folio ${cotizacion.folio})?\n\nEsta acción es permanente.`)) return;
     setEliminando(true);
@@ -174,6 +188,7 @@ export default function CotizacionDetalle({
           inicial={{ cotizacion, lineas }}
           nombreUsuario={userName}
           correoUsuario={correoUsuario}
+          onGuardado={handleGuardadoEdicion}
         />
       </SupervisorShell>
     );
@@ -360,30 +375,48 @@ export default function CotizacionDetalle({
         )}
       </div>
 
-      <div className="flex gap-2.5 mb-3">
-        <button
-          onClick={handleMarcarEnviada}
-          disabled={!habilitaEnviar || procesandoAccion}
-          title={!habilitaEnviar ? 'Primero hay que aprobarla y firmarla' : undefined}
-          className="flex-1 min-h-[52px] rounded-2xl bg-amber text-inkOnAccent font-display font-semibold text-[15px] flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-40"
-        >
-          <Send size={17} strokeWidth={2.4} />
-          Marcar como enviada
-        </button>
-        {cotizacion.estado !== 'rechazada' && (
-          <button
-            onClick={handleRechazar}
-            disabled={procesandoAccion}
-            className="min-h-[52px] px-4 rounded-2xl border border-red/40 text-red font-semibold text-[14.5px] flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
-          >
-            <Ban size={16} strokeWidth={2.4} />
-            Rechazar
-          </button>
-        )}
-      </div>
+      {/* Marcar como enviada, rechazar y mandar por WhatsApp son acciones de
+          quien firma/aprueba cotizaciones — no de cualquiera que solo tenga
+          acceso de supervisor a esta pantalla. Ver el PDF sigue siendo de
+          todos. */}
+      {puedeAprobar && (
+        <div className="flex gap-2.5 mb-1.5">
+          {cotizacion.estado !== 'enviada' && (
+            <button
+              onClick={handleMarcarEnviada}
+              disabled={!habilitaEnviar || procesandoAccion}
+              title={!habilitaEnviar ? 'Primero hay que aprobarla y firmarla' : undefined}
+              className="flex-1 min-h-[52px] rounded-2xl bg-amber text-inkOnAccent font-display font-semibold text-[15px] flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-40"
+            >
+              <Send size={17} strokeWidth={2.4} />
+              Marcar como enviada
+            </button>
+          )}
+          {cotizacion.estado !== 'rechazada' && (
+            <button
+              onClick={handleRechazar}
+              disabled={procesandoAccion}
+              className="min-h-[52px] px-4 rounded-2xl border border-red/40 text-red font-semibold text-[14.5px] flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
+            >
+              <Ban size={16} strokeWidth={2.4} />
+              Rechazar
+            </button>
+          )}
+        </div>
+      )}
 
-      {/* Compartir: ver el PDF o mandarlo directo por WhatsApp — las dos
-          formas de que el documento llegue al cliente, agrupadas juntas. */}
+      {puedeAprobar && cotizacion.estado === 'enviada' && (
+        <button
+          onClick={handleEnviarWhatsapp}
+          disabled={!habilitaWhatsapp}
+          className="text-blue-500 text-[13.5px] font-semibold mb-3 active:opacity-70 transition-opacity"
+        >
+          Enviar de nuevo
+        </button>
+      )}
+
+      {/* Compartir: ver el PDF (para todos) o mandarlo directo por WhatsApp
+          (solo quien aprueba cotizaciones). */}
       <div className="flex gap-2.5 mb-2.5">
         <a
           href={`/api/cotizaciones/${cotizacion.id}/pdf?t=${Date.now()}`}
@@ -394,41 +427,50 @@ export default function CotizacionDetalle({
           <FileText size={18} strokeWidth={2.4} />
           Ver PDF
         </a>
-        <button
-          onClick={handleEnviarWhatsapp}
-          disabled={!habilitaWhatsapp}
-          title={
-            !puedeCompartir
-              ? 'Primero hay que aprobarla y firmarla'
-              : !cotizacion.telefono
-              ? 'Agrega un teléfono del cliente para poder enviarla'
-              : undefined
-          }
-          className="flex-1 min-h-[52px] rounded-2xl bg-[#25D366] text-white font-display font-semibold text-[15px] flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-40"
-        >
-          <MessageCircle size={18} strokeWidth={2.4} />
-          WhatsApp
-        </button>
+        {puedeAprobar && cotizacion.estado !== 'enviada' && (
+          <button
+            onClick={handleEnviarWhatsapp}
+            disabled={!habilitaWhatsapp}
+            title={
+              !puedeCompartir
+                ? 'Primero hay que aprobarla y firmarla'
+                : !cotizacion.telefono
+                ? 'Agrega un teléfono del cliente para poder enviarla'
+                : undefined
+            }
+            className="flex-1 min-h-[52px] rounded-2xl bg-[#25D366] text-white font-display font-semibold text-[15px] flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-40"
+          >
+            <MessageCircle size={18} strokeWidth={2.4} />
+            WhatsApp
+          </button>
+        )}
       </div>
 
-      {/* Editar: acción secundaria y menos frecuente que compartir, por eso
-          va más discreta y sola en su propia fila. */}
-      <button
-        onClick={() => setEditando(true)}
-        className="w-full min-h-[48px] mb-3 rounded-xl border border-line-strong text-ink/80 font-semibold text-[14.5px] flex items-center justify-center gap-2 active:scale-95 transition-transform"
-      >
-        <Pencil size={16} strokeWidth={2.3} />
-        Editar
-      </button>
+      {/* Editar: una vez firmada la cotización, el documento queda cerrado —
+          nadie la edita ya, ni siquiera quien la aprobó. */}
+      {!cotizacion.aprobada_firma && (
+        <button
+          onClick={() => setEditando(true)}
+          className="w-full min-h-[48px] mb-3 rounded-xl border border-line-strong text-ink/80 font-semibold text-[14.5px] flex items-center justify-center gap-2 active:scale-95 transition-transform"
+        >
+          <Pencil size={16} strokeWidth={2.3} />
+          Editar
+        </button>
+      )}
 
-      <button
-        onClick={handleEliminar}
-        disabled={eliminando}
-        className="w-full min-h-[48px] rounded-xl border border-red/40 text-red text-[14.5px] font-semibold flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
-      >
-        <Trash2 size={16} strokeWidth={2.4} />
-        {eliminando ? 'Eliminando...' : 'Eliminar esta cotización'}
-      </button>
+      {/* Cancelar (eliminar): libre mientras sigue en borrador; una vez
+          firmada, solo quien puede aprobar cotizaciones (Clara/Everardo)
+          puede seguir cancelándola. */}
+      {(!cotizacion.aprobada_firma || puedeAprobar) && (
+        <button
+          onClick={handleEliminar}
+          disabled={eliminando}
+          className="w-full min-h-[48px] rounded-xl border border-red/40 text-red text-[14.5px] font-semibold flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
+        >
+          <Trash2 size={16} strokeWidth={2.4} />
+          {eliminando ? 'Eliminando...' : 'Eliminar esta cotización'}
+        </button>
+      )}
     </SupervisorShell>
   );
 }
