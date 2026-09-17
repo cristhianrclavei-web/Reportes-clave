@@ -20,6 +20,11 @@ export type Servicio = {
   hora_inicio: string | null;
   hora_fin: string | null;
   estado: 'programado' | 'en_sitio' | 'en_curso' | 'concluido';
+  // Pausa en curso (ej. hora de comida) — null si no está pausado ahora
+  // mismo. minutos_pausados acumula el total ya cerrado de pausas previas;
+  // la pausa abierta se suma aparte con minutosPausadosTotales().
+  pausado_desde: string | null;
+  minutos_pausados: number;
   report_id: string | null;
   grupo_id: string;
   numero_dia: number;
@@ -45,7 +50,7 @@ export type Tarea = {
 export type Evento = {
   id: string;
   servicio_id: string;
-  tipo: 'llegada' | 'inicio' | 'retraso' | 'evidencia' | 'cierre' | 'avance';
+  tipo: 'llegada' | 'inicio' | 'retraso' | 'evidencia' | 'cierre' | 'avance' | 'pausa' | 'reanudacion';
   nota: string | null;
   foto_path: string | null;
   ubicacion: { lat: number; lng: number } | null;
@@ -787,6 +792,87 @@ export async function iniciarServicio(servicioId: string) {
   });
 }
 
+// El técnico pausa el servicio él mismo (ej. hora de comida) en vez de que
+// el sistema intente adivinarlo por GPS: sin la app abierta en pantalla no
+// hay rastreo en segundo plano (sobre todo en iPhone), así que una alarma
+// automática al salir del radio daría más falsas alarmas que control real.
+// Con esto, el tiempo pausado queda descontado del cálculo de "excedido" y
+// registrado con hora y motivo para que el supervisor lo vea.
+export async function pausarServicio(servicioId: string, motivo: string): Promise<void> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const ubicacion = await getCurrentLocation();
+
+  const { data: actualizado, error: e1 } = await supabase
+    .from('servicios_programados')
+    .update({ pausado_desde: new Date().toISOString() })
+    .eq('id', servicioId)
+    .is('pausado_desde', null) // ya pausado: no reinicia el reloj de la pausa
+    .select('id')
+    .maybeSingle();
+  if (e1) throw e1;
+  if (!actualizado) return; // ya estaba pausado (doble toque) — no duplicar el evento
+
+  const { error: e2 } = await supabase
+    .from('servicio_eventos')
+    .insert({ servicio_id: servicioId, tipo: 'pausa', nota: motivo || null, ubicacion, created_by: user?.id });
+  if (e2) throw e2;
+
+  const { data: sv } = await supabase.from('servicios_programados').select('proyecto').eq('id', servicioId).single();
+  const quien = await nombreDelUsuario();
+  await notificar({
+    destino: 'supervisores',
+    tipo: 'pausa_servicio',
+    titulo: 'Servicio en pausa',
+    mensaje: `${quien} pausó ${sv?.proyecto || 'un servicio'}${motivo ? `: ${motivo}` : ''}`,
+    url: `/dashboard/servicios/${servicioId}`,
+    tag: 'pausa',
+  });
+}
+
+export async function reanudarServicio(servicioId: string): Promise<void> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const ubicacion = await getCurrentLocation();
+
+  const { data: sv, error: eSv } = await supabase
+    .from('servicios_programados')
+    .select('proyecto, pausado_desde, minutos_pausados')
+    .eq('id', servicioId)
+    .single();
+  if (eSv) throw eSv;
+  if (!sv?.pausado_desde) return; // no estaba pausado — nada que hacer
+
+  const minutosEstaPausa = Math.max(0, Math.round((Date.now() - new Date(sv.pausado_desde).getTime()) / 60000));
+
+  const { error: e1 } = await supabase
+    .from('servicios_programados')
+    .update({ pausado_desde: null, minutos_pausados: (sv.minutos_pausados || 0) + minutosEstaPausa })
+    .eq('id', servicioId);
+  if (e1) throw e1;
+
+  const { error: e2 } = await supabase
+    .from('servicio_eventos')
+    .insert({
+      servicio_id: servicioId,
+      tipo: 'reanudacion',
+      nota: `${minutosEstaPausa} min de pausa`,
+      ubicacion,
+      created_by: user?.id,
+    });
+  if (e2) throw e2;
+
+  const quien = await nombreDelUsuario();
+  await notificar({
+    destino: 'supervisores',
+    tipo: 'reanudacion_servicio',
+    titulo: 'Servicio reanudado',
+    mensaje: `${quien} reanudó ${sv.proyecto || 'un servicio'} tras ${minutosEstaPausa} min`,
+    url: `/dashboard/servicios/${servicioId}`,
+    tag: 'pausa',
+  });
+}
+
 // Registra el avance de una tarea. Si el porcentaje llega a 100 la tarea
 // queda completada (con hora, autor, foto y ubicación como siempre); si es
 // parcial (ej. "instalé las cámaras pero falta conectarlas" = 50%), se
@@ -883,6 +969,11 @@ export async function concluirServicio(servicioId: string) {
   const ubicacion = await getCurrentLocation();
   const horaFin = new Date().toISOString();
 
+  // Si se olvidó reanudar antes de cerrar, la pausa abierta se cierra sola
+  // aquí: sin esto, minutos_pausados quedaría corto y el servicio se vería
+  // más retrasado de lo que en realidad estuvo.
+  await reanudarServicio(servicioId).catch(() => {});
+
   const { error: e1 } = await supabase.from('servicios_programados').update({ hora_fin: horaFin, estado: 'concluido' }).eq('id', servicioId);
   if (e1) throw e1;
 
@@ -893,7 +984,7 @@ export async function concluirServicio(servicioId: string) {
   // uno con retraso es lo que el supervisor necesita saber en el momento.
   const { data: sv } = await supabase
     .from('servicios_programados')
-    .select('proyecto, duracion_estimada_min, hora_llegada, hora_inicio, hora_fin')
+    .select('proyecto, duracion_estimada_min, hora_llegada, hora_inicio, hora_fin, pausado_desde, minutos_pausados')
     .eq('id', servicioId)
     .single();
 
@@ -1059,6 +1150,20 @@ export function filtrarSiguienteDiaPorGrupo(
   return resultado;
 }
 
+// Minutos pausados hasta el momento indicado (ahora, por defecto): lo ya
+// cerrado (minutos_pausados) más, si hay una pausa abierta, lo que lleva
+// corriendo esa pausa. Se usa para no contar como "retraso" o "excedido" el
+// tiempo de una pausa avisada (ej. hora de comida).
+export function minutosPausadosTotales(
+  s: Pick<Servicio, 'minutos_pausados' | 'pausado_desde'>,
+  hastaMs: number = Date.now()
+): number {
+  const acumulados = s.minutos_pausados || 0;
+  if (!s.pausado_desde) return acumulados;
+  const enCurso = Math.max(0, Math.floor((hastaMs - new Date(s.pausado_desde).getTime()) / 60000));
+  return acumulados + enCurso;
+}
+
 // Calcula si un servicio terminó a tiempo, con retraso, o si ya lleva más
 // tiempo del estimado sin haber concluido todavía (útil para el supervisor).
 export function calcularEstadoTiempo(s: Servicio): EstadoTiempo {
@@ -1067,13 +1172,15 @@ export function calcularEstadoTiempo(s: Servicio): EstadoTiempo {
 
   if (s.estado === 'concluido' && s.hora_fin) {
     const totalMin = Math.floor((new Date(s.hora_fin).getTime() - new Date(inicioReferencia).getTime()) / 60000);
-    const diff = totalMin - s.duracion_estimada_min;
+    const efectivo = totalMin - minutosPausadosTotales(s, new Date(s.hora_fin).getTime());
+    const diff = efectivo - s.duracion_estimada_min;
     return diff > 0 ? { tipo: 'retraso', minutos: diff } : { tipo: 'a_tiempo' };
   }
 
   if (s.estado === 'en_curso' || s.estado === 'en_sitio') {
     const transcurrido = Math.floor((Date.now() - new Date(inicioReferencia).getTime()) / 60000);
-    if (transcurrido > s.duracion_estimada_min) return { tipo: 'excedido', minutos: transcurrido - s.duracion_estimada_min };
+    const efectivo = transcurrido - minutosPausadosTotales(s);
+    if (efectivo > s.duracion_estimada_min) return { tipo: 'excedido', minutos: efectivo - s.duracion_estimada_min };
   }
 
   return { tipo: null };

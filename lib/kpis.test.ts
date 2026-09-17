@@ -30,6 +30,8 @@ function servicio(overrides: Partial<Servicio> = {}): Servicio {
     hora_inicio: null,
     hora_fin: null,
     estado: 'concluido',
+    pausado_desde: null,
+    minutos_pausados: 0,
     report_id: null,
     grupo_id: 'g1',
     numero_dia: 1,

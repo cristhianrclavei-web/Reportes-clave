@@ -1,4 +1,4 @@
-import { Servicio, ProgresoTareas } from './serviciosProgramados';
+import { Servicio, ProgresoTareas, minutosPausadosTotales } from './serviciosProgramados';
 
 // Cómo cerró un servicio. Un servicio concluido puede tener DOS problemas
 // distintos y acumulables:
@@ -21,19 +21,24 @@ export type ResultadoServicio = {
 };
 
 export function calcularResultadoServicio(
-  servicio: Pick<Servicio, 'estado' | 'hora_llegada' | 'hora_inicio' | 'hora_fin' | 'duracion_estimada_min' | 'numero_dia' | 'dias_totales'>,
+  servicio: Pick<
+    Servicio,
+    'estado' | 'hora_llegada' | 'hora_inicio' | 'hora_fin' | 'duracion_estimada_min' | 'numero_dia' | 'dias_totales'
+    | 'minutos_pausados' | 'pausado_desde'
+  >,
   progreso?: ProgresoTareas | null
 ): ResultadoServicio {
   if (servicio.estado !== 'concluido') {
     return { marcas: [], retrasoMin: null, pendientes: 0 };
   }
 
-  // ¿Se pasó del tiempo estimado?
+  // ¿Se pasó del tiempo estimado? (descontando pausas avisadas, ej. comida)
   let retrasoMin: number | null = null;
   const inicio = servicio.hora_inicio || servicio.hora_llegada;
   if (inicio && servicio.hora_fin) {
     const min = Math.round((new Date(servicio.hora_fin).getTime() - new Date(inicio).getTime()) / 60000);
-    const exceso = min - servicio.duracion_estimada_min;
+    const efectivo = min - minutosPausadosTotales(servicio, new Date(servicio.hora_fin).getTime());
+    const exceso = efectivo - servicio.duracion_estimada_min;
     if (exceso > 0) retrasoMin = exceso;
   }
 

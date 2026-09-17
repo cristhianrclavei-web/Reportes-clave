@@ -12,7 +12,7 @@ import {
   calcularProgresoTareas, eliminarProyecto, eliminarDiaDeProyecto, reprogramarDia,
 } from '@/lib/serviciosProgramados';
 import ProgressBar from '@/components/ProgressBar';
-import { ChevronLeft, MapPin, Play, Check, Clock, Trash2, AlertTriangle, Timer, Flag, Camera, Plus, Users, Pencil, CalendarClock, PackageCheck, Bookmark, ChevronRight, X, TrendingUp, CalendarX, Lock } from 'lucide-react';
+import { ChevronLeft, MapPin, Play, Check, Clock, Trash2, AlertTriangle, Timer, Flag, Camera, Plus, Users, Pencil, CalendarClock, PackageCheck, Bookmark, ChevronRight, X, TrendingUp, CalendarX, Lock, PauseCircle, PlayCircle } from 'lucide-react';
 import { calcularResultadoServicio } from '@/lib/resultadoServicio';
 import InsumosChecklist from '@/components/InsumosChecklist';
 import ModalOverlay from '@/components/ModalOverlay';
@@ -352,7 +352,14 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
                 <span>Duración estimada: <b className="text-ink">{servicio.duracion_estimada_min} min</b></span>
                 {servicio.hora_llegada && <span>Llegada: <b className="text-ink">{fmtHora(servicio.hora_llegada)}</b></span>}
                 {servicio.hora_fin && <span>Cierre: <b className="text-ink">{fmtHora(servicio.hora_fin)}</b></span>}
+                {servicio.minutos_pausados > 0 && <span>Pausas: <b className="text-ink">{servicio.minutos_pausados} min</b></span>}
               </div>
+              {servicio.pausado_desde && (
+                <p className="text-[13px] font-semibold text-amber mt-2.5 flex items-center gap-1.5">
+                  <PauseCircle size={14} strokeWidth={2.6} />
+                  En pausa desde {fmtHora(servicio.pausado_desde)}
+                </p>
+              )}
               {estadoTiempo.tipo === 'retraso' && (
                 <p className="text-[13px] font-semibold text-red mt-2.5 flex items-center gap-1.5"><AlertTriangle size={14} strokeWidth={2.6} />Se retrasó {estadoTiempo.minutos} min sobre lo estimado</p>
               )}
@@ -619,6 +626,8 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
                       : e.tipo === 'retraso' ? <><AlertTriangle size={13} strokeWidth={2.6} />Retraso</>
                       : e.tipo === 'cierre' ? <><Flag size={13} strokeWidth={2.6} />Cierre</>
                       : e.tipo === 'avance' ? <><Timer size={13} strokeWidth={2.6} />Avance parcial</>
+                      : e.tipo === 'pausa' ? <><PauseCircle size={13} strokeWidth={2.6} />Pausa</>
+                      : e.tipo === 'reanudacion' ? <><PlayCircle size={13} strokeWidth={2.6} />Reanudación</>
                       : <><Camera size={13} strokeWidth={2.6} />Evidencia</>}
                   </span>
                   <span className="text-muted"> · {fmtHora(e.created_at)}</span>

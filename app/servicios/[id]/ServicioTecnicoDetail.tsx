@@ -9,14 +9,17 @@ import {
   Servicio, Tarea, Evento,
   obtenerServicioCompleto, marcarLlegada, iniciarServicio, sigoAsignadoAServicio,
   registrarAvanceTarea, registrarRetraso, concluirServicio, agregarEvidenciaExtra,
-  calcularProgresoTareas,
+  calcularProgresoTareas, pausarServicio, reanudarServicio, minutosPausadosTotales,
 } from '@/lib/serviciosProgramados';
 import ProgressBar from '@/components/ProgressBar';
 import AvisoServicio from '@/components/AvisoServicio';
 import {
   ChevronLeft, MapPin, Play, Check, Lock, Camera, AlertTriangle,
   Plus, X, CircleDashed, Clock, Flag, CalendarClock, PackageCheck, ChevronRight,
+  PauseCircle, PlayCircle,
 } from 'lucide-react';
+
+const MOTIVOS_PAUSA = ['Comida', 'Emergencia personal', 'Trámite fuera de sitio', 'Otro'];
 import ModalOverlay from '@/components/ModalOverlay';
 import { calcularResultadoServicio } from '@/lib/resultadoServicio';
 import { evaluarVentanaServicio } from '@/lib/ventanaServicio';
@@ -72,6 +75,10 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
   const [comentarioRetraso, setComentarioRetraso] = useState('');
   const [fotoRetraso, setFotoRetraso] = useState<File | null>(null);
   const retrasoInputRef = useRef<HTMLInputElement>(null);
+
+  const [showPausa, setShowPausa] = useState(false);
+  const [motivoPausa, setMotivoPausa] = useState(MOTIVOS_PAUSA[0]);
+  const [comentarioPausa, setComentarioPausa] = useState('');
 
   const [ahora, setAhora] = useState(Date.now());
 
@@ -273,6 +280,36 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
     }
   }
 
+  async function handleGuardarPausa() {
+    setBusy(true);
+    try {
+      const motivo = motivoPausa === 'Otro' && comentarioPausa.trim() ? comentarioPausa.trim() : motivoPausa;
+      await pausarServicio(servicioId, motivo);
+      showToast('Servicio en pausa', 'success');
+      setShowPausa(false);
+      setComentarioPausa('');
+      setMotivoPausa(MOTIVOS_PAUSA[0]);
+      await cargar();
+    } catch (e: any) {
+      alert('No se pudo pausar: ' + (e?.message || 'error'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleReanudar() {
+    setBusy(true);
+    try {
+      await reanudarServicio(servicioId);
+      showToast('Servicio reanudado', 'success');
+      await cargar();
+    } catch (e: any) {
+      alert('No se pudo reanudar: ' + (e?.message || 'error'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleConcluir() {
     const pendientes = tareas.filter((t) => !t.completada).length;
     const esUltimoDia = !servicio || servicio.numero_dia >= servicio.dias_totales;
@@ -319,13 +356,15 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
   const resultado = calcularResultadoServicio(servicio, progreso);
   const ventana = evaluarVentanaServicio(servicio);
   const inicioReferencia = servicio.hora_inicio || servicio.hora_llegada;
-  const minutosTranscurridos = inicioReferencia ? Math.floor((ahora - new Date(inicioReferencia).getTime()) / 60000) : 0;
+  const minutosTranscurridos = inicioReferencia
+    ? Math.floor((ahora - new Date(inicioReferencia).getTime()) / 60000) - minutosPausadosTotales(servicio, ahora)
+    : 0;
   const tiempoExcedido = servicio.estado !== 'concluido' && inicioReferencia && minutosTranscurridos > servicio.duracion_estimada_min;
 
   let retrasoFinalMin: number | null = null;
   if (servicio.estado === 'concluido' && servicio.hora_fin && inicioReferencia) {
     const totalMin = Math.floor((new Date(servicio.hora_fin).getTime() - new Date(inicioReferencia).getTime()) / 60000);
-    const diff = totalMin - servicio.duracion_estimada_min;
+    const diff = totalMin - minutosPausadosTotales(servicio, new Date(servicio.hora_fin).getTime()) - servicio.duracion_estimada_min;
     if (diff > 0) retrasoFinalMin = diff;
   }
 
@@ -463,7 +502,41 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
           <p className="text-[13px] text-muted mb-4 flex items-center gap-1.5">
             <Clock size={14} strokeWidth={2.2} className="shrink-0" />
             Llegada {fmtHora(servicio.hora_llegada)}{servicio.hora_inicio && ` · Inicio ${fmtHora(servicio.hora_inicio)}`}
+            {servicio.minutos_pausados > 0 && !servicio.pausado_desde && ` · ${servicio.minutos_pausados} min en pausa`}
           </p>
+        )}
+
+        {/* Pausa del servicio: para salidas legítimas (ej. comida) sin que
+            cuenten como retraso. No hay forma confiable de detectarlo solo
+            por GPS (sin la app abierta no hay rastreo en segundo plano), así
+            que el propio técnico avisa al salir y al volver. */}
+        {servicio.estado === 'en_curso' && (
+          servicio.pausado_desde ? (
+            <div className="mb-4 p-4 rounded-2xl bg-amber/10 border border-amber/30">
+              <p className="text-amber text-[14px] font-semibold mb-1 flex items-center gap-2">
+                <PauseCircle size={17} strokeWidth={2.4} />
+                En pausa desde {fmtHora(servicio.pausado_desde)}
+              </p>
+              <p className="text-[12.5px] text-muted mb-3">El tiempo de pausa no cuenta como retraso.</p>
+              <button
+                onClick={handleReanudar}
+                disabled={busy}
+                className="w-full min-h-[48px] rounded-xl bg-teal text-inkOnAccent font-semibold text-[14.5px] flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
+              >
+                <PlayCircle size={18} strokeWidth={2.4} />
+                Reanudar servicio
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowPausa(true)}
+              disabled={busy}
+              className="w-full min-h-[48px] mb-4 rounded-xl border border-dashed border-line-strong text-ink/75 text-[14px] font-medium flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
+            >
+              <PauseCircle size={17} strokeWidth={2.3} />
+              Pausar servicio (comida, etc.)
+            </button>
+          )
         )}
 
         {servicio.estado === 'concluido' && servicio.hora_fin && (
@@ -788,6 +861,43 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
               </button>
               <button onClick={handleGuardarRetraso} disabled={busy} className="flex-1 min-h-[48px] rounded-xl bg-red text-white text-[14.5px] font-semibold active:scale-95 transition-transform disabled:opacity-60">
                 {busy ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
+
+      {/* Modal: pausar servicio */}
+      {showPausa && (
+        <ModalOverlay onClose={() => setShowPausa(false)}>
+          <div className="glass-strong rounded-3xl max-w-md w-full p-5 max-h-[90vh] overflow-y-auto">
+            <p className="font-display font-semibold text-[15px] mb-1">Pausar servicio</p>
+            <p className="text-[13px] text-muted mb-3.5">Se registra la hora de salida. Al volver, toca «Reanudar servicio» para que el tiempo de pausa no cuente como retraso.</p>
+
+            <label className="text-[11px] uppercase tracking-wider text-muted block mb-1.5">Motivo</label>
+            <select
+              value={motivoPausa}
+              onChange={(e) => setMotivoPausa(e.target.value)}
+              className="w-full px-3 py-2.5 mb-3 rounded-xl bg-surface-2 border border-line focus:border-amber focus:outline-none text-[13.5px]"
+            >
+              {MOTIVOS_PAUSA.map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
+
+            {motivoPausa === 'Otro' && (
+              <textarea
+                value={comentarioPausa}
+                onChange={(e) => setComentarioPausa(e.target.value)}
+                placeholder="¿Por qué pausas el servicio?"
+                className="w-full px-3 py-2.5 mb-3 rounded-xl bg-surface-2 border border-line focus:border-amber focus:outline-none text-[13.5px] min-h-[70px]"
+              />
+            )}
+
+            <div className="flex gap-2">
+              <button onClick={() => setShowPausa(false)} className="flex-1 min-h-[48px] rounded-xl border border-line-strong text-ink/80 text-[14.5px] font-medium active:scale-95 transition-transform">
+                Cancelar
+              </button>
+              <button onClick={handleGuardarPausa} disabled={busy} className="flex-1 min-h-[48px] rounded-xl bg-amber text-inkOnAccent text-[14.5px] font-semibold active:scale-95 transition-transform disabled:opacity-60">
+                {busy ? 'Guardando...' : 'Pausar'}
               </button>
             </div>
           </div>

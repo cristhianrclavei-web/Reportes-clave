@@ -12,6 +12,8 @@ function base(overrides: Partial<Parameters<typeof calcularResultadoServicio>[0]
     duracion_estimada_min: 60,
     numero_dia: 1,
     dias_totales: 1,
+    pausado_desde: null as string | null,
+    minutos_pausados: 0,
     ...overrides,
   };
 }
