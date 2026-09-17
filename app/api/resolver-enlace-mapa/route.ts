@@ -4,10 +4,15 @@ import { extraerCoordenadas, extraerCoordenadasDeHtml } from '@/lib/geocerca';
 
 export const dynamic = 'force-dynamic';
 
-// Solo estos dominios: son los que usa Google para enlaces cortos de Maps.
+// Solo este dominio: es el que usa Google para enlaces cortos de Maps.
 // Es la barrera contra SSRF — sin esto, el endpoint sería un proxy para
 // pedirle al servidor que abra cualquier URL que alguien quiera.
-const HOSTS_PERMITIDOS = new Set(['maps.app.goo.gl', 'goo.gl']);
+//
+// "goo.gl" (el acortador genérico, no el de Maps) estuvo antes en esta
+// lista y se sacó: a diferencia de maps.app.goo.gl, permitía apuntar a
+// cualquier host, no solo a Maps, así que un enlace viejo podía hacer que
+// el servidor pidiera una URL interna en vez de una de Maps.
+const HOSTS_PERMITIDOS = new Set(['maps.app.goo.gl']);
 
 // Los enlaces cortos de Maps no traen lat/lng: hay que abrirlos. Esto pasa
 // por el servidor porque el navegador no puede leer a dónde redirige un
