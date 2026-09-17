@@ -8,7 +8,7 @@ import {
 import { showToast } from '@/components/Toast';
 import {
   ChevronLeft, Search, Plus, X, Camera, Images, FileText,
-  Wrench, Package, HardHat, Check, Pencil,
+  Wrench, Package, HardHat, Check, Pencil, ArrowRight,
 } from 'lucide-react';
 
 // Registrar una entrada de almacén, rehecho como asistente de un solo paso a
@@ -550,7 +550,11 @@ export function ModalNuevoArticulo({
         categoria, descripcion, unidad, retornable,
         minimo: parseFloat(minimo) || 0, sistemaId, marca, modelo,
       });
-      showToast('Artículo agregado', 'success');
+      // Este modal solo da de alta el artículo en el catálogo — con 0 en
+      // existencia. Sin este aviso, es fácil creer que "Agregar" ya
+      // registró la entrada y salirse antes del paso de cantidad, dejando
+      // el artículo en 0 aunque sí haya llegado al almacén.
+      showToast('Catálogo actualizado — ahora indica cuánto entró', 'success');
       onCreado(nuevo);
     } catch (e: any) {
       alert('No se pudo agregar: ' + (e?.message || 'error'));
@@ -562,7 +566,10 @@ export function ModalNuevoArticulo({
   return (
     <div className="fixed inset-0 z-40 bg-black/60 flex items-end sm:items-center justify-center p-4" onClick={onCancelar}>
       <div onClick={(e) => e.stopPropagation()} className="glass-strong rounded-3xl max-w-md w-full p-5 max-h-[92vh] overflow-y-auto">
-        <p className="font-display font-semibold text-[16px] mb-4">Nuevo artículo</p>
+        <p className="font-display font-semibold text-[16px] mb-1">Nuevo artículo</p>
+        <p className="text-[12.5px] text-muted mb-4 leading-relaxed">
+          Esto solo lo da de alta en el catálogo. Al continuar, todavía falta indicar cuánto entró.
+        </p>
 
         <label className={labelCls}>Tipo</label>
         <div className="flex gap-2 mb-4">
@@ -630,8 +637,17 @@ export function ModalNuevoArticulo({
           <button onClick={onCancelar} className="flex-1 min-h-[48px] rounded-xl border border-line-strong text-ink/80 text-[14.5px] font-medium">
             Cancelar
           </button>
-          <button onClick={handleCrear} disabled={busy} className="flex-1 min-h-[48px] rounded-xl bg-teal text-inkOnAccent text-[14.5px] font-semibold disabled:opacity-60">
-            {busy ? 'Guardando...' : 'Agregar'}
+          <button
+            onClick={handleCrear}
+            disabled={busy}
+            className="flex-[1.4] min-h-[48px] rounded-xl bg-teal text-inkOnAccent text-[14.5px] font-semibold disabled:opacity-60 flex items-center justify-center gap-1.5"
+          >
+            {busy ? 'Guardando...' : (
+              <>
+                Guardar y seguir con la cantidad
+                <ArrowRight size={15} strokeWidth={2.6} />
+              </>
+            )}
           </button>
         </div>
       </div>
