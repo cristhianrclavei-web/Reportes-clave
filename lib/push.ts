@@ -138,6 +138,8 @@ export type TipoAviso =
   | 'llegada_servicio'
   | 'inicio_servicio'
   | 'cierre_servicio'
+  | 'pausa_servicio'
+  | 'reanudacion_servicio'
   | 'bitacora_inicio'
   | 'bitacora_fin'
   | 'reporte_nuevo'
@@ -166,6 +168,8 @@ export const TIPOS_AVISO: { valor: TipoAviso; label: string; detalle: string; pa
   { valor: 'stock_bajo', label: 'Existencias bajas', detalle: 'Cuando un artículo baja de su mínimo' },
   { valor: 'llegada_servicio', label: 'Llegadas a sitio', detalle: 'Cada vez que un técnico llega a un servicio' },
   { valor: 'inicio_servicio', label: 'Inicios de servicio', detalle: 'Cada vez que un técnico arranca un servicio' },
+  { valor: 'pausa_servicio', label: 'Pausas de servicio', detalle: 'Cuando un técnico pausa un servicio en curso (ej. hora de comida)' },
+  { valor: 'reanudacion_servicio', label: 'Reanudaciones de servicio', detalle: 'Cuando un técnico reanuda un servicio pausado' },
   { valor: 'bitacora_inicio', label: 'Inicio de actividades', detalle: 'Cuando alguien abre una actividad en bitácora' },
   { valor: 'bitacora_fin', label: 'Cierre de actividades', detalle: 'Cuando alguien concluye una actividad' },
   { valor: 'servicio_asignado', label: 'Servicios programados', detalle: 'Cuando te programan un servicio', paraTecnico: true },
@@ -176,6 +180,7 @@ export const TIPOS_AVISO: { valor: TipoAviso; label: string; detalle: string; pa
 // vivo en el panel. Encenderlos es decisión de cada quien.
 export const APAGADOS_POR_DEFECTO: TipoAviso[] = [
   'llegada_servicio', 'inicio_servicio', 'bitacora_inicio', 'bitacora_fin',
+  'pausa_servicio', 'reanudacion_servicio',
 ];
 
 export async function leerPreferencias(): Promise<Record<string, boolean>> {
