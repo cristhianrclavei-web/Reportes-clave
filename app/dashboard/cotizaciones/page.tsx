@@ -24,6 +24,7 @@ export default async function CotizacionesPage() {
     <CotizacionesList
       cotizaciones={(cotizaciones as any) || []}
       userName={myProfile?.full_name || user.email || ''}
+      correoUsuario={user.email || ''}
       errorCarga={error?.message || null}
     />
   );

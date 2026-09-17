@@ -12,7 +12,15 @@ import {
   eliminarCotizacion, agruparPorSistema,
 } from '@/lib/cotizaciones';
 import { showToast } from '@/components/Toast';
-import { FileText, Pencil, Trash2, ChevronLeft, X, Check, Send, Ban } from 'lucide-react';
+import { FileText, Pencil, Trash2, ChevronLeft, X, Check, Send, Ban, MessageCircle } from 'lucide-react';
+
+// WhatsApp necesita el código de país adelante — los teléfonos se capturan
+// a 10 dígitos "a la mexicana", así que si ya trae más dígitos se asume que
+// alguien ya incluyó el código y se deja tal cual.
+function limpiarTelefonoWhatsapp(telefono: string): string {
+  const soloDigitos = telefono.replace(/\D/g, '');
+  return soloDigitos.length === 10 ? '52' + soloDigitos : soloDigitos;
+}
 
 const cardCls = 'glass rounded-2xl p-4';
 
@@ -126,6 +134,17 @@ export default function CotizacionDetalle({
     }
   }
 
+  // El enlace público solo resuelve si ya está aprobada/enviada (ver
+  // supabase/patch_cotizaciones_publico.sql) — antes de eso no tiene caso
+  // ofrecer el botón.
+  function handleEnviarWhatsapp() {
+    const tel = limpiarTelefonoWhatsapp(cotizacion.telefono || '');
+    const link = `${window.location.origin}/api/cotizaciones/${cotizacion.id}/pdf-cliente`;
+    const saludo = cotizacion.atencion ? `Hola ${cotizacion.atencion}` : 'Hola';
+    const mensaje = `${saludo}, te comparto la cotización ${cotizacion.folio} de Clave Inteligente para ${cotizacion.empresa}. Puedes verla aquí: ${link}`;
+    window.open(`https://wa.me/${tel}?text=${encodeURIComponent(mensaje)}`, '_blank');
+  }
+
   async function handleEliminar() {
     if (!confirm(`¿Eliminar la cotización de «${cotizacion.empresa}» (folio ${cotizacion.folio})?\n\nEsta acción es permanente.`)) return;
     setEliminando(true);
@@ -162,6 +181,8 @@ export default function CotizacionDetalle({
 
   const grupos = agruparPorSistema(lineas);
   const habilitaEnviar = puedeMarcarEnviada(cotizacion);
+  const puedeCompartir = cotizacion.estado === 'aprobada' || cotizacion.estado === 'enviada';
+  const habilitaWhatsapp = puedeCompartir && !!cotizacion.telefono;
   // Solo informativo para quien la arma — nunca se muestra en el PDF que
   // recibe el cliente.
   const costoTotal = lineas.reduce((acc, l) => acc + l.costo * l.cantidad, 0);
@@ -361,7 +382,9 @@ export default function CotizacionDetalle({
         )}
       </div>
 
-      <div className="flex gap-2.5 mb-3">
+      {/* Compartir: ver el PDF o mandarlo directo por WhatsApp — las dos
+          formas de que el documento llegue al cliente, agrupadas juntas. */}
+      <div className="flex gap-2.5 mb-2.5">
         <a
           href={`/api/cotizaciones/${cotizacion.id}/pdf?t=${Date.now()}`}
           target="_blank"
@@ -372,13 +395,31 @@ export default function CotizacionDetalle({
           Ver PDF
         </a>
         <button
-          onClick={() => setEditando(true)}
-          className="flex-1 min-h-[52px] rounded-2xl border border-line-strong text-ink/80 font-semibold text-[15px] flex items-center justify-center gap-2 active:scale-95 transition-transform"
+          onClick={handleEnviarWhatsapp}
+          disabled={!habilitaWhatsapp}
+          title={
+            !puedeCompartir
+              ? 'Primero hay que aprobarla y firmarla'
+              : !cotizacion.telefono
+              ? 'Agrega un teléfono del cliente para poder enviarla'
+              : undefined
+          }
+          className="flex-1 min-h-[52px] rounded-2xl bg-[#25D366] text-white font-display font-semibold text-[15px] flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-40"
         >
-          <Pencil size={17} strokeWidth={2.3} />
-          Editar
+          <MessageCircle size={18} strokeWidth={2.4} />
+          WhatsApp
         </button>
       </div>
+
+      {/* Editar: acción secundaria y menos frecuente que compartir, por eso
+          va más discreta y sola en su propia fila. */}
+      <button
+        onClick={() => setEditando(true)}
+        className="w-full min-h-[48px] mb-3 rounded-xl border border-line-strong text-ink/80 font-semibold text-[14.5px] flex items-center justify-center gap-2 active:scale-95 transition-transform"
+      >
+        <Pencil size={16} strokeWidth={2.3} />
+        Editar
+      </button>
 
       <button
         onClick={handleEliminar}
