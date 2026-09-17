@@ -381,7 +381,15 @@ export default function CotizacionDetalle({
           todos. */}
       {puedeAprobar && (
         <div className="flex gap-2.5 mb-1.5">
-          {cotizacion.estado !== 'enviada' && (
+          {cotizacion.estado === 'enviada' ? (
+            <button
+              disabled
+              className="flex-1 min-h-[52px] rounded-2xl bg-surface-2 border border-line text-muted font-display font-semibold text-[15px] flex items-center justify-center gap-2 cursor-not-allowed"
+            >
+              <Check size={17} strokeWidth={2.6} />
+              Enviada
+            </button>
+          ) : (
             <button
               onClick={handleMarcarEnviada}
               disabled={!habilitaEnviar || procesandoAccion}
@@ -405,18 +413,10 @@ export default function CotizacionDetalle({
         </div>
       )}
 
-      {puedeAprobar && cotizacion.estado === 'enviada' && (
-        <button
-          onClick={handleEnviarWhatsapp}
-          disabled={!habilitaWhatsapp}
-          className="text-blue-500 text-[13.5px] font-semibold mb-3 active:opacity-70 transition-opacity"
-        >
-          Enviar de nuevo
-        </button>
-      )}
-
       {/* Compartir: ver el PDF (para todos) o mandarlo directo por WhatsApp
-          (solo quien aprueba cotizaciones). */}
+          (solo quien aprueba cotizaciones) — el de WhatsApp queda activo
+          siempre, sin importar el estado, para poder reenviarla cuando haga
+          falta. */}
       <div className="flex gap-2.5 mb-2.5">
         <a
           href={`/api/cotizaciones/${cotizacion.id}/pdf?t=${Date.now()}`}
@@ -427,7 +427,7 @@ export default function CotizacionDetalle({
           <FileText size={18} strokeWidth={2.4} />
           Ver PDF
         </a>
-        {puedeAprobar && cotizacion.estado !== 'enviada' && (
+        {puedeAprobar && (
           <button
             onClick={handleEnviarWhatsapp}
             disabled={!habilitaWhatsapp}
