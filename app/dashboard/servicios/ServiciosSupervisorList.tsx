@@ -201,9 +201,13 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   const grupos = useMemo<Grupo[]>(() => {
     const mapa: Record<string, Grupo> = {};
     servicios.forEach((s) => {
-      // Un proyecto aparece si alguno de sus días cae en el rango: filtrar día
-      // por día partiría proyectos a la mitad y confundiría la numeración.
-      if (rango && !servicios.some((d) => d.grupo_id === s.grupo_id && d.fecha >= rango.desde && d.fecha <= rango.hasta)) return;
+      // El rango de fechas no aplica cuando se busca por texto: quien escribe
+      // el nombre de un cliente quiere encontrarlo esté en la semana que esté.
+      if (!busquedaServicio && rango) {
+        // Un proyecto aparece si alguno de sus días cae en el rango: filtrar
+        // día por día partiría proyectos a la mitad y confundiría la numeración.
+        if (!servicios.some((d) => d.grupo_id === s.grupo_id && d.fecha >= rango.desde && d.fecha <= rango.hasta)) return;
+      }
       if (busquedaServicio) {
         if (!s.proyecto.toLowerCase().includes(busquedaServicio.toLowerCase())) return;
       }

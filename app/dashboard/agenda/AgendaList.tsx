@@ -27,6 +27,7 @@ export default function AgendaList({ userName }: { userName?: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filtroTecnico, setFiltroTecnico] = useState('');
+  const [search, setSearch] = useState('');
 
   // Reprogramación rápida desde la propia agenda: es la acción que se necesita
   // justo cuando se está viendo un día vencido.
@@ -60,9 +61,12 @@ export default function AgendaList({ userName }: { userName?: string }) {
   }, [tecnicosPorServicio]);
 
   const serviciosFiltrados = useMemo(() => {
-    if (!filtroTecnico) return servicios;
-    return servicios.filter((s) => (tecnicosPorServicio[s.id] || []).includes(filtroTecnico));
-  }, [servicios, filtroTecnico, tecnicosPorServicio]);
+    return servicios.filter((s) => {
+      if (filtroTecnico && !(tecnicosPorServicio[s.id] || []).includes(filtroTecnico)) return false;
+      if (search && !s.proyecto.toLowerCase().includes(search.toLowerCase())) return false;
+      return true;
+    });
+  }, [servicios, filtroTecnico, search, tecnicosPorServicio]);
 
   const bloques = useMemo(() => construirAgenda(serviciosFiltrados), [serviciosFiltrados]);
 
@@ -89,6 +93,13 @@ export default function AgendaList({ userName }: { userName?: string }) {
       userName={userName}
       wrapperClassName="max-w-2xl lg:max-w-6xl mx-auto pb-28 lg:pb-16 lg:px-6"
     >
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar proyecto o cliente..."
+          className="w-full px-3.5 min-h-[48px] mb-3 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]"
+        />
+
         {tecnicosUnicos.length > 0 && (
           <select
             value={filtroTecnico}
@@ -117,7 +128,9 @@ export default function AgendaList({ userName }: { userName?: string }) {
 
         {!loading && !error && bloques.length === 0 && (
           <p className="text-center text-muted py-10 text-[14px]">
-            No hay días pendientes en la agenda. Todo lo programado está concluido.
+            {search || filtroTecnico
+              ? 'Ningún servicio coincide con ese filtro.'
+              : 'No hay días pendientes en la agenda. Todo lo programado está concluido.'}
           </p>
         )}
 
