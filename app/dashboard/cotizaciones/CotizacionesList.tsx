@@ -7,6 +7,7 @@ import TablaLista, { ColumnaTabla } from '@/components/TablaLista';
 import { VistaCondicional } from '@/lib/vistaSupervisor';
 import { Cotizacion } from '@/lib/cotizaciones';
 import { Plus, Search } from 'lucide-react';
+import SelectorSemana, { RangoSeleccionado } from '@/components/SelectorSemana';
 
 function formatFecha(fecha: string): string {
   if (!fecha) return '—';
@@ -56,14 +57,24 @@ export default function CotizacionesList({
   errorCarga?: string | null;
 }) {
   const [search, setSearch] = useState('');
+  const [rango, setRango] = useState<RangoSeleccionado | null>(null);
+  const fechasDeCotizaciones = useMemo(() => cotizaciones.map((c) => c.fecha).filter(Boolean), [cotizaciones]);
 
   const filtradas = useMemo(() => {
-    if (!search.trim()) return cotizaciones;
-    const q = search.toLowerCase();
-    return cotizaciones.filter((c) =>
-      `${c.empresa} ${c.folio} ${c.atencion || ''} ${nombreCreador(c.profiles)}`.toLowerCase().includes(q)
-    );
-  }, [cotizaciones, search]);
+    return cotizaciones.filter((c) => {
+      // El rango de fechas no aplica cuando se busca por texto: quien escribe
+      // el nombre de un cliente quiere encontrarlo esté en la semana que esté.
+      if (!search && rango && c.fecha) {
+        if (c.fecha < rango.desde || c.fecha > rango.hasta) return false;
+      }
+      if (search) {
+        const q = search.toLowerCase();
+        const hay = `${c.empresa} ${c.folio} ${c.atencion || ''} ${nombreCreador(c.profiles)}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [cotizaciones, search, rango]);
 
   const columnas: ColumnaTabla<Cotizacion>[] = [
     { header: 'Cliente / Empresa', render: (c) => <span className="font-semibold">{c.empresa}</span> },
@@ -100,6 +111,8 @@ export default function CotizacionesList({
         Nueva cotización
       </Link>
 
+      <SelectorSemana fechas={fechasDeCotizaciones} onCambio={setRango} etiqueta="cotizaciones" />
+
       <div className="relative mb-4">
         <Search size={16} strokeWidth={2.4} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-faint" />
         <input
@@ -112,7 +125,11 @@ export default function CotizacionesList({
 
       {filtradas.length === 0 && (
         <p className="text-center text-muted py-14 text-[14px] leading-relaxed">
-          {cotizaciones.length === 0 ? 'Todavía no hay cotizaciones.' : 'Sin resultados para esa búsqueda.'}
+          {cotizaciones.length === 0
+            ? 'Todavía no hay cotizaciones.'
+            : search
+            ? 'Sin resultados para esa búsqueda.'
+            : 'No hay cotizaciones en estas fechas. Cambia de semana o toca «Toda la semana».'}
         </p>
       )}
 
