@@ -224,6 +224,24 @@ export async function reprogramarDia(servicioId: string, nuevaFecha: string): Pr
   const fechaAnterior = actual.fecha;
   if (fechaAnterior === nuevaFecha) return;
 
+  // Dos días del mismo proyecto no pueden compartir fecha: la renumeración
+  // de abajo ordena por fecha, y con dos iguales el orden entre ellos queda
+  // arbitrario — en la práctica se ven como el mismo día duplicado.
+  // .limit(1) en vez de .single()/.maybeSingle(): así no truena con el error
+  // críptico de Postgrest ("JSON object requested...") si por lo que sea
+  // hay más de una fila con esa fecha — solo interesa si hay alguna.
+  const { data: choque, error: eChoque } = await supabase
+    .from('servicios_programados')
+    .select('id')
+    .eq('grupo_id', actual.grupo_id)
+    .eq('fecha', nuevaFecha)
+    .neq('id', servicioId)
+    .limit(1);
+  if (eChoque) throw eChoque;
+  if (choque && choque.length > 0) {
+    throw new Error(`Ya hay un día de este proyecto programado para el ${nuevaFecha}. Elige otra fecha.`);
+  }
+
   const { error: eUpd } = await supabase
     .from('servicios_programados')
     .update({ fecha: nuevaFecha })
@@ -1003,6 +1021,45 @@ export async function concluirServicio(servicioId: string) {
     url: `/dashboard/servicios/${servicioId}`,
     tag: 'cierre',
   });
+}
+
+// Cierra el día como concluirServicio(), y además cancela los días
+// siguientes del mismo proyecto que todavía no se hayan empezado — para
+// cuando el trabajo se termina antes de lo programado y esos días ya no
+// se van a usar. Solo toca días en estado "programado" (nadie llegó a
+// trabajarlos); si alguno ya tiene actividad o reporte, se deja tal cual
+// en vez de fallar toda la operación por un solo día.
+export async function concluirServicioAnticipado(servicioId: string): Promise<{ diasCancelados: number }> {
+  const supabase = createClient();
+
+  const { data: dia, error: eDia } = await supabase
+    .from('servicios_programados')
+    .select('grupo_id, numero_dia')
+    .eq('id', servicioId)
+    .single();
+  if (eDia) throw eDia;
+
+  await concluirServicio(servicioId);
+
+  const { data: siguientes } = await supabase
+    .from('servicios_programados')
+    .select('id, numero_dia')
+    .eq('grupo_id', dia.grupo_id)
+    .eq('estado', 'programado')
+    .gt('numero_dia', dia.numero_dia);
+
+  let diasCancelados = 0;
+  for (const d of (siguientes || []) as any[]) {
+    try {
+      await eliminarDiaDeProyecto(d.id, 'El servicio terminó antes de lo estimado — día ya no necesario.');
+      diasCancelados++;
+    } catch {
+      // Se deja ese día tal cual (ej. ya tiene un reporte vinculado) — no
+      // se interrumpe el cierre del proyecto por eso.
+    }
+  }
+
+  return { diasCancelados };
 }
 
 export async function vincularReporteAServicio(servicioId: string, reportId: string) {

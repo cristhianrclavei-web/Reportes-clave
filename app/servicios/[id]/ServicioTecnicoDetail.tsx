@@ -8,7 +8,7 @@ import Logo from '@/components/Logo';
 import {
   Servicio, Tarea, Evento,
   obtenerServicioCompleto, marcarLlegada, iniciarServicio, sigoAsignadoAServicio,
-  registrarAvanceTarea, registrarRetraso, concluirServicio, agregarEvidenciaExtra,
+  registrarAvanceTarea, registrarRetraso, concluirServicio, concluirServicioAnticipado, agregarEvidenciaExtra,
   calcularProgresoTareas, pausarServicio, reanudarServicio, minutosPausadosTotales,
 } from '@/lib/serviciosProgramados';
 import ProgressBar from '@/components/ProgressBar';
@@ -16,7 +16,7 @@ import AvisoServicio from '@/components/AvisoServicio';
 import {
   ChevronLeft, MapPin, Play, Check, Lock, Camera, AlertTriangle,
   Plus, X, CircleDashed, Clock, Flag, CalendarClock, PackageCheck, ChevronRight,
-  PauseCircle, PlayCircle,
+  PauseCircle, PlayCircle, ClipboardList,
 } from 'lucide-react';
 
 const MOTIVOS_PAUSA = ['Comida', 'Emergencia personal', 'Trámite fuera de sitio', 'Otro'];
@@ -58,6 +58,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
   const [fotoUrls, setFotoUrls] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [preguntandoAnticipado, setPreguntandoAnticipado] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Si al técnico lo quitaron del proyecto en una reasignación, ya no debe
   // poder operar este servicio aunque tenga la pantalla abierta o el enlace.
@@ -319,10 +320,35 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
         : `Quedan ${pendientes} tarea(s) pendiente(s) — su avance registrado se conserva y seguirán disponibles el siguiente día del proyecto. ¿Concluir este día?`;
       if (!confirm(msg)) return;
     }
+
+    // Si todavía quedan días programados de este proyecto, preguntar (con
+    // una ventana propia, no el confirm() feo del navegador) si el trabajo
+    // ya se terminó por completo — para no dejar esos días programados sin
+    // usarse cuando el proyecto se acaba antes de tiempo.
+    if (!esUltimoDia) {
+      setPreguntandoAnticipado(true);
+      return;
+    }
+
+    await ejecutarConclusion(false);
+  }
+
+  async function ejecutarConclusion(anticipado: boolean) {
+    setPreguntandoAnticipado(false);
     setBusy(true);
     try {
-      await concluirServicio(servicioId);
-      showToast('Servicio concluido', 'success');
+      if (anticipado) {
+        const { diasCancelados } = await concluirServicioAnticipado(servicioId);
+        showToast(
+          diasCancelados > 0
+            ? `Servicio concluido — se cancelaron ${diasCancelados} día(s) que ya no se iban a usar`
+            : 'Servicio concluido',
+          'success'
+        );
+      } else {
+        await concluirServicio(servicioId);
+        showToast('Servicio concluido', 'success');
+      }
       await cargar();
     } catch (e: any) {
       alert('No se pudo concluir: ' + (e?.message || 'error'));
@@ -898,6 +924,39 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
               </button>
               <button onClick={handleGuardarPausa} disabled={busy} className="flex-1 min-h-[48px] rounded-xl bg-amber text-inkOnAccent text-[14.5px] font-semibold active:scale-95 transition-transform disabled:opacity-60">
                 {busy ? 'Guardando...' : 'Pausar'}
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
+
+      {/* Modal: ¿el proyecto ya se terminó antes de lo estimado? — solo
+          aparece si todavía quedan días programados sin empezar. */}
+      {preguntandoAnticipado && (
+        <ModalOverlay onClose={() => setPreguntandoAnticipado(false)}>
+          <div className="glass-strong rounded-3xl max-w-sm w-full p-6 text-center">
+            <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-teal/15 flex items-center justify-center">
+              <ClipboardList size={26} strokeWidth={2.3} className="text-teal" />
+            </div>
+            <p className="font-display font-bold text-[18px] tracking-wide mb-2">¿Ya terminaste todo?</p>
+            <p className="text-[14px] text-ink/75 leading-relaxed mb-6">
+              Este proyecto todavía tiene días programados sin empezar. Si el trabajo de{' '}
+              <span className="font-semibold text-ink">«{servicio.proyecto}»</span> ya quedó completo, esos días se cancelan solos — ya no se van a usar.
+            </p>
+            <div className="flex flex-col gap-2.5">
+              <button
+                onClick={() => ejecutarConclusion(true)}
+                disabled={busy}
+                className="w-full min-h-[52px] rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15px] active:scale-95 transition-transform disabled:opacity-60 shadow-glow-teal"
+              >
+                Sí, ya terminé todo
+              </button>
+              <button
+                onClick={() => ejecutarConclusion(false)}
+                disabled={busy}
+                className="w-full min-h-[48px] rounded-2xl border border-line-strong text-ink/80 font-semibold text-[14.5px] active:scale-95 transition-transform disabled:opacity-60"
+              >
+                No, falta trabajo para los siguientes días
               </button>
             </div>
           </div>
