@@ -20,6 +20,13 @@ import { evaluarVentanaServicio } from '@/lib/ventanaServicio';
 import Logo from '@/components/Logo';
 import { hoyLocal } from '@/lib/fechaHoy';
 
+// Hora "HH:mm" del reloj del dispositivo — igual al formato que ya entrega
+// el <input type="time">, así que sirve tal cual como valor de respaldo.
+function horaActualStr(): string {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 const TIPOS = ['Instalación nueva', 'Mantenimiento', 'Otro'];
 const SUBTIPOS = ['Correctivo', 'Preventivo'];
 const SEGURIDAD_OPTS = ['CCTV', 'Automatización', 'Alarma&Det', 'Control de acceso', 'Alarma intrusión', 'Red contra incendio', 'Supresión', 'Inst. eléctricas', 'Paneles solares', 'Otra'];
@@ -263,7 +270,8 @@ export default function NuevoReportePage() {
     const f: string[] = [];
     if (!empresaCliente.trim()) f.push('empresa / cliente');
     if (!horaLlegada) f.push('hora de llegada');
-    if (!horaSalida) f.push('hora de salida');
+    // Hora de salida ya no bloquea guardar: si se deja en blanco, se toma la
+    // hora actual sola al momento de guardar (ver handleSave).
     if (!ingACargo.trim() && !personalAdicional.some((p) => p.trim())) f.push('al menos una persona en el servicio');
     return f;
   }, [empresaCliente, horaLlegada, horaSalida, ingACargo, personalAdicional]);
@@ -510,11 +518,19 @@ export default function NuevoReportePage() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
+
+    // Si no se capturó la hora de salida, se toma la hora actual sola en
+    // vez de detener el guardado — no se actualiza vía setHoraSalida porque
+    // ese cambio de estado no se reflejaría a tiempo aquí abajo (React lo
+    // aplica hasta el siguiente render); horaSalidaFinal es lo que de verdad
+    // se guarda.
+    const horaSalidaFinal = horaSalida || horaActualStr();
+
     setSaving(true);
     setMsg(null);
 
     // Datos compartidos entre el guardado en línea y el guardado local (sin conexión).
-    const sharedDataBase = buildSharedData();
+    const sharedDataBase = { ...buildSharedData(), horaSalida: horaSalidaFinal };
     const sharedData = {
       ...sharedDataBase,
       firmaIngNombre, firmaClienteNombre,
@@ -760,7 +776,11 @@ export default function NuevoReportePage() {
             <div><label className={labelCls}>Fecha</label><input type="date" className={inputCls} value={fecha} onChange={(e) => setFecha(e.target.value)} /></div>
             <div><label className={labelCls}>Orden de compra</label><input type="text" className={inputCls} value={ordCompra} onChange={(e) => setOrdCompra(e.target.value)} /></div>
             <div><label className={labelCls}>Hora llegada</label><input type="time" className={inputCls} value={horaLlegada} onChange={(e) => setHoraLlegada(e.target.value)} /></div>
-            <div><label className={labelCls}>Hora salida</label><input type="time" className={inputCls} value={horaSalida} onChange={(e) => setHoraSalida(e.target.value)} /></div>
+            <div>
+              <label className={labelCls}>Hora salida</label>
+              <input type="time" className={inputCls} value={horaSalida} onChange={(e) => setHoraSalida(e.target.value)} />
+              <p className="text-[11px] text-faint mt-1">Si se deja en blanco, se toma la hora actual al guardar.</p>
+            </div>
           </div>
 
           {/* El reloj que abre el teléfono lo dibuja el sistema con a.m./p.m. y
