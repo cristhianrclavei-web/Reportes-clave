@@ -41,7 +41,13 @@ export default function AvisoActualizarCredenciales() {
           .eq('id', user.id)
           .single();
 
-        if (data && data.credenciales_actualizadas === false) setPendiente(true);
+        if (data && data.credenciales_actualizadas === false) {
+          setPendiente(true);
+          // Ventana emergente automática, no solo el aviso de la tarjeta:
+          // se abre sola cada vez que se entra a la app, para que el
+          // recordatorio no dependa de que alguien note y toque el aviso.
+          setAbierto(true);
+        }
       } finally {
         setCargando(false);
       }
