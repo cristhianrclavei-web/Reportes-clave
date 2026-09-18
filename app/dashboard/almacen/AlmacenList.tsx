@@ -7,7 +7,7 @@ import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
 import {
   Articulo, Existencia, CATEGORIAS, CategoriaInsumo,
-  listarArticulos, desactivarArticulo, listarExistencias,
+  listarArticulos, desactivarArticulo, reactivarArticulo, listarExistencias,
   listarProyectosParaAlmacen, urlDeDocumento,
   listarMovimientos, MovimientoDetallado, listarBajoMinimo, ArticuloBajoMinimo, editarArticulo,
   Sistema, listarSistemas, crearSistema, desactivarSistema, articulosPorSistema,
@@ -43,11 +43,15 @@ export default function AlmacenList({ userName }: { userName?: string }) {
   const [sistemas, setSistemas] = useState<Sistema[]>([]);
 
   const [filtro, setFiltro] = useState<'todos' | CategoriaInsumo>('todos');
+  const [verBaja, setVerBaja] = useState(false);
 
   async function cargar() {
     try {
+      // false: trae también los dados de baja, para poder mostrarlos y
+      // reactivarlos en Catálogo. El asistente de "nueva entrada" solo debe
+      // ofrecer los activos — se filtra al pasárselo (ver más abajo).
       const [ex, ar, pr, mv, bm, si] = await Promise.all([
-        listarExistencias(), listarArticulos(), listarProyectosParaAlmacen(), listarMovimientos(), listarBajoMinimo(), listarSistemas(),
+        listarExistencias(), listarArticulos(false), listarProyectosParaAlmacen(), listarMovimientos(), listarBajoMinimo(), listarSistemas(),
       ]);
       setExistencias(ex);
       setArticulos(ar);
@@ -252,7 +256,7 @@ export default function AlmacenList({ userName }: { userName?: string }) {
         {!loading && seccion === 'entrada' && (
           <EntradaAlmacenWizard
             sistemas={sistemas}
-            articulos={articulos}
+            articulos={articulos.filter((a) => a.activo)}
             proyectos={proyectos}
             onCancelar={() => setSeccion('existencias')}
             onCatalogoActualizado={cargar}
@@ -354,61 +358,96 @@ export default function AlmacenList({ userName }: { userName?: string }) {
         )}
 
         {/* --- Catálogo --- */}
-        {!loading && seccion === 'catalogo' && (
-          <>
-            <button
-              onClick={() => setShowNuevoArticulo(true)}
-              className="w-full min-h-[52px] mb-4 rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15px] flex items-center justify-center gap-2 active:scale-95 transition-transform"
-            >
-              <Plus size={18} strokeWidth={2.6} />
-              Agregar artículo
-            </button>
+        {!loading && seccion === 'catalogo' && (() => {
+          const activos = articulos.filter((a) => a.activo);
+          const dadosDeBaja = articulos.filter((a) => !a.activo);
+          const mostrar = verBaja ? dadosDeBaja : activos;
+          return (
+            <>
+              <button
+                onClick={() => setShowNuevoArticulo(true)}
+                className="w-full min-h-[52px] mb-3 rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15px] flex items-center justify-center gap-2 active:scale-95 transition-transform"
+              >
+                <Plus size={18} strokeWidth={2.6} />
+                Agregar artículo
+              </button>
 
-            {articulos.length === 0 && (
-              <p className="text-center text-muted py-10 text-[14px]">El catálogo está vacío.</p>
-            )}
+              {dadosDeBaja.length > 0 && (
+                <button
+                  onClick={() => setVerBaja((v) => !v)}
+                  className={`w-full min-h-[42px] mb-4 rounded-xl border text-[13px] font-medium flex items-center justify-center gap-1.5 transition-colors ${
+                    verBaja ? 'bg-amber/12 border-amber/40 text-amber' : 'bg-surface-2 border-line text-ink/75'
+                  }`}
+                >
+                  {verBaja ? 'Viendo dados de baja — volver al catálogo activo' : `Ver dados de baja (${dadosDeBaja.length})`}
+                </button>
+              )}
 
-            <div className="flex flex-col gap-2.5 lg:grid lg:grid-cols-2">
-              {articulos.map((a) => {
-                const Icono = ICONO[a.categoria];
-                return (
-                  <div key={a.id} className="rounded-2xl bg-surface border border-line p-4 flex items-center gap-3">
-                    <Icono size={17} strokeWidth={2.3} className="text-muted shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[14.5px] font-semibold truncate">{a.descripcion}</p>
-                      <p className="text-[12.5px] text-muted">
-                        {[a.marca, a.modelo].filter(Boolean).join(' ') || CATEGORIAS.find((c) => c.valor === a.categoria)?.label}
-                        {' · '}{a.unidad}{a.retornable ? ' · Regresa' : ' · Se consume'}
-                      </p>
-                      {a.sistema_id && (
-                        <p className="text-[12px] text-teal mt-0.5">
-                          {sistemas.find((sx) => sx.id === a.sistema_id)?.nombre || ''}
+              {mostrar.length === 0 && (
+                <p className="text-center text-muted py-10 text-[14px]">
+                  {verBaja ? 'No hay artículos dados de baja.' : 'El catálogo está vacío.'}
+                </p>
+              )}
+
+              <div className="flex flex-col gap-2.5 lg:grid lg:grid-cols-2">
+                {mostrar.map((a) => {
+                  const Icono = ICONO[a.categoria];
+                  return (
+                    <div key={a.id} className={`rounded-2xl bg-surface border border-line p-4 flex items-center gap-3 ${a.activo ? '' : 'opacity-70'}`}>
+                      <Icono size={17} strokeWidth={2.3} className="text-muted shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[14.5px] font-semibold truncate">{a.descripcion}</p>
+                        <p className="text-[12.5px] text-muted">
+                          {[a.marca, a.modelo].filter(Boolean).join(' ') || CATEGORIAS.find((c) => c.valor === a.categoria)?.label}
+                          {' · '}{a.unidad}{a.retornable ? ' · Regresa' : ' · Se consume'}
                         </p>
+                        {a.sistema_id && (
+                          <p className="text-[12px] text-teal mt-0.5">
+                            {sistemas.find((sx) => sx.id === a.sistema_id)?.nombre || ''}
+                          </p>
+                        )}
+                        {a.activo && (
+                          <button
+                            onClick={() => { setEditandoMinimo(a); setMinimoEdit(String(a.minimo || '')); }}
+                            className="text-[12.5px] text-teal font-medium mt-1 min-h-[32px]"
+                          >
+                            {a.minimo > 0 ? `Mínimo: ${a.minimo} ${a.unidad}` : 'Definir mínimo'}
+                          </button>
+                        )}
+                      </div>
+                      {a.activo ? (
+                        <button
+                          onClick={async () => {
+                            if (!confirm(`¿Quitar «${a.descripcion}» del catálogo?\n\nSe conserva en el historial de movimientos, y se puede reactivar después.`)) return;
+                            await desactivarArticulo(a.id);
+                            await cargar();
+                          }}
+                          aria-label="Quitar del catálogo"
+                          className="w-10 h-10 flex items-center justify-center text-red shrink-0 active:scale-90 transition-transform"
+                        >
+                          <Trash2 size={16} strokeWidth={2.4} />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={async () => {
+                            await reactivarArticulo(a.id);
+                            await cargar();
+                            showToast(`«${a.descripcion}» reactivado`, 'success');
+                          }}
+                          aria-label="Reactivar artículo"
+                          className="shrink-0 min-h-[40px] px-3 rounded-xl bg-teal/12 text-teal text-[12.5px] font-semibold flex items-center gap-1.5 active:scale-95 transition-transform"
+                        >
+                          <RotateCcw size={14} strokeWidth={2.4} />
+                          Reactivar
+                        </button>
                       )}
-                      <button
-                        onClick={() => { setEditandoMinimo(a); setMinimoEdit(String(a.minimo || '')); }}
-                        className="text-[12.5px] text-teal font-medium mt-1 min-h-[32px]"
-                      >
-                        {a.minimo > 0 ? `Mínimo: ${a.minimo} ${a.unidad}` : 'Definir mínimo'}
-                      </button>
                     </div>
-                    <button
-                      onClick={async () => {
-                        if (!confirm(`¿Quitar «${a.descripcion}» del catálogo?\n\nSe conserva en el historial de movimientos.`)) return;
-                        await desactivarArticulo(a.id);
-                        await cargar();
-                      }}
-                      aria-label="Quitar del catálogo"
-                      className="w-10 h-10 flex items-center justify-center text-red shrink-0 active:scale-90 transition-transform"
-                    >
-                      <Trash2 size={16} strokeWidth={2.4} />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        )}
+                  );
+                })}
+              </div>
+            </>
+          );
+        })()}
 
       {editandoMinimo && (
         <ModalOverlay onClose={() => setEditandoMinimo(null)}>

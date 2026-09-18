@@ -132,12 +132,34 @@ export async function crearArticulo(input: {
   modelo?: string;
 }): Promise<Articulo> {
   const supabase = createClient();
+  const descripcion = input.descripcion.trim();
+
+  // Antes no había ningún resguardo contra escribir el mismo artículo dos
+  // veces (o con distinta mayúscula/espacio) — así se duplicó "Pala
+  // redonda". Se compara sin distinguir mayúsculas ni espacios, dentro de la
+  // misma categoría, incluyendo los ya dados de baja (si existe pero está
+  // inactivo, lo correcto es reactivarlo, no crear otro).
+  const { data: existentes } = await supabase
+    .from('almacen_articulos')
+    .select('id, descripcion, activo')
+    .eq('categoria', input.categoria);
+  const yaExiste = (existentes || []).find(
+    (a: any) => a.descripcion.trim().toLowerCase() === descripcion.toLowerCase()
+  );
+  if (yaExiste) {
+    throw new Error(
+      yaExiste.activo
+        ? `Ya existe «${yaExiste.descripcion}» en el catálogo — búscalo en vez de crear uno nuevo.`
+        : `«${yaExiste.descripcion}» ya existe pero está dado de baja — reactívalo desde Catálogo en vez de crear uno nuevo.`
+    );
+  }
+
   const { data: { user } } = await supabase.auth.getUser();
   const { data, error } = await supabase
     .from('almacen_articulos')
     .insert({
       categoria: input.categoria,
-      descripcion: input.descripcion.trim(),
+      descripcion,
       unidad: input.unidad,
       retornable: input.retornable,
       minimo: input.minimo || 0,
@@ -162,6 +184,13 @@ export async function editarArticulo(id: string, cambios: Partial<Articulo>): Pr
 // de movimientos que los referencia.
 export async function desactivarArticulo(id: string): Promise<void> {
   await editarArticulo(id, { activo: false });
+}
+
+// Un artículo dado de baja por error (o que vuelve a necesitarse) se
+// reactiva en vez de crear uno nuevo — así conserva su historial y su
+// mínimo tal como estaban.
+export async function reactivarArticulo(id: string): Promise<void> {
+  await editarArticulo(id, { activo: true });
 }
 
 // --- Entradas ---
