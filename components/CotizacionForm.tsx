@@ -9,7 +9,9 @@ import {
 import { generarUUID } from '@/lib/uuid';
 import { hoyLocal } from '@/lib/fechaHoy';
 import { showToast } from '@/components/Toast';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Search } from 'lucide-react';
+import SelectorProductoSyscom from '@/components/SelectorProductoSyscom';
+import type { ProductoSyscom } from '@/lib/syscom';
 
 const SISTEMAS_SUGERIDOS = [
   'CCTV', 'Control de Acceso', 'Control de Acceso Vehicular', 'Alarma & Detección de Humo',
@@ -81,6 +83,12 @@ export default function CotizacionForm({
   const [firmanteNombre, setFirmanteNombre] = useState(c?.firmante_nombre || nombreUsuario || '');
   const [firmanteCorreo, setFirmanteCorreo] = useState(c?.firmante_correo || correoUsuario || '');
 
+  // Qué partida está buscando producto en SYSCOM ahora mismo (null = ninguna,
+  // el buscador está cerrado). El precio de SYSCOM se guarda como "costo":
+  // el % de ganancia que ya se captura por partida se sigue aplicando
+  // encima, igual que con cualquier otro concepto.
+  const [buscandoParaItem, setBuscandoParaItem] = useState<{ grupoId: string; itemId: string } | null>(null);
+
   const [grupos, setGrupos] = useState<GrupoForm[]>(() => {
     if (!inicial || inicial.lineas.length === 0) return [nuevoGrupo()];
     const porSistema = new Map<string, GrupoForm>();
@@ -115,6 +123,15 @@ export default function CotizacionForm({
       prev.map((g) => (g.id !== grupoId ? g : { ...g, items: g.items.map((it) => (it.id === itemId ? { ...it, ...patch } : it)) }))
     );
   }
+  function handleElegirProductoSyscom(producto: ProductoSyscom) {
+    if (!buscandoParaItem) return;
+    actualizarItem(buscandoParaItem.grupoId, buscandoParaItem.itemId, {
+      descripcion: producto.titulo,
+      costo: producto.precio !== null ? String(producto.precio) : '',
+    });
+    setBuscandoParaItem(null);
+  }
+
   function agregarItem(grupoId: string) {
     setGrupos((prev) => prev.map((g) => (g.id === grupoId ? { ...g, items: [...g.items, nuevoItem()] } : g)));
   }
@@ -300,6 +317,14 @@ export default function CotizacionForm({
                       placeholder="Descripción del concepto: equipo, mano de obra, tubería, cableado..."
                       className={`${inputCls} min-h-[70px] flex-1`}
                     />
+                    <button
+                      onClick={() => setBuscandoParaItem({ grupoId: g.id, itemId: it.id })}
+                      aria-label="Buscar en SYSCOM"
+                      title="Buscar en SYSCOM"
+                      className="shrink-0 w-10 h-10 rounded-xl border border-line-strong text-teal flex items-center justify-center active:scale-90 transition-transform"
+                    >
+                      <Search size={16} strokeWidth={2.3} />
+                    </button>
                     {g.items.length > 1 && (
                       <button
                         onClick={() => quitarItem(g.id, it.id)}
@@ -503,6 +528,13 @@ export default function CotizacionForm({
           {guardando ? 'Guardando...' : modo === 'editar' ? 'Guardar cambios' : 'Guardar cotización'}
         </button>
       </div>
+
+      {buscandoParaItem && (
+        <SelectorProductoSyscom
+          onSeleccionar={handleElegirProductoSyscom}
+          onClose={() => setBuscandoParaItem(null)}
+        />
+      )}
     </div>
   );
 }
