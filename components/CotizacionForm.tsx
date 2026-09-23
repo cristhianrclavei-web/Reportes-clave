@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Cotizacion, LineaCotizacion, LineaInput, CotizacionInput, MonedaCotizacion,
+  Cotizacion, LineaCotizacion, LineaInput, CotizacionInput, MonedaCotizacion, PresentacionPrecios,
   crearCotizacion, actualizarCotizacion, calcularTotales, precioUnitarioDesdeCosto,
 } from '@/lib/cotizaciones';
 import { generarUUID } from '@/lib/uuid';
@@ -60,6 +60,7 @@ export default function CotizacionForm({
   const [msg, setMsg] = useState<string | null>(null);
 
   const c = inicial?.cotizacion;
+  const [presentacionPrecios, setPresentacionPrecios] = useState<PresentacionPrecios>(c?.presentacion_precios || 'desglose');
   const [fecha, setFecha] = useState(c?.fecha || hoyLocal());
   const [empresa, setEmpresa] = useState(c?.empresa || '');
   const [atencion, setAtencion] = useState(c?.atencion || '');
@@ -189,6 +190,7 @@ export default function CotizacionForm({
       firmante_correo: firmanteCorreo,
       iva_pct: ivaPctNum,
       moneda,
+      presentacion_precios: presentacionPrecios,
       tipo_cambio: tipoCambioNum,
       lineas: lineasValidas,
     };
@@ -214,6 +216,22 @@ export default function CotizacionForm({
 
   return (
     <div className="flex flex-col gap-4 pb-10">
+      <div className={cardCls}>
+        <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-teal inline-block" /> Presentación de precios</p>
+        <label className={labelCls}>Cómo se muestra el precio en el PDF</label>
+        <select
+          className={inputCls}
+          value={presentacionPrecios}
+          onChange={(e) => setPresentacionPrecios(e.target.value as PresentacionPrecios)}
+        >
+          <option value="desglose">Desglosada por partida — precio unitario visible en cada concepto</option>
+          <option value="kit">Precio único por kit — sin desglose por partida, solo el total de cada sección</option>
+        </select>
+        <p className="text-[12px] text-faint mt-1.5">
+          No cambia cómo se captura la cotización, solo cómo se ve la columna de precio unitario en el PDF.
+        </p>
+      </div>
+
       <div className={cardCls}>
         <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Datos del cliente</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">

@@ -156,6 +156,15 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
 
     drawTableHeader();
 
+    // En modo "kit" la sección se vende como una sola pieza: Unidad,
+    // Cantidad, Precio Unitario e Importe no se desglosan por partida — esas
+    // cuatro columnas se combinan en una sola celda por sección (sin líneas
+    // divisorias entre filas), mostrando "Kit" / "1" / el total / el total.
+    // Solo Partida y Descripción siguen mostrándose por fila.
+    const esKit = cot.presentacion_precios === 'kit';
+    const inicioBloqueY = y;
+    const anchoBloqueIzq = xUnid - MARGIN;
+
     let importeGrupo = 0;
     grupo.lineas.forEach((l, i) => {
       importeGrupo += l.importe;
@@ -163,10 +172,15 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
       const rowH = Math.max(18, descLines.length * 10 + 8);
       ensureSpace(rowH);
 
-      page.drawRectangle({ x: MARGIN, y: y - rowH, width: contentW, height: rowH, borderColor: GRAY_LINE, borderWidth: 0.75 });
-      [xDesc, xUnid, xCant, xPUnit, xImporte].forEach((x) => {
-        page.drawLine({ start: { x, y }, end: { x, y: y - rowH }, thickness: 0.5, color: GRAY_LINE });
-      });
+      if (esKit) {
+        page.drawRectangle({ x: MARGIN, y: y - rowH, width: anchoBloqueIzq, height: rowH, borderColor: GRAY_LINE, borderWidth: 0.75 });
+        page.drawLine({ start: { x: xDesc, y }, end: { x: xDesc, y: y - rowH }, thickness: 0.5, color: GRAY_LINE });
+      } else {
+        page.drawRectangle({ x: MARGIN, y: y - rowH, width: contentW, height: rowH, borderColor: GRAY_LINE, borderWidth: 0.75 });
+        [xDesc, xUnid, xCant, xPUnit, xImporte].forEach((x) => {
+          page.drawLine({ start: { x, y }, end: { x, y: y - rowH }, thickness: 0.5, color: GRAY_LINE });
+        });
+      }
 
       const centroVertical = y - rowH / 2 - 3;
       const numTxt = String(i + 1).padStart(2, '0');
@@ -174,13 +188,34 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
       descLines.forEach((dl, li) => {
         page.drawText(dl, { x: xDesc + 4, y: y - 11 - li * 10, size: 8, font, color: NAVY });
       });
-      centrado(page, l.unidad, xUnid, colUnidW, centroVertical, 8, font);
-      centrado(page, cantidadTexto(l.cantidad), xCant, colCantW, centroVertical, 8, font);
-      centrado(page, money(l.precio_unitario, cot.moneda), xPUnit, colPUnitW, centroVertical, 8, font);
-      centrado(page, money(l.importe, cot.moneda), xImporte, colImporteW, centroVertical, 8, font);
+      if (!esKit) {
+        centrado(page, l.unidad, xUnid, colUnidW, centroVertical, 8, font);
+        centrado(page, cantidadTexto(l.cantidad), xCant, colCantW, centroVertical, 8, font);
+        centrado(page, money(l.precio_unitario, cot.moneda), xPUnit, colPUnitW, centroVertical, 8, font);
+        centrado(page, money(l.importe, cot.moneda), xImporte, colImporteW, centroVertical, 8, font);
+      }
 
       y -= rowH;
     });
+
+    // Nota: si la sección es tan larga que cruza a otra página a mitad de
+    // sus filas, el bloque combinado queda calculado sobre toda la sección
+    // aunque una parte haya quedado en la página anterior — un caso raro
+    // (un kit con muchísimas partidas) que no vale la pena resolver aparte.
+    if (esKit) {
+      const alturaBloque = inicioBloqueY - y;
+      const centroBloqueY = (inicioBloqueY + y) / 2 - 3;
+      const celdas: [number, number, string, PDFFont][] = [
+        [xUnid, colUnidW, 'Kit', font],
+        [xCant, colCantW, '1', font],
+        [xPUnit, colPUnitW, money(importeGrupo, cot.moneda), bold],
+        [xImporte, colImporteW, money(importeGrupo, cot.moneda), bold],
+      ];
+      for (const [x, w, texto, fnt] of celdas) {
+        page.drawRectangle({ x, y, width: w, height: alturaBloque, borderColor: GRAY_LINE, borderWidth: 0.75 });
+        centrado(page, texto, x, w, centroBloqueY, 8, fnt);
+      }
+    }
 
     ensureSpace(16);
     page.drawRectangle({ x: xPUnit, y: y - 16, width: colPUnitW, height: 16, borderColor: GRAY_LINE, borderWidth: 0.75 });

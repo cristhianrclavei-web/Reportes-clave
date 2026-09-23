@@ -6,6 +6,11 @@ import { createClient } from './supabaseClient';
 // puedeMarcarEnviada().
 export type EstadoCotizacion = 'borrador' | 'aprobada' | 'enviada' | 'rechazada';
 export type MonedaCotizacion = 'MXN' | 'USD';
+// 'desglose': cada partida muestra su propio precio unitario (como siempre).
+// 'kit': el PDF no desglosa precio por partida — muestra un solo total por
+// sección, centrado en la columna de precio unitario. No afecta cómo se
+// captura la cotización, solo cómo se dibuja el PDF.
+export type PresentacionPrecios = 'desglose' | 'kit';
 
 export type LineaCotizacion = {
   id: string;
@@ -45,6 +50,7 @@ export type Cotizacion = {
   firmante_correo: string | null;
   iva_pct: number;
   moneda: MonedaCotizacion;
+  presentacion_precios: PresentacionPrecios;
   // Tipo de cambio (MXN por 1 USD) usado al armar la cotización — solo
   // aplica/se usa cuando moneda es 'USD'. Se guarda el valor de ese momento
   // para que el equivalente en pesos no cambie después si la cotización se
@@ -92,6 +98,7 @@ export type CotizacionInput = {
   firmante_correo: string;
   iva_pct: number;
   moneda: MonedaCotizacion;
+  presentacion_precios: PresentacionPrecios;
   tipo_cambio: number;
   lineas: LineaInput[];
 };
@@ -154,6 +161,7 @@ function datosCotizacion(input: CotizacionInput) {
     firmante_correo: input.firmante_correo.trim() || null,
     iva_pct: input.iva_pct,
     moneda: input.moneda,
+    presentacion_precios: input.presentacion_precios,
     tipo_cambio: input.moneda === 'USD' ? input.tipo_cambio || 0 : 1,
     subtotal,
     iva,
