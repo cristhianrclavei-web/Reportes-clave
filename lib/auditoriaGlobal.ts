@@ -22,6 +22,7 @@ export type AccionGlobal =
   | 'recibio_herramienta'
   | 'elimino_servicio'
   | 'elimino_dia'
+  | 'cerro_dia_manual'
   | 'elimino_reporte'
   | 'aprobo_revision'
   | 'marco_finalizado'
@@ -30,13 +31,16 @@ export type AccionGlobal =
   | 'solicito_correccion'
   | 'habilito_correccion'
   | 'cerro_correccion'
-  | 'aplico_correccion';
+  | 'aplico_correccion'
+  | 'creo_proyecto'
+  | 'actualizo_estado_proyecto'
+  | 'elimino_proyecto';
 
 export type EntradaAuditoria = {
   id: string;
   actor_id: string;
   accion: AccionGlobal;
-  entidad: 'servicio' | 'reporte';
+  entidad: 'servicio' | 'reporte' | 'proyecto';
   entidad_id: string | null;
   detalle: string | null;
   created_at: string;
@@ -47,7 +51,7 @@ export type EntradaAuditoria = {
 // ese instante) NO debe tumbar la acción principal que ya se completó.
 export async function registrarAccionGlobal(
   accion: AccionGlobal,
-  entidad: 'servicio' | 'reporte',
+  entidad: 'servicio' | 'reporte' | 'proyecto',
   entidadId: string | null,
   detalle: string
 ) {

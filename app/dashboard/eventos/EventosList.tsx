@@ -25,6 +25,7 @@ const ACCION_CFG: Record<AccionGlobal, { Icono: any; label: string; tono: 'teal'
   recibio_herramienta: { Icono: Warehouse, label: 'Recibió en almacén', tono: 'teal' },
   elimino_servicio: { Icono: Trash2, label: 'Eliminó servicio', tono: 'red' },
   elimino_dia: { Icono: CalendarX, label: 'Eliminó un día del proyecto', tono: 'red' },
+  cerro_dia_manual: { Icono: BadgeCheck, label: 'Cerró un día manualmente', tono: 'amber' },
   elimino_reporte: { Icono: Trash2, label: 'Eliminó reporte', tono: 'red' },
   aprobo_revision: { Icono: BadgeCheck, label: 'Aprobó revisión final', tono: 'teal' },
   marco_finalizado: { Icono: Flag, label: 'Marcó servicio finalizado', tono: 'teal' },
@@ -34,6 +35,9 @@ const ACCION_CFG: Record<AccionGlobal, { Icono: any; label: string; tono: 'teal'
   habilito_correccion: { Icono: Unlock, label: 'Autorizó corregir un reporte', tono: 'amber' },
   cerro_correccion: { Icono: LockKeyhole, label: 'Cerró permiso de corrección', tono: 'teal' },
   aplico_correccion: { Icono: FileCheck, label: 'Aplicó una corrección', tono: 'teal' },
+  creo_proyecto: { Icono: CalendarPlus, label: 'Creó un proyecto', tono: 'teal' },
+  actualizo_estado_proyecto: { Icono: Pencil, label: 'Actualizó el estado de un proyecto', tono: 'amber' },
+  elimino_proyecto: { Icono: Trash2, label: 'Eliminó un proyecto', tono: 'red' },
 };
 
 const TONO_CLS = {

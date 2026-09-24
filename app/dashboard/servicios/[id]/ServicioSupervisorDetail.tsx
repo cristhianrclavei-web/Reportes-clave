@@ -9,10 +9,10 @@ import Logo from '@/components/Logo';
 import {
   Servicio, Tarea, Evento, Auditoria,
   obtenerServicioCompleto, editarServicio, reasignarTecnicos, listarTecnicos, calcularEstadoTiempo, agregarDiasAGrupo, motivoNoEditable,
-  calcularProgresoTareas, eliminarProyecto, eliminarDiaDeProyecto, reprogramarDia,
+  calcularProgresoTareas, eliminarProyecto, eliminarDiaDeProyecto, reprogramarDia, cerrarDiaManualmente,
 } from '@/lib/serviciosProgramados';
 import ProgressBar from '@/components/ProgressBar';
-import { ChevronLeft, MapPin, Play, Check, Clock, Trash2, AlertTriangle, Timer, Flag, Camera, Plus, Users, Pencil, CalendarClock, PackageCheck, Bookmark, ChevronRight, X, TrendingUp, CalendarX, Lock, PauseCircle, PlayCircle } from 'lucide-react';
+import { ChevronLeft, MapPin, Play, Check, Clock, Trash2, AlertTriangle, Timer, Flag, Camera, Plus, Users, Pencil, CalendarClock, PackageCheck, Bookmark, ChevronRight, X, TrendingUp, CalendarX, Lock, PauseCircle, PlayCircle, CheckCircle2 } from 'lucide-react';
 import { calcularResultadoServicio } from '@/lib/resultadoServicio';
 import InsumosChecklist from '@/components/InsumosChecklist';
 import ModalOverlay from '@/components/ModalOverlay';
@@ -66,6 +66,9 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
   const [showEliminarDia, setShowEliminarDia] = useState(false);
   const [motivoEliminar, setMotivoEliminar] = useState('');
   const [eliminandoDia, setEliminandoDia] = useState(false);
+  const [showCerrarManual, setShowCerrarManual] = useState(false);
+  const [motivoCerrar, setMotivoCerrar] = useState('');
+  const [cerrandoManual, setCerrandoManual] = useState(false);
   const [nuevaFecha, setNuevaFecha] = useState('');
   const [reprogramando, setReprogramando] = useState(false);
   const [plantillas, setPlantillas] = useState<PlantillaInsumos[]>([]);
@@ -202,6 +205,26 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
     } catch (e: any) {
       alert(e?.message || 'No se pudo eliminar el día');
       setEliminandoDia(false);
+    }
+  }
+
+  async function handleCerrarManual() {
+    if (!servicio) return;
+    if (!motivoCerrar.trim()) {
+      alert('Escribe por qué se cierra manualmente.');
+      return;
+    }
+    setCerrandoManual(true);
+    try {
+      await cerrarDiaManualmente(servicio.id, motivoCerrar);
+      showToast('Día cerrado', 'success');
+      setShowCerrarManual(false);
+      setMotivoCerrar('');
+      await cargar();
+    } catch (e: any) {
+      alert(e?.message || 'No se pudo cerrar el día');
+    } finally {
+      setCerrandoManual(false);
     }
   }
 
@@ -429,6 +452,19 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
                 </div>
               </div>
             )
+          )}
+
+          {/* El técnico no marcó llegada/inicio a tiempo pero el reporte ya
+              existe y está vinculado — la ventana de fecha ya no lo deja
+              cerrarlo él mismo. Esta es la salida manual para ese caso. */}
+          {servicio.estado !== 'concluido' && servicio.report_id && (
+            <button
+              onClick={() => { setShowCerrarManual(true); setMotivoCerrar(''); }}
+              className="text-teal text-[14px] font-medium mt-3 min-h-[44px] flex items-center gap-1.5"
+            >
+              <CheckCircle2 size={16} strokeWidth={2.4} />
+              Cerrar este día manualmente
+            </button>
           )}
 
           {/* Cancelar un día concreto sin tocar el resto del proyecto */}
@@ -714,6 +750,47 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
                 className="flex-1 min-h-[48px] rounded-xl bg-red text-white text-[14.5px] font-semibold disabled:opacity-50"
               >
                 {eliminandoDia ? 'Eliminando...' : 'Eliminar el día'}
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
+
+      {/* Cerrar manualmente: para cuando el reporte ya existe pero el día
+          quedó atorado sin llegada/inicio marcados. */}
+      {showCerrarManual && servicio && (
+        <ModalOverlay onClose={() => setShowCerrarManual(false)}>
+          <div className="glass-strong rounded-3xl max-w-md w-full p-5 max-h-[92vh] overflow-y-auto">
+            <p className="font-display font-semibold text-[16px] mb-1">
+              Cerrar el día {servicio.numero_dia} de {servicio.dias_totales} manualmente
+            </p>
+            <p className="text-[13px] text-muted mb-3.5 leading-relaxed">
+              Úsalo cuando el técnico ya entregó el reporte pero nunca marcó llegada ni inicio a tiempo —
+              normalmente porque ya había pasado la fecha programada. El día pasa a "Concluido". Queda
+              registrado en Eventos con tu nombre.
+            </p>
+
+            <label className="text-[13px] text-ink/75 block mb-1.5">¿Por qué se cierra manualmente?</label>
+            <textarea
+              value={motivoCerrar}
+              onChange={(e) => setMotivoCerrar(e.target.value)}
+              placeholder="El técnico olvidó marcar llegada/inicio; el reporte se hizo al día siguiente y ya está vinculado…"
+              className="w-full px-3 py-2.5 mb-4 rounded-xl bg-surface border border-line focus:border-teal focus:outline-none text-[14px] min-h-[90px]"
+            />
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowCerrarManual(false)}
+                className="flex-1 min-h-[48px] rounded-xl border border-line-strong text-ink/80 text-[14.5px] font-medium"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleCerrarManual}
+                disabled={cerrandoManual || !motivoCerrar.trim()}
+                className="flex-1 min-h-[48px] rounded-xl bg-teal text-inkOnAccent text-[14.5px] font-semibold disabled:opacity-50"
+              >
+                {cerrandoManual ? 'Cerrando...' : 'Cerrar el día'}
               </button>
             </div>
           </div>

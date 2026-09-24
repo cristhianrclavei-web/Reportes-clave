@@ -1023,6 +1023,44 @@ export async function concluirServicio(servicioId: string) {
   });
 }
 
+// Para cuando el técnico nunca marcó llegada/inicio (se le olvidó, o el
+// reporte se hizo al día siguiente) y para cuando quiso cerrarlo la fecha
+// programada ya había pasado — la ventana se lo impide del lado del
+// técnico, y el día se queda atorado en "programado" para siempre aunque
+// el reporte ya exista y esté vinculado. Es la salida manual para ese caso:
+// el supervisor lo cierra a mano, dejando constancia de por qué en la
+// auditoría. A propósito NO inserta un evento de "cierre" con ubicación,
+// como si un técnico lo hubiera hecho ahora mismo — eso sería falsear
+// cuándo y desde dónde ocurrió.
+export async function cerrarDiaManualmente(servicioId: string, motivo: string): Promise<void> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No hay sesión activa');
+  if (!motivo.trim()) throw new Error('Hay que indicar por qué se cierra manualmente.');
+
+  const { data: dia, error: eGet } = await supabase
+    .from('servicios_programados')
+    .select('id, proyecto, estado, report_id, numero_dia, dias_totales')
+    .eq('id', servicioId)
+    .single();
+  if (eGet) throw eGet;
+  if (dia.estado === 'concluido') throw new Error('Este día ya está concluido.');
+  if (!dia.report_id) {
+    throw new Error('Este día no tiene un reporte vinculado. Si nunca se trabajó, bórralo en vez de cerrarlo; si sí se trabajó, vincula primero el reporte.');
+  }
+
+  const { error: eUpd } = await supabase
+    .from('servicios_programados')
+    .update({ estado: 'concluido', hora_fin: new Date().toISOString() })
+    .eq('id', servicioId);
+  if (eUpd) throw eUpd;
+
+  const etiqueta = `«${dia.proyecto}»${dia.dias_totales > 1 ? ` (día ${dia.numero_dia}/${dia.dias_totales})` : ''}`;
+  const cambio = `Cerró manualmente ${etiqueta}: ${motivo.trim()}`;
+  await supabase.from('servicio_auditoria').insert({ servicio_id: servicioId, supervisor_id: user.id, cambio });
+  await registrarAccionGlobal('cerro_dia_manual', 'servicio', servicioId, cambio);
+}
+
 // Cierra el día como concluirServicio(), y además cancela los días
 // siguientes del mismo proyecto que todavía no se hayan empezado — para
 // cuando el trabajo se termina antes de lo programado y esos días ya no

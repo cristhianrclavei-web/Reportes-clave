@@ -9,12 +9,13 @@ import LogoutButton from './LogoutButton';
 import DashboardTabs, { DashboardTabKey } from './DashboardTabs';
 import { usePuedeAlmacen } from '@/lib/usePuedeAlmacen';
 import { VistaSupervisorContext, VistaSupervisor, KEY_VISTA_SUPERVISOR } from '@/lib/vistaSupervisor';
-import { LayoutDashboard, FileText, FolderKanban, CalendarDays, History, Warehouse, LayoutGrid, PanelLeft, Receipt } from 'lucide-react';
+import { LayoutDashboard, FileText, FolderKanban, CalendarDays, History, Warehouse, LayoutGrid, PanelLeft, Receipt, Building2 } from 'lucide-react';
 
 const SIDEBAR_ITEMS = [
   { key: 'resumen', label: 'Resumen', href: '/dashboard', Icono: LayoutDashboard },
   { key: 'reportes', label: 'Reportes', href: '/dashboard/reportes', Icono: FileText },
   { key: 'cotizaciones', label: 'Cotizaciones', href: '/dashboard/cotizaciones', Icono: Receipt },
+  { key: 'proyectos', label: 'Proyectos', href: '/dashboard/proyectos', Icono: Building2 },
   { key: 'servicios', label: 'Servicios', href: '/dashboard/servicios', Icono: FolderKanban },
   { key: 'agenda', label: 'Agenda', href: '/dashboard/agenda', Icono: CalendarDays },
   { key: 'eventos', label: 'Eventos', href: '/dashboard/eventos', Icono: History },

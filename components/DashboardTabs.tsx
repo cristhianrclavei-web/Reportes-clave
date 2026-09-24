@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { FileText, FolderKanban, History, CalendarDays, LayoutDashboard, Warehouse, Receipt } from 'lucide-react';
+import { FileText, FolderKanban, History, CalendarDays, LayoutDashboard, Warehouse, Receipt, Building2 } from 'lucide-react';
 import { usePuedeAlmacen } from '@/lib/usePuedeAlmacen';
 
 // Pestañas superiores del panel del supervisor. Una sola fuente de verdad
@@ -11,6 +11,7 @@ const TABS = [
   { key: 'resumen', label: 'Resumen', href: '/dashboard', Icono: LayoutDashboard },
   { key: 'reportes', label: 'Reportes', href: '/dashboard/reportes', Icono: FileText },
   { key: 'cotizaciones', label: 'Cotizaciones', href: '/dashboard/cotizaciones', Icono: Receipt },
+  { key: 'proyectos', label: 'Proyectos', href: '/dashboard/proyectos', Icono: Building2 },
   { key: 'servicios', label: 'Servicios', href: '/dashboard/servicios', Icono: FolderKanban },
   { key: 'agenda', label: 'Agenda', href: '/dashboard/agenda', Icono: CalendarDays },
   { key: 'eventos', label: 'Eventos', href: '/dashboard/eventos', Icono: History },

@@ -20,6 +20,13 @@ function money(n: number, moneda: 'MXN' | 'USD' = 'MXN'): string {
   return prefijo + (n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// Sin el prefijo "USD": repetido en cada partida de P.Unit/Importe se veía
+// saturado. La divisa ya queda clara una sola vez, en el total de cada
+// sistema y en el total general — ahí sí se usa money() completo.
+function moneySinDivisa(n: number): string {
+  return '$ ' + (n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 function cantidadTexto(n: number): string {
   return Number.isInteger(n) ? String(n) : n.toFixed(2);
 }
@@ -161,16 +168,26 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
     // cuatro columnas se combinan en una sola celda por sección (sin líneas
     // divisorias entre filas), mostrando "Kit" / "1" / el total / el total.
     // Solo Partida y Descripción siguen mostrándose por fila.
+    //
+    // Un rectángulo de PDF no puede cruzar de una página a otra, así que si
+    // la sección se parte a media tabla, la celda combinada no puede ser
+    // una sola: hay que dibujar un segmento por cada página que toque. Sin
+    // esto, las filas que quedan en la página vieja no reciben nada en esas
+    // columnas — se ven en blanco.
     const esKit = cot.presentacion_precios === 'kit';
-    const inicioBloqueY = y;
     const anchoBloqueIzq = xUnid - MARGIN;
+    const segmentosKit: { pagina: PDFPage; top: number; bottom: number }[] = esKit ? [{ pagina: page, top: y, bottom: y }] : [];
 
     let importeGrupo = 0;
     grupo.lineas.forEach((l, i) => {
       importeGrupo += l.importe;
       const descLines = wrapText(l.descripcion, font, 8, colDescW - 8);
       const rowH = Math.max(18, descLines.length * 10 + 8);
+      const paginaAntesDeLaFila = page;
       ensureSpace(rowH);
+      if (esKit && page !== paginaAntesDeLaFila) {
+        segmentosKit.push({ pagina: page, top: y, bottom: y });
+      }
 
       if (esKit) {
         page.drawRectangle({ x: MARGIN, y: y - rowH, width: anchoBloqueIzq, height: rowH, borderColor: GRAY_LINE, borderWidth: 0.75 });
@@ -191,29 +208,31 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
       if (!esKit) {
         centrado(page, l.unidad, xUnid, colUnidW, centroVertical, 8, font);
         centrado(page, cantidadTexto(l.cantidad), xCant, colCantW, centroVertical, 8, font);
-        centrado(page, money(l.precio_unitario, cot.moneda), xPUnit, colPUnitW, centroVertical, 8, font);
-        centrado(page, money(l.importe, cot.moneda), xImporte, colImporteW, centroVertical, 8, font);
+        centrado(page, moneySinDivisa(l.precio_unitario), xPUnit, colPUnitW, centroVertical, 8, font);
+        centrado(page, moneySinDivisa(l.importe), xImporte, colImporteW, centroVertical, 8, font);
       }
 
       y -= rowH;
+      if (esKit) segmentosKit[segmentosKit.length - 1].bottom = y;
     });
 
-    // Nota: si la sección es tan larga que cruza a otra página a mitad de
-    // sus filas, el bloque combinado queda calculado sobre toda la sección
-    // aunque una parte haya quedado en la página anterior — un caso raro
-    // (un kit con muchísimas partidas) que no vale la pena resolver aparte.
+    // Un segmento por página tocada — el total que se muestra es el mismo
+    // en todos (es el total de la sección completa, no de ese pedazo).
     if (esKit) {
-      const alturaBloque = inicioBloqueY - y;
-      const centroBloqueY = (inicioBloqueY + y) / 2 - 3;
-      const celdas: [number, number, string, PDFFont][] = [
-        [xUnid, colUnidW, 'Kit', font],
-        [xCant, colCantW, '1', font],
-        [xPUnit, colPUnitW, money(importeGrupo, cot.moneda), bold],
-        [xImporte, colImporteW, money(importeGrupo, cot.moneda), bold],
-      ];
-      for (const [x, w, texto, fnt] of celdas) {
-        page.drawRectangle({ x, y, width: w, height: alturaBloque, borderColor: GRAY_LINE, borderWidth: 0.75 });
-        centrado(page, texto, x, w, centroBloqueY, 8, fnt);
+      for (const seg of segmentosKit) {
+        const alturaSeg = seg.top - seg.bottom;
+        if (alturaSeg <= 0) continue;
+        const centroSegY = (seg.top + seg.bottom) / 2 - 3;
+        const celdas: [number, number, string, PDFFont][] = [
+          [xUnid, colUnidW, 'Kit', font],
+          [xCant, colCantW, '1', font],
+          [xPUnit, colPUnitW, moneySinDivisa(importeGrupo), bold],
+          [xImporte, colImporteW, moneySinDivisa(importeGrupo), bold],
+        ];
+        for (const [x, w, texto, fnt] of celdas) {
+          seg.pagina.drawRectangle({ x, y: seg.bottom, width: w, height: alturaSeg, borderColor: GRAY_LINE, borderWidth: 0.75 });
+          centrado(seg.pagina, texto, x, w, centroSegY, 8, fnt);
+        }
       }
     }
 
