@@ -5,6 +5,7 @@ import { ReactNode, useEffect, useState } from 'react';
 import Logo from './Logo';
 import PerfilChip from './PerfilChip';
 import ThemeToggle from './ThemeToggle';
+import CommandPalette from './CommandPalette';
 import LogoutButton from './LogoutButton';
 import DashboardTabs, { DashboardTabKey } from './DashboardTabs';
 import { usePuedeAlmacen } from '@/lib/usePuedeAlmacen';
@@ -82,6 +83,7 @@ export default function SupervisorShell({
       <Logo variante="completo" size={34} className="min-w-0" compactoEnMovil />
       <div className="flex items-center gap-1 shrink-0">
         <PerfilChip nombre={userName} respaldo="Supervisor" />
+        <CommandPalette puedeAlmacen={puedeAlmacen} />
         <ThemeToggle />
         {botonCambiarVista}
         <LogoutButton compacto />
@@ -122,6 +124,7 @@ export default function SupervisorShell({
           <div className="mt-auto pt-5 border-t border-line flex items-center justify-between gap-1">
             <PerfilChip nombre={userName} respaldo="Supervisor" />
             <div className="flex items-center gap-1 shrink-0">
+              <CommandPalette puedeAlmacen={puedeAlmacen} />
               <ThemeToggle />
               {botonCambiarVista}
               <LogoutButton compacto />

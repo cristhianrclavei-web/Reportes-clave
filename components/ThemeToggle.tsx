@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { navegarConTransicion } from '@/lib/nativeViewTransition';
 
 export default function ThemeToggle() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -22,21 +23,7 @@ export default function ThemeToggle() {
       } catch {}
     }
 
-    // Mismo API nativa que las transiciones de página — aquí el caso es más
-    // simple porque el cambio es puramente síncrono (una clase en <html>),
-    // sin esperar a ningún fetch, así que no hace falta la protección
-    // contra el InvalidStateError del router: el try/catch de todos modos
-    // cubre si ya hay una transición de página en vuelo al mismo tiempo.
-    const startViewTransition = (document as any).startViewTransition?.bind(document);
-    if (!startViewTransition) {
-      aplicar();
-      return;
-    }
-    try {
-      startViewTransition(aplicar);
-    } catch {
-      aplicar();
-    }
+    navegarConTransicion(aplicar);
   }
 
   return (

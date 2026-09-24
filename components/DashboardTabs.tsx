@@ -7,7 +7,7 @@ import { usePuedeAlmacen } from '@/lib/usePuedeAlmacen';
 // Pestañas superiores del panel del supervisor. Una sola fuente de verdad
 // para que las pantallas se sientan como secciones de un mismo panel y no
 // como páginas sueltas. En pantallas muy angostas solo se muestra el ícono.
-const TABS = [
+export const TABS = [
   { key: 'resumen', label: 'Resumen', href: '/dashboard', Icono: LayoutDashboard },
   { key: 'reportes', label: 'Reportes', href: '/dashboard/reportes', Icono: FileText },
   { key: 'cotizaciones', label: 'Cotizaciones', href: '/dashboard/cotizaciones', Icono: Receipt },
@@ -18,7 +18,7 @@ const TABS = [
 ] as const;
 
 // El almacén solo aparece para quien lo lleva, no para todo supervisor.
-const TAB_ALMACEN = { key: 'almacen', label: 'Almacén', href: '/dashboard/almacen', Icono: Warehouse } as const;
+export const TAB_ALMACEN = { key: 'almacen', label: 'Almacén', href: '/dashboard/almacen', Icono: Warehouse } as const;
 
 export type DashboardTabKey = (typeof TABS)[number]['key'] | 'almacen';
 
