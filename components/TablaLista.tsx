@@ -55,18 +55,18 @@ export default function TablaLista<T>({
                 {hrefFn ? (
                   <Link
                     href={hrefFn(f)}
-                    className="inline-flex items-center gap-1 text-teal text-[13px] font-semibold whitespace-nowrap active:scale-95 transition-transform"
+                    className="group/link inline-flex items-center gap-1 text-teal text-[13px] font-semibold whitespace-nowrap transition-transform active:scale-95"
                   >
                     Ver detalles
-                    <ChevronRight size={14} strokeWidth={2.6} />
+                    <ChevronRight size={14} strokeWidth={2.6} className="transition-transform group-hover/link:translate-x-0.5" />
                   </Link>
                 ) : (
                   <button
                     onClick={() => onDetalle?.(f)}
-                    className="inline-flex items-center gap-1 text-teal text-[13px] font-semibold whitespace-nowrap active:scale-95 transition-transform"
+                    className="group/link inline-flex items-center gap-1 text-teal text-[13px] font-semibold whitespace-nowrap transition-transform active:scale-95"
                   >
                     Ver detalles
-                    <ChevronRight size={14} strokeWidth={2.6} />
+                    <ChevronRight size={14} strokeWidth={2.6} className="transition-transform group-hover/link:translate-x-0.5" />
                   </button>
                 )}
               </td>

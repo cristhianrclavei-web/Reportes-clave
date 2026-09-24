@@ -135,6 +135,41 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   outline: none;
 }
 
+/* Skeleton con "barrido" de luz en vez del bloque gris plano de
+   animate-pulse — mismo costo, pero se lee como que algo está cargando en
+   vez de una caja rota. Las piezas concretas (círculo de logo, líneas de
+   texto) las arma cada pantalla; esta clase solo pone el movimiento. */
+.skeleton-shimmer {
+  background: linear-gradient(
+    100deg,
+    rgb(var(--c-surface-2)) 40%,
+    rgb(var(--c-line-rgb) / 0.12) 50%,
+    rgb(var(--c-surface-2)) 60%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-sweep 1.6s ease-in-out infinite;
+}
+@keyframes skeleton-sweep {
+  0% { background-position: 150% 0; }
+  100% { background-position: -50% 0; }
+}
+
+/* Transiciones de página (React ViewTransition, ver SupervisorShell): el
+   overlay que dibuja la animación intercepta clics por default — sin esto,
+   tocar algo justo cuando entra la pantalla no hace nada. */
+::view-transition {
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;

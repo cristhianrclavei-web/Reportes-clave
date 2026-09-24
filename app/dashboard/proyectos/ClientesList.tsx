@@ -128,15 +128,38 @@ export default function ClientesList({ userName }: { userName?: string }) {
       </div>
 
       {loading && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[0, 1, 2].map((i) => <div key={i} className="h-[132px] rounded-2xl bg-surface-2 animate-pulse" />)}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" aria-busy="true">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="rounded-2xl border border-line bg-surface p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-12 h-12 rounded-xl shrink-0 skeleton-shimmer" />
+                <div className="min-w-0 flex-1">
+                  <div className="h-3.5 w-3/4 rounded-full skeleton-shimmer mb-2" />
+                  <div className="h-2.5 w-1/2 rounded-full skeleton-shimmer" />
+                </div>
+              </div>
+              <div className="flex gap-1.5">
+                <div className="h-5 w-14 rounded-full skeleton-shimmer" />
+                <div className="h-5 w-10 rounded-full skeleton-shimmer" />
+              </div>
+              <div className="h-2.5 w-1/3 rounded-full skeleton-shimmer mt-3 pt-2.5 border-t border-dashed border-line" />
+            </div>
+          ))}
         </div>
       )}
 
       {!loading && filtrados.length === 0 && (
-        <p className="text-center text-muted py-14 text-[14px] leading-relaxed">
-          {clientes.length === 0 ? 'Todavía no hay clientes. Agrega el primero.' : 'Sin resultados para esa búsqueda.'}
-        </p>
+        <div className="flex flex-col items-center py-14 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-surface-2 border border-line flex items-center justify-center mb-3.5">
+            <Building2 size={22} strokeWidth={1.8} className="text-faint" />
+          </div>
+          <p className="text-[14.5px] font-medium mb-1">
+            {clientes.length === 0 ? 'Todavía no hay clientes' : 'Sin resultados'}
+          </p>
+          <p className="text-[13px] text-muted leading-relaxed max-w-[260px]">
+            {clientes.length === 0 ? 'Agrega el primero para empezar a llevar sus proyectos y documentación.' : 'Prueba con otro nombre, dirección o sistema.'}
+          </p>
+        </div>
       )}
 
       {!loading && filtrados.length > 0 && (

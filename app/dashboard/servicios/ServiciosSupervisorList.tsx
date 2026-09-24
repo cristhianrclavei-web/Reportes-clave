@@ -489,8 +489,8 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
             <button
               key={k}
               onClick={() => { setSeccion(k); setShowNuevo(k === 'agendar'); }}
-              className={`min-h-[54px] px-2 rounded-2xl text-[13.5px] font-display font-semibold border transition-colors flex items-center justify-center gap-1.5 ${
-                seccion === k ? 'bg-teal text-inkOnAccent border-teal shadow-glow-teal' : 'bg-surface-2 border-line-strong text-ink/80'
+              className={`min-h-[54px] px-2 rounded-2xl text-[13.5px] font-display font-semibold border transition-all duration-150 flex items-center justify-center gap-1.5 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.97] ${
+                seccion === k ? 'bg-teal text-inkOnAccent border-teal shadow-glow-teal hover:brightness-110' : 'bg-surface-2 border-line-strong text-ink/80 hover:text-ink'
               }`}
             >
               <Icono size={17} strokeWidth={2.4} className="shrink-0" />
@@ -507,9 +507,12 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
             </p>
 
             {checklists.length === 0 && (
-              <p className="text-center text-muted py-10 text-[14px]">
-                Todavía no hay listas. Se crean al programar un servicio.
-              </p>
+              <div className="flex flex-col items-center py-10 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-surface-2 border border-line flex items-center justify-center mb-3.5">
+                  <PackageCheck size={22} strokeWidth={1.8} className="text-faint" />
+                </div>
+                <p className="text-[13.5px] text-muted leading-relaxed max-w-[260px]">Todavía no hay listas. Se crean al programar un servicio.</p>
+              </div>
             )}
 
             {/* Encabezado de columnas: solo cabe en pantallas anchas */}
@@ -529,10 +532,10 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
                 <Link
                   key={c.grupoId}
                   href={`/dashboard/servicios/${c.servicioId}`}
-                  className="rounded-2xl lg:rounded-xl bg-surface border border-line p-4 lg:py-3 active:scale-[0.99] transition-transform lg:grid lg:grid-cols-[2fr_repeat(3,72px)_1.2fr_1.4fr] lg:gap-3 lg:items-center"
+                  className="group rounded-2xl lg:rounded-xl bg-surface border border-line p-4 lg:py-3 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-diffuse hover:border-line-strong active:translate-y-0 active:scale-[0.99] lg:grid lg:grid-cols-[2fr_repeat(3,72px)_1.2fr_1.4fr] lg:gap-3 lg:items-center"
                 >
                   <div className="min-w-0">
-                    <strong className="font-display font-bold text-[15.5px] lg:text-[14.5px] block truncate">{c.proyecto}</strong>
+                    <strong className="font-display font-bold text-[15.5px] lg:text-[14.5px] block truncate transition-colors group-hover:text-teal">{c.proyecto}</strong>
                     <p className="text-[12.5px] text-muted lg:hidden mt-0.5">{c.total} renglones</p>
                   </div>
 
@@ -569,9 +572,12 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
             </p>
 
             {plantillas.length === 0 && (
-              <p className="text-center text-muted py-10 text-[14px]">
-                Todavía no hay plantillas. Al programar un servicio puedes guardar su lista como plantilla.
-              </p>
+              <div className="flex flex-col items-center py-10 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-surface-2 border border-line flex items-center justify-center mb-3.5">
+                  <Bookmark size={22} strokeWidth={1.8} className="text-faint" />
+                </div>
+                <p className="text-[13.5px] text-muted leading-relaxed max-w-[260px]">Todavía no hay plantillas. Al programar un servicio puedes guardar su lista como plantilla.</p>
+              </div>
             )}
 
             <div className="flex flex-col lg:grid lg:grid-cols-2 gap-2.5">
@@ -586,21 +592,21 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
                       <button
                         onClick={() => { setPlantillaEditando(pl); setNombreEdit(pl.nombre); setItemsEdit(pl.items as InsumoNuevo[]); }}
                         aria-label="Editar plantilla"
-                        className="w-11 h-11 flex items-center justify-center rounded-xl border border-line-strong text-ink/80 active:scale-90 transition-transform"
+                        className="w-11 h-11 flex items-center justify-center rounded-xl border border-line-strong text-ink/80 transition-all duration-150 hover:-translate-y-0.5 hover:border-teal hover:text-teal active:translate-y-0 active:scale-90"
                       >
                         <Pencil size={16} strokeWidth={2.4} />
                       </button>
                       <button
                         onClick={() => handleDuplicarPlantilla(pl)}
                         aria-label="Duplicar plantilla"
-                        className="w-11 h-11 flex items-center justify-center rounded-xl border border-line-strong text-ink/80 active:scale-90 transition-transform"
+                        className="w-11 h-11 flex items-center justify-center rounded-xl border border-line-strong text-ink/80 transition-all duration-150 hover:-translate-y-0.5 hover:border-teal hover:text-teal active:translate-y-0 active:scale-90"
                       >
                         <Copy size={16} strokeWidth={2.4} />
                       </button>
                       <button
                         onClick={() => handleEliminarPlantilla(pl)}
                         aria-label="Borrar plantilla"
-                        className="w-11 h-11 flex items-center justify-center rounded-xl border border-red/40 text-red active:scale-90 transition-transform"
+                        className="w-11 h-11 flex items-center justify-center rounded-xl border border-red/40 text-red transition-all duration-150 hover:-translate-y-0.5 hover:bg-red/10 active:translate-y-0 active:scale-90"
                       >
                         <Trash2 size={16} strokeWidth={2.4} />
                       </button>
@@ -618,7 +624,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
         {seccion === 'agendar' && (!showNuevo ? (
           <button
             onClick={() => setShowNuevo(true)}
-            className="w-full min-h-[56px] mb-5 rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[16px] tracking-wide shadow-glow-teal flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+            className="w-full min-h-[56px] mb-5 rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[16px] tracking-wide shadow-glow-teal flex items-center justify-center gap-2 transition-all duration-150 hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0 active:scale-[0.98]"
           >
             <Plus size={20} strokeWidth={2.6} />
             Programar servicio o proyecto
@@ -930,18 +936,35 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
         )}
 
         {seccion === 'agendados' && loading && (
-          <div className="flex flex-col gap-3" aria-busy="true">
-            {[0, 1, 2].map((i) => <div key={i} className="rounded-2xl bg-surface-2 h-[104px] animate-pulse" />)}
+          <div className="flex flex-col lg:grid lg:grid-cols-2 gap-3" aria-busy="true">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="rounded-2xl border-l-4 border-line bg-surface p-4">
+                <div className="flex justify-between items-baseline gap-2.5 mb-2.5">
+                  <div className="h-4 w-2/5 rounded-full skeleton-shimmer" />
+                  <div className="h-3 w-16 rounded-full skeleton-shimmer shrink-0" />
+                </div>
+                <div className="h-2 w-full rounded-full skeleton-shimmer mb-2.5" />
+                <div className="h-3 w-3/5 rounded-full skeleton-shimmer" />
+              </div>
+            ))}
           </div>
         )}
         {seccion === 'agendados' && !loading && grupos.length === 0 && (
-          <p className="text-center text-muted py-10 text-[14px] leading-relaxed">
-            {servicios.length === 0
-              ? 'Todavía no hay servicios programados. Usa «Agendar» para crear el primero.'
-              : busquedaServicio
-              ? 'Ningún proyecto coincide con la búsqueda.'
-              : 'No hay servicios programados en estas fechas. Cambia de semana o toca «Toda la semana».'}
-          </p>
+          <div className="flex flex-col items-center py-10 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-surface-2 border border-line flex items-center justify-center mb-3.5">
+              <FolderKanban size={22} strokeWidth={1.8} className="text-faint" />
+            </div>
+            <p className="text-[14.5px] font-medium mb-1">
+              {servicios.length === 0 ? 'Todavía no hay servicios programados' : 'Sin resultados'}
+            </p>
+            <p className="text-[13px] text-muted leading-relaxed max-w-[280px]">
+              {servicios.length === 0
+                ? 'Usa «Agendar» para programar el primero.'
+                : busquedaServicio
+                ? 'Ningún proyecto coincide con la búsqueda.'
+                : 'No hay servicios programados en estas fechas. Cambia de semana o toca «Toda la semana».'}
+            </p>
+          </div>
         )}
 
         <div className={`flex flex-col lg:grid lg:grid-cols-2 gap-3 lg:items-start ${seccion === 'agendados' ? '' : 'hidden'}`}>
@@ -951,10 +974,10 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
             const diasTotalesGrupo = g.dias[0]?.dias_totales || g.dias.length;
             const pr = progresoPorGrupo[g.grupoId];
             return (
-              <div key={g.grupoId} className="rounded-2xl border-l-4 border-teal bg-surface overflow-hidden">
+              <div key={g.grupoId} className="rounded-2xl border-l-4 border-teal bg-surface overflow-hidden transition-shadow duration-150 hover:shadow-diffuse">
                 <button
                   onClick={() => setGrupoAbierto(abierto ? null : g.grupoId)}
-                  className="w-full text-left p-4 active:scale-[0.99] transition-transform"
+                  className="w-full text-left p-4 transition-transform duration-150 active:scale-[0.99]"
                 >
                   <div className="flex justify-between items-baseline gap-2.5">
                     <strong className="font-display font-bold text-[16px] leading-snug min-w-0 truncate">{g.proyecto}</strong>
@@ -979,13 +1002,13 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
                 {diasTotalesGrupo > 1 && (
                   <Link
                     href={`/dashboard/servicios/proyecto/${g.grupoId}`}
-                    className="flex items-center justify-between gap-2 mx-4 mb-3 px-3.5 min-h-[46px] rounded-xl bg-surface-2 border border-line text-[14px] font-medium active:scale-[0.99] transition-transform"
+                    className="group/avance flex items-center justify-between gap-2 mx-4 mb-3 px-3.5 min-h-[46px] rounded-xl bg-surface-2 border border-line text-[14px] font-medium transition-all duration-150 hover:border-teal/40 active:scale-[0.99]"
                   >
                     <span className="flex items-center gap-2">
                       <TrendingUp size={16} strokeWidth={2.4} className="text-teal" />
                       Ver el avance del proyecto
                     </span>
-                    <ChevronRight size={16} strokeWidth={2.4} className="text-muted" />
+                    <ChevronRight size={16} strokeWidth={2.4} className="text-muted transition-transform group-hover/avance:translate-x-0.5" />
                   </Link>
                 )}
 
@@ -997,7 +1020,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
                         <Link
                           key={d.id}
                           href={`/dashboard/servicios/${d.id}`}
-                          className="flex justify-between items-center gap-2 rounded-xl bg-surface-2 px-3.5 py-2.5 active:scale-[0.98] transition-transform"
+                          className="flex justify-between items-center gap-2 rounded-xl bg-surface-2 px-3.5 py-2.5 transition-all duration-150 hover:bg-surface-2/70 active:scale-[0.98]"
                         >
                           <div className="min-w-0">
                             <span className="text-[14.5px] font-semibold flex items-center gap-2">

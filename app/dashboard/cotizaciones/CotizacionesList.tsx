@@ -113,8 +113,8 @@ export default function CotizacionesList({
       <div className="grid grid-cols-2 gap-2 mb-5">
         <button
           onClick={() => setSeccion('nueva')}
-          className={`min-h-[54px] px-2 rounded-2xl text-[13.5px] font-display font-semibold border transition-colors flex items-center justify-center gap-1.5 ${
-            seccion === 'nueva' ? 'bg-teal text-inkOnAccent border-teal shadow-glow-teal' : 'bg-surface-2 border-line-strong text-ink/80'
+          className={`min-h-[54px] px-2 rounded-2xl text-[13.5px] font-display font-semibold border transition-all duration-150 flex items-center justify-center gap-1.5 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.97] ${
+            seccion === 'nueva' ? 'bg-teal text-inkOnAccent border-teal shadow-glow-teal hover:brightness-110' : 'bg-surface-2 border-line-strong text-ink/80 hover:border-line-strong hover:text-ink'
           }`}
         >
           <Plus size={17} strokeWidth={2.4} className="shrink-0" />
@@ -122,8 +122,8 @@ export default function CotizacionesList({
         </button>
         <button
           onClick={() => setSeccion('cotizaciones')}
-          className={`min-h-[54px] px-2 rounded-2xl text-[13.5px] font-display font-semibold border transition-colors flex items-center justify-center gap-1.5 ${
-            seccion === 'cotizaciones' ? 'bg-teal text-inkOnAccent border-teal shadow-glow-teal' : 'bg-surface-2 border-line-strong text-ink/80'
+          className={`min-h-[54px] px-2 rounded-2xl text-[13.5px] font-display font-semibold border transition-all duration-150 flex items-center justify-center gap-1.5 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.97] ${
+            seccion === 'cotizaciones' ? 'bg-teal text-inkOnAccent border-teal shadow-glow-teal hover:brightness-110' : 'bg-surface-2 border-line-strong text-ink/80 hover:border-line-strong hover:text-ink'
           }`}
         >
           <Receipt size={17} strokeWidth={2.4} className="shrink-0" />
@@ -150,13 +150,21 @@ export default function CotizacionesList({
           </div>
 
           {filtradas.length === 0 && (
-            <p className="text-center text-muted py-14 text-[14px] leading-relaxed">
-              {cotizaciones.length === 0
-                ? 'Todavía no hay cotizaciones.'
-                : search
-                ? 'Sin resultados para esa búsqueda.'
-                : 'No hay cotizaciones en estas fechas. Cambia de semana o toca «Toda la semana».'}
-            </p>
+            <div className="flex flex-col items-center py-14 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-surface-2 border border-line flex items-center justify-center mb-3.5">
+                <Receipt size={22} strokeWidth={1.8} className="text-faint" />
+              </div>
+              <p className="text-[14.5px] font-medium mb-1">
+                {cotizaciones.length === 0 ? 'Todavía no hay cotizaciones' : 'Sin resultados'}
+              </p>
+              <p className="text-[13px] text-muted leading-relaxed max-w-[280px]">
+                {cotizaciones.length === 0
+                  ? 'Usa «Nueva cotización» para armar la primera.'
+                  : search
+                  ? 'Sin resultados para esa búsqueda.'
+                  : 'No hay cotizaciones en estas fechas. Cambia de semana o toca «Toda la semana».'}
+              </p>
+            </div>
           )}
 
           {filtradas.length > 0 && (
@@ -175,12 +183,12 @@ export default function CotizacionesList({
                     <Link
                       key={c.id}
                       href={`/dashboard/cotizaciones/${c.id}`}
-                      className="block rounded-2xl border-l-4 border-teal bg-surface p-4 sm:p-5 active:scale-[0.99] hover:shadow-glow transition-all shadow-glow"
+                      className="group block rounded-2xl border-l-4 border-teal bg-surface p-4 sm:p-5 shadow-glow transition-all duration-150 hover:-translate-y-1 hover:shadow-diffuse active:translate-y-0 active:scale-[0.99]"
                     >
                       <div className="flex justify-between items-start gap-3 mb-3">
                         <div className="min-w-0">
                           <div className="text-[10px] uppercase tracking-wider text-muted mb-0.5">Cliente / Empresa</div>
-                          <strong className="font-display font-bold text-[16px] tracking-wide block truncate">{c.empresa}</strong>
+                          <strong className="font-display font-bold text-[16px] tracking-wide block truncate transition-colors group-hover:text-teal">{c.empresa}</strong>
                         </div>
                         <div className="text-right shrink-0">
                           <div className="text-[10px] uppercase tracking-wider text-muted mb-0.5">Folio</div>
