@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ReactNode, useEffect, useState, ViewTransition } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import Logo from './Logo';
 import PerfilChip from './PerfilChip';
 import ThemeToggle from './ThemeToggle';
@@ -95,12 +95,7 @@ export default function SupervisorShell({
         <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-wide mb-4">{title}</h1>
         {userName && <p className="text-[15px] text-muted font-medium mb-4 -mt-2.5">{userName}</p>}
         {vista === 'clasica' && <DashboardTabs active={active} mostrarAlmacen={mostrarAlmacen} />}
-        {/* Cruce suave entre secciones: el encabezado y las pestañas se
-            quedan quietos (son la misma "sala"), solo el contenido de abajo
-            entra y sale. Sin nombre explícito porque cada pantalla ya es un
-            montaje/desmontaje real de React Router al navegar — no hace
-            falta forzar el pareo. */}
-        <ViewTransition>{children}</ViewTransition>
+        {children}
       </div>
     </VistaSupervisorContext.Provider>
   );
