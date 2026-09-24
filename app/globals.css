@@ -12,9 +12,9 @@
   --c-muted: 167 184 194;     /* #A7B8C2 — subido para legibilidad bajo sol directo */
   --c-faint: 122 141 152;     /* #7A8D98 — subido: antes se perdía en exteriores */
   --c-line-rgb: 255 255 255;
-  --c-line-a: 0.08;
-  --c-line-a-strong: 0.14;
-  --c-shadow-a: 0.35;
+  --c-line-a: 0.1;
+  --c-line-a-strong: 0.16;
+  --c-shadow-a: 0.45;
   --c-glass-bg: 255 255 255;
   --c-glass-a: 0.035;
   --c-glass-a-strong: 0.06;
@@ -86,6 +86,53 @@ input::placeholder, textarea::placeholder {
   backdrop-filter: blur(var(--c-glass-blur-strong));
   -webkit-backdrop-filter: blur(var(--c-glass-blur-strong));
   border: 1px solid rgb(var(--c-line-rgb) / var(--c-line-a-strong));
+}
+
+/* Iluminación ambiental localizada: un resplandor de marca muy sutil
+   anclado a una esquina de la tarjeta, para dar sensación de profundidad
+   sin usar overflow:hidden (que rompería menús o modales que cuelguen de
+   adentro). El radial-gradient se apaga solo antes de llegar al borde. */
+.ambient-glow {
+  position: relative;
+  isolation: isolate;
+}
+.ambient-glow::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(130% 110% at 12% -10%, rgba(34, 176, 138, 0.14), transparent 55%);
+  pointer-events: none;
+}
+.light .ambient-glow::before {
+  background: radial-gradient(130% 110% at 12% -10%, rgba(34, 176, 138, 0.08), transparent 55%);
+}
+
+/* Filo que "atrapa la luz" arriba de una superficie de vidrio — el detalle
+   que distingue una tarjeta plana de una con volumen real. */
+.edge-highlight {
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05);
+}
+.light .edge-highlight {
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.5);
+}
+
+/* Sombra difusa y amplia para tarjetas "hero" o moduladas de bento — mucho
+   más ancha y suave que shadow-glow, sin el aro de borde. */
+.shadow-diffuse {
+  box-shadow: 0 30px 80px -24px rgb(0 0 0 / var(--c-shadow-a)), 0 4px 12px -4px rgb(0 0 0 / 0.18);
+}
+
+/* Anillo de foco consistente para navegación por teclado — se excluyen los
+   campos de formulario porque ya traen su propio focus:ring de Tailwind y
+   duplicarlo se ve como un halo doble. */
+:focus-visible {
+  outline: 2px solid rgb(34 176 138 / 0.6);
+  outline-offset: 2px;
+}
+input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: none;
 }
 
 ::-webkit-scrollbar {

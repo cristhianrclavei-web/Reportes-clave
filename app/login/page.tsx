@@ -86,8 +86,10 @@ function LoginForm() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-5 relative overflow-hidden">
-      {/* ambient glow accents */}
-      <div className="pointer-events-none absolute -bottom-24 -right-16 w-72 h-72 rounded-full bg-amber/20 blur-3xl opacity-30" />
+      {/* Dos acentos de luz descentrados, no uno solo al centro — es lo que
+          hace que el fondo se sienta compuesto y no un degradado genérico. */}
+      <div className="pointer-events-none absolute -bottom-32 -right-20 w-80 h-80 rounded-full bg-amber/15 blur-[100px]" />
+      <div className="pointer-events-none absolute -top-24 -left-16 w-64 h-64 rounded-full bg-teal/10 blur-[90px]" />
 
       <div className="absolute top-5 right-5 z-20">
         <ThemeToggle />
@@ -95,7 +97,7 @@ function LoginForm() {
 
       <form
         onSubmit={modoOlvido ? handleRecuperar : handleLogin}
-        className="relative z-10 w-full max-w-sm glass-strong rounded-3xl p-8 shadow-glow"
+        className="ambient-glow edge-highlight relative z-10 w-full max-w-sm glass-strong rounded-3xl p-8 shadow-diffuse border-white/10"
       >
         <div className="flex flex-col items-center mb-8">
           <div className="relative mb-5">
@@ -170,8 +172,8 @@ function LoginForm() {
         <button
           type="submit"
           disabled={loading}
-          className={`w-full py-3.5 rounded-2xl font-display font-semibold text-base tracking-wide active:scale-95 transition-transform disabled:opacity-60 ${
-            theme === 'dark' ? 'bg-teal text-inkOnAccent shadow-glow-teal' : ''
+          className={`w-full py-3.5 rounded-2xl font-display font-semibold text-base tracking-wide transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.97] disabled:opacity-60 disabled:hover:translate-y-0 ${
+            theme === 'dark' ? 'bg-teal text-inkOnAccent shadow-glow-teal hover:brightness-110' : ''
           }`}
           style={
             theme === 'light'
@@ -191,14 +193,14 @@ function LoginForm() {
             setEnviado(false);
             setError(null);
           }}
-          className="w-full min-h-[44px] mt-3 text-[13.5px] text-muted active:scale-95 transition-transform"
+          className="w-full min-h-[44px] mt-3 text-[13.5px] text-muted hover:text-ink active:scale-95 transition-all duration-150"
         >
           {modoOlvido ? 'Volver a entrar' : '¿Olvidaste tu contraseña?'}
         </button>
 
         <Link
           href="/aviso-privacidad"
-          className="block text-center text-[12px] text-faint mt-4 active:scale-95 transition-transform"
+          className="block text-center text-[12px] text-faint hover:text-muted mt-4 active:scale-95 transition-all duration-150"
         >
           Aviso de privacidad
         </Link>

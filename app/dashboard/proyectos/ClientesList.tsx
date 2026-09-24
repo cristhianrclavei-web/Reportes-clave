@@ -45,6 +45,16 @@ export default function ClientesList({ userName }: { userName?: string }) {
     return clientes.filter((c) => `${c.nombre} ${c.direccion || ''} ${c.sistemas.join(' ')}`.toLowerCase().includes(q));
   }, [clientes, search]);
 
+  const stats = useMemo(() => {
+    const totalProyectos = clientes.reduce((acc, c) => acc + c.total_proyectos, 0);
+    const conteoSistemas = new Map<string, number>();
+    for (const c of clientes) {
+      for (const s of c.sistemas) conteoSistemas.set(s, (conteoSistemas.get(s) || 0) + 1);
+    }
+    const sistemasTop = [...conteoSistemas.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
+    return { totalProyectos, sistemasTop };
+  }, [clientes]);
+
   async function handleCrear() {
     if (!nombreNuevo.trim()) {
       setMsg('Falta el nombre del cliente.');
@@ -71,6 +81,33 @@ export default function ClientesList({ userName }: { userName?: string }) {
         </div>
       )}
 
+      {!loading && clientes.length > 0 && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+          <div className="ambient-glow edge-highlight rounded-2xl border border-line bg-surface p-4">
+            <p className="text-[26px] font-display font-bold leading-none tracking-tight">{clientes.length}</p>
+            <p className="text-[11.5px] text-muted mt-1.5">{clientes.length === 1 ? 'Cliente' : 'Clientes'}</p>
+          </div>
+          <div className="ambient-glow edge-highlight rounded-2xl border border-line bg-surface p-4">
+            <p className="text-[26px] font-display font-bold leading-none tracking-tight">{stats.totalProyectos}</p>
+            <p className="text-[11.5px] text-muted mt-1.5">{stats.totalProyectos === 1 ? 'Proyecto' : 'Proyectos'}</p>
+          </div>
+          <div className="ambient-glow edge-highlight rounded-2xl border border-line bg-surface p-4 col-span-2">
+            <p className="text-[11.5px] text-muted mb-2">Sistemas más frecuentes</p>
+            {stats.sistemasTop.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {stats.sistemasTop.map(([s, n]) => (
+                  <span key={s} className="text-[11px] font-medium px-2.5 py-1 rounded-full bg-surface-2 border border-line whitespace-nowrap">
+                    {s} <span className="text-faint">· {n}</span>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[12.5px] text-faint">Sin proyectos todavía</p>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center gap-2.5 mb-4">
         <div className="relative flex-1">
           <Search size={16} strokeWidth={2.4} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-faint" />
@@ -83,7 +120,7 @@ export default function ClientesList({ userName }: { userName?: string }) {
         </div>
         <button
           onClick={() => { setShowNuevo(true); setNombreNuevo(''); setDireccionNueva(''); setMsg(null); }}
-          className="shrink-0 min-h-[48px] px-4 rounded-xl bg-teal text-inkOnAccent font-display font-semibold text-[13.5px] flex items-center gap-1.5 active:scale-95 transition-transform shadow-glow-teal"
+          className="shrink-0 min-h-[48px] px-4 rounded-xl bg-teal text-inkOnAccent font-display font-semibold text-[13.5px] flex items-center gap-1.5 transition-all duration-150 hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0 active:scale-95 shadow-glow-teal"
         >
           <Plus size={17} strokeWidth={2.4} />
           <span className="hidden sm:inline">Nuevo cliente</span>
@@ -108,7 +145,7 @@ export default function ClientesList({ userName }: { userName?: string }) {
             <Link
               key={c.id}
               href={`/dashboard/proyectos/${c.id}`}
-              className="block rounded-2xl border border-line bg-surface p-4 active:scale-[0.98] hover:shadow-glow hover:border-line-strong transition-all"
+              className="group ambient-glow edge-highlight block rounded-2xl border border-line bg-surface p-4 transition-all duration-150 hover:-translate-y-1 hover:shadow-diffuse hover:border-line-strong active:translate-y-0 active:scale-[0.98]"
             >
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-12 h-12 rounded-xl bg-surface-2 border border-line overflow-hidden flex items-center justify-center shrink-0">
@@ -120,7 +157,7 @@ export default function ClientesList({ userName }: { userName?: string }) {
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-display font-bold text-[15.5px] leading-tight truncate">{c.nombre}</p>
+                  <p className="font-display font-bold text-[15.5px] leading-tight tracking-tight truncate transition-colors group-hover:text-teal">{c.nombre}</p>
                   {c.direccion && (
                     <p className="text-[11.5px] text-muted flex items-center gap-1 mt-0.5 truncate">
                       <MapPin size={10} strokeWidth={2.4} className="shrink-0" /> {c.direccion}
