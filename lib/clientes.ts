@@ -7,6 +7,7 @@ export type Cliente = {
   nombre: string;
   direccion: string | null;
   logo_path: string | null;
+  foto_portada_path: string | null;
   created_by: string;
   created_at: string;
 };
@@ -39,13 +40,16 @@ export type ProyectoResumen = {
 
 export type ClienteConResumen = Cliente & {
   logo_url: string | null;
+  foto_portada_url: string | null;
   total_proyectos: number;
   sistemas: string[];
 };
 
-async function urlDeLogo(supabase: ReturnType<typeof createClient>, logoPath: string | null): Promise<string | null> {
-  if (!logoPath) return null;
-  const { data } = await supabase.storage.from('proyectos-documentos').createSignedUrl(logoPath, 3600);
+// Genérica: sirve tanto para el logo como para la foto de portada, ambos
+// son solo una ruta en el mismo bucket privado.
+async function urlFirmada(supabase: ReturnType<typeof createClient>, path: string | null): Promise<string | null> {
+  if (!path) return null;
+  const { data } = await supabase.storage.from('proyectos-documentos').createSignedUrl(path, 3600);
   return data?.signedUrl || null;
 }
 
@@ -88,13 +92,17 @@ export async function listarClientesConResumen(): Promise<ClienteConResumen[]> {
   });
 
   const lista = (clientes as Cliente[]) || [];
-  const logoUrls = await Promise.all(lista.map((c) => urlDeLogo(supabase, c.logo_path)));
+  const [logoUrls, portadaUrls] = await Promise.all([
+    Promise.all(lista.map((c) => urlFirmada(supabase, c.logo_path))),
+    Promise.all(lista.map((c) => urlFirmada(supabase, c.foto_portada_path))),
+  ]);
 
   return lista.map((c, i) => {
     const resumen = porCliente.get(c.id);
     return {
       ...c,
       logo_url: logoUrls[i],
+      foto_portada_url: portadaUrls[i],
       total_proyectos: resumen?.total || 0,
       sistemas: resumen ? Array.from(resumen.sistemas) : [],
     };
@@ -104,6 +112,7 @@ export async function listarClientesConResumen(): Promise<ClienteConResumen[]> {
 export async function obtenerClienteCompleto(id: string): Promise<{
   cliente: Cliente;
   logoUrl: string | null;
+  portadaUrl: string | null;
   contactos: ClienteContacto[];
   proyectos: ProyectoResumen[];
 }> {
@@ -118,7 +127,10 @@ export async function obtenerClienteCompleto(id: string): Promise<{
   if (e2) throw e2;
   if (e3) throw e3;
 
-  const logoUrl = await urlDeLogo(supabase, (cliente as Cliente).logo_path);
+  const [logoUrl, portadaUrl] = await Promise.all([
+    urlFirmada(supabase, (cliente as Cliente).logo_path),
+    urlFirmada(supabase, (cliente as Cliente).foto_portada_path),
+  ]);
 
   const proyectosResumen: ProyectoResumen[] = ((proyectos as any[]) || []).map((p) => ({
     id: p.id,
@@ -132,7 +144,7 @@ export async function obtenerClienteCompleto(id: string): Promise<{
     cotizaciones_count: (p.proyecto_cotizaciones || []).length,
   }));
 
-  return { cliente: cliente as Cliente, logoUrl, contactos: (contactos as ClienteContacto[]) || [], proyectos: proyectosResumen };
+  return { cliente: cliente as Cliente, logoUrl, portadaUrl, contactos: (contactos as ClienteContacto[]) || [], proyectos: proyectosResumen };
 }
 
 export async function actualizarPerfilCliente(id: string, input: { nombre: string; direccion: string }): Promise<void> {
@@ -156,6 +168,40 @@ export async function subirLogoCliente(id: string, file: File): Promise<void> {
   if (eUp) throw new Error('No se pudo subir la foto: ' + eUp.message);
 
   const { error } = await supabase.from('clientes').update({ logo_path: path }).eq('id', id);
+  if (error) throw error;
+
+  if (anterior) {
+    try { await supabase.storage.from('proyectos-documentos').remove([anterior]); } catch { /* no crítico */ }
+  }
+}
+
+// Foto de portada: la imagen ancha del sitio/fachada, aparte del logo
+// circular. Mismo patrón que subirLogoCliente — sube antes de borrar la
+// anterior.
+export async function subirFotoPortadaCliente(id: string, file: File): Promise<void> {
+  const supabase = createClient();
+  const { data: actual } = await supabase.from('clientes').select('foto_portada_path').eq('id', id).single();
+  const anterior = actual?.foto_portada_path as string | null;
+
+  const ext = file.name.split('.').pop() || 'jpg';
+  const path = `clientes/${id}/portada-${Date.now()}.${ext}`;
+  const { error: eUp } = await supabase.storage.from('proyectos-documentos').upload(path, file, { contentType: file.type || 'image/jpeg' });
+  if (eUp) throw new Error('No se pudo subir la foto: ' + eUp.message);
+
+  const { error } = await supabase.from('clientes').update({ foto_portada_path: path }).eq('id', id);
+  if (error) throw error;
+
+  if (anterior) {
+    try { await supabase.storage.from('proyectos-documentos').remove([anterior]); } catch { /* no crítico */ }
+  }
+}
+
+export async function eliminarFotoPortadaCliente(id: string): Promise<void> {
+  const supabase = createClient();
+  const { data: actual } = await supabase.from('clientes').select('foto_portada_path').eq('id', id).single();
+  const anterior = actual?.foto_portada_path as string | null;
+
+  const { error } = await supabase.from('clientes').update({ foto_portada_path: null }).eq('id', id);
   if (error) throw error;
 
   if (anterior) {
@@ -187,7 +233,7 @@ export async function eliminarContacto(contactoId: string): Promise<void> {
 
 export async function eliminarCliente(id: string): Promise<void> {
   const supabase = createClient();
-  const { data: cliente, error: eGet } = await supabase.from('clientes').select('nombre, logo_path').eq('id', id).single();
+  const { data: cliente, error: eGet } = await supabase.from('clientes').select('nombre, logo_path, foto_portada_path').eq('id', id).single();
   if (eGet) throw eGet;
 
   // Documentos de TODOS los proyectos de este cliente, para limpiarlos del
@@ -200,6 +246,7 @@ export async function eliminarCliente(id: string): Promise<void> {
     paths = (docs || []).map((d: any) => d.archivo_path as string).filter(Boolean);
   }
   if (cliente.logo_path) paths.push(cliente.logo_path);
+  if (cliente.foto_portada_path) paths.push(cliente.foto_portada_path);
 
   const { error } = await supabase.from('clientes').delete().eq('id', id);
   if (error) throw error;

@@ -169,8 +169,13 @@ export default function ClientesList({ userName }: { userName?: string }) {
             <Link
               key={c.id}
               href={`/dashboard/proyectos/${c.id}`}
-              className="group ambient-glow edge-highlight block rounded-2xl border border-line bg-surface p-4 transition-all duration-150 hover:-translate-y-1 hover:shadow-diffuse hover:border-line-strong active:translate-y-0 active:scale-[0.98]"
+              className="group ambient-glow edge-highlight block rounded-2xl border border-line bg-surface overflow-hidden transition-all duration-150 hover:-translate-y-1 hover:shadow-diffuse hover:border-line-strong active:translate-y-0 active:scale-[0.98]"
             >
+              {c.foto_portada_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={c.foto_portada_url} alt="" className="w-full h-24 object-cover" />
+              )}
+              <div className="p-4">
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-12 h-12 rounded-xl bg-surface-2 border border-line overflow-hidden flex items-center justify-center shrink-0">
                   {c.logo_url ? (
@@ -204,6 +209,7 @@ export default function ClientesList({ userName }: { userName?: string }) {
               <p className="text-[11px] text-faint mt-3 pt-2.5 border-t border-dashed border-line">
                 {c.total_proyectos} {c.total_proyectos === 1 ? 'proyecto' : 'proyectos'}
               </p>
+              </div>
             </Link>
           ))}
         </div>

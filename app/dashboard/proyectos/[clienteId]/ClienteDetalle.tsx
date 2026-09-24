@@ -7,13 +7,13 @@ import SupervisorShell from '@/components/SupervisorShell';
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
 import {
-  ClienteContacto, obtenerClienteCompleto, actualizarPerfilCliente, subirLogoCliente,
-  agregarContacto, eliminarContacto, eliminarCliente,
+  ClienteContacto, obtenerClienteCompleto, actualizarPerfilCliente, subirLogoCliente, subirFotoPortadaCliente,
+  eliminarFotoPortadaCliente, agregarContacto, eliminarContacto, eliminarCliente,
 } from '@/lib/clientes';
 import { EstadoProyecto, SISTEMAS_SUGERIDOS, crearProyectoParaCliente } from '@/lib/proyectos';
 import {
   ChevronLeft, Building2, Camera, MapPin, Phone, Mail, User, Plus, X, Trash2,
-  Pencil, Check, FileText, Receipt, ChevronRight, FolderOpen,
+  Pencil, Check, FileText, Receipt, ChevronRight, FolderOpen, ImagePlus,
 } from 'lucide-react';
 
 const ESTADO_CLS: Record<EstadoProyecto, string> = {
@@ -42,6 +42,8 @@ export default function ClienteDetalle({ clienteId, userName }: { clienteId: str
   const [datos, setDatos] = useState<Awaited<ReturnType<typeof obtenerClienteCompleto>> | null>(null);
   const fotoInputRef = useRef<HTMLInputElement>(null);
   const [subiendoFoto, setSubiendoFoto] = useState(false);
+  const portadaInputRef = useRef<HTMLInputElement>(null);
+  const [subiendoPortada, setSubiendoPortada] = useState(false);
 
   const [editandoPerfil, setEditandoPerfil] = useState(false);
   const [nombreEdit, setNombreEdit] = useState('');
@@ -109,6 +111,36 @@ export default function ClienteDetalle({ clienteId, userName }: { clienteId: str
     } finally {
       setSubiendoFoto(false);
       if (fotoInputRef.current) fotoInputRef.current.value = '';
+    }
+  }
+
+  async function handleSubirPortada(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSubiendoPortada(true);
+    try {
+      await subirFotoPortadaCliente(clienteId, file);
+      showToast('Foto de portada actualizada', 'success');
+      await cargar();
+    } catch (err: any) {
+      alert(err?.message || 'No se pudo subir la foto');
+    } finally {
+      setSubiendoPortada(false);
+      if (portadaInputRef.current) portadaInputRef.current.value = '';
+    }
+  }
+
+  async function handleQuitarPortada(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!confirm('¿Quitar la foto de portada?')) return;
+    setSubiendoPortada(true);
+    try {
+      await eliminarFotoPortadaCliente(clienteId);
+      await cargar();
+    } catch (err: any) {
+      alert(err?.message || 'No se pudo quitar la foto');
+    } finally {
+      setSubiendoPortada(false);
     }
   }
 
@@ -194,7 +226,7 @@ export default function ClienteDetalle({ clienteId, userName }: { clienteId: str
     return <SupervisorShell active="proyectos" title="Cliente" userName={userName}><p className="text-red text-center py-14">{error || 'No se encontró el cliente'}</p></SupervisorShell>;
   }
 
-  const { cliente, logoUrl, contactos } = datos;
+  const { cliente, logoUrl, portadaUrl, contactos } = datos;
 
   return (
     <SupervisorShell active="proyectos" title={cliente.nombre} userName={userName}>
@@ -202,6 +234,38 @@ export default function ClienteDetalle({ clienteId, userName }: { clienteId: str
         <ChevronLeft size={16} strokeWidth={2.4} />
         Todos los clientes
       </Link>
+
+      {/* Foto de portada: fachada o sitio del cliente, aparte del logo. */}
+      <button
+        onClick={() => portadaInputRef.current?.click()}
+        disabled={subiendoPortada}
+        className="group relative w-full h-32 sm:h-40 rounded-2xl overflow-hidden mb-4 border border-line bg-surface-2 disabled:opacity-60"
+        aria-label="Cambiar foto de portada"
+      >
+        {portadaUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={portadaUrl} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 text-faint">
+            <ImagePlus size={22} strokeWidth={1.8} />
+            <span className="text-[12px] font-medium">Agregar foto del sitio</span>
+          </div>
+        )}
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+          <Camera size={20} strokeWidth={2.2} className="text-white" />
+        </div>
+        {portadaUrl && (
+          <span
+            role="button"
+            onClick={handleQuitarPortada}
+            aria-label="Quitar foto de portada"
+            className="absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-black/60 flex items-center justify-center text-white active:scale-90 transition-transform"
+          >
+            <X size={15} strokeWidth={2.4} />
+          </span>
+        )}
+      </button>
+      <input ref={portadaInputRef} type="file" accept="image/*" onChange={handleSubirPortada} className="hidden" />
 
       {/* Perfil del cliente */}
       <div className={`${cardCls} mb-4`}>
