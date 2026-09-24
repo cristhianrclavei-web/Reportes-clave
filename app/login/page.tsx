@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabaseClient';
 import { validateLoginUser } from '@/lib/validateLoginUser'; // NUEVO - OWASP A07
@@ -194,6 +195,13 @@ function LoginForm() {
         >
           {modoOlvido ? 'Volver a entrar' : '¿Olvidaste tu contraseña?'}
         </button>
+
+        <Link
+          href="/aviso-privacidad"
+          className="block text-center text-[12px] text-faint mt-4 active:scale-95 transition-transform"
+        >
+          Aviso de privacidad
+        </Link>
       </form>
     </div>
   );

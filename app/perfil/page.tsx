@@ -80,6 +80,13 @@ export default async function PerfilPage() {
         <CambiarContrasena email={user.email || ''} />
 
         {esGestor && <AdminUsersSection initialUsers={usuarios} />}
+
+        <Link
+          href="/aviso-privacidad"
+          className="block text-center text-[12.5px] text-faint mt-8 mb-2 min-h-[40px] flex items-center justify-center"
+        >
+          Aviso de privacidad
+        </Link>
       </div>
     </div>
   );
