@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import SupervisorShell from '@/components/SupervisorShell';
 import TablaLista, { ColumnaTabla } from '@/components/TablaLista';
+import EmptyIllustration from '@/components/EmptyIllustration';
 import CotizacionForm from '@/components/CotizacionForm';
 import { VistaCondicional } from '@/lib/vistaSupervisor';
 import { Cotizacion } from '@/lib/cotizaciones';
@@ -152,7 +153,7 @@ export default function CotizacionesList({
           {filtradas.length === 0 && (
             <div className="flex flex-col items-center py-14 text-center">
               <div className="w-14 h-14 rounded-2xl bg-surface-2 border border-line flex items-center justify-center mb-3.5">
-                <Receipt size={22} strokeWidth={1.8} className="text-faint" />
+                <EmptyIllustration variante="cotizacion" />
               </div>
               <p className="text-[14.5px] font-medium mb-1">
                 {cotizaciones.length === 0 ? 'Todavía no hay cotizaciones' : 'Sin resultados'}

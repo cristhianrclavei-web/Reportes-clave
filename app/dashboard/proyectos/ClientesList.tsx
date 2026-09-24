@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import SupervisorShell from '@/components/SupervisorShell';
 import ModalOverlay from '@/components/ModalOverlay';
+import EmptyIllustration from '@/components/EmptyIllustration';
 import { showToast } from '@/components/Toast';
 import { ClienteConResumen, listarClientesConResumen, crearCliente } from '@/lib/clientes';
 import { Plus, Search, Building2, MapPin } from 'lucide-react';
@@ -151,7 +152,7 @@ export default function ClientesList({ userName }: { userName?: string }) {
       {!loading && filtrados.length === 0 && (
         <div className="flex flex-col items-center py-14 text-center">
           <div className="w-14 h-14 rounded-2xl bg-surface-2 border border-line flex items-center justify-center mb-3.5">
-            <Building2 size={22} strokeWidth={1.8} className="text-faint" />
+            <EmptyIllustration variante="clientes" />
           </div>
           <p className="text-[14.5px] font-medium mb-1">
             {clientes.length === 0 ? 'Todavía no hay clientes' : 'Sin resultados'}

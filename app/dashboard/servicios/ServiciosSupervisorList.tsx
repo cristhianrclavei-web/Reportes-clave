@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import SupervisorShell from '@/components/SupervisorShell';
+import EmptyIllustration from '@/components/EmptyIllustration';
 import SelectorSemana, { RangoSeleccionado } from '@/components/SelectorSemana';
 import { useTheme } from '@/lib/useTheme';
 import { listarFestivos, festivoDe, festivosEnCache, Festivo } from '@/lib/avisos';
@@ -509,7 +510,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
             {checklists.length === 0 && (
               <div className="flex flex-col items-center py-10 text-center">
                 <div className="w-14 h-14 rounded-2xl bg-surface-2 border border-line flex items-center justify-center mb-3.5">
-                  <PackageCheck size={22} strokeWidth={1.8} className="text-faint" />
+                  <EmptyIllustration variante="lista" />
                 </div>
                 <p className="text-[13.5px] text-muted leading-relaxed max-w-[260px]">Todavía no hay listas. Se crean al programar un servicio.</p>
               </div>
@@ -574,7 +575,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
             {plantillas.length === 0 && (
               <div className="flex flex-col items-center py-10 text-center">
                 <div className="w-14 h-14 rounded-2xl bg-surface-2 border border-line flex items-center justify-center mb-3.5">
-                  <Bookmark size={22} strokeWidth={1.8} className="text-faint" />
+                  <EmptyIllustration variante="plantilla" />
                 </div>
                 <p className="text-[13.5px] text-muted leading-relaxed max-w-[260px]">Todavía no hay plantillas. Al programar un servicio puedes guardar su lista como plantilla.</p>
               </div>
@@ -952,7 +953,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
         {seccion === 'agendados' && !loading && grupos.length === 0 && (
           <div className="flex flex-col items-center py-10 text-center">
             <div className="w-14 h-14 rounded-2xl bg-surface-2 border border-line flex items-center justify-center mb-3.5">
-              <FolderKanban size={22} strokeWidth={1.8} className="text-faint" />
+              <EmptyIllustration variante="proyecto" />
             </div>
             <p className="text-[14.5px] font-medium mb-1">
               {servicios.length === 0 ? 'Todavía no hay servicios programados' : 'Sin resultados'}
