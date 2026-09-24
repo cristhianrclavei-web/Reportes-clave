@@ -18,7 +18,7 @@ export const dynamic = 'force-dynamic';
 // cualquier fila que reclame este endpoint antes de crear la nueva.
 
 export async function POST(request: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: 'Sin sesión' }, { status: 401 });
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
 // interruptor y también al cerrar sesión, que es cuando más importa: si la
 // fila se queda, el siguiente en entrar hereda los avisos del anterior.
 export async function DELETE(request: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: 'Sin sesión' }, { status: 401 });

@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
 
   webpush.setVapidDetails('mailto:soporte@clave-i.mx', publica, privada);
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: 'Sin sesion' }, { status: 401 });

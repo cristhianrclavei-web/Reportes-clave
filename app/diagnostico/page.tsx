@@ -12,7 +12,7 @@ export const revalidate = 0;
 // así que no puede quedar abierta a cualquiera: antes no verificaba sesión
 // ni rol.
 export default async function DiagnosticoPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: { user }, error: errorUser } = await supabase.auth.getUser();
   if (!user) redirect('/login');

@@ -1,8 +1,11 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
-export function createClient() {
-  const cookieStore = cookies();
+// Next 15+ hizo async la API de cookies() del lado del servidor. Se propaga
+// aquí para no depender del escape hatch "UnsafeUnwrapped...", que Next ya
+// quitó de los tipos en esta versión.
+export async function createClient() {
+  const cookieStore = await cookies();
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

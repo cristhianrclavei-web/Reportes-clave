@@ -39,7 +39,6 @@ const csp = [
 
 const nextConfig = {
   reactStrictMode: true,
-  swcMinify: true,
 
   // Sin esto, "next dev" bloquea las peticiones a /_next/* (el bundle de
   // JS, HMR, fuentes) cuando la app se abre desde otra IP de la red local

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { ipAddress as ipAddress1 } from "@vercel/functions";
 import { createClient } from '@/lib/supabaseServer';
 import { generateReportXlsx } from '@/lib/generateReportXlsx';
 import { auditarDescarga } from '@/lib/auditarDescarga'; // NUEVO - OWASP A09
@@ -10,8 +11,9 @@ export const dynamic = 'force-dynamic';
  * OWASP A01:2021 - Broken Access Control (explicit permission check)
  * OWASP A09:2021 - Logging & Monitoring Failures (audit trail)
  */
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createClient();
+export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
@@ -58,7 +60,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   // ===== AUDITORÍA (OWASP A09) =====
   const ipAddress = request.headers.get('x-forwarded-for') ||
                     request.headers.get('cf-connecting-ip') ||
-                    request.ip ||
+                    ipAddress1(request) ||
                     'unknown';
   const userAgent = request.headers.get('user-agent') || 'unknown';
 

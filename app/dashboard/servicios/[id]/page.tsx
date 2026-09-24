@@ -5,8 +5,9 @@ import ServicioSupervisorDetail from './ServicioSupervisorDetail';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export default async function ServicioDetailPage({ params }: { params: { id: string } }) {
-  const supabase = createClient();
+export default async function ServicioDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
