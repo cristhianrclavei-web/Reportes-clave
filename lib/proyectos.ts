@@ -1,27 +1,21 @@
 import { createClient } from './supabaseClient';
 import { registrarAccionGlobal } from './auditoriaGlobal';
+import type { Cliente } from './clientes';
 
 export type EstadoProyecto = 'propuesta' | 'en_curso' | 'concluido';
-
-export type Cliente = {
-  id: string;
-  nombre: string;
-  created_by: string;
-  created_at: string;
-};
 
 export type Proyecto = {
   id: string;
   cliente_id: string;
   sistema: string;
+  nombre: string;
   descripcion: string | null;
   estado: EstadoProyecto;
   created_by: string;
   created_at: string;
   updated_at: string;
+  concluido_en: string | null;
 };
-
-export type ProyectoConCliente = Proyecto & { cliente_nombre: string };
 
 export type DocumentoProyecto = {
   id: string;
@@ -55,56 +49,28 @@ export const TIPOS_DOCUMENTO_SUGERIDOS = [
   'Planos', 'Formato de mantenimiento', 'Formato de interconexión', 'Manual', 'Garantía', 'Otro',
 ];
 
-export async function listarClientes(): Promise<Cliente[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase.from('clientes').select('*').order('nombre');
-  if (error) throw error;
-  return (data as Cliente[]) || [];
-}
-
-// Busca un cliente por nombre exacto (sin importar mayúsculas/espacios) y lo
-// usa si existe; si no, lo crea. Así "Aislantes y Empaques" no se duplica
-// solo porque una vez se escribió distinto a otra.
-async function obtenerOCrearCliente(nombre: string): Promise<string> {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('No hay sesión activa');
-
-  const limpio = nombre.trim();
-  const { data: existente } = await supabase
-    .from('clientes')
-    .select('id')
-    .ilike('nombre', limpio)
-    .maybeSingle();
-  if (existente) return existente.id;
-
-  const { data: nuevo, error } = await supabase
-    .from('clientes')
-    .insert({ nombre: limpio, created_by: user.id })
-    .select('id')
-    .single();
-  if (error) throw error;
-  return nuevo.id as string;
-}
-
-export async function crearProyecto(input: {
-  clienteNombre: string;
+// Crea un proyecto para un cliente que YA existe (se llega aquí desde
+// dentro de la ficha del cliente, así que no hace falta resolver/crear el
+// cliente por nombre — a diferencia de cuando este módulo no tenía todavía
+// una pantalla de cliente propia).
+export async function crearProyectoParaCliente(input: {
+  clienteId: string;
   sistema: string;
+  nombre: string;
   descripcion: string;
 }): Promise<string> {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('No hay sesión activa');
-  if (!input.clienteNombre.trim()) throw new Error('Falta el cliente o empresa.');
   if (!input.sistema.trim()) throw new Error('Falta el sistema.');
-
-  const clienteId = await obtenerOCrearCliente(input.clienteNombre);
+  if (!input.nombre.trim()) throw new Error('Falta el nombre del proyecto.');
 
   const { data: proyecto, error } = await supabase
     .from('proyectos')
     .insert({
-      cliente_id: clienteId,
+      cliente_id: input.clienteId,
       sistema: input.sistema.trim(),
+      nombre: input.nombre.trim(),
       descripcion: input.descripcion.trim() || null,
       created_by: user.id,
     })
@@ -116,23 +82,10 @@ export async function crearProyecto(input: {
     'creo_proyecto',
     'proyecto',
     proyecto.id,
-    `Creó el proyecto «${input.sistema.trim()}» para ${input.clienteNombre.trim()}`
+    `Creó «${input.nombre.trim()}» (${input.sistema.trim()})`
   );
 
   return proyecto.id as string;
-}
-
-export async function listarProyectos(): Promise<ProyectoConCliente[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from('proyectos')
-    .select('*, clientes(nombre)')
-    .order('updated_at', { ascending: false });
-  if (error) throw error;
-  return ((data as any[]) || []).map((p) => {
-    const { clientes, ...resto } = p;
-    return { ...resto, cliente_nombre: clientes?.nombre || '—' } as ProyectoConCliente;
-  });
 }
 
 export async function obtenerProyecto(id: string): Promise<{
@@ -168,19 +121,29 @@ export async function obtenerProyecto(id: string): Promise<{
 
 export async function actualizarEstadoProyecto(id: string, estado: EstadoProyecto): Promise<void> {
   const supabase = createClient();
-  const { data: proyecto, error: eGet } = await supabase.from('proyectos').select('sistema').eq('id', id).single();
+  const { data: proyecto, error: eGet } = await supabase.from('proyectos').select('nombre').eq('id', id).single();
   if (eGet) throw eGet;
 
-  const { error } = await supabase.from('proyectos').update({ estado, updated_at: new Date().toISOString() }).eq('id', id);
+  // concluido_en se llena solo al llegar a "Concluido" y se limpia si se
+  // regresa a otro estado (fue un error marcarlo, no hay fecha real que
+  // conservar).
+  const { error } = await supabase
+    .from('proyectos')
+    .update({
+      estado,
+      updated_at: new Date().toISOString(),
+      concluido_en: estado === 'concluido' ? new Date().toISOString() : null,
+    })
+    .eq('id', id);
   if (error) throw error;
 
   const ESTADO_LABEL: Record<EstadoProyecto, string> = { propuesta: 'Propuesta', en_curso: 'En curso', concluido: 'Concluido' };
-  await registrarAccionGlobal('actualizo_estado_proyecto', 'proyecto', id, `Cambió «${proyecto.sistema}» a ${ESTADO_LABEL[estado]}`);
+  await registrarAccionGlobal('actualizo_estado_proyecto', 'proyecto', id, `Cambió «${proyecto.nombre}» a ${ESTADO_LABEL[estado]}`);
 }
 
 export async function eliminarProyecto(id: string): Promise<void> {
   const supabase = createClient();
-  const { data: proyecto, error: eGet } = await supabase.from('proyectos').select('sistema').eq('id', id).single();
+  const { data: proyecto, error: eGet } = await supabase.from('proyectos').select('nombre').eq('id', id).single();
   if (eGet) throw eGet;
 
   const { data: docs } = await supabase.from('proyecto_documentos').select('archivo_path').eq('proyecto_id', id);
@@ -197,7 +160,7 @@ export async function eliminarProyecto(id: string): Promise<void> {
     }
   }
 
-  await registrarAccionGlobal('elimino_proyecto', 'proyecto', id, `Eliminó el proyecto «${proyecto.sistema}»`);
+  await registrarAccionGlobal('elimino_proyecto', 'proyecto', id, `Eliminó el proyecto «${proyecto.nombre}»`);
 }
 
 export async function agregarDocumento(

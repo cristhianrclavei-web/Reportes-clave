@@ -42,7 +42,7 @@ function nombreSubio(profiles: DocumentoProyecto['profiles']): string {
   return Array.isArray(profiles) ? profiles[0]?.full_name || '—' : profiles.full_name || '—';
 }
 
-export default function ProyectoDetalle({ proyectoId, userName }: { proyectoId: string; userName?: string }) {
+export default function ProyectoDetalle({ proyectoId, clienteId, userName }: { proyectoId: string; clienteId: string; userName?: string }) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -165,12 +165,12 @@ export default function ProyectoDetalle({ proyectoId, userName }: { proyectoId: 
 
   async function handleEliminarProyecto() {
     if (!datos) return;
-    if (!confirm(`¿Eliminar el proyecto «${datos.proyecto.sistema}» de ${datos.cliente.nombre}? Se borran también sus documentos. Acción permanente.`)) return;
+    if (!confirm(`¿Eliminar «${datos.proyecto.nombre}» de ${datos.cliente.nombre}? Se borran también sus documentos. Acción permanente.`)) return;
     setEliminandoProyecto(true);
     try {
       await eliminarProyecto(proyectoId);
       showToast('Proyecto eliminado', 'success');
-      router.push('/dashboard/proyectos');
+      router.push(`/dashboard/proyectos/${clienteId}`);
     } catch (e: any) {
       alert(e?.message || 'No se pudo eliminar');
       setEliminandoProyecto(false);
@@ -196,23 +196,26 @@ export default function ProyectoDetalle({ proyectoId, userName }: { proyectoId: 
 
   return (
     <SupervisorShell active="proyectos" title={cliente.nombre} userName={userName}>
-      <Link href="/dashboard/proyectos" className="inline-flex items-center gap-1.5 text-[13.5px] text-teal font-medium mb-4 min-h-[40px]">
+      <Link href={`/dashboard/proyectos/${clienteId}`} className="inline-flex items-center gap-1.5 text-[13.5px] text-teal font-medium mb-4 min-h-[40px]">
         <ChevronLeft size={16} strokeWidth={2.4} />
-        Todos los proyectos
+        {cliente.nombre}
       </Link>
 
       {/* Encabezado + estado */}
       <div className={`${cardCls} mb-4`}>
         <div className="flex justify-between items-start gap-3 mb-3 flex-wrap">
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-muted mb-0.5">Sistema</div>
-            <span className="text-[17px] font-display font-bold">{proyecto.sistema}</span>
+            <div className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-surface-2 text-muted w-fit mb-1.5">{proyecto.sistema}</div>
+            <span className="text-[17px] font-display font-bold">{proyecto.nombre}</span>
           </div>
-          <span className={`text-[12.5px] font-semibold px-3 py-1.5 rounded-full border ${ESTADO_CLS[proyecto.estado]}`}>
+          <span className={`text-[12.5px] font-semibold px-3 py-1.5 rounded-full border shrink-0 ${ESTADO_CLS[proyecto.estado]}`}>
             {ESTADO_LABEL[proyecto.estado]}
           </span>
         </div>
         {proyecto.descripcion && <p className="text-[13.5px] text-ink/80 leading-relaxed mb-3.5">{proyecto.descripcion}</p>}
+        {proyecto.concluido_en && (
+          <p className="text-[12px] text-teal font-medium mb-3.5">Concluido el {formatFecha(proyecto.concluido_en)}</p>
+        )}
 
         <label className={labelCls}>Cambiar estado</label>
         <div className="flex gap-1.5 p-1 rounded-xl bg-surface-2 border border-line w-fit flex-wrap">

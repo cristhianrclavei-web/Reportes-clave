@@ -1,11 +1,11 @@
 import { redirect, notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabaseServer';
-import ProyectoDetalle from './ProyectoDetalle';
+import ClienteDetalle from './ClienteDetalle';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export default async function ProyectoDetallePage(props: { params: Promise<{ id: string }> }) {
+export default async function ClienteDetallePage(props: { params: Promise<{ clienteId: string }> }) {
   const params = await props.params;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -16,8 +16,8 @@ export default async function ProyectoDetallePage(props: { params: Promise<{ id:
 
   const { data: myProfile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single();
 
-  const { data: proyecto, error } = await supabase.from('proyectos').select('*').eq('id', params.id).single();
-  if (error || !proyecto) notFound();
+  const { data: cliente, error } = await supabase.from('clientes').select('id').eq('id', params.clienteId).single();
+  if (error || !cliente) notFound();
 
-  return <ProyectoDetalle proyectoId={params.id} userName={myProfile?.full_name || user.email || ''} />;
+  return <ClienteDetalle clienteId={params.clienteId} userName={myProfile?.full_name || user.email || ''} />;
 }
