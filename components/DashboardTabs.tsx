@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '@/components/TransitionLink';
 import { FileText, FolderKanban, History, CalendarDays, LayoutDashboard, Warehouse, Receipt, Building2 } from 'lucide-react';
 import { usePuedeAlmacen } from '@/lib/usePuedeAlmacen';
 

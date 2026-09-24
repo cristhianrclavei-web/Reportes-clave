@@ -154,6 +154,23 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   100% { background-position: -50% 0; }
 }
 
+/* Transición de página (ver components/TransitionLink.tsx): API nativa del
+   navegador, no depende de React. El overlay que dibuja la animación
+   intercepta clics por default — sin esto, tocar algo justo cuando entra
+   la pantalla no hace nada. */
+::view-transition {
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
