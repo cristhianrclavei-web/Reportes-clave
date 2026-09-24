@@ -12,12 +12,31 @@ export default function ThemeToggle() {
 
   function toggle() {
     const next = theme === 'dark' ? 'light' : 'dark';
-    setTheme(next);
-    document.documentElement.classList.remove('light', 'dark');
-    document.documentElement.classList.add(next);
+
+    function aplicar() {
+      setTheme(next);
+      document.documentElement.classList.remove('light', 'dark');
+      document.documentElement.classList.add(next);
+      try {
+        localStorage.setItem('theme', next);
+      } catch {}
+    }
+
+    // Mismo API nativa que las transiciones de página — aquí el caso es más
+    // simple porque el cambio es puramente síncrono (una clase en <html>),
+    // sin esperar a ningún fetch, así que no hace falta la protección
+    // contra el InvalidStateError del router: el try/catch de todos modos
+    // cubre si ya hay una transición de página en vuelo al mismo tiempo.
+    const startViewTransition = (document as any).startViewTransition?.bind(document);
+    if (!startViewTransition) {
+      aplicar();
+      return;
+    }
     try {
-      localStorage.setItem('theme', next);
-    } catch {}
+      startViewTransition(aplicar);
+    } catch {
+      aplicar();
+    }
   }
 
   return (
