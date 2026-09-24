@@ -7,6 +7,17 @@ type ToastMsg = { id: number; text: string; kind: 'success' | 'error' };
 export function showToast(text: string, kind: 'success' | 'error' = 'success') {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(new CustomEvent('app:toast', { detail: { text, kind } }));
+  // Confirmación táctil sutil en celular — la mayoría de los toasts salen
+  // justo después de guardar algo (cerrar un día, firmar, crear un
+  // cliente), así que es el punto central donde ponerlo cubre casi toda la
+  // app sin tocar cada pantalla. Sin soporte en iOS Safari; se degrada
+  // solo (el try/catch cubre navegadores que además lo bloquean sin gesto
+  // reciente del usuario).
+  try {
+    if ('vibrate' in navigator) {
+      navigator.vibrate(kind === 'success' ? 12 : [15, 40, 15]);
+    }
+  } catch {}
 }
 
 export default function ToastContainer() {
