@@ -12,6 +12,7 @@ import ProgressBar from '@/components/ProgressBar';
 import {
   InsumoNuevo, CategoriaInsumo, CATEGORIAS, UNIDADES, PlantillaInsumos,
   listarPlantillas, guardarPlantillaDeItems, actualizarPlantilla, eliminarPlantilla, listarChecklists, ResumenChecklist,
+  eliminarChecklist, agregarInsumosIniciales,
 } from '@/lib/insumos';
 import { Plus, X, FileText, AlertTriangle, Timer, MapPin, Play, Check, Clock, FolderKanban, Bookmark, Pencil, Copy, Trash2, PackageCheck, TrendingUp, ChevronRight } from 'lucide-react';
 import { calcularResultadoServicio } from '@/lib/resultadoServicio';
@@ -102,9 +103,34 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   const [busquedaServicio, setBusquedaServicio] = useState('');
   const fechasDeServicios = useMemo(() => servicios.map((s) => s.fecha).filter(Boolean), [servicios]);
   const [plantillaEditando, setPlantillaEditando] = useState<PlantillaInsumos | null>(null);
+  const [creandoPlantilla, setCreandoPlantilla] = useState(false);
   const [nombreEdit, setNombreEdit] = useState('');
   const [itemsEdit, setItemsEdit] = useState<InsumoNuevo[]>([]);
   const [grupoAbierto, setGrupoAbierto] = useState<string | null>(null);
+  const [eliminandoChecklist, setEliminandoChecklist] = useState<string | null>(null);
+  const [mostrarNuevaLista, setMostrarNuevaLista] = useState(false);
+  const [grupoNuevaLista, setGrupoNuevaLista] = useState('');
+  const [insumosNuevaLista, setInsumosNuevaLista] = useState<InsumoNuevo[]>([{ categoria: 'herramienta', descripcion: '', cantidad: 1, unidad: 'pza', articuloId: null }]);
+  const [guardandoNuevaLista, setGuardandoNuevaLista] = useState(false);
+
+  // Proyectos agendados que todavía no tienen una lista de carga — de ahí
+  // se elige al crear una nueva, ya que una lista siempre pertenece a un
+  // proyecto (no existe suelta).
+  const gruposSinChecklist = useMemo(() => {
+    const conLista = new Set(checklists.map((c) => c.grupoId));
+    const mapa = new Map<string, { grupoId: string; proyecto: string; servicioId: string }>();
+    servicios.forEach((s) => {
+      if (conLista.has(s.grupo_id) || mapa.has(s.grupo_id)) return;
+      mapa.set(s.grupo_id, { grupoId: s.grupo_id, proyecto: s.proyecto, servicioId: s.id });
+    });
+    // Si el proyecto tiene varios días, se guarda el del día 1 cuando aparece.
+    servicios.forEach((s) => {
+      if (s.numero_dia === 1 && mapa.has(s.grupo_id)) {
+        mapa.set(s.grupo_id, { grupoId: s.grupo_id, proyecto: s.proyecto, servicioId: s.id });
+      }
+    });
+    return Array.from(mapa.values()).sort((a, b) => a.proyecto.localeCompare(b.proyecto));
+  }, [servicios, checklists]);
 
   const [proyecto, setProyecto] = useState('');
   const [descripcion, setDescripcion] = useState('');
@@ -387,18 +413,93 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
     }
   }
 
+  function abrirNuevaPlantilla() {
+    setNombreEdit('');
+    setItemsEdit([{ categoria: 'herramienta', descripcion: '', cantidad: 1, unidad: 'pza' }]);
+    setCreandoPlantilla(true);
+  }
+
+  function cerrarModalPlantilla() {
+    setPlantillaEditando(null);
+    setCreandoPlantilla(false);
+  }
+
+  // Sirve para editar una plantilla existente y para crear una desde cero:
+  // la diferencia es solo si hay una `plantillaEditando` o se está creando.
   async function handleGuardarEdicionPlantilla() {
-    if (!plantillaEditando) return;
+    if (!plantillaEditando && !creandoPlantilla) return;
     const items = itemsEdit
       .filter((i) => i.descripcion.trim())
       .map((i) => ({ ...i, descripcion: i.descripcion.trim(), unidad: i.unidad.trim() || 'pza' }));
     try {
-      await actualizarPlantilla(plantillaEditando.id, { nombre: nombreEdit.trim() || plantillaEditando.nombre, items });
+      if (plantillaEditando) {
+        await actualizarPlantilla(plantillaEditando.id, { nombre: nombreEdit.trim() || plantillaEditando.nombre, items });
+        showToast('Plantilla actualizada', 'success');
+      } else {
+        if (!nombreEdit.trim()) {
+          alert('Ponle un nombre a la plantilla.');
+          return;
+        }
+        if (items.length === 0) {
+          alert('Agrega al menos un renglón a la plantilla.');
+          return;
+        }
+        await guardarPlantillaDeItems(nombreEdit, items);
+        showToast('Plantilla creada', 'success');
+      }
       setPlantillas(await listarPlantillas());
-      setPlantillaEditando(null);
-      showToast('Plantilla actualizada', 'success');
+      cerrarModalPlantilla();
     } catch (e: any) {
       alert('No se pudo guardar: ' + (e?.message || 'error'));
+    }
+  }
+
+  async function handleEliminarChecklist(c: ResumenChecklist) {
+    const aviso = c.entregadoEn
+      ? '\n\nOJO: ya se entregó la herramienta de esta lista. Al borrarla se pierde el registro de qué se entregó.'
+      : '';
+    if (!confirm(`¿Borrar la lista de carga de «${c.proyecto}» (${c.total} renglones)?${aviso}\n\nEl proyecto no se elimina, solo su lista de herramienta y material.`)) return;
+    setEliminandoChecklist(c.grupoId);
+    try {
+      await eliminarChecklist(c.grupoId);
+      setChecklists(await listarChecklists());
+      showToast('Lista de carga borrada', 'success');
+    } catch (e: any) {
+      alert('No se pudo borrar: ' + (e?.message || 'error'));
+    } finally {
+      setEliminandoChecklist(null);
+    }
+  }
+
+  function abrirNuevaLista() {
+    setGrupoNuevaLista(gruposSinChecklist[0]?.grupoId || '');
+    setInsumosNuevaLista([{ categoria: 'herramienta', descripcion: '', cantidad: 1, unidad: 'pza', articuloId: null }]);
+    setMostrarNuevaLista(true);
+  }
+
+  async function handleGuardarNuevaLista() {
+    const destino = gruposSinChecklist.find((g) => g.grupoId === grupoNuevaLista);
+    if (!destino) {
+      alert('Elige el proyecto al que pertenece la lista.');
+      return;
+    }
+    const items = insumosNuevaLista
+      .filter((i) => i.descripcion.trim())
+      .map((i) => ({ ...i, descripcion: i.descripcion.trim(), unidad: i.unidad.trim() || 'pza' }));
+    if (items.length === 0) {
+      alert('Agrega al menos un renglón a la lista.');
+      return;
+    }
+    setGuardandoNuevaLista(true);
+    try {
+      await agregarInsumosIniciales(destino.grupoId, destino.servicioId, items);
+      setChecklists(await listarChecklists());
+      setMostrarNuevaLista(false);
+      showToast('Lista de carga creada', 'success');
+    } catch (e: any) {
+      alert('No se pudo guardar: ' + (e?.message || 'error'));
+    } finally {
+      setGuardandoNuevaLista(false);
     }
   }
 
@@ -515,15 +616,27 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
         {seccion === 'checklists' && (
           <div>
             <p className="text-[12.5px] text-muted mb-3 leading-relaxed">
-              Listas de herramienta y material creadas, una por proyecto.
+              Listas de herramienta y material creadas, una por proyecto. También se crean al programar un servicio.
             </p>
+
+            <button
+              onClick={abrirNuevaLista}
+              disabled={gruposSinChecklist.length === 0}
+              className="w-full min-h-[50px] mb-4 rounded-2xl border border-dashed border-teal/50 text-teal text-[14.5px] font-semibold flex items-center justify-center gap-2 transition-all duration-150 hover:bg-teal/5 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Plus size={18} strokeWidth={2.6} />
+              Nueva lista de carga
+            </button>
+            {gruposSinChecklist.length === 0 && (
+              <p className="text-[12px] text-faint -mt-2 mb-4">Todos los proyectos agendados ya tienen su lista.</p>
+            )}
 
             {checklists.length === 0 && (
               <div className="flex flex-col items-center py-10 text-center">
                 <div className="w-14 h-14 rounded-2xl bg-surface-2 border border-line flex items-center justify-center mb-3.5">
                   <EmptyIllustration variante="lista" />
                 </div>
-                <p className="text-[13.5px] text-muted leading-relaxed max-w-[260px]">Todavía no hay listas. Se crean al programar un servicio.</p>
+                <p className="text-[13.5px] text-muted leading-relaxed max-w-[260px]">Todavía no hay listas. Crea una aquí o al programar un servicio.</p>
               </div>
             )}
 
@@ -541,10 +654,10 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
 
             <div className="flex flex-col gap-2.5 lg:gap-1.5">
               {checklists.map((c) => (
+                <div key={c.grupoId} className="flex items-stretch gap-2">
                 <Link
-                  key={c.grupoId}
                   href={`/dashboard/servicios/${c.servicioId}`}
-                  className="group rounded-2xl lg:rounded-xl bg-surface border border-line p-4 lg:py-3 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-diffuse hover:border-line-strong active:translate-y-0 active:scale-[0.99] lg:grid lg:grid-cols-[2fr_repeat(3,72px)_1.2fr_1.4fr] lg:gap-3 lg:items-center"
+                  className="group flex-1 min-w-0 rounded-2xl lg:rounded-xl bg-surface border border-line p-4 lg:py-3 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-diffuse hover:border-line-strong active:translate-y-0 active:scale-[0.99] lg:grid lg:grid-cols-[2fr_repeat(3,72px)_1.2fr_1.4fr] lg:gap-3 lg:items-center"
                 >
                   <div className="min-w-0">
                     <strong className="font-display font-bold text-[15.5px] lg:text-[14.5px] block truncate transition-colors group-hover:text-teal">{c.proyecto}</strong>
@@ -571,6 +684,15 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
                     {c.creadoEn && <span className="lg:block"> · {formatFechaHora(c.creadoEn)}</span>}
                   </p>
                 </Link>
+                <button
+                  onClick={() => handleEliminarChecklist(c)}
+                  disabled={eliminandoChecklist === c.grupoId}
+                  aria-label={`Borrar lista de carga de ${c.proyecto}`}
+                  className="shrink-0 w-11 rounded-2xl lg:rounded-xl border border-red/40 text-red flex items-center justify-center transition-all duration-150 hover:bg-red/10 active:scale-90 disabled:opacity-50"
+                >
+                  <Trash2 size={16} strokeWidth={2.4} />
+                </button>
+                </div>
               ))}
             </div>
           </div>
@@ -583,12 +705,20 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
               Listas guardadas de herramienta y material. Se cargan al programar un servicio.
             </p>
 
+            <button
+              onClick={abrirNuevaPlantilla}
+              className="w-full min-h-[50px] mb-4 rounded-2xl border border-dashed border-teal/50 text-teal text-[14.5px] font-semibold flex items-center justify-center gap-2 transition-all duration-150 hover:bg-teal/5 active:scale-[0.98]"
+            >
+              <Plus size={18} strokeWidth={2.6} />
+              Nueva plantilla
+            </button>
+
             {plantillas.length === 0 && (
               <div className="flex flex-col items-center py-10 text-center">
                 <div className="w-14 h-14 rounded-2xl bg-surface-2 border border-line flex items-center justify-center mb-3.5">
                   <EmptyIllustration variante="plantilla" />
                 </div>
-                <p className="text-[13.5px] text-muted leading-relaxed max-w-[260px]">Todavía no hay plantillas. Al programar un servicio puedes guardar su lista como plantilla.</p>
+                <p className="text-[13.5px] text-muted leading-relaxed max-w-[260px]">Todavía no hay plantillas. Crea una aquí o guarda la lista de un servicio al programarlo.</p>
               </div>
             )}
 
@@ -1080,11 +1210,11 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
         </div>
         )}
 
-      {/* Editar plantilla */}
-      {plantillaEditando && (
+      {/* Editar o crear plantilla */}
+      {(plantillaEditando || creandoPlantilla) && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-4">
           <div className="glass-strong rounded-3xl max-w-md w-full p-5 max-h-[92vh] overflow-y-auto">
-            <p className="font-display font-semibold text-[16px] mb-3">Editar plantilla</p>
+            <p className="font-display font-semibold text-[16px] mb-3">{creandoPlantilla ? 'Nueva plantilla' : 'Editar plantilla'}</p>
 
             <label className="text-[13px] text-ink/75 block mb-1.5">Nombre</label>
             <input
@@ -1146,11 +1276,104 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
             </button>
 
             <div className="flex gap-2">
-              <button onClick={() => setPlantillaEditando(null)} className="flex-1 min-h-[48px] rounded-xl border border-line-strong text-ink/80 text-[14.5px] font-medium">
+              <button onClick={cerrarModalPlantilla} className="flex-1 min-h-[48px] rounded-xl border border-line-strong text-ink/80 text-[14.5px] font-medium">
                 Cancelar
               </button>
               <button onClick={handleGuardarEdicionPlantilla} className="flex-1 min-h-[48px] rounded-xl bg-teal text-inkOnAccent text-[14.5px] font-semibold">
-                Guardar
+                {creandoPlantilla ? 'Crear plantilla' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Nueva lista de carga para un proyecto que todavía no tiene una */}
+      {mostrarNuevaLista && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-4">
+          <div className="glass-strong rounded-3xl max-w-md w-full p-5 max-h-[92vh] overflow-y-auto">
+            <p className="font-display font-semibold text-[16px] mb-3">Nueva lista de carga</p>
+
+            <label className="text-[13px] text-ink/75 block mb-1.5">Proyecto</label>
+            <select
+              value={grupoNuevaLista}
+              onChange={(e) => setGrupoNuevaLista(e.target.value)}
+              className="w-full px-3 min-h-[48px] mb-4 rounded-xl bg-surface border border-line focus:border-teal focus:outline-none text-[15px]"
+            >
+              {gruposSinChecklist.map((g) => <option key={g.grupoId} value={g.grupoId}>{g.proyecto}</option>)}
+            </select>
+
+            <label className="text-[13px] text-ink/75 block mb-1.5">Herramienta, material y equipo</label>
+            {plantillas.length > 0 && (
+              <select
+                value=""
+                onChange={(e) => {
+                  const pl = plantillas.find((x) => x.id === e.target.value);
+                  if (pl) setInsumosNuevaLista((prev) => [...prev.filter((x) => x.descripcion.trim()), ...pl.items]);
+                }}
+                className="w-full px-3 min-h-[46px] mb-2.5 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[14.5px]"
+              >
+                <option value="">Cargar una plantilla…</option>
+                {plantillas.map((pl) => <option key={pl.id} value={pl.id}>{pl.nombre} ({pl.items.length})</option>)}
+              </select>
+            )}
+
+            {insumosNuevaLista.map((it, i) => (
+              <div key={i} className="mb-2.5 p-3 rounded-xl bg-surface-2 border border-line">
+                <div className="flex items-start gap-2 mb-2">
+                  <div className="flex-1 min-w-0">
+                    <SelectorArticulo
+                      valor={it.articuloId || null}
+                      cantidadPedida={it.cantidad}
+                      onChange={(a) =>
+                        setInsumosNuevaLista((prev) =>
+                          prev.map((x, idx) =>
+                            idx === i
+                              ? a
+                                ? { ...x, articuloId: a.id, descripcion: a.descripcion, unidad: a.unidad, categoria: a.categoria }
+                                : { ...x, articuloId: null }
+                              : x
+                          )
+                        )
+                      }
+                    />
+                  </div>
+                  <button
+                    onClick={() => setInsumosNuevaLista((prev) => prev.filter((_, idx) => idx !== i))}
+                    aria-label="Quitar de la lista"
+                    className="text-red w-11 h-11 flex items-center justify-center shrink-0 active:scale-90 transition-transform"
+                  >
+                    <X size={19} strokeWidth={2.6} />
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[13px] text-muted shrink-0">Cantidad</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    value={it.cantidad}
+                    onChange={(e) => setInsumosNuevaLista((prev) => prev.map((x, idx) => (idx === i ? { ...x, cantidad: parseFloat(e.target.value) || 0 } : x)))}
+                    className="w-[90px] shrink-0 px-2.5 min-h-[46px] rounded-xl bg-surface border border-line focus:border-teal focus:outline-none text-[14.5px]"
+                  />
+                  <span className="text-[14px] text-muted">{it.unidad || 'pza'}</span>
+                </div>
+              </div>
+            ))}
+
+            <button
+              onClick={() => setInsumosNuevaLista((prev) => [...prev, { categoria: 'herramienta', descripcion: '', cantidad: 1, unidad: 'pza', articuloId: null }])}
+              className="w-full text-teal text-[14.5px] font-medium min-h-[46px] flex items-center justify-center gap-1.5 border border-dashed border-teal/50 rounded-xl mb-4"
+            >
+              <Plus size={17} strokeWidth={2.6} />
+              Agregar herramienta o material
+            </button>
+
+            <div className="flex gap-2">
+              <button onClick={() => setMostrarNuevaLista(false)} className="flex-1 min-h-[48px] rounded-xl border border-line-strong text-ink/80 text-[14.5px] font-medium">
+                Cancelar
+              </button>
+              <button onClick={handleGuardarNuevaLista} disabled={guardandoNuevaLista} className="flex-1 min-h-[48px] rounded-xl bg-teal text-inkOnAccent text-[14.5px] font-semibold disabled:opacity-60">
+                {guardandoNuevaLista ? 'Guardando...' : 'Crear lista'}
               </button>
             </div>
           </div>

@@ -389,6 +389,15 @@ export async function eliminarInsumo(id: string): Promise<void> {
   if (error) throw error;
 }
 
+// Borra la lista completa de un proyecto (todos sus renglones de
+// herramienta/material/equipo), no un renglón suelto — para cuando la lista
+// se armó mal o el proyecto ya no la necesita.
+export async function eliminarChecklist(grupoId: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.from('servicio_insumos').delete().eq('grupo_id', grupoId);
+  if (error) throw error;
+}
+
 // Resumen de una lista completa, para verla como un renglón de tabla en vez
 // de desplegar todo el checklist dentro del detalle del servicio.
 export type ResumenChecklist = {
