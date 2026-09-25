@@ -6,7 +6,7 @@ import {
 } from '@/lib/levantamientos';
 import LevantamientoForm from './LevantamientoForm';
 import { showToast } from '@/components/Toast';
-import { X, Pencil, Trash2 } from 'lucide-react';
+import { X, Pencil, Trash2, FileText } from 'lucide-react';
 
 const cardCls = 'glass rounded-2xl p-4';
 
@@ -126,7 +126,14 @@ export default function LevantamientoDetalleModal({
                 <span className="text-[12.5px] text-muted">{formatFecha(levantamiento.fecha)}</span>
               </div>
               <h2 className="font-display font-bold text-[21px] leading-snug">{levantamiento.empresa}</h2>
-              <p className="text-[13px] text-muted mt-0.5">Hecho por {nombreCreador(levantamiento.profiles)}</p>
+              <p className="text-[13px] text-muted mt-0.5 mb-3">Hecho por {nombreCreador(levantamiento.profiles)}</p>
+              <button
+                onClick={() => window.open(`/api/levantamientos/${levantamiento.id}/pdf?t=${Date.now()}`, '_blank', 'noopener,noreferrer')}
+                className="min-h-[38px] inline-flex items-center gap-1.5 text-[12.5px] bg-teal text-inkOnAccent rounded-full px-3.5 py-2 font-semibold active:scale-95 transition-transform shadow-glow-teal"
+              >
+                <FileText size={15} strokeWidth={2.4} />
+                Ver PDF
+              </button>
             </div>
 
             <div className={cardCls}>

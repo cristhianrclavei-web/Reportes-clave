@@ -75,9 +75,12 @@ export default function LevantamientosSeccion({ soloPropios }: { soloPropios: bo
         <LevantamientoForm
           modo="crear"
           onCancelar={() => setSeccion('lista')}
-          onGuardado={async () => {
+          onGuardado={async (id) => {
             setSeccion('lista');
             await cargar();
+            // Recién guardado: abrir su detalle es donde está "Ver PDF" — así
+            // queda a la mano sin que la persona tenga que buscarlo en la lista.
+            setAbierto(id);
           }}
         />
       </div>
