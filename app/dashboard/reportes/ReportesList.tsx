@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabaseClient';
 import ReportDetailModal, { ReportDetail, techName } from '@/components/ReportDetailModal';
 import SupervisorShell from '@/components/SupervisorShell';
+import EmptyIllustration from '@/components/EmptyIllustration';
 import TablaLista, { ColumnaTabla } from '@/components/TablaLista';
 import LevantamientosSeccion from '@/components/LevantamientosSeccion';
 import { VistaCondicional } from '@/lib/vistaSupervisor';
@@ -186,13 +187,21 @@ export default function ReportesList({
             </div>
 
             {filtered.length === 0 && (
-              <p className="text-center text-muted py-14 text-[14px] leading-relaxed">
-                {reports.length === 0
-                  ? 'Todavía no hay reportes.'
-                  : search
-                  ? 'Sin resultados para esa búsqueda.'
-                  : 'No hay reportes en estas fechas. Cambia de semana o toca «Toda la semana».'}
-              </p>
+              <div className="flex flex-col items-center py-14 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-surface-2 border border-line flex items-center justify-center mb-3.5">
+                  <EmptyIllustration variante="lista" />
+                </div>
+                <p className="text-[14.5px] font-medium mb-1">
+                  {reports.length === 0 ? 'Todavía no hay reportes' : 'Sin resultados'}
+                </p>
+                <p className="text-[13px] text-muted leading-relaxed max-w-[280px]">
+                  {reports.length === 0
+                    ? 'Aparecerán aquí conforme los técnicos completen servicios.'
+                    : search
+                    ? 'Sin resultados para esa búsqueda.'
+                    : 'No hay reportes en estas fechas. Cambia de semana o toca «Toda la semana».'}
+                </p>
+              </div>
             )}
 
             {filtered.length > 0 && (
@@ -204,12 +213,12 @@ export default function ReportesList({
                       <div
                         key={r.id}
                         onClick={() => setOpen(r)}
-                        className="rounded-2xl border-l-4 border-teal bg-surface p-4 sm:p-5 cursor-pointer active:scale-[0.99] hover:shadow-glow transition-all shadow-glow"
+                        className="group rounded-2xl border-l-4 border-teal bg-surface p-4 sm:p-5 cursor-pointer shadow-glow transition-all duration-150 hover:-translate-y-1 hover:shadow-diffuse active:translate-y-0 active:scale-[0.99]"
                       >
                         <div className="flex justify-between items-start gap-3 mb-3">
                           <div className="min-w-0">
                             <div className="text-[10px] uppercase tracking-wider text-muted mb-0.5">Cliente / Empresa</div>
-                            <strong className="font-display font-bold text-[16px] tracking-wide block truncate">{r.empresa_cliente}</strong>
+                            <strong className="font-display font-bold text-[16px] tracking-wide block truncate transition-colors group-hover:text-teal">{r.empresa_cliente}</strong>
                           </div>
                           <div className="text-right shrink-0">
                             <div className="text-[10px] uppercase tracking-wider text-muted mb-0.5">Folio</div>

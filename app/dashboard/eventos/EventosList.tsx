@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import SupervisorShell from '@/components/SupervisorShell';
+import EmptyIllustration from '@/components/EmptyIllustration';
 import { listarAuditoriaGlobal, EntradaAuditoria, AccionGlobal } from '@/lib/auditoriaGlobal';
 import { CalendarPlus, Pencil, Users, Plus, Trash2, BadgeCheck, Flag, Banknote, AlertTriangle, MessageSquareWarning, Unlock, LockKeyhole, FileCheck, CalendarClock, PackagePlus, PackageCheck, PackageX, Warehouse, CalendarX } from 'lucide-react';
 
@@ -141,14 +142,31 @@ export default function EventosList({ userName }: { userName?: string }) {
           </select>
         </div>
 
-        {loading && <p className="text-center text-muted py-10 text-sm">Cargando...</p>}
+        {loading && (
+          <div className="flex flex-col gap-2.5" aria-busy="true">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div key={i} className="rounded-xl bg-surface-2 border border-line p-3.5">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="h-5 w-28 rounded-full skeleton-shimmer" />
+                  <div className="h-3 w-16 rounded-full skeleton-shimmer ml-auto shrink-0" />
+                </div>
+                <div className="h-3 w-3/5 rounded-full skeleton-shimmer" />
+              </div>
+            ))}
+          </div>
+        )}
         {error && <p className="text-red text-sm mb-4">{error}</p>}
         {!loading && !error && filtradas.length === 0 && (
-          <p className="text-center text-muted py-10 text-sm">
-            {entradas.length === 0
-              ? 'Todavía no hay eventos registrados — aparecerán conforme los supervisores programen, editen o eliminen registros.'
-              : 'Sin resultados con esos filtros.'}
-          </p>
+          <div className="flex flex-col items-center py-10 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-surface-2 border border-line flex items-center justify-center mb-3.5">
+              <EmptyIllustration variante="historial" />
+            </div>
+            <p className="text-[13.5px] text-muted leading-relaxed max-w-[280px]">
+              {entradas.length === 0
+                ? 'Todavía no hay eventos registrados — aparecerán conforme los supervisores programen, editen o eliminen registros.'
+                : 'Sin resultados con esos filtros.'}
+            </p>
+          </div>
         )}
 
         {porDia.map((g) => (

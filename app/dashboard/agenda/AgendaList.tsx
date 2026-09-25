@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import SupervisorShell from '@/components/SupervisorShell';
+import EmptyIllustration from '@/components/EmptyIllustration';
 import ProgressBar from '@/components/ProgressBar';
 import {
   Servicio, listarServiciosSupervisor, listarTecnicosPorServicio,
@@ -114,8 +115,16 @@ export default function AgendaList({ userName }: { userName?: string }) {
         )}
 
         {loading && (
-          <div className="flex flex-col gap-3" aria-busy="true">
-            {[0, 1, 2].map((i) => <div key={i} className="rounded-2xl bg-surface-2 h-[92px] animate-pulse" />)}
+          <div className="flex flex-col lg:grid lg:grid-cols-2 gap-2.5" aria-busy="true">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="rounded-2xl border-l-4 border-line bg-surface p-4">
+                <div className="flex justify-between items-start gap-2.5 mb-2">
+                  <div className="h-4 w-2/5 rounded-full skeleton-shimmer" />
+                  <div className="h-5 w-20 rounded-full skeleton-shimmer shrink-0" />
+                </div>
+                <div className="h-3 w-3/5 rounded-full skeleton-shimmer" />
+              </div>
+            ))}
           </div>
         )}
 
@@ -127,11 +136,19 @@ export default function AgendaList({ userName }: { userName?: string }) {
         )}
 
         {!loading && !error && bloques.length === 0 && (
-          <p className="text-center text-muted py-10 text-[14px]">
-            {search || filtroTecnico
-              ? 'Ningún servicio coincide con ese filtro.'
-              : 'No hay días pendientes en la agenda. Todo lo programado está concluido.'}
-          </p>
+          <div className="flex flex-col items-center py-14 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-surface-2 border border-line flex items-center justify-center mb-3.5">
+              <EmptyIllustration variante="agenda" />
+            </div>
+            <p className="text-[14.5px] font-medium mb-1">
+              {search || filtroTecnico ? 'Sin resultados' : 'Todo al día'}
+            </p>
+            <p className="text-[13px] text-muted leading-relaxed max-w-[280px]">
+              {search || filtroTecnico
+                ? 'Ningún servicio coincide con ese filtro.'
+                : 'No hay días pendientes en la agenda. Todo lo programado está concluido.'}
+            </p>
+          </div>
         )}
 
         {bloques.map((bloque) => (
@@ -151,13 +168,13 @@ export default function AgendaList({ userName }: { userName?: string }) {
                 return (
                   <div
                     key={s.id}
-                    className={`rounded-2xl border-l-4 bg-surface p-4 border-y border-r border-y-line border-r-line ${
+                    className={`rounded-2xl border-l-4 bg-surface p-4 border-y border-r border-y-line border-r-line transition-shadow duration-150 hover:shadow-diffuse ${
                       bloque.clave === 'vencidos' ? 'border-l-red' : bloque.clave === 'hoy' ? 'border-l-teal' : 'border-l-line-strong'
                     }`}
                   >
-                    <Link href={`/dashboard/servicios/${s.id}`} className="block active:scale-[0.99] transition-transform">
+                    <Link href={`/dashboard/servicios/${s.id}`} className="group block transition-transform duration-150 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]">
                       <div className="flex justify-between items-start gap-2.5 mb-1.5">
-                        <strong className="font-display font-bold text-[16px] leading-snug">{s.proyecto}</strong>
+                        <strong className="font-display font-bold text-[16px] leading-snug transition-colors group-hover:text-teal">{s.proyecto}</strong>
                         <span className={`text-[12px] font-semibold px-2.5 py-1 rounded-full shrink-0 flex items-center gap-1.5 ${cfg.cls}`}>
                           <cfg.Icono size={12} strokeWidth={2.6} />
                           {cfg.label}

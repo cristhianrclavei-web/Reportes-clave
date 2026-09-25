@@ -4,7 +4,7 @@
 // A propósito minimalistas: nada de gradientes ni sombras, para que encajen
 // en el mismo cuadro discreto que ya envolvía al ícono anterior.
 
-type Variante = 'clientes' | 'cotizacion' | 'proyecto' | 'plantilla' | 'lista';
+type Variante = 'clientes' | 'cotizacion' | 'proyecto' | 'plantilla' | 'lista' | 'agenda' | 'almacen' | 'historial';
 
 export default function EmptyIllustration({ variante, size = 26 }: { variante: Variante; size?: number }) {
   const props = {
@@ -62,6 +62,34 @@ export default function EmptyIllustration({ variante, size = 26 }: { variante: V
           <path d="M6.5 5.5h19a1 1 0 0 1 1 1V25.5a1 1 0 0 1-1 1h-19a1 1 0 0 1-1-1V6.5a1 1 0 0 1 1-1Z" />
           <path d="M10 11.5l1.5 1.5 3-3M15.5 12h6" />
           <path d="M10 18.5l1.5 1.5 3-3M15.5 19h6" className="text-teal" stroke="currentColor" />
+        </svg>
+      );
+    case 'agenda':
+      // Calendario con los aros del espiral y un día marcado.
+      return (
+        <svg {...props} className="text-faint">
+          <rect x="5.5" y="7" width="21" height="20" rx="1.5" />
+          <path d="M5.5 12.5h21" />
+          <path d="M11 4.5v5M21 4.5v5" />
+          <rect x="9.5" y="16" width="5" height="5" rx="1" className="text-teal" stroke="currentColor" />
+        </svg>
+      );
+    case 'almacen':
+      // Caja de bodega — tapa y una franja de cinta marcada.
+      return (
+        <svg {...props} className="text-faint">
+          <path d="M5 11.5 16 6l11 5.5L16 17Z" />
+          <path d="M5 11.5V22L16 27.5V17M27 11.5V22L16 27.5" />
+          <path d="M16 6v11" className="text-teal" stroke="currentColor" />
+        </svg>
+      );
+    case 'historial':
+      // Reloj — la manecilla marcando el "ahora".
+      return (
+        <svg {...props} className="text-faint">
+          <circle cx="16" cy="16.5" r="11" />
+          <path d="M16 6.5v-2M11 5l1 1.8M21 5l-1 1.8" />
+          <path d="M16 10v6.5h5.5" className="text-teal" stroke="currentColor" />
         </svg>
       );
   }

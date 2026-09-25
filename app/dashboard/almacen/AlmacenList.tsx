@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import SupervisorShell from '@/components/SupervisorShell';
+import EmptyIllustration from '@/components/EmptyIllustration';
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
 import {
@@ -111,8 +112,8 @@ export default function AlmacenList({ userName }: { userName?: string }) {
             <button
               key={k}
               onClick={() => setSeccion(k)}
-              className={`min-h-[54px] px-2 rounded-2xl text-[13px] font-display font-semibold border transition-colors flex items-center justify-center gap-1.5 ${
-                seccion === k ? 'bg-teal text-inkOnAccent border-teal shadow-glow-teal' : 'bg-surface-2 border-line-strong text-ink/80'
+              className={`min-h-[54px] px-2 rounded-2xl text-[13px] font-display font-semibold border transition-all duration-150 flex items-center justify-center gap-1.5 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.97] ${
+                seccion === k ? 'bg-teal text-inkOnAccent border-teal shadow-glow-teal hover:brightness-110' : 'bg-surface-2 border-line-strong text-ink/80 hover:text-ink'
               }`}
             >
               <Icono size={16} strokeWidth={2.4} className="shrink-0" />
@@ -130,8 +131,14 @@ export default function AlmacenList({ userName }: { userName?: string }) {
         )}
 
         {loading && (
-          <div className="flex flex-col gap-3" aria-busy="true">
-            {[0, 1, 2].map((i) => <div key={i} className="rounded-2xl bg-surface-2 h-[84px] animate-pulse" />)}
+          <div className="flex flex-col gap-2.5" aria-busy="true">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="rounded-2xl bg-surface border border-line p-4 flex items-center gap-3">
+                <div className="w-4 h-4 rounded skeleton-shimmer shrink-0" />
+                <div className="h-3.5 w-2/5 rounded-full skeleton-shimmer" />
+                <div className="h-3.5 w-12 rounded-full skeleton-shimmer ml-auto shrink-0" />
+              </div>
+            ))}
           </div>
         )}
 
@@ -175,9 +182,12 @@ export default function AlmacenList({ userName }: { userName?: string }) {
             </div>
 
             {existenciasFiltradas.length === 0 && (
-              <p className="text-center text-muted py-10 text-[14px] leading-relaxed">
-                Todavía no hay existencias. Registra una entrada para empezar.
-              </p>
+              <div className="flex flex-col items-center py-10 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-surface-2 border border-line flex items-center justify-center mb-3.5">
+                  <EmptyIllustration variante="almacen" />
+                </div>
+                <p className="text-[13.5px] text-muted leading-relaxed max-w-[260px]">Todavía no hay existencias. Registra una entrada para empezar.</p>
+              </div>
             )}
 
             {existenciasFiltradas.length > 0 && (
@@ -275,7 +285,12 @@ export default function AlmacenList({ userName }: { userName?: string }) {
             </p>
 
             {movimientos.length === 0 && (
-              <p className="text-center text-muted py-10 text-[14px]">Todavía no hay movimientos.</p>
+              <div className="flex flex-col items-center py-10 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-surface-2 border border-line flex items-center justify-center mb-3.5">
+                  <EmptyIllustration variante="lista" />
+                </div>
+                <p className="text-[13.5px] text-muted leading-relaxed max-w-[260px]">Todavía no hay movimientos.</p>
+              </div>
             )}
 
             <div className="flex flex-col gap-2.5 lg:gap-1.5">
@@ -384,9 +399,14 @@ export default function AlmacenList({ userName }: { userName?: string }) {
               )}
 
               {mostrar.length === 0 && (
-                <p className="text-center text-muted py-10 text-[14px]">
-                  {verBaja ? 'No hay artículos dados de baja.' : 'El catálogo está vacío.'}
-                </p>
+                <div className="flex flex-col items-center py-10 text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-surface-2 border border-line flex items-center justify-center mb-3.5">
+                    <EmptyIllustration variante="almacen" />
+                  </div>
+                  <p className="text-[13.5px] text-muted leading-relaxed max-w-[260px]">
+                    {verBaja ? 'No hay artículos dados de baja.' : 'El catálogo está vacío.'}
+                  </p>
+                </div>
               )}
 
               <div className="flex flex-col gap-2.5 lg:grid lg:grid-cols-2">
