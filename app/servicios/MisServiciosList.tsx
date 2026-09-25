@@ -12,6 +12,7 @@ import {
 import { getCurrentLocation } from '@/lib/geolocation';
 import { distanciaMetros } from '@/lib/geocerca';
 import ProgressBar from '@/components/ProgressBar';
+import EmptyIllustration from '@/components/EmptyIllustration';
 import { MapPin, Play, Check, Clock } from 'lucide-react';
 import { calcularResultadoServicio } from '@/lib/resultadoServicio';
 import { ResultadoIconos } from '@/components/ResultadoServicioBadges';
@@ -96,7 +97,14 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
         {loading && (
           <div className="flex flex-col gap-3" aria-busy="true">
             {[0, 1, 2].map((i) => (
-              <div key={i} className="rounded-2xl bg-surface-2 h-[104px] animate-pulse" />
+              <div key={i} className="rounded-2xl border-l-4 border-line bg-surface p-4">
+                <div className="flex justify-between items-start gap-2.5 mb-2">
+                  <div className="h-4 w-2/5 rounded-full skeleton-shimmer" />
+                  <div className="h-5 w-20 rounded-full skeleton-shimmer shrink-0" />
+                </div>
+                <div className="h-2 w-full rounded-full skeleton-shimmer mb-2" />
+                <div className="h-3 w-3/5 rounded-full skeleton-shimmer" />
+              </div>
             ))}
           </div>
         )}
@@ -110,9 +118,9 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
                 const pr = progresoPorGrupo[s.grupo_id];
                 const ventana = evaluarVentanaServicio(s);
                 return (
-                <Link key={s.id} href={`/servicios/${s.id}`} className={`block rounded-2xl border-l-4 ${ESTADO_CFG[s.estado].borde} border-y border-r border-y-line border-r-line bg-surface p-4 active:scale-[0.98] transition-transform`}>
+                <Link key={s.id} href={`/servicios/${s.id}`} className={`group block rounded-2xl border-l-4 ${ESTADO_CFG[s.estado].borde} border-y border-r border-y-line border-r-line bg-surface p-4 shadow-glow transition-all duration-150 hover:-translate-y-1 hover:shadow-diffuse active:translate-y-0 active:scale-[0.98]`}>
                   <div className="flex justify-between items-start gap-2.5 mb-2">
-                    <strong className="font-display font-bold text-[16px] leading-snug">{s.proyecto}</strong>
+                    <strong className="font-display font-bold text-[16px] leading-snug transition-colors group-hover:text-teal">{s.proyecto}</strong>
                     <span className={`text-[12px] font-semibold px-2.5 py-1 rounded-full shrink-0 flex items-center gap-1.5 ${ESTADO_CFG[s.estado].cls}`}>
                       {(() => { const I = ESTADO_CFG[s.estado].Icono; return <I size={13} strokeWidth={2.6} />; })()}
                       {ESTADO_CFG[s.estado].label}
@@ -143,11 +151,11 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
             <div className="text-[13px] font-semibold text-muted mb-2.5">Concluidos</div>
             <div className="flex flex-col gap-2.5">
               {concluidos.map((s) => (
-                <Link key={s.id} href={`/servicios/${s.id}`} className="block rounded-xl bg-surface-2 border border-line p-3.5 active:scale-[0.99] transition-transform opacity-80">
+                <Link key={s.id} href={`/servicios/${s.id}`} className="group block rounded-xl bg-surface-2 border border-line p-3.5 opacity-80 transition-all duration-150 hover:opacity-100 hover:-translate-y-0.5 hover:shadow-diffuse active:translate-y-0 active:scale-[0.99]">
                   <div className="flex justify-between items-center gap-2.5">
                     <span className="text-[14px] font-semibold flex items-center gap-2 min-w-0">
                       <ResultadoIconos resultado={calcularResultadoServicio(s, progresoPorGrupo[s.grupo_id])} size={15} />
-                      <span className="truncate">{s.proyecto}</span>
+                      <span className="truncate transition-colors group-hover:text-teal">{s.proyecto}</span>
                     </span>
                     <span className="text-[12px] text-muted shrink-0">{s.dias_totales > 1 ? `Día ${s.numero_dia}/${s.dias_totales}` : formatFecha(s.fecha)}</span>
                   </div>
@@ -158,7 +166,15 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
         )}
 
         {!loading && servicios.length === 0 && !error && (
-          <p className="text-center text-muted py-10 text-[14px]">No tienes servicios programados. Tu supervisor te avisará cuando programe uno.</p>
+          <div className="flex flex-col items-center py-10 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-surface-2 border border-line flex items-center justify-center mb-3.5">
+              <EmptyIllustration variante="proyecto" />
+            </div>
+            <p className="text-[14.5px] font-medium mb-1">Todavía no tienes servicios</p>
+            <p className="text-[13px] text-muted leading-relaxed max-w-[280px]">
+              Aparecerán aquí conforme tu supervisor programe uno.
+            </p>
+          </div>
         )}
       </div>
     </div>
