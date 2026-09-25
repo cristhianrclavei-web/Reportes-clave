@@ -1,11 +1,22 @@
 import { createClient } from './supabaseClient';
 import { registrarAccionGlobal } from './auditoriaGlobal';
 import type { EstadoProyecto } from './proyectos';
+import { DatosCliente, TipoPersona, filaClienteDesdeDatos, validarDatosCliente } from './clienteDatos';
 
 export type Cliente = {
   id: string;
   nombre: string;
+  // Opcionales porque son columnas nuevas (patch_cliente_tipo_y_direccion.sql):
+  // hasta que el parche corra, o en filas viejas, pueden venir sin valor.
+  tipo_persona?: TipoPersona | null;
   direccion: string | null;
+  calle?: string | null;
+  num_exterior?: string | null;
+  num_interior?: string | null;
+  colonia?: string | null;
+  codigo_postal?: string | null;
+  ciudad?: string | null;
+  estado?: string | null;
   logo_path: string | null;
   foto_portada_path: string | null;
   created_by: string;
@@ -53,24 +64,25 @@ async function urlFirmada(supabase: ReturnType<typeof createClient>, path: strin
   return data?.signedUrl || null;
 }
 
-export async function crearCliente(input: { nombre: string; direccion: string }): Promise<string> {
+export async function crearCliente(input: DatosCliente): Promise<string> {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('No hay sesión activa');
-  const nombre = input.nombre.trim();
-  if (!nombre) throw new Error('Falta el nombre del cliente.');
+  const errorDatos = validarDatosCliente(input);
+  if (errorDatos) throw new Error(errorDatos);
+  const fila = filaClienteDesdeDatos(input);
 
-  const { data: existente } = await supabase.from('clientes').select('id').ilike('nombre', nombre).maybeSingle();
+  const { data: existente } = await supabase.from('clientes').select('id').ilike('nombre', fila.nombre).maybeSingle();
   if (existente) throw new Error('Ya existe un cliente con ese nombre.');
 
   const { data, error } = await supabase
     .from('clientes')
-    .insert({ nombre, direccion: input.direccion.trim() || null, created_by: user.id })
+    .insert({ ...fila, created_by: user.id })
     .select('id')
     .single();
   if (error) throw error;
 
-  await registrarAccionGlobal('creo_proyecto', 'proyecto', data.id, `Dio de alta al cliente «${nombre}»`);
+  await registrarAccionGlobal('creo_proyecto', 'proyecto', data.id, `Dio de alta al cliente «${fila.nombre}»`);
   return data.id as string;
 }
 
@@ -147,11 +159,11 @@ export async function obtenerClienteCompleto(id: string): Promise<{
   return { cliente: cliente as Cliente, logoUrl, portadaUrl, contactos: (contactos as ClienteContacto[]) || [], proyectos: proyectosResumen };
 }
 
-export async function actualizarPerfilCliente(id: string, input: { nombre: string; direccion: string }): Promise<void> {
+export async function actualizarPerfilCliente(id: string, input: DatosCliente): Promise<void> {
   const supabase = createClient();
-  const nombre = input.nombre.trim();
-  if (!nombre) throw new Error('Falta el nombre del cliente.');
-  const { error } = await supabase.from('clientes').update({ nombre, direccion: input.direccion.trim() || null }).eq('id', id);
+  const errorDatos = validarDatosCliente(input);
+  if (errorDatos) throw new Error(errorDatos);
+  const { error } = await supabase.from('clientes').update(filaClienteDesdeDatos(input)).eq('id', id);
   if (error) throw error;
 }
 

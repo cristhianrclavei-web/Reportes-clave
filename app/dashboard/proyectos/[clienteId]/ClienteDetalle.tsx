@@ -11,8 +11,11 @@ import {
   eliminarFotoPortadaCliente, agregarContacto, eliminarContacto, eliminarCliente,
 } from '@/lib/clientes';
 import { EstadoProyecto, SISTEMAS_SUGERIDOS, crearProyectoParaCliente } from '@/lib/proyectos';
+import { DatosCliente, datosClienteVacios, datosDesdeCliente } from '@/lib/clienteDatos';
+import CamposCliente from '@/components/CamposCliente';
+import ClienteAvatar, { fondoAvatar } from '@/components/ClienteAvatar';
 import {
-  ChevronLeft, Building2, Camera, MapPin, Phone, Mail, User, Plus, X, Trash2,
+  ChevronLeft, Camera, MapPin, Phone, Mail, User, Plus, X, Trash2,
   Pencil, Check, FileText, Receipt, ChevronRight, FolderOpen, ImagePlus,
 } from 'lucide-react';
 
@@ -46,8 +49,7 @@ export default function ClienteDetalle({ clienteId, userName }: { clienteId: str
   const [subiendoPortada, setSubiendoPortada] = useState(false);
 
   const [editandoPerfil, setEditandoPerfil] = useState(false);
-  const [nombreEdit, setNombreEdit] = useState('');
-  const [direccionEdit, setDireccionEdit] = useState('');
+  const [perfilEdit, setPerfilEdit] = useState<DatosCliente>(datosClienteVacios());
   const [guardandoPerfil, setGuardandoPerfil] = useState(false);
 
   const [showContacto, setShowContacto] = useState(false);
@@ -71,8 +73,7 @@ export default function ClienteDetalle({ clienteId, userName }: { clienteId: str
     try {
       const d = await obtenerClienteCompleto(clienteId);
       setDatos(d);
-      setNombreEdit(d.cliente.nombre);
-      setDireccionEdit(d.cliente.direccion || '');
+      setPerfilEdit(datosDesdeCliente(d.cliente));
     } catch (e: any) {
       setError(e?.message || 'No se pudo cargar el cliente');
     } finally {
@@ -147,7 +148,7 @@ export default function ClienteDetalle({ clienteId, userName }: { clienteId: str
   async function handleGuardarPerfil() {
     setGuardandoPerfil(true);
     try {
-      await actualizarPerfilCliente(clienteId, { nombre: nombreEdit, direccion: direccionEdit });
+      await actualizarPerfilCliente(clienteId, perfilEdit);
       showToast('Perfil actualizado', 'success');
       setEditandoPerfil(false);
       await cargar();
@@ -273,14 +274,15 @@ export default function ClienteDetalle({ clienteId, userName }: { clienteId: str
           <button
             onClick={() => fotoInputRef.current?.click()}
             disabled={subiendoFoto}
-            className="relative shrink-0 w-20 h-20 rounded-2xl bg-surface-2 border border-line overflow-hidden flex items-center justify-center active:scale-95 transition-transform disabled:opacity-60"
+            className={`relative shrink-0 w-20 h-20 rounded-2xl border border-line overflow-hidden flex items-center justify-center active:scale-95 transition-transform disabled:opacity-60 ${logoUrl ? 'bg-white' : fondoAvatar(cliente.tipo_persona)}`}
             aria-label="Cambiar foto de perfil"
           >
             {logoUrl ? (
+              // Un logo no se recorta: se ajusta completo al cuadro, sea ancho, alto o cuadrado.
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={logoUrl} alt="" className="w-full h-full object-cover" />
+              <img src={logoUrl} alt="" className="w-full h-full object-contain p-1.5" />
             ) : (
-              <Building2 size={26} strokeWidth={1.8} className="text-faint" />
+              <ClienteAvatar tipo={cliente.tipo_persona} size={56} />
             )}
             <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
               <Camera size={18} strokeWidth={2.2} className="text-white" />
@@ -292,7 +294,12 @@ export default function ClienteDetalle({ clienteId, userName }: { clienteId: str
             {!editandoPerfil ? (
               <>
                 <div className="flex items-start justify-between gap-2">
-                  <h2 className="font-display font-bold text-[19px] leading-tight">{cliente.nombre}</h2>
+                  <div className="min-w-0">
+                    <h2 className="font-display font-bold text-[19px] leading-tight">{cliente.nombre}</h2>
+                    <span className={`inline-block mt-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${cliente.tipo_persona === 'fisica' ? 'bg-amber/15 text-amber' : 'bg-teal/15 text-teal'}`}>
+                      {cliente.tipo_persona === 'fisica' ? 'Persona física' : 'Empresa'}
+                    </span>
+                  </div>
                   <button onClick={() => setEditandoPerfil(true)} aria-label="Editar" className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-muted active:scale-90 transition-transform">
                     <Pencil size={14} strokeWidth={2.3} />
                   </button>
@@ -307,12 +314,11 @@ export default function ClienteDetalle({ clienteId, userName }: { clienteId: str
               </>
             ) : (
               <div>
-                <label className={labelCls}>Nombre</label>
-                <input value={nombreEdit} onChange={(e) => setNombreEdit(e.target.value)} className={`${inputCls} mb-2.5`} />
-                <label className={labelCls}>Dirección</label>
-                <input value={direccionEdit} onChange={(e) => setDireccionEdit(e.target.value)} className={`${inputCls} mb-3`} placeholder="Calle, colonia, ciudad..." />
+                <div className="mb-3">
+                  <CamposCliente valor={perfilEdit} onChange={setPerfilEdit} />
+                </div>
                 <div className="flex gap-2">
-                  <button onClick={() => { setEditandoPerfil(false); setNombreEdit(cliente.nombre); setDireccionEdit(cliente.direccion || ''); }} className="flex-1 min-h-[42px] rounded-xl border border-line-strong text-[13.5px]">Cancelar</button>
+                  <button onClick={() => { setEditandoPerfil(false); setPerfilEdit(datosDesdeCliente(cliente)); }} className="flex-1 min-h-[42px] rounded-xl border border-line-strong text-[13.5px]">Cancelar</button>
                   <button onClick={handleGuardarPerfil} disabled={guardandoPerfil} className="flex-1 min-h-[42px] rounded-xl bg-teal text-inkOnAccent text-[13.5px] font-semibold flex items-center justify-center gap-1.5 disabled:opacity-60">
                     <Check size={15} strokeWidth={2.6} /> {guardandoPerfil ? 'Guardando...' : 'Guardar'}
                   </button>

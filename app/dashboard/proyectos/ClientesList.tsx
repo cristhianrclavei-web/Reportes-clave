@@ -8,11 +8,10 @@ import ModalOverlay from '@/components/ModalOverlay';
 import EmptyIllustration from '@/components/EmptyIllustration';
 import { showToast } from '@/components/Toast';
 import { ClienteConResumen, listarClientesConResumen, crearCliente } from '@/lib/clientes';
-import { Plus, Search, Building2, MapPin } from 'lucide-react';
-
-const labelCls = 'block text-[11px] font-semibold uppercase tracking-wider text-muted mb-1.5';
-const inputCls =
-  'w-full px-3.5 py-2.5 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal-glow text-[15px] transition-colors placeholder:text-faint';
+import { DatosCliente, datosClienteVacios, validarDatosCliente } from '@/lib/clienteDatos';
+import CamposCliente from '@/components/CamposCliente';
+import ClienteAvatar, { fondoAvatar } from '@/components/ClienteAvatar';
+import { Plus, Search, MapPin } from 'lucide-react';
 
 export default function ClientesList({ userName }: { userName?: string }) {
   const router = useRouter();
@@ -22,8 +21,7 @@ export default function ClientesList({ userName }: { userName?: string }) {
   const [search, setSearch] = useState('');
 
   const [showNuevo, setShowNuevo] = useState(false);
-  const [nombreNuevo, setNombreNuevo] = useState('');
-  const [direccionNueva, setDireccionNueva] = useState('');
+  const [datosNuevo, setDatosNuevo] = useState<DatosCliente>(datosClienteVacios());
   const [creando, setCreando] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -57,14 +55,15 @@ export default function ClientesList({ userName }: { userName?: string }) {
   }, [clientes]);
 
   async function handleCrear() {
-    if (!nombreNuevo.trim()) {
-      setMsg('Falta el nombre del cliente.');
+    const errorDatos = validarDatosCliente(datosNuevo);
+    if (errorDatos) {
+      setMsg(errorDatos);
       return;
     }
     setCreando(true);
     setMsg(null);
     try {
-      const id = await crearCliente({ nombre: nombreNuevo, direccion: direccionNueva });
+      const id = await crearCliente(datosNuevo);
       showToast('Cliente creado', 'success');
       router.push(`/dashboard/proyectos/${id}`);
     } catch (e: any) {
@@ -120,7 +119,7 @@ export default function ClientesList({ userName }: { userName?: string }) {
           />
         </div>
         <button
-          onClick={() => { setShowNuevo(true); setNombreNuevo(''); setDireccionNueva(''); setMsg(null); }}
+          onClick={() => { setShowNuevo(true); setDatosNuevo(datosClienteVacios()); setMsg(null); }}
           className="shrink-0 min-h-[48px] px-4 rounded-xl bg-teal text-inkOnAccent font-display font-semibold text-[13.5px] flex items-center gap-1.5 transition-all duration-150 hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0 active:scale-95 shadow-glow-teal"
         >
           <Plus size={17} strokeWidth={2.4} />
@@ -177,12 +176,13 @@ export default function ClientesList({ userName }: { userName?: string }) {
               )}
               <div className="p-4">
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-12 h-12 rounded-xl bg-surface-2 border border-line overflow-hidden flex items-center justify-center shrink-0">
+                <div className={`w-12 h-12 rounded-xl border border-line overflow-hidden flex items-center justify-center shrink-0 ${c.logo_url ? 'bg-white' : fondoAvatar(c.tipo_persona)}`}>
                   {c.logo_url ? (
+                    // Un logo no se recorta: se ajusta completo al cuadro, sea ancho, alto o cuadrado.
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={c.logo_url} alt="" className="w-full h-full object-cover" />
+                    <img src={c.logo_url} alt="" className="w-full h-full object-contain p-1" />
                   ) : (
-                    <Building2 size={20} strokeWidth={1.8} className="text-faint" />
+                    <ClienteAvatar tipo={c.tipo_persona} size={34} />
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -219,10 +219,9 @@ export default function ClientesList({ userName }: { userName?: string }) {
         <ModalOverlay onClose={() => setShowNuevo(false)}>
           <div className="glass-strong rounded-3xl max-w-md w-full p-5 max-h-[92vh] overflow-y-auto">
             <p className="font-display font-semibold text-[16px] mb-3.5">Nuevo cliente</p>
-            <label className={labelCls}>Nombre / Empresa *</label>
-            <input value={nombreNuevo} onChange={(e) => setNombreNuevo(e.target.value)} placeholder="Ej. Aislantes y Empaques" className={`${inputCls} mb-3`} />
-            <label className={labelCls}>Dirección (opcional)</label>
-            <input value={direccionNueva} onChange={(e) => setDireccionNueva(e.target.value)} placeholder="Calle, colonia, ciudad..." className={`${inputCls} mb-4`} />
+            <div className="mb-4">
+              <CamposCliente valor={datosNuevo} onChange={setDatosNuevo} />
+            </div>
             {msg && <div className="text-sm px-4 py-3 mb-3.5 rounded-xl bg-red/10 text-red border border-red/30">{msg}</div>}
             <div className="flex gap-2">
               <button onClick={() => setShowNuevo(false)} className="flex-1 min-h-[48px] rounded-xl border border-line-strong text-ink/80 text-[14.5px] font-medium">Cancelar</button>
