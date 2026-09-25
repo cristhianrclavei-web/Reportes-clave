@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ReportDetail } from './ReportDetailModal';
 import BotonInfo from '@/components/BotonInfo';
 import { hoyLocal } from '@/lib/fechaHoy';
@@ -74,13 +74,20 @@ function DonutChart({ percent, size = 108, stroke = 12, color }: { percent: numb
 
 export default function KpiSection({ reports }: { reports: Report[] }) {
   const [periodo, setPeriodo] = useState<'dia' | 'semana'>('semana');
+  // "Hoy"/"esta semana" dependen de la hora del navegador, que puede no
+  // coincidir con la del servidor (Vercel corre en UTC) — ver el comentario
+  // en components/SelectorSemana.tsx. Mismo patrón: arranca en null (mismo
+  // valor en servidor y primer render del cliente) y se corrige ya montado.
+  const [ahora, setAhora] = useState<number | null>(null);
+  useEffect(() => setAhora(Date.now()), []);
 
   const kpiReports = useMemo(() => {
-    const today = hoyLocal();
-    const weekAgo = new Date(Date.now() - 7 * 864e5);
+    if (ahora === null) return [];
+    const today = hoyLocal(new Date(ahora));
+    const weekAgo = new Date(ahora - 7 * 864e5);
     if (periodo === 'dia') return reports.filter((r) => r.fecha === today);
     return reports.filter((r) => new Date(r.created_at) >= weekAgo);
-  }, [reports, periodo]);
+  }, [reports, periodo, ahora]);
 
   const { avgLabel, avgSampleSize } = useMemo(() => {
     const durations = kpiReports.map(reportDurationMinutes).filter((d): d is number => d !== null);

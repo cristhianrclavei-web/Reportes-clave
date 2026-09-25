@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabaseClient';
 import ReportDetailModal, { ReportDetail, techName } from '@/components/ReportDetailModal';
@@ -41,6 +41,11 @@ export default function ReportesList({
   const fechasDeReportes = useMemo(() => reports.map((r) => r.fecha).filter(Boolean), [reports]);
   const [open, setOpen] = useState<Report | null>(null);
   const [subseccion, setSubseccion] = useState<'reportes' | 'levantamientos'>('reportes');
+  // Ver el comentario en lib/reportStatus.ts: "ahora" solo se conoce ya
+  // montado en el cliente, para que el chip de facturación no dispare un
+  // error de hidratación.
+  const [ahora, setAhora] = useState<number | null>(null);
+  useEffect(() => setAhora(Date.now()), []);
 
   function handleReporteEliminado(reportId: string) {
     setReports((prev) => prev.filter((r) => r.id !== reportId));
@@ -242,7 +247,7 @@ export default function ReportesList({
                             </span>
                           )}
                           {(() => {
-                            const chip = facturaChip(r.data, r.fecha);
+                            const chip = facturaChip(r.data, r.fecha, ahora);
                             return chip ? <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${chip.className}`}>{chip.label}</span> : null;
                           })()}
                         </div>

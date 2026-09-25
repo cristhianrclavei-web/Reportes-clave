@@ -55,6 +55,12 @@ export default function ResumenList({
   // vacía es indistinguible de que de verdad no hay nada — así que el fallo
   // se muestra en vez de tragarse.
   const [erroresAvisos, setErroresAvisos] = useState<string[]>([]);
+  // "Hoy"/"esta semana" dependen de la hora del navegador, que puede no
+  // coincidir con la del servidor (Vercel corre en UTC) — ver el comentario
+  // en components/SelectorSemana.tsx. Mismo patrón: arranca en null (mismo
+  // valor en servidor y primer render del cliente) y se corrige ya montado.
+  const [ahora, setAhora] = useState<number | null>(null);
+  useEffect(() => setAhora(Date.now()), []);
 
   function marcarErrorAviso(descripcion: string) {
     setErroresAvisos((prev) => (prev.includes(descripcion) ? prev : [...prev, descripcion]));
@@ -95,10 +101,10 @@ export default function ResumenList({
 
   // Mismos criterios que tenía el panel antes de separarse, para que los
   // números no cambien de significado al moverse de pantalla.
-  const today = hoyLocal();
-  const weekAgo = new Date(Date.now() - 7 * 864e5);
-  const totalToday = reports.filter((r) => r.fecha === today).length;
-  const totalWeek = reports.filter((r) => new Date(r.created_at) >= weekAgo).length;
+  const today = ahora !== null ? hoyLocal(new Date(ahora)) : '';
+  const weekAgo = ahora !== null ? new Date(ahora - 7 * 864e5) : null;
+  const totalToday = ahora !== null ? reports.filter((r) => r.fecha === today).length : 0;
+  const totalWeek = weekAgo ? reports.filter((r) => new Date(r.created_at) >= weekAgo).length : 0;
   const tecnicosActivos = new Set(reports.map((r) => techName(r.profiles))).size;
   const porFacturar = reports.filter((r) => r.data?.servicioConcluido && r.data?.facturaEstado !== 'facturado').length;
 

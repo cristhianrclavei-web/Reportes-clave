@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { createClient } from '@/lib/supabaseClient';
 import { registrarAccionGlobal } from '@/lib/auditoriaGlobal';
 import { Check, FileText } from 'lucide-react';
@@ -61,6 +61,12 @@ export default function FacturacionSection({
   const [subiendo, setSubiendo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // "Días sin facturar" depende de la hora del navegador, que puede no
+  // coincidir con la del servidor (Vercel corre en UTC) — ver el comentario
+  // en components/SelectorSemana.tsx. Mismo patrón: arranca en null (mismo
+  // valor en servidor y primer render del cliente) y se corrige ya montado.
+  const [ahora, setAhora] = useState<number | null>(null);
+  useEffect(() => setAhora(Date.now()), []);
 
   const folio = claveFormato ? ` (folio ${claveFormato})` : '';
 
@@ -155,10 +161,10 @@ export default function FacturacionSection({
   }
 
   function diasSinFacturar(): number | null {
-    if (factura.estado === 'facturado') return null;
+    if (factura.estado === 'facturado' || ahora === null) return null;
     const desde = fechaConcluido || fechaReporte;
     if (!desde) return null;
-    const ms = Date.now() - new Date(desde + 'T00:00:00').getTime();
+    const ms = ahora - new Date(desde + 'T00:00:00').getTime();
     const dias = Math.floor(ms / 86400000);
     return dias > 0 ? dias : null;
   }

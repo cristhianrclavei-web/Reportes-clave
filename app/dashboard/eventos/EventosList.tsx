@@ -57,10 +57,15 @@ function fmtHora(iso: string) {
   return new Date(iso).toLocaleTimeString('es-MX', { hour: '2-digit', hour12: false, minute: '2-digit' });
 }
 
-function fmtDia(iso: string) {
+// "Hoy"/"Ayer" dependen de `ahora`, que se recibe desde afuera en vez de leer
+// new Date() aquí — ver el comentario en components/SelectorSemana.tsx: el
+// servidor (Vercel, UTC) y el navegador (México) pueden calcular un día
+// distinto y React truena al hidratar.
+function fmtDia(iso: string, ahora: number | null) {
   const d = new Date(iso);
-  const hoy = new Date();
-  const ayer = new Date(Date.now() - 864e5);
+  if (ahora === null) return d.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
+  const hoy = new Date(ahora);
+  const ayer = new Date(ahora - 864e5);
   if (d.toDateString() === hoy.toDateString()) return 'Hoy';
   if (d.toDateString() === ayer.toDateString()) return 'Ayer';
   return d.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -72,12 +77,14 @@ export default function EventosList({ userName }: { userName?: string }) {
   const [error, setError] = useState<string | null>(null);
   const [filtroActor, setFiltroActor] = useState('');
   const [filtroAccion, setFiltroAccion] = useState('');
+  const [ahora, setAhora] = useState<number | null>(null);
 
   useEffect(() => {
     listarAuditoriaGlobal()
       .then(setEntradas)
       .catch((e) => setError(e?.message || 'No se pudieron cargar los eventos'))
       .finally(() => setLoading(false));
+    setAhora(Date.now());
   }, []);
 
   const actores = useMemo(() => {
@@ -100,13 +107,13 @@ export default function EventosList({ userName }: { userName?: string }) {
   const porDia = useMemo(() => {
     const grupos: { dia: string; items: EntradaAuditoria[] }[] = [];
     filtradas.forEach((e) => {
-      const dia = fmtDia(e.created_at);
+      const dia = fmtDia(e.created_at, ahora);
       const ultimo = grupos[grupos.length - 1];
       if (ultimo && ultimo.dia === dia) ultimo.items.push(e);
       else grupos.push({ dia, items: [e] });
     });
     return grupos;
-  }, [filtradas]);
+  }, [filtradas, ahora]);
 
   return (
     <SupervisorShell

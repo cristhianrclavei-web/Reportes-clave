@@ -42,10 +42,13 @@ function fmtHora(iso: string) {
 }
 
 // Si la tarea se completó otro día (proyectos multi-día con checklist
-// compartido), mostrar también la fecha; si fue hoy, solo la hora.
-function fmtHoraOFecha(iso: string) {
+// compartido), mostrar también la fecha; si fue hoy, solo la hora. Recibe
+// `ahora` (el reloj en vivo del componente) en vez de leer new Date() aquí,
+// mismo patrón que components/SelectorSemana.tsx, por si algún día esta
+// lista deja de depender por completo de datos cargados ya montado.
+function fmtHoraOFecha(iso: string, ahora: number) {
   const d = new Date(iso);
-  const hoy = new Date();
+  const hoy = new Date(ahora);
   const esHoy = d.toDateString() === hoy.toDateString();
   if (esHoy) return fmtHora(iso);
   return d.toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', hour12: false, minute: '2-digit' });
@@ -645,7 +648,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
                 {enProgreso && <ProgressBar pct={t.avance_pct} className="mt-2 max-w-[140px]" />}
                 {t.completada && t.completada_en && (
                   <p className="text-[12px] text-teal font-semibold mt-1 flex items-center gap-1.5">
-                    {fmtHoraOFecha(t.completada_en)}
+                    {fmtHoraOFecha(t.completada_en, ahora)}
                     {t.foto_path && <Camera size={13} strokeWidth={2.4} />}
                   </p>
                 )}
