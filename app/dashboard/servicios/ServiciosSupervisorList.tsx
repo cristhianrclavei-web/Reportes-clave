@@ -222,11 +222,16 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
       mapa[s.grupo_id].dias.push(s);
     });
     Object.values(mapa).forEach((g) => g.dias.sort((a, b) => a.numero_dia - b.numero_dia));
-    return Object.values(mapa).sort((a, b) => {
-      const fa = a.dias[a.dias.length - 1]?.created_at || '';
-      const fb = b.dias[b.dias.length - 1]?.created_at || '';
-      return fb.localeCompare(fa);
-    });
+    return Object.values(mapa)
+      // "Agendados" es lo que todavía tiene trabajo pendiente. Un proyecto
+      // con todos sus días concluidos ya no es "agendado" — su historial
+      // sigue disponible desde Proyectos.
+      .filter((g) => g.dias.some((d) => d.estado !== 'concluido'))
+      .sort((a, b) => {
+        const fa = a.dias[a.dias.length - 1]?.created_at || '';
+        const fb = b.dias[b.dias.length - 1]?.created_at || '';
+        return fb.localeCompare(fa);
+      });
   }, [servicios, rango, busquedaServicio]);
 
   // Con llegada y salida acordadas, la duración ya no hay que estimarla a
@@ -992,7 +997,8 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
           </div>
         )}
 
-        <div className={`flex flex-col lg:grid lg:grid-cols-2 gap-3 lg:items-start ${seccion === 'agendados' ? '' : 'hidden'}`}>
+        {seccion === 'agendados' && (
+        <div className="flex flex-col lg:grid lg:grid-cols-2 gap-3 lg:items-start">
           {grupos.map((g) => {
             const diasConReporte = g.dias.filter((d) => d.report_id).length;
             const abierto = grupoAbierto === g.grupoId;
@@ -1072,6 +1078,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
             );
           })}
         </div>
+        )}
 
       {/* Editar plantilla */}
       {plantillaEditando && (
