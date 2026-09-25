@@ -35,6 +35,12 @@ function formatFecha(fecha: string): string {
   return `${d}/${m}/${y}`;
 }
 
+// Mismas clases que ya usan el formulario de "Nuevo reporte" y el de
+// cotizaciones: tarjetas separadas por sección en vez de un formulario
+// plano, con la etiqueta en teal + punto de color.
+const cardCls = 'glass rounded-2xl p-4';
+const cardTitleCls = 'font-display font-semibold text-[13px] uppercase tracking-wider text-teal mb-3.5 flex items-center gap-2';
+
 type Grupo = { grupoId: string; proyecto: string; dias: Servicio[] };
 
 function sumarDias(fecha: string, n: number): string {
@@ -631,63 +637,71 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
             Programar servicio o proyecto
           </button>
         ) : (
-          <div className="glass rounded-2xl p-4 mb-5">
-            <p className="font-display font-semibold text-[16px] mb-3">Nuevo servicio programado</p>
+          <div className="flex flex-col gap-4 mb-5">
+            <div className={cardCls}>
+              <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Datos del proyecto</p>
 
-            <label className="text-[13px] text-ink/75 block mb-1.5">Proyecto / Cliente</label>
-            <input value={proyecto} onChange={(e) => setProyecto(e.target.value)} className="w-full px-3.5 min-h-[48px] mb-3 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]" placeholder="Ej. PRINT PACK — Etapa 4" />
+              <label className="text-[13px] text-ink/75 block mb-1.5">Proyecto / Cliente</label>
+              <input value={proyecto} onChange={(e) => setProyecto(e.target.value)} className="w-full px-3.5 min-h-[48px] mb-3 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]" placeholder="Ej. PRINT PACK — Etapa 4" />
 
-            <label className="text-[13px] text-ink/75 block mb-1.5">Descripción (opcional)</label>
-            <input value={descripcion} onChange={(e) => setDescripcion(e.target.value)} className="w-full px-3.5 min-h-[48px] mb-3 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]" placeholder="Detalle breve del servicio" />
+              <label className="text-[13px] text-ink/75 block mb-1.5">Descripción (opcional)</label>
+              <input value={descripcion} onChange={(e) => setDescripcion(e.target.value)} className="w-full px-3.5 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px] min-h-[48px]" placeholder="Detalle breve del servicio" />
+            </div>
 
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div>
-                <label className="text-[13px] text-ink/75 block mb-1.5">{diasTotales > 1 && diasSeguidos ? 'Fecha de inicio' : 'Fecha'}</label>
-                <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="w-full px-3.5 min-h-[48px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]" />
+            <div className={cardCls}>
+              <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Fecha y horario</p>
+
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                  <label className="text-[13px] text-ink/75 block mb-1.5">{diasTotales > 1 && diasSeguidos ? 'Fecha de inicio' : 'Fecha'}</label>
+                  <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="w-full px-3.5 min-h-[48px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]" />
+                </div>
+                <div>
+                  <label className="text-[13px] text-ink/75 block mb-1.5">Hora de llegada programada</label>
+                  <input
+                    type="time"
+                    value={horaProgramada}
+                    onChange={(e) => setHoraProgramada(e.target.value)}
+                    className="w-full px-3.5 min-h-[48px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]"
+                  />
+                  <p className="text-[11px] text-faint mt-1">Opcional. Sin ella no se mide puntualidad.</p>
+                </div>
               </div>
-              <div>
-                <label className="text-[13px] text-ink/75 block mb-1.5">Hora de llegada programada</label>
-                <input
-                  type="time"
-                  value={horaProgramada}
-                  onChange={(e) => setHoraProgramada(e.target.value)}
-                  className="w-full px-3.5 min-h-[48px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]"
-                />
-                <p className="text-[11px] text-faint mt-1">Opcional. Sin ella no se mide puntualidad.</p>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[13px] text-ink/75 block mb-1.5">Hora de salida programada</label>
+                  <input
+                    type="time"
+                    value={horaSalidaProgramada}
+                    onChange={(e) => { setHoraSalidaProgramada(e.target.value); setUltimoCampoEditado('salida'); }}
+                    readOnly={salidaCalculada !== null}
+                    className={`w-full px-3.5 min-h-[48px] rounded-xl border border-line focus:border-teal focus:outline-none text-[15px] ${salidaCalculada !== null ? 'bg-surface text-muted' : 'bg-surface-2'}`}
+                  />
+                  {salidaCalculada !== null && (
+                    <p className="text-[11px] text-faint mt-1">Calculada de llegada + duración.</p>
+                  )}
+                </div>
+                <div>
+                  <label className="text-[13px] text-ink/75 block mb-1.5">Duración estimada (min/día)</label>
+                  <input
+                    type="number"
+                    value={duracionMin === 0 ? '' : duracionMin}
+                    onChange={(e) => { setDuracionMin(e.target.value === '' ? 0 : parseInt(e.target.value) || 0); setUltimoCampoEditado('duracion'); }}
+                    placeholder="120"
+                    readOnly={duracionCalculada !== null}
+                    className={`w-full px-3.5 min-h-[48px] rounded-xl border border-line focus:border-teal focus:outline-none text-[15px] ${duracionCalculada !== null ? 'bg-surface text-muted' : 'bg-surface-2'}`}
+                  />
+                  {duracionCalculada !== null && (
+                    <p className="text-[11px] text-faint mt-1">Calculada de llegada a salida.</p>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div>
-                <label className="text-[13px] text-ink/75 block mb-1.5">Hora de salida programada</label>
-                <input
-                  type="time"
-                  value={horaSalidaProgramada}
-                  onChange={(e) => { setHoraSalidaProgramada(e.target.value); setUltimoCampoEditado('salida'); }}
-                  readOnly={salidaCalculada !== null}
-                  className={`w-full px-3.5 min-h-[48px] rounded-xl border border-line focus:border-teal focus:outline-none text-[15px] ${salidaCalculada !== null ? 'bg-surface text-muted' : 'bg-surface-2'}`}
-                />
-                {salidaCalculada !== null && (
-                  <p className="text-[11px] text-faint mt-1">Calculada de llegada + duración.</p>
-                )}
-              </div>
-              <div>
-                <label className="text-[13px] text-ink/75 block mb-1.5">Duración estimada (min/día)</label>
-                <input
-                  type="number"
-                  value={duracionMin === 0 ? '' : duracionMin}
-                  onChange={(e) => { setDuracionMin(e.target.value === '' ? 0 : parseInt(e.target.value) || 0); setUltimoCampoEditado('duracion'); }}
-                  placeholder="120"
-                  readOnly={duracionCalculada !== null}
-                  className={`w-full px-3.5 min-h-[48px] rounded-xl border border-line focus:border-teal focus:outline-none text-[15px] ${duracionCalculada !== null ? 'bg-surface text-muted' : 'bg-surface-2'}`}
-                />
-                {duracionCalculada !== null && (
-                  <p className="text-[11px] text-faint mt-1">Calculada de llegada a salida.</p>
-                )}
-              </div>
-            </div>
-
-            <label className="text-[13px] text-ink/75 block mb-1.5">Ubicación del sitio (opcional)</label>
+            <div className={cardCls}>
+              <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Ubicación del sitio</p>
+              <p className="text-[12.5px] text-muted mb-2.5 -mt-2">Opcional.</p>
             <div className="mb-1 p-3.5 rounded-xl bg-surface-2 border border-line">
               <div className="relative mb-2.5">
                 <input
@@ -754,65 +768,74 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
               </div>
               {ubicError && <p className="text-[12px] text-red mt-2">{ubicError}</p>}
             </div>
-            <p className="text-[11px] text-faint mb-3">
+            <p className="text-[11px] text-faint">
               Con esto el técnico puede marcar llegada solo, comparando su GPS contra este punto.
             </p>
-
-            <label className="text-[13px] text-ink/75 block mb-1.5">¿Cuántos días va a durar este proyecto?</label>
-            <input
-              type="number"
-              min={1}
-              value={diasTotales === 0 ? '' : diasTotales}
-              onChange={(e) => setDiasTotales(e.target.value === '' ? 0 : parseInt(e.target.value) || 0)}
-              placeholder="1"
-              className="w-full px-3.5 min-h-[48px] mb-1 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]"
-            />
-            <p className="text-[12.5px] text-muted mb-3">
-              Cada día lleva su propia fecha y solo se puede trabajar ese día. Si después hacen falta más, se amplía desde el detalle del proyecto.
-            </p>
-
-            <label className="text-[13px] text-ink/75 block mb-1.5">Técnicos asignados</label>
-            <div className="flex flex-wrap gap-2 mb-3">
-              {tecnicos.length === 0 && <p className="text-muted text-[12px]">No hay técnicos registrados.</p>}
-              {tecnicos.map((t) => (
-                <span
-                  key={t.id}
-                  onClick={() => toggleTecnico(t.id)}
-                  className={`px-4 min-h-[44px] flex items-center rounded-full text-[14px] font-medium cursor-pointer border ${
-                    tecnicoIds.includes(t.id) ? 'bg-teal text-inkOnAccent border-teal' : 'bg-surface-2 border-line-strong text-ink/80'
-                  }`}
-                >
-                  {t.full_name}
-                </span>
-              ))}
             </div>
 
-            <label className="text-[13px] text-ink/75 block mb-1.5">Lista de tareas a realizar (del proyecto completo)</label>
-            <p className="text-[12.5px] text-muted mb-2.5">
-              En proyectos de varios días la lista es una sola y se comparte: lo que quede pendiente un día aparece pendiente el siguiente, y el avance se acumula.
-            </p>
-            {tareas.map((t, i) => (
-              <div key={i} className="flex items-center gap-2 mb-2">
-                <span className="text-[12px] text-muted w-5 shrink-0">{i + 1}.</span>
-                <input
-                  value={t}
-                  onChange={(e) => updateTarea(i, e.target.value)}
-                  className="flex-1 px-3 min-h-[46px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[14.5px]"
-                  placeholder="Ej. Instalar 10 detectores en nivel 1"
-                />
-                <button onClick={() => removeTarea(i)} aria-label="Quitar tarea" className="text-red w-11 h-11 flex items-center justify-center shrink-0 active:scale-90 transition-transform"><X size={19} strokeWidth={2.6} /></button>
+            <div className={cardCls}>
+              <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Duración del proyecto</p>
+              <label className="text-[13px] text-ink/75 block mb-1.5">¿Cuántos días va a durar este proyecto?</label>
+              <input
+                type="number"
+                min={1}
+                value={diasTotales === 0 ? '' : diasTotales}
+                onChange={(e) => setDiasTotales(e.target.value === '' ? 0 : parseInt(e.target.value) || 0)}
+                placeholder="1"
+                className="w-full px-3.5 min-h-[48px] mb-1 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]"
+              />
+              <p className="text-[12.5px] text-muted">
+                Cada día lleva su propia fecha y solo se puede trabajar ese día. Si después hacen falta más, se amplía desde el detalle del proyecto.
+              </p>
+            </div>
+
+            <div className={cardCls}>
+              <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Técnicos asignados</p>
+              <div className="flex flex-wrap gap-2">
+                {tecnicos.length === 0 && <p className="text-muted text-[12px]">No hay técnicos registrados.</p>}
+                {tecnicos.map((t) => (
+                  <span
+                    key={t.id}
+                    onClick={() => toggleTecnico(t.id)}
+                    className={`px-4 min-h-[44px] flex items-center rounded-full text-[14px] font-medium cursor-pointer border ${
+                      tecnicoIds.includes(t.id) ? 'bg-teal text-inkOnAccent border-teal' : 'bg-surface-2 border-line-strong text-ink/80'
+                    }`}
+                  >
+                    {t.full_name}
+                  </span>
+                ))}
               </div>
-            ))}
-            <button onClick={addTarea} className="text-teal text-[14.5px] font-medium min-h-[44px] flex items-center gap-1.5 mb-4"><Plus size={17} strokeWidth={2.6} />Agregar tarea</button>
+            </div>
 
-            {/* Lista de carga: se define al programar, que es cuando el
-                supervisor sabe qué se necesita para el trabajo. */}
-            <label className="text-[13px] text-ink/75 block mb-1.5">Herramienta, material y equipo</label>
-            <p className="text-[12.5px] text-muted mb-2.5">
-              Lo que la cuadrilla debe llevar. El técnico la verifica al salir y al regresar, cada día del proyecto.
-            </p>
+            <div className={cardCls}>
+              <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Lista de tareas a realizar</p>
+              <p className="text-[12.5px] text-muted mb-2.5">
+                Del proyecto completo. En proyectos de varios días la lista es una sola y se comparte: lo que quede pendiente un día aparece pendiente el siguiente, y el avance se acumula.
+              </p>
+              {tareas.map((t, i) => (
+                <div key={i} className="flex items-center gap-2 mb-2">
+                  <span className="text-[12px] text-muted w-5 shrink-0">{i + 1}.</span>
+                  <input
+                    value={t}
+                    onChange={(e) => updateTarea(i, e.target.value)}
+                    className="flex-1 px-3 min-h-[46px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[14.5px]"
+                    placeholder="Ej. Instalar 10 detectores en nivel 1"
+                  />
+                  <button onClick={() => removeTarea(i)} aria-label="Quitar tarea" className="text-red w-11 h-11 flex items-center justify-center shrink-0 active:scale-90 transition-transform"><X size={19} strokeWidth={2.6} /></button>
+                </div>
+              ))}
+              <button onClick={addTarea} className="text-teal text-[14.5px] font-medium min-h-[44px] flex items-center gap-1.5"><Plus size={17} strokeWidth={2.6} />Agregar tarea</button>
+            </div>
 
-            {plantillas.length > 0 && (
+            <div className={cardCls}>
+              {/* Lista de carga: se define al programar, que es cuando el
+                  supervisor sabe qué se necesita para el trabajo. */}
+              <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Herramienta, material y equipo</p>
+              <p className="text-[12.5px] text-muted mb-2.5">
+                Lo que la cuadrilla debe llevar. El técnico la verifica al salir y al regresar, cada día del proyecto.
+              </p>
+
+              {plantillas.length > 0 && (
               <select
                 value=""
                 onChange={(e) => {
@@ -870,7 +893,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
               </div>
             ))}
 
-            <div className="flex gap-2 mb-4">
+            <div className="flex gap-2">
               <button
                 onClick={() => setInsumos((prev) => [...prev, { categoria: 'herramienta', descripcion: '', cantidad: 1, unidad: 'pza', articuloId: null }])}
                 className="flex-1 text-teal text-[14.5px] font-medium min-h-[44px] flex items-center justify-center gap-1.5 border border-dashed border-teal/50 rounded-xl"
@@ -889,11 +912,12 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
                 </button>
               )}
             </div>
+            </div>
 
             {/* No bloquea: a veces hay que trabajar en festivo, y el supervisor
                 sabe algo que la app no. Pero que no sea por no haberlo visto. */}
             {festivosDelProyecto.length > 0 && (
-              <div className="mb-3 p-3.5 rounded-2xl bg-amber/10 border border-amber/25">
+              <div className="p-3.5 rounded-2xl bg-amber/10 border border-amber/25">
                 <p className="text-[13.5px] text-amber font-semibold mb-1.5">
                   {festivosDelProyecto.length === 1
                     ? 'Un día del proyecto cae en festivo'
@@ -911,7 +935,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
               </div>
             )}
 
-            {error && <p className="text-red text-[12px] mb-3">{error}</p>}
+            {error && <p className="text-red text-[12px]">{error}</p>}
 
             <div className="flex gap-2">
               <button onClick={() => { setShowNuevo(false); setError(null); }} className="flex-1 min-h-[48px] rounded-xl border border-line-strong text-ink/80 text-[14.5px] font-medium active:scale-95 transition-transform">
