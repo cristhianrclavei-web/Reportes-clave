@@ -1,4 +1,5 @@
 import { PDFDocument } from 'pdf-lib';
+import { comprimirFoto } from './pdfFotos';
 import {
   NAVY, TEAL_DARK, GRAY_LINE, GRAY_TEXT, WHITE, VERDE, ROJO,
   MARGIN, PAGE_W, PAGE_H,
@@ -379,7 +380,8 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
   const fotosRaw: any[] = data.fotos || [];
   const fotos = fotosRaw.map((f) => (typeof f === 'string' ? { path: f, caption: '' } : { path: f.path, caption: f.caption || '' }));
 
-  async function embedPhoto(bytes: Uint8Array) {
+  async function embedPhoto(original: Uint8Array) {
+    const bytes = await comprimirFoto(original);
     try {
       return await pdfDoc.embedJpg(bytes);
     } catch {
