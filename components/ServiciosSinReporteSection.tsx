@@ -15,7 +15,7 @@ function formatFecha(fecha: string): string {
   return `${d}/${m}/${y}`;
 }
 
-// Lo mismo que revisa el recordatorio push de las 6pm/8:30am (ver
+// Lo mismo que revisa el recordatorio push de las 6pm/9:00am (ver
 // /api/cron/recordatorio-reporte), pero visible para el supervisor y
 // comprobable: si el reporte sí se hizo pero el técnico no lo ligó al
 // servicio al capturarlo (el selector de servicio en /nuevo es opcional),

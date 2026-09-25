@@ -341,6 +341,13 @@ export default function NuevoReportePage() {
     setFotos((prev) => prev.map((f, idx) => (idx === i ? { ...f, caption } : f)));
   }
 
+  // Desde el aviso de «días sin reporte» se llega con ?fecha=AAAA-MM-DD para
+  // capturar el reporte de un día que quedó pendiente.
+  useEffect(() => {
+    const f = new URLSearchParams(window.location.search).get('fecha');
+    if (f && /^\d{4}-\d{2}-\d{2}$/.test(f)) setFecha(f);
+  }, []);
+
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
       setUserEmail(data.user?.email || '');

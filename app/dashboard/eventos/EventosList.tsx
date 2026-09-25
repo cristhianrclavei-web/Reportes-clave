@@ -39,6 +39,9 @@ const ACCION_CFG: Record<AccionGlobal, { Icono: any; label: string; tono: 'teal'
   creo_proyecto: { Icono: CalendarPlus, label: 'Creó un proyecto', tono: 'teal' },
   actualizo_estado_proyecto: { Icono: Pencil, label: 'Actualizó el estado de un proyecto', tono: 'amber' },
   elimino_proyecto: { Icono: Trash2, label: 'Eliminó un proyecto', tono: 'red' },
+  justifico_dia: { Icono: MessageSquareWarning, label: 'Justificó un día sin reporte', tono: 'amber' },
+  marco_festivo: { Icono: CalendarPlus, label: 'Marcó un día festivo', tono: 'teal' },
+  quito_festivo: { Icono: CalendarX, label: 'Quitó un día festivo', tono: 'red' },
 };
 
 const TONO_CLS = {
@@ -123,7 +126,7 @@ export default function EventosList({ userName }: { userName?: string }) {
       wrapperClassName="max-w-2xl lg:max-w-6xl mx-auto pb-28 lg:pb-16 lg:px-6"
     >
         <p className="text-[12.5px] text-muted mb-4">
-          Registro de todas las acciones de los supervisores: servicios programados, ediciones, eliminaciones, revisiones y facturación. Las eliminaciones quedan aquí de forma permanente aunque el registro original ya no exista.
+          Registro de todas las acciones de los supervisores (servicios programados, ediciones, eliminaciones, revisiones, facturación y días festivos) y de las justificaciones de días sin reporte de los técnicos. Las eliminaciones quedan aquí de forma permanente aunque el registro original ya no exista.
         </p>
 
         <div className="flex gap-2 mb-5">
@@ -132,7 +135,7 @@ export default function EventosList({ userName }: { userName?: string }) {
             onChange={(e) => setFiltroActor(e.target.value)}
             className="flex-1 px-3 py-2.5 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[13px]"
           >
-            <option value="">Todos los supervisores</option>
+            <option value="">Todas las personas</option>
             {actores.map(([id, n]) => (
               <option key={id} value={id}>{n}</option>
             ))}

@@ -16,6 +16,17 @@ export async function avisarTecnicos(
     .select('tecnico_id')
     .eq('servicio_id', servicioId);
   const tecnicoIds = (asignaciones || []).map((a: any) => a.tecnico_id as string);
+  return avisarUsuarios(admin, tecnicoIds, tipo, carga);
+}
+
+// Lo mismo, pero con los destinatarios ya decididos (p. ej. el recordatorio
+// de reporte pendiente, que es por técnico y no por servicio).
+export async function avisarUsuarios(
+  admin: ReturnType<typeof createAdminClient>,
+  tecnicoIds: string[],
+  tipo: string,
+  carga: string
+): Promise<{ enviadas: number; caducadas: string[] }> {
   if (tecnicoIds.length === 0) return { enviadas: 0, caducadas: [] };
 
   const { data: filtrados } = await admin.rpc('filtrar_por_preferencia', {

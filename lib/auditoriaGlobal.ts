@@ -34,13 +34,16 @@ export type AccionGlobal =
   | 'aplico_correccion'
   | 'creo_proyecto'
   | 'actualizo_estado_proyecto'
-  | 'elimino_proyecto';
+  | 'elimino_proyecto'
+  | 'justifico_dia'
+  | 'marco_festivo'
+  | 'quito_festivo';
 
 export type EntradaAuditoria = {
   id: string;
   actor_id: string;
   accion: AccionGlobal;
-  entidad: 'servicio' | 'reporte' | 'proyecto';
+  entidad: 'servicio' | 'reporte' | 'proyecto' | 'dia';
   entidad_id: string | null;
   detalle: string | null;
   created_at: string;

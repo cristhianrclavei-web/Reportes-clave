@@ -13,6 +13,7 @@ import { construirAgenda, formatFechaAgenda, diasDeDiferencia } from '@/lib/agen
 import { showToast } from '@/components/Toast';
 import { MapPin, Play, Clock, Users, CalendarClock, AlertTriangle } from 'lucide-react';
 import { hoyLocal } from '@/lib/fechaHoy';
+import DiasFestivosSection from '@/components/DiasFestivosSection';
 
 const ESTADO_CFG: Record<Servicio['estado'], { label: string; cls: string; Icono: any }> = {
   programado: { label: 'Programado', cls: 'bg-surface-2 text-muted', Icono: Clock },
@@ -94,6 +95,8 @@ export default function AgendaList({ userName }: { userName?: string }) {
       userName={userName}
       wrapperClassName="max-w-2xl lg:max-w-6xl mx-auto pb-28 lg:pb-16 lg:px-6"
     >
+        <DiasFestivosSection />
+
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}

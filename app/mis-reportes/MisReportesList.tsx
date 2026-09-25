@@ -7,6 +7,7 @@ import ThemeToggle from '@/components/ThemeToggle';
 import PerfilChip from '@/components/PerfilChip';
 import NotificacionesToggle from '@/components/NotificacionesToggle';
 import AvisoCuentaPrueba from '@/components/AvisoCuentaPrueba';
+import AvisoDiasSinReporte from '@/components/AvisoDiasSinReporte';
 import AvisoActualizarCredenciales from '@/components/AvisoActualizarCredenciales';
 import LogoutButton from '@/components/LogoutButton';
 import ReportDetailModal, { ReportDetail } from '@/components/ReportDetailModal';
@@ -73,6 +74,7 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
 
         <AvisoActualizarCredenciales />
         <AvisoCuentaPrueba />
+        <AvisoDiasSinReporte />
 
         <NotificacionesToggle esTecnico />
 

@@ -158,7 +158,7 @@ export const TIPOS_AVISO: { valor: TipoAviso; label: string; detalle: string; pa
   { valor: 'tecnico_fuera_de_sitio', label: 'Técnico en sitio sin asignar', detalle: 'Cuando alguien está en un sitio programado que no es el suyo' },
   { valor: 'recordatorio_iniciar_servicio', label: 'Recordatorio de iniciar servicio', detalle: 'Cada 10 min mientras estés en sitio sin haber iniciado', paraTecnico: true },
   { valor: 'recordatorio_llegada_pendiente', label: 'Recordatorio de llegada pendiente', detalle: 'Cada 10 min si ya pasó tu hora programada y no has marcado llegada', paraTecnico: true },
-  { valor: 'reporte_pendiente', label: 'Reporte de servicio pendiente', detalle: 'A las 6pm si no has hecho el reporte, y cada mañana a las 8:30 mientras siga pendiente', paraTecnico: true },
+  { valor: 'reporte_pendiente', label: 'Reporte de servicio pendiente', detalle: 'A las 6pm si no has hecho el reporte ni justificado el día, y cada mañana a las 9:00 mientras siga pendiente', paraTecnico: true },
   { valor: 'solicitud_herramienta', label: 'Solicitudes de herramienta', detalle: 'Cuando un técnico pide material o equipo' },
   { valor: 'devolucion_herramienta', label: 'Devoluciones de herramienta', detalle: 'Cuando un técnico firma que devolvió herramienta, para que almacén confirme' },
   { valor: 'confirmacion_devolucion', label: 'Confirmación de tu devolución', detalle: 'Cuando almacén confirma que recibió lo que devolviste', paraTecnico: true },
