@@ -398,9 +398,12 @@ export default function ReportDetailModal({
             Ver el servicio programado relacionado
           </a>
         ) : (
-          <div className="mb-4 p-4 rounded-2xl bg-surface-2 border border-line">
-            <p className="text-[13.5px] font-semibold mb-1">Este reporte no está vinculado a ningún servicio</p>
-            <p className="text-[12.5px] text-muted mb-2.5 leading-relaxed">
+          <div className="mb-4 p-4 rounded-2xl bg-amber/12 border-2 border-amber/40">
+            <p className="font-display font-semibold text-[14.5px] text-amber mb-1 flex items-center gap-2">
+              <FolderKanban size={17} strokeWidth={2.5} />
+              Este reporte no está vinculado a ningún servicio
+            </p>
+            <p className="text-[12.5px] text-ink/80 mb-2.5 leading-relaxed">
               Vincúlalo para que el servicio programado quede marcado como atendido.
             </p>
             {serviciosDisponibles.length > 0 ? (
@@ -530,40 +533,40 @@ export default function ReportDetailModal({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
-          <Detail label="Clave de formato" value={report.data?.claveFormato} />
-          <Detail label="Fecha" value={report.fecha} />
-          <Detail label="Ing a cargo" value={report.data?.ingACargo} />
-          <Detail label="Personal adicional" value={(report.data?.personal || []).join(', ')} />
-          <Detail label="Técnico (cuenta)" value={techName(report.profiles)} />
-          <Detail
-            label="Tipo"
-            value={`${report.tipo_servicio || '—'}${report.sub_tipo_servicio ? ' · ' + report.sub_tipo_servicio : ''}${report.tipo_servicio === 'Otro' && report.data?.tipoServicioOtroTexto ? ' · ' + report.data.tipoServicioOtroTexto : ''}`}
-          />
-          <Detail label="Orden de compra" value={report.data?.ordCompra} />
-          <Detail label="Hora llegada / salida" value={`${report.data?.horaLlegada || '—'} - ${report.data?.horaSalida || '—'}`} />
-          <Detail label="Contacto/Usuario" value={report.data?.contactoUsuario} />
-          <Detail label="Puesto/Área" value={report.data?.puestoArea} />
-          <Detail label="Vehículo" value={report.data?.vehiculo} />
-          <Detail label="Placas" value={report.data?.placas} />
-          <Detail label="Manejado por" value={report.data?.manejadoPor} />
-          <Detail label="Lista de conceptos" value={report.data?.listaConceptos} />
-        </div>
+        <Section title="Datos generales">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+            <Detail label="Clave de formato" value={report.data?.claveFormato} />
+            <Detail label="Fecha" value={report.fecha} />
+            <Detail label="Ing a cargo" value={report.data?.ingACargo} />
+            <Detail label="Personal adicional" value={(report.data?.personal || []).join(', ')} />
+            <Detail label="Técnico (cuenta)" value={techName(report.profiles)} />
+            <Detail
+              label="Tipo"
+              value={`${report.tipo_servicio || '—'}${report.sub_tipo_servicio ? ' · ' + report.sub_tipo_servicio : ''}${report.tipo_servicio === 'Otro' && report.data?.tipoServicioOtroTexto ? ' · ' + report.data.tipoServicioOtroTexto : ''}`}
+            />
+            <Detail label="Orden de compra" value={report.data?.ordCompra} />
+            <Detail label="Hora llegada / salida" value={`${report.data?.horaLlegada || '—'} - ${report.data?.horaSalida || '—'}`} />
+            <Detail label="Contacto/Usuario" value={report.data?.contactoUsuario} />
+            <Detail label="Puesto/Área" value={report.data?.puestoArea} />
+            <Detail label="Vehículo" value={report.data?.vehiculo} />
+            <Detail label="Placas" value={report.data?.placas} />
+            <Detail label="Manejado por" value={report.data?.manejadoPor} />
+            <Detail label="Lista de conceptos" value={report.data?.listaConceptos} />
+          </div>
+        </Section>
 
         {(report.data?.actividades || []).length > 0 && (
-          <div className="mt-4">
-            <div className="text-[10px] uppercase tracking-wider text-muted mb-1.5">Descripción de actividades realizadas</div>
-            <ol className="list-decimal pl-5 text-[13.5px] font-medium space-y-1">
+          <Section title="Descripción de actividades realizadas">
+            <ol className="list-decimal marker:text-teal marker:font-bold pl-5 text-[13.5px] font-medium space-y-1.5">
               {report.data.actividades.map((a: string, i: number) => (
                 <li key={i}>{a}</li>
               ))}
             </ol>
-          </div>
+          </Section>
         )}
 
         {(report.data?.casoPuntos || []).length > 0 && (
-          <div className="mt-4 p-4 bg-surface-2 rounded-2xl border border-line">
-            <div className="text-[11px] uppercase tracking-wider font-bold text-teal mb-3">Caso de problema en equipo o instalación</div>
+          <Section title="Caso de problema en equipo o instalación">
             {report.data.casoPuntos.map((p: any, i: number) => (
               <div key={i} className="mb-3 last:mb-0 pb-3 last:pb-0 border-b last:border-b-0 border-line">
                 <div className="text-xs font-bold text-teal mb-1.5">Punto {i + 1}</div>
@@ -577,46 +580,58 @@ export default function ReportDetailModal({
                 </div>
               </div>
             ))}
-          </div>
+          </Section>
         )}
 
-        <div className="mt-4 grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
-          <Detail
-            label="Sistema de seguridad"
-            value={[...(report.data?.sistemaSeguridad || [])]
-              .map((s: string) => (s === 'Otra' && report.data?.seguridadOtraTexto ? `Otra: ${report.data.seguridadOtraTexto}` : s))
-              .join(', ')}
-          />
-          <Detail label="Observaciones" value={report.data?.observaciones} />
-          {report.data?.tuberia && Object.keys(report.data.tuberia).length > 0 && (
+        <Section title="Sistema y observaciones">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
             <Detail
-              label="Tubería"
-              value={Object.entries(report.data.tuberia as Record<string, { medida: string; metros: string; especifica?: string }>)
-                .map(([t, v]) => `${t}${t === 'Otra' && v.especifica ? ` (${v.especifica})` : ''}: ${v.medida || '—'} · ${v.metros || '—'} m`)
-                .join(' / ')}
+              label="Sistema de seguridad"
+              value={[...(report.data?.sistemaSeguridad || [])]
+                .map((s: string) => (s === 'Otra' && report.data?.seguridadOtraTexto ? `Otra: ${report.data.seguridadOtraTexto}` : s))
+                .join(', ')}
             />
-          )}
-          {(() => {
-            const cablesList: any[] = report.data?.cables || [report.data?.cable1, report.data?.cable2].filter(Boolean);
-            return cablesList.map((c, i) => (
-              <Detail key={i} label={`Cable ${i + 1}`} value={`${c.tipo || '—'} / cal. ${c.calibre || '—'} / ${c.metros || '—'} m`} />
-            ));
-          })()}
-          <Detail label="Firma ing." value={report.data?.firmaIngNombre} />
-          <Detail label="Firma cliente" value={report.data?.firmaClienteNombre} />
-        </div>
+            <Detail label="Observaciones" value={report.data?.observaciones} />
+            {report.data?.tuberia && Object.keys(report.data.tuberia).length > 0 && (
+              <Detail
+                label="Tubería"
+                value={Object.entries(report.data.tuberia as Record<string, { medida: string; metros: string; especifica?: string }>)
+                  .map(([t, v]) => `${t}${t === 'Otra' && v.especifica ? ` (${v.especifica})` : ''}: ${v.medida || '—'} · ${v.metros || '—'} m`)
+                  .join(' / ')}
+              />
+            )}
+            {(() => {
+              const cablesList: any[] = report.data?.cables || [report.data?.cable1, report.data?.cable2].filter(Boolean);
+              return cablesList.map((c, i) => (
+                <Detail key={i} label={`Cable ${i + 1}`} value={`${c.tipo || '—'} / cal. ${c.calibre || '—'} / ${c.metros || '—'} m`} />
+              ));
+            })()}
+          </div>
+        </Section>
 
-        {report.data?.firmaIngData && (
-          <div className="mt-3">
-            <div className="text-[10px] uppercase tracking-wider text-muted mb-1.5">Firma · Ing. responsable</div>
-            <img src={report.data.firmaIngData} alt="Firma ingeniero" className="w-full max-w-[300px] rounded-xl border border-line bg-surface-2" />
-          </div>
-        )}
-        {report.data?.firmaClienteData && (
-          <div className="mt-3">
-            <div className="text-[10px] uppercase tracking-wider text-muted mb-1.5">Firma · Cliente</div>
-            <img src={report.data.firmaClienteData} alt="Firma cliente" className="w-full max-w-[300px] rounded-xl border border-line bg-surface-2" />
-          </div>
+        {(report.data?.firmaIngData || report.data?.firmaIngNombre || report.data?.firmaClienteData || report.data?.firmaClienteNombre) && (
+          <Section title="Firmas">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {(report.data?.firmaIngData || report.data?.firmaIngNombre) && (
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted mb-1">Ing. responsable</div>
+                  {report.data?.firmaIngNombre && <div className="text-[14px] font-semibold mb-1.5">{report.data.firmaIngNombre}</div>}
+                  {report.data?.firmaIngData && (
+                    <img src={report.data.firmaIngData} alt="Firma ingeniero" className="w-full max-w-[260px] rounded-xl border border-line bg-surface" />
+                  )}
+                </div>
+              )}
+              {(report.data?.firmaClienteData || report.data?.firmaClienteNombre) && (
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted mb-1">Cliente</div>
+                  {report.data?.firmaClienteNombre && <div className="text-[14px] font-semibold mb-1.5">{report.data.firmaClienteNombre}</div>}
+                  {report.data?.firmaClienteData && (
+                    <img src={report.data.firmaClienteData} alt="Firma cliente" className="w-full max-w-[260px] rounded-xl border border-line bg-surface" />
+                  )}
+                </div>
+              )}
+            </div>
+          </Section>
         )}
 
         <RevisionFinalSection
@@ -651,8 +666,7 @@ export default function ReportDetailModal({
         />
 
         {(report.data?.equipos || []).length > 0 && (
-          <div className="mt-4">
-            <div className="text-[11px] uppercase tracking-wider text-muted mb-2">Equipo instalado</div>
+          <Section title="Equipo instalado">
             <div className="overflow-x-auto rounded-xl border border-line">
               <table className="w-full text-[13px] border-collapse">
                 <thead>
@@ -677,13 +691,12 @@ export default function ReportDetailModal({
                 </tbody>
               </table>
             </div>
-          </div>
+          </Section>
         )}
 
         {loadingFotos && <p className="text-[13px] text-muted mt-4">Cargando fotos...</p>}
         {fotoUrls !== null && !loadingFotos && (
-          <div className="mt-5 pt-4 border-t border-dashed border-line-strong">
-            <div className="text-[11px] uppercase tracking-wider text-muted mb-2.5">Fotos de evidencia</div>
+          <Section title="Fotos de evidencia">
             {fotoUrls.length === 0 ? (
               <p className="text-[13px] text-muted">Este reporte no tiene fotos de evidencia.</p>
             ) : (
@@ -698,7 +711,7 @@ export default function ReportDetailModal({
                 ))}
               </div>
             )}
-          </div>
+          </Section>
         )}
 
         {/* --- Corrección autorizada --- */}
@@ -861,6 +874,15 @@ export default function ReportDetailModal({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function Section({ title, children }: { title?: string; children: React.ReactNode }) {
+  return (
+    <div className="mt-4 p-4 bg-surface-2 rounded-2xl border border-line">
+      {title && <div className="text-[11px] uppercase tracking-wider font-bold text-teal mb-3">{title}</div>}
+      {children}
     </div>
   );
 }
