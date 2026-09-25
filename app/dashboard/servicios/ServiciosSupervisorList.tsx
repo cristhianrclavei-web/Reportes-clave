@@ -97,7 +97,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   const [showNuevo, setShowNuevo] = useState(false);
   // La pantalla hace dos cosas distintas: programar algo nuevo y consultar lo
   // ya programado. Separarlas evita que el formulario y la lista compitan.
-  const [seccion, setSeccion] = useState<'agendar' | 'agendados' | 'checklists' | 'plantillas'>('agendados');
+  const [seccion, setSeccion] = useState<'agendar' | 'agendados' | 'concluidos' | 'checklists' | 'plantillas'>('agendados');
   const [checklists, setChecklists] = useState<ResumenChecklist[]>([]);
   const [rango, setRango] = useState<RangoSeleccionado | null>(null);
   const [busquedaServicio, setBusquedaServicio] = useState('');
@@ -231,7 +231,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
     });
   }, [diasTotales, diasSeguidos, fecha]);
 
-  const grupos = useMemo<Grupo[]>(() => {
+  const gruposFiltrados = useMemo<Grupo[]>(() => {
     const mapa: Record<string, Grupo> = {};
     servicios.forEach((s) => {
       // El rango de fechas no aplica cuando se busca por texto: quien escribe
@@ -248,17 +248,19 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
       mapa[s.grupo_id].dias.push(s);
     });
     Object.values(mapa).forEach((g) => g.dias.sort((a, b) => a.numero_dia - b.numero_dia));
-    return Object.values(mapa)
-      // "Agendados" es lo que todavía tiene trabajo pendiente. Un proyecto
-      // con todos sus días concluidos ya no es "agendado" — su historial
-      // sigue disponible desde Proyectos.
-      .filter((g) => g.dias.some((d) => d.estado !== 'concluido'))
-      .sort((a, b) => {
-        const fa = a.dias[a.dias.length - 1]?.created_at || '';
-        const fb = b.dias[b.dias.length - 1]?.created_at || '';
-        return fb.localeCompare(fa);
-      });
+    return Object.values(mapa).sort((a, b) => {
+      const fa = a.dias[a.dias.length - 1]?.created_at || '';
+      const fb = b.dias[b.dias.length - 1]?.created_at || '';
+      return fb.localeCompare(fa);
+    });
   }, [servicios, rango, busquedaServicio]);
+
+  // "Agendados" es lo que todavía tiene trabajo pendiente — incluye los
+  // proyectos de varios días que van a medias. Un proyecto con todos sus
+  // días concluidos pasa a "Concluidos".
+  const grupos = useMemo(() => gruposFiltrados.filter((g) => g.dias.some((d) => d.estado !== 'concluido')), [gruposFiltrados]);
+  const gruposConcluidos = useMemo(() => gruposFiltrados.filter((g) => g.dias.every((d) => d.estado === 'concluido')), [gruposFiltrados]);
+  const lista = seccion === 'concluidos' ? gruposConcluidos : grupos;
 
   // Con llegada y salida acordadas, la duración ya no hay que estimarla a
   // ojo: es la diferencia entre las dos. Solo se deriva cuando la salida fue
@@ -592,10 +594,11 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
         {/* Cuatro secciones con su nombre: en una sola fila no caben cuatro
             etiquetas en un celular, así que se acomodan en dos por dos y pasan
             a una fila en pantallas anchas. Un ícono solo obliga a adivinar. */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-5">
           {([
             { k: 'agendar', label: 'Agendar', Icono: Plus },
             { k: 'agendados', label: 'Agendados', Icono: FolderKanban },
+            { k: 'concluidos', label: 'Concluidos', Icono: Check },
             { k: 'checklists', label: 'Listas de carga', Icono: PackageCheck },
             { k: 'plantillas', label: 'Plantillas', Icono: Bookmark },
           ] as const).map(({ k, label, Icono }) => (
@@ -1083,7 +1086,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
           </div>
         ))}
 
-        {seccion === 'agendados' && (
+        {(seccion === 'agendados' || seccion === 'concluidos') && (
           <>
             <SelectorSemana fechas={fechasDeServicios} onCambio={setRango} etiqueta="días programados" />
             <input
@@ -1095,7 +1098,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
           </>
         )}
 
-        {seccion === 'agendados' && loading && (
+        {(seccion === 'agendados' || seccion === 'concluidos') && loading && (
           <div className="flex flex-col lg:grid lg:grid-cols-2 gap-3" aria-busy="true">
             {[0, 1, 2].map((i) => (
               <div key={i} className="rounded-2xl border-l-4 border-line bg-surface p-4">
@@ -1109,7 +1112,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
             ))}
           </div>
         )}
-        {seccion === 'agendados' && !loading && grupos.length === 0 && (
+        {(seccion === 'agendados' || seccion === 'concluidos') && !loading && lista.length === 0 && (
           <div className="flex flex-col items-center py-10 text-center">
             <div className="w-14 h-14 rounded-2xl bg-surface-2 border border-line flex items-center justify-center mb-3.5">
               <EmptyIllustration variante="proyecto" />
@@ -1122,14 +1125,16 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
                 ? 'Usa «Agendar» para programar el primero.'
                 : busquedaServicio
                 ? 'Ningún proyecto coincide con la búsqueda.'
+                : seccion === 'concluidos'
+                ? 'No hay servicios concluidos en estas fechas. Cambia de semana, o busca el proyecto por nombre.'
                 : 'No hay servicios programados en estas fechas. Cambia de semana o toca «Toda la semana».'}
             </p>
           </div>
         )}
 
-        {seccion === 'agendados' && (
+        {(seccion === 'agendados' || seccion === 'concluidos') && (
         <div className="flex flex-col lg:grid lg:grid-cols-2 gap-3 lg:items-start">
-          {grupos.map((g) => {
+          {lista.map((g) => {
             const diasConReporte = g.dias.filter((d) => d.report_id).length;
             const abierto = grupoAbierto === g.grupoId;
             const diasTotalesGrupo = g.dias[0]?.dias_totales || g.dias.length;
