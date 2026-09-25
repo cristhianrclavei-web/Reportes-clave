@@ -43,8 +43,27 @@ export default function SelectorSemana({
   onCambio: (rango: RangoSeleccionado) => void;
   etiqueta?: string;
 }) {
-  const [lunes, setLunes] = useState(() => inicioDeSemana(new Date()));
+  // "Ahora" puede diferir entre el servidor (Vercel corre en UTC) y el
+  // navegador del usuario — en México, de 18:00 a medianoche el reloj UTC ya
+  // pasó al día siguiente. Si el valor inicial de estado se calcula con
+  // new Date() directo, el HTML que arma el servidor no coincide con lo que
+  // calcula el navegador al hidratar, y React truena. Por eso arranca fijo
+  // (misma fecha de referencia en cualquier entorno) y solo se corrige a la
+  // fecha real ya montado, en el cliente — mismo patrón que usa
+  // SupervisorShell para la preferencia de vista.
+  const [lunes, setLunes] = useState(() => inicioDeSemana(new Date(2000, 0, 1)));
   const [diaSel, setDiaSel] = useState<string | null>(null);
+  const [hoy, setHoy] = useState('');
+  // Evita que "Avisar del rango" (abajo) alcance a avisarle al padre la
+  // semana de referencia (2000) antes de que este efecto la corrija.
+  const [montado, setMontado] = useState(false);
+
+  useEffect(() => {
+    const ahora = new Date();
+    setLunes(inicioDeSemana(ahora));
+    setHoy(aISO(ahora));
+    setMontado(true);
+  }, []);
 
   const diasSemana = useMemo(() => {
     return Array.from({ length: 7 }, (_, i) => {
@@ -59,10 +78,9 @@ export default function SelectorSemana({
     return mapa;
   }, [fechas]);
 
-  const hoy = aISO(new Date());
-
   // Avisar del rango cada vez que cambia la semana o el día elegido.
   useEffect(() => {
+    if (!montado) return;
     if (diaSel) {
       onCambio({ desde: diaSel, hasta: diaSel, esDia: true });
     } else {
@@ -70,7 +88,7 @@ export default function SelectorSemana({
     }
     // onCambio se recrea en cada render del padre; incluirlo dispararía un bucle.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [diaSel, lunes]);
+  }, [diaSel, lunes, montado]);
 
   function moverSemana(delta: number) {
     setDiaSel(null);
