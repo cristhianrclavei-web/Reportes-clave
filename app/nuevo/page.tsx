@@ -35,6 +35,7 @@ const inputCls =
   'w-full px-3.5 py-2.5 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal-glow text-[15px] transition-colors placeholder:text-faint';
 const labelCls = 'block text-[11px] font-semibold uppercase tracking-wider text-muted mb-1.5';
 const cardCls = 'glass rounded-2xl p-4';
+const PASOS = ['Datos', 'Trabajo', 'Evidencia', 'Firmas'];
 const cardTitleCls = 'font-display font-semibold text-[13px] uppercase tracking-wider text-teal mb-3.5 flex items-center gap-2';
 
 function chipCls(selected: boolean) {
@@ -183,8 +184,10 @@ export default function NuevoReportePage() {
   const [placas, setPlacas] = useState('');
   // Se parte de la copia local para que la lista esté desde el primer render
   // aunque no haya señal; después se refresca si se puede.
-  const [vehiculos, setVehiculos] = useState<Vehiculo[]>(() => vehiculosEnCache());
-  const [personal, setPersonal] = useState<Persona[]>(() => personalEnCache());
+  // La copia local se lee después de montar (efecto de abajo), no en el
+  // primer render: el servidor no tiene localStorage y el HTML no coincidiría.
+  const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
+  const [personal, setPersonal] = useState<Persona[]>([]);
   const [vehiculoOtro, setVehiculoOtro] = useState(false);
   const [manejadoPor, setManejadoPor] = useState('');
   const [ingACargo, setIngACargo] = useState('');
@@ -210,6 +213,13 @@ export default function NuevoReportePage() {
   const [firmaIngNombre, setFirmaIngNombre] = useState('');
   const [firmaClienteNombre, setFirmaClienteNombre] = useState('');
   const [servicioConcluido, setServicioConcluido] = useState<'si' | 'no' | null>(null);
+  // Formulario por pasos. Todo sigue en un solo componente (el estado no se
+  // pierde al ir y venir); solo se muestra un paso a la vez. Las firmas se
+  // montan la primera vez que se llega al paso 4 y después solo se ocultan:
+  // el lienzo toma su tamaño al montarse y oculto mediría 0.
+  const [paso, setPaso] = useState(1);
+  const [firmasMontadas, setFirmasMontadas] = useState(false);
+  const [avisoPaso, setAvisoPaso] = useState<string | null>(null);
   const sigIngRef = useRef<SignaturePadHandle>(null);
   const sigClienteRef = useRef<SignaturePadHandle>(null);
   const [fotos, setFotos] = useState<{ file: File; previewUrl: string; caption: string }[]>([]);
@@ -368,6 +378,8 @@ export default function NuevoReportePage() {
     }
     // Catálogos de vehículos y personal. Si falla, se quedan los de la copia
     // local y los campos siguen aceptando texto libre.
+    setVehiculos(vehiculosEnCache());
+    setPersonal(personalEnCache());
     listarVehiculos().then(setVehiculos).catch(() => {});
     listarPersonal().then(setPersonal).catch(() => {});
     listarMisServicios()
@@ -516,6 +528,24 @@ export default function NuevoReportePage() {
       firmaIngListo: Boolean(sigIngRef.current && !sigIngRef.current.isEmpty()),
       firmaClienteListo: Boolean(sigClienteRef.current && !sigClienteRef.current.isEmpty()),
     };
+  }
+
+  function irAPaso(n: number) {
+    setAvisoPaso(null);
+    if (n === 4) setFirmasMontadas(true);
+    setPaso(n);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function siguientePaso() {
+    // Lo obligatorio está todo en el paso 1: se avisa ahí mismo en vez de
+    // descubrirlo al final.
+    if (paso === 1 && faltantes.length > 0) {
+      setAvisoPaso('Falta por llenar: ' + faltantes.join(', '));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    irAPaso(Math.min(4, paso + 1));
   }
 
   async function handleSave() {
@@ -730,6 +760,38 @@ export default function NuevoReportePage() {
           </div>
         )}
 
+        {/* Pasos del reporte */}
+        <div className="flex gap-1.5" role="tablist" aria-label="Pasos del reporte">
+          {PASOS.map((nombre, i) => {
+            const n = i + 1;
+            const activo = paso === n;
+            const hecho = paso > n;
+            return (
+              <button
+                key={nombre}
+                type="button"
+                role="tab"
+                aria-selected={activo}
+                onClick={() => irAPaso(n)}
+                className="flex-1 min-w-0 text-left"
+              >
+                <span className={`block h-1.5 rounded-full mb-1.5 transition-colors ${activo || hecho ? 'bg-teal' : 'bg-line-strong'}`} />
+                <span className={`block text-[12px] font-semibold truncate ${activo ? 'text-teal' : hecho ? 'text-ink/80' : 'text-muted'}`}>
+                  {n}. {nombre}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {avisoPaso && (
+          <div className="p-3.5 rounded-2xl bg-amber/10 border border-amber/30 flex items-start gap-2.5">
+            <AlertTriangle size={17} strokeWidth={2.4} className="text-amber shrink-0 mt-0.5" />
+            <p className="text-[13.5px] text-ink/85">{avisoPaso}</p>
+          </div>
+        )}
+
+        <div className={paso === 1 ? 'flex flex-col gap-4' : 'hidden'}>
         {/* Datos del servicio — va primero: elegir el servicio asignado
             autocompleta cliente y personal del resto del formulario */}
         <div className={cardCls}>
@@ -930,6 +992,9 @@ export default function NuevoReportePage() {
           </button>
         </div>
 
+        </div>
+
+        <div className={paso === 2 ? 'flex flex-col gap-4' : 'hidden'}>
         {/* Tipo de servicio */}
         <div className={cardCls}>
           <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Tipo de servicio</p>
@@ -1114,6 +1179,9 @@ export default function NuevoReportePage() {
           <textarea className={`${inputCls} min-h-[80px]`} value={observaciones} onChange={(e) => setObservaciones(e.target.value)} />
         </div>
 
+        </div>
+
+        <div className={paso === 3 ? 'flex flex-col gap-4' : 'hidden'}>
         {/* Fotos de evidencia */}
         <div className={cardCls}>
           <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Fotos de evidencia</p>
@@ -1225,6 +1293,10 @@ export default function NuevoReportePage() {
           </div>
         </div>
 
+        </div>
+
+        {firmasMontadas && (
+        <div className={paso === 4 ? 'flex flex-col gap-4' : 'hidden'}>
         {/* Firmas */}
         <div className={cardCls}>
           <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Firmas</p>
@@ -1267,36 +1339,52 @@ export default function NuevoReportePage() {
               <ul className="text-[13.5px] text-ink/80 leading-relaxed list-disc pl-4">
                 {faltantes.map((f) => <li key={f}>{f}</li>)}
               </ul>
+              <button type="button" onClick={() => irAPaso(1)} className="mt-2 text-[13px] font-semibold text-teal">
+                Ir a Datos
+              </button>
             </div>
           </div>
         )}
 
-        <button
-          onClick={handleSave}
-          disabled={saving || faltantes.length > 0}
-          className="w-full min-h-[56px] rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[16px] tracking-wide shadow-glow-teal active:scale-95 transition-transform disabled:opacity-50"
-        >
-          {saving ? 'Guardando...' : 'Guardar reporte'}
-        </button>
+        </div>
+        )}
       </div>
 
       {showPreview && <ReportPreviewModal preview={getPreviewData()} onClose={() => setShowPreview(false)} />}
 
-      {/* Floating bottom nav */}
+      {/* Barra inferior: moverse entre pasos y guardar al final */}
       <div
-        className="fixed bottom-0 left-0 right-0 z-30 flex justify-center px-4 pointer-events-none"
-        style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
+        className="fixed bottom-0 inset-x-0 z-30 glass-strong border-t border-line px-4 pt-3"
+        style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
       >
-        <div className="pointer-events-auto glass-strong rounded-full px-2 py-2 flex items-center gap-1 shadow-glow">
-          <Link
-            href="/mis-reportes"
-            className="px-4 py-2 rounded-full text-[13px] text-ink/70 font-medium active:scale-95 transition-transform"
-          >
-            Mis Reportes
-          </Link>
-          <div className="px-4 py-2 rounded-full bg-teal text-inkOnAccent text-[13px] font-display font-semibold tracking-wide flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-bg/70" /> Nuevo reporte
-          </div>
+        <div className="max-w-2xl mx-auto flex items-center gap-2.5">
+          {paso === 1 ? (
+            <Link href="/mis-reportes" className="min-h-[50px] px-4 rounded-2xl border border-line-strong text-[14px] font-medium text-ink/80 flex items-center">
+              Cancelar
+            </Link>
+          ) : (
+            <button type="button" onClick={() => irAPaso(paso - 1)} className="min-h-[50px] px-4 rounded-2xl border border-line-strong text-[14px] font-medium text-ink/80">
+              Atrás
+            </button>
+          )}
+          {paso < 4 ? (
+            <button
+              type="button"
+              onClick={siguientePaso}
+              className="flex-1 min-h-[50px] rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15px] tracking-wide shadow-glow-teal active:scale-95 transition-transform"
+            >
+              Siguiente: {PASOS[paso]}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving || faltantes.length > 0}
+              className="flex-1 min-h-[50px] rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15px] tracking-wide shadow-glow-teal active:scale-95 transition-transform disabled:opacity-50"
+            >
+              {saving ? 'Guardando...' : 'Guardar reporte'}
+            </button>
+          )}
         </div>
       </div>
     </div>
