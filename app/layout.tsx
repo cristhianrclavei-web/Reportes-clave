@@ -3,6 +3,7 @@ import { Barlow_Condensed, Inter, IBM_Plex_Mono } from 'next/font/google';
 import './globals.css';
 import ToastContainer from '@/components/Toast';
 import OfflineSyncManager from '@/components/OfflineSyncManager';
+import { MARCA, MARCA_MAYUS } from '@/lib/marca';
 
 const display = Barlow_Condensed({
   subsets: ['latin'],
@@ -21,7 +22,7 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Reportes de Servicio · Clave Inteligente',
+  title: `${MARCA.appNombre} · ${MARCA.nombre}`,
   description: 'App de reportes de servicio CRM0851 para técnicos y supervisores',
   manifest: '/manifest.json',
   icons: {

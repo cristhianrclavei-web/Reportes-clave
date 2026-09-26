@@ -1003,7 +1003,7 @@ export default function InsumosChecklist({
             </p>
 
             <div className="rounded-xl overflow-hidden border border-line mb-3">
-              <SignaturePad ref={firmaRef} height={150} />
+              <SignaturePad ref={firmaRef} height={150} titulo="Firma de resguardo" />
             </div>
 
             <div className="flex gap-2">

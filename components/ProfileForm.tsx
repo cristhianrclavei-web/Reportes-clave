@@ -87,7 +87,7 @@ export default function ProfileForm({ user, profile }: ProfileFormProps) {
               autoCapitalize="none"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="nombre@clave-i.mx"
+              placeholder="nombre@empresa.com"
               disabled={guardando}
               className={`w-full min-h-[52px] pl-11 pr-4 rounded-xl bg-surface-2 border text-[16px] text-ink placeholder:text-faint outline-none transition-colors ${
                 emailError ? 'border-red' : 'border-line focus:border-teal'

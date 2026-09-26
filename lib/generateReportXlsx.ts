@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import { REPORT_TEMPLATE_XLSX_BASE64 } from './reportTemplateBase64';
+import { MARCA, MARCA_MAYUS } from './marca';
 
 type ReportRow = {
   id: string;
@@ -94,7 +95,7 @@ export async function generateReportXlsx(report: ReportRow): Promise<Buffer> {
   }
 
   // ---------- Datos del servicio (panel derecho) ----------
-  setValueShrinkToFit(sheet.getCell('G8'), data.claveFormato || 'CRM0851', 14);
+  setValueShrinkToFit(sheet.getCell('G8'), data.claveFormato || MARCA.claveFormato, 14);
   setValueShrinkToFit(sheet.getCell('G9'), data.listaConceptos || '', 22);
   setValueShrinkToFit(sheet.getCell('G10'), report.fecha || '', 14);
   setValueShrinkToFit(sheet.getCell('G11'), data.horaLlegada || '', 14);

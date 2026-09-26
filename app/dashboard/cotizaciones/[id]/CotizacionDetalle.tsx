@@ -13,6 +13,7 @@ import {
 } from '@/lib/cotizaciones';
 import { showToast } from '@/components/Toast';
 import { FileText, Pencil, Trash2, ChevronLeft, X, Check, Send, Ban, MessageCircle } from 'lucide-react';
+import { MARCA, MARCA_MAYUS } from '@/lib/marca';
 
 // WhatsApp necesita el código de país adelante — los teléfonos se capturan
 // a 10 dígitos "a la mexicana", así que si ya trae más dígitos se asume que
@@ -146,7 +147,7 @@ export default function CotizacionDetalle({
   function handleEnviarWhatsapp() {
     const link = `${window.location.origin}/api/cotizaciones/${cotizacion.id}/pdf-cliente`;
     const saludo = cotizacion.atencion ? `Hola ${cotizacion.atencion}` : 'Hola';
-    const mensaje = `${saludo}, te comparto la cotización ${cotizacion.folio} de Clave Inteligente para ${cotizacion.empresa}. Puedes verla aquí: ${link}`;
+    const mensaje = `${saludo}, te comparto la cotización ${cotizacion.folio} de ${MARCA.nombre} para ${cotizacion.empresa}. Puedes verla aquí: ${link}`;
     // Sin teléfono del cliente, wa.me sin número abre WhatsApp con el
     // mensaje listo y deja elegir el contacto ahí mismo — no hace falta
     // tenerlo capturado para poder mandarla.
@@ -358,7 +359,7 @@ export default function CotizacionDetalle({
                   className="w-full px-3.5 py-2.5 mb-3 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[14.5px]"
                 />
                 <div className="rounded-xl overflow-hidden border border-line mb-2">
-                  <SignaturePad ref={firmaRef} height={130} />
+                  <SignaturePad ref={firmaRef} height={130} titulo="Firma de aprobación" />
                 </div>
                 {errorFirma && <p className="text-red text-[12px] mb-2">{errorFirma}</p>}
                 <div className="flex gap-2">

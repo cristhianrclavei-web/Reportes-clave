@@ -5,6 +5,7 @@ import {
   embedBrandFonts, drawBadge, drawIconStrip, drawWatermark,
 } from './pdfBranding';
 import { Cotizacion, LineaCotizacion, agruparPorSistema } from './cotizaciones';
+import { MARCA, MARCA_MAYUS } from './marca';
 
 // Mismo formato que las cotizaciones que ya se le mandan a los clientes
 // (ver ~/Documents/Formatos_ClaveI, ejemplo Torre Classiqa): encabezado de
@@ -12,8 +13,8 @@ import { Cotizacion, LineaCotizacion, agruparPorSistema } from './cotizaciones';
 // SUBTOTAL/IVA/TOTAL, y una segunda página con condiciones comerciales y
 // firma.
 const DIRECCION_EMPRESA = 'Tejedores 578 Col. La Paz Guadalajara Jalisco 44860 Tel: 3315781794';
-const TELS_CONTACTO = 'Tels: 3315672378, 3315672377';
-const SITIO_WEB = 'www.clave-i.mx';
+const TELS_CONTACTO = `Tels: ${MARCA.telefonos}`;
+const SITIO_WEB = MARCA.sitioWeb;
 
 function money(n: number, moneda: 'MXN' | 'USD' = 'MXN'): string {
   const prefijo = moneda === 'USD' ? 'USD $ ' : '$ ';
@@ -78,8 +79,8 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
     drawBadge(pg, display, MARGIN, topY, badgeSize);
     const wordX = MARGIN + badgeSize + 12;
     const wordSize = 15;
-    pg.drawText('CLAVE INTELIGENTE', { x: wordX, y: topY - 15, size: wordSize, font: display, color: NAVY });
-    const wordmarkW = display.widthOfTextAtSize('CLAVE INTELIGENTE', wordSize);
+    pg.drawText(MARCA_MAYUS, { x: wordX, y: topY - 15, size: wordSize, font: display, color: NAVY });
+    const wordmarkW = display.widthOfTextAtSize(MARCA_MAYUS, wordSize);
     const lineY = topY - 24;
     pg.drawLine({ start: { x: wordX, y: lineY }, end: { x: wordX + wordmarkW, y: lineY }, thickness: 1, color: ROJO });
     drawIconStrip(pg, wordX, lineY - 8, 14, GRAY_TEXT);

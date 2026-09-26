@@ -19,6 +19,7 @@ import { notificar } from '@/lib/push';
 import { evaluarVentanaServicio } from '@/lib/ventanaServicio';
 import Logo from '@/components/Logo';
 import { hoyLocal } from '@/lib/fechaHoy';
+import { MARCA, MARCA_MAYUS } from '@/lib/marca';
 
 // Hora "HH:mm" del reloj del dispositivo — igual al formato que ya entrega
 // el <input type="time">, así que sirve tal cual como valor de respaldo.
@@ -1302,18 +1303,17 @@ export default function NuevoReportePage() {
           <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Firmas</p>
           <div className="mb-2.5"><label className={labelCls}>Ing. responsable de ejecución</label><input type="text" className={inputCls} value={firmaIngNombre} onChange={(e) => setFirmaIngNombre(e.target.value)} /></div>
           <div className="rounded-xl overflow-hidden border border-line">
-            <SignaturePad ref={sigIngRef} />
+            <SignaturePad ref={sigIngRef} titulo="Firma del ingeniero responsable" />
           </div>
-          <p className="text-[11px] text-muted mt-1.5 mb-4">Firme con el dedo sobre el recuadro</p>
+          <div className="mb-4" />
 
           <div className="mb-2.5"><label className={labelCls}>Nombre del cliente</label><input type="text" className={inputCls} value={firmaClienteNombre} onChange={(e) => setFirmaClienteNombre(e.target.value)} /></div>
           <div className="rounded-xl overflow-hidden border border-line">
-            <SignaturePad ref={sigClienteRef} />
+            <SignaturePad ref={sigClienteRef} titulo="Firma del cliente" />
           </div>
-          <p className="text-[11px] text-muted mt-1.5">Firme con el dedo sobre el recuadro</p>
 
           <p className="text-[11px] text-muted mt-3 leading-relaxed">
-            El reporte quedará como <b>pendiente de revisión</b> hasta que el Ing. Everardo Sánchez lo firme desde el dashboard.
+            El reporte quedará como <b>pendiente de revisión</b> hasta que {MARCA.revisor} lo firme desde el panel.
           </p>
         </div>
 

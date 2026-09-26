@@ -296,7 +296,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
       ? `el proyecto COMPLETO «${servicio.proyecto}» (los ${servicio.dias_totales} días)`
       : `el servicio «${servicio.proyecto}»`;
     if (!confirm(`¿Eliminar ${queSeElimina}?\n\nSe borrarán su checklist, evidencias, eventos y fotos. Los reportes de servicio formales que estén vinculados NO se eliminan, solo quedan desvinculados.`)) return;
-    if (!confirm('Esta acción es PERMANENTE y quedará registrada en Eventos con tu nombre. ¿Confirmar eliminación?')) return;
+    if (!confirm('Esta acción es PERMANENTE y quedará registrada en Actividad con tu nombre. ¿Confirmar eliminación?')) return;
     setEliminando(true);
     try {
       await eliminarProyecto(servicio.grupo_id);
@@ -443,7 +443,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
                   className="w-full px-3 min-h-[46px] mb-2.5 rounded-lg bg-surface border border-line text-[14.5px]"
                 />
                 <p className="text-[12.5px] text-muted mb-2.5 leading-relaxed">
-                  Si la nueva fecha altera el orden, los días del proyecto se renumeran para que sigan siendo cronológicos. Queda registrado en Eventos con tu nombre.
+                  Si la nueva fecha altera el orden, los días del proyecto se renumeran para que sigan siendo cronológicos. Queda registrado en Actividad con tu nombre.
                 </p>
                 <div className="flex gap-2">
                   <button onClick={() => setShowReprogramar(false)} className="flex-1 min-h-[46px] border border-line-strong text-ink/80 rounded-xl text-[14px]">Cancelar</button>
@@ -720,7 +720,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
               ? `Eliminar el proyecto completo (${servicio.dias_totales} días)`
               : 'Eliminar este servicio'}
           </button>
-          <p className="text-[11px] text-muted mt-1.5 text-center">Acción permanente. Quedará registrada en la pestaña Eventos.</p>
+          <p className="text-[11px] text-muted mt-1.5 text-center">Acción permanente. Quedará registrada en Actividad.</p>
         </div>
       </div>
       {/* Eliminar un día: el motivo es obligatorio porque es lo que después
@@ -733,7 +733,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
             </p>
             <p className="text-[13px] text-muted mb-3.5 leading-relaxed">
               El proyecto quedará en {servicio.dias_totales - 1} día(s). Los días siguientes conservan su fecha y
-              se recorren en la numeración. Queda registrado en Eventos con tu nombre.
+              se recorren en la numeración. Queda registrado en Actividad con tu nombre.
             </p>
 
             <label className="text-[13px] text-ink/75 block mb-1.5">¿Por qué se elimina?</label>
@@ -774,7 +774,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
             <p className="text-[13px] text-muted mb-3.5 leading-relaxed">
               Úsalo cuando el técnico ya entregó el reporte pero nunca marcó llegada ni inicio a tiempo —
               normalmente porque ya había pasado la fecha programada. El día pasa a "Concluido". Queda
-              registrado en Eventos con tu nombre.
+              registrado en Actividad con tu nombre.
             </p>
 
             <label className="text-[13px] text-ink/75 block mb-1.5">¿Por qué se cierra manualmente?</label>

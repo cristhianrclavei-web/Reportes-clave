@@ -1,11 +1,12 @@
 'use client';
 
+import SubTabs from '@/components/SubTabs';
 import { useEffect, useState, useRef } from 'react';
 import { createClient } from '@/lib/supabaseClient';
 import { vincularReporteAServicio, Servicio, listarServiciosVinculables } from '@/lib/serviciosProgramados';
 import { eliminarReporte } from '@/lib/eliminarReporte';
 import { registrarAccionGlobal } from '@/lib/auditoriaGlobal';
-import { Check, X, CircleX, FileText, FileSpreadsheet, Share2, Trash2, Unlock, LockKeyhole, MessageSquareWarning, Camera, FolderKanban } from 'lucide-react';
+import { Check, X, CircleX, FileText, FileSpreadsheet, Share2, Trash2, Unlock, LockKeyhole, MessageSquareWarning, Camera, FolderKanban, ClipboardCheck } from 'lucide-react';
 import { solicitarCorreccion, habilitarCorreccion, cancelarCorreccion, aplicarCorreccion } from '@/lib/correcciones';
 import { showToast } from '@/components/Toast';
 import FacturacionSection from '@/components/FacturacionSection';
@@ -57,6 +58,7 @@ export default function ReportDetailModal({
   esSupervisor?: boolean;
 }) {
   const [eliminando, setEliminando] = useState(false);
+  const [pestana, setPestana] = useState<'reporte' | 'fotos' | 'gestion'>('reporte');
   const [fotoUrls, setFotoUrls] = useState<{ url: string; caption: string }[] | null>(null);
   const [loadingFotos, setLoadingFotos] = useState(false);
   const [shareMenuOpen, setShareMenuOpen] = useState(false);
@@ -117,7 +119,7 @@ export default function ReportDetailModal({
   }
 
   async function handleHabilitarCorreccion() {
-    if (!confirm('¿Autorizar al técnico a corregir este reporte?\n\nSolo podrá agregar fotos y cambiar el servicio vinculado. Quedará registrado en Eventos con tu nombre.')) return;
+    if (!confirm('¿Autorizar al técnico a corregir este reporte?\n\nSolo podrá agregar fotos y cambiar el servicio vinculado. Quedará registrado en Actividad con tu nombre.')) return;
     setProcesandoCorreccion(true);
     try {
       await habilitarCorreccion(report);
@@ -253,7 +255,7 @@ export default function ReportDetailModal({
   async function handleEliminarReporte() {
     const folio = report.data?.claveFormato ? ` (folio ${report.data.claveFormato})` : '';
     if (!confirm(`¿Eliminar el reporte de «${report.empresa_cliente}»${folio}?\n\nSe borrarán también sus fotos de evidencia y su factura si la tiene. Si está vinculado a un servicio programado, el servicio NO se elimina, solo se desvincula.`)) return;
-    if (!confirm('Esta acción es PERMANENTE y quedará registrada en Eventos con tu nombre. ¿Confirmar eliminación?')) return;
+    if (!confirm('Esta acción es PERMANENTE y quedará registrada en Actividad con tu nombre. ¿Confirmar eliminación?')) return;
     setEliminando(true);
     try {
       await eliminarReporte(report);
@@ -387,55 +389,6 @@ export default function ReportDetailModal({
         >
           <CircleX size={26} strokeWidth={1.8} />
         </button>
-        {/* Vínculo con el servicio programado: lo primero del reporte, porque
-            determina a qué trabajo pertenece. */}
-        {servicioVinculadoId ? (
-          <a
-            href={`/dashboard/servicios/${servicioVinculadoId}`}
-            className="inline-flex items-center gap-2 text-[13.5px] text-teal font-medium mb-4 min-h-[40px]"
-          >
-            <FolderKanban size={16} strokeWidth={2.4} />
-            Ver el servicio programado relacionado
-          </a>
-        ) : (
-          <div className="mb-4 p-4 rounded-2xl bg-amber/12 border-2 border-amber/40">
-            <p className="font-display font-semibold text-[14.5px] text-amber mb-1 flex items-center gap-2">
-              <FolderKanban size={17} strokeWidth={2.5} />
-              Este reporte no está vinculado a ningún servicio
-            </p>
-            <p className="text-[12.5px] text-ink/80 mb-2.5 leading-relaxed">
-              Vincúlalo para que el servicio programado quede marcado como atendido.
-            </p>
-            {serviciosDisponibles.length > 0 ? (
-              <>
-                <select
-                  value={servicioParaVincular}
-                  onChange={(e) => setServicioParaVincular(e.target.value)}
-                  className="w-full px-3 min-h-[48px] mb-2.5 rounded-xl bg-surface border border-line text-[14.5px] focus:border-teal focus:outline-none"
-                >
-                  <option value="">Elegir servicio…</option>
-                  {serviciosDisponibles.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.proyecto}{s.dias_totales > 1 ? ` · Día ${s.numero_dia} de ${s.dias_totales}` : ''} · {s.fecha.split('-').reverse().join('/')}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  onClick={handleVincularServicio}
-                  disabled={!servicioParaVincular || vinculando}
-                  className="w-full min-h-[48px] rounded-xl bg-teal text-inkOnAccent text-[14.5px] font-semibold active:scale-95 transition-transform disabled:opacity-50"
-                >
-                  {vinculando ? 'Vinculando...' : 'Vincular a este servicio'}
-                </button>
-              </>
-            ) : (
-              <p className="text-[12.5px] text-muted">
-                No hay servicios programados sin reporte disponibles para vincular.
-              </p>
-            )}
-            {errorVinculo && <p className="text-red text-[12.5px] mt-2">{errorVinculo}</p>}
-          </div>
-        )}
         {/* Solicitud pendiente: va arriba de todo porque pide una decisión */}
         {esSupervisor && correccionSolicitada && !correccionHabilitada && (
           <div className="mb-5 p-4 rounded-2xl bg-amber/12 border-2 border-amber/40">
@@ -454,7 +407,7 @@ export default function ReportDetailModal({
               <p className="text-[13.5px] text-ink/85 leading-relaxed mb-3 italic">«{report.correccion_motivo}»</p>
             )}
             <p className="text-[13px] text-muted leading-relaxed mb-3">
-              Si lo autorizas, solo podrá agregar fotos y cambiar el servicio vinculado. Quedará registrado en Eventos con tu nombre.
+              Si lo autorizas, solo podrá agregar fotos y cambiar el servicio vinculado. Quedará registrado en Actividad con tu nombre.
             </p>
             <div className="flex gap-2">
               <button
@@ -500,13 +453,6 @@ export default function ReportDetailModal({
               <FileSpreadsheet size={15} strokeWidth={2.4} />
               Descargar Excel
             </button>
-            <button
-              onClick={handleVerFotos}
-              className="min-h-[38px] flex items-center gap-1.5 text-[12.5px] bg-amber text-inkOnAccent rounded-full px-3.5 py-2 font-semibold active:scale-95 transition-transform"
-            >
-              <Camera size={15} strokeWidth={2.4} />
-              Fotos {(report.data?.fotos?.length || 0) > 0 ? `(${report.data.fotos.length})` : ''}
-            </button>
             <div className="relative">
               <button
                 onClick={() => setShareMenuOpen((v) => !v)}
@@ -533,6 +479,24 @@ export default function ReportDetailModal({
           </div>
         </div>
 
+        {/* Tres pestañas: lo que se hizo, la evidencia y la gestión
+            (vínculo, revisión, facturación, correcciones). Antes era una sola
+            columna muy larga. */}
+        <SubTabs
+          activa={pestana}
+          onCambiar={(k) => {
+            setPestana(k);
+            if (k === 'fotos' && fotoUrls === null && !loadingFotos) handleVerFotos();
+          }}
+          opciones={[
+            { k: 'reporte', label: 'Reporte', Icono: FileText },
+            { k: 'fotos', label: `Fotos${(report.data?.fotos?.length || 0) > 0 ? ` (${report.data.fotos.length})` : ''}`, Icono: Camera },
+            { k: 'gestion', label: 'Revisión', Icono: ClipboardCheck },
+          ]}
+          className="mb-1"
+        />
+
+        {pestana === 'reporte' && (<>
         <Section title="Datos generales">
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
             <Detail label="Clave de formato" value={report.data?.claveFormato} />
@@ -634,6 +598,59 @@ export default function ReportDetailModal({
           </Section>
         )}
 
+        </>)}
+
+        {pestana === 'gestion' && (<>
+        <div className="mt-4" />
+        {/* Vínculo con el servicio programado: lo primero del reporte, porque
+            determina a qué trabajo pertenece. */}
+        {servicioVinculadoId ? (
+          <a
+            href={`/dashboard/servicios/${servicioVinculadoId}`}
+            className="inline-flex items-center gap-2 text-[13.5px] text-teal font-medium mb-4 min-h-[40px]"
+          >
+            <FolderKanban size={16} strokeWidth={2.4} />
+            Ver el servicio programado relacionado
+          </a>
+        ) : (
+          <div className="mb-4 p-4 rounded-2xl bg-amber/12 border-2 border-amber/40">
+            <p className="font-display font-semibold text-[14.5px] text-amber mb-1 flex items-center gap-2">
+              <FolderKanban size={17} strokeWidth={2.5} />
+              Este reporte no está vinculado a ningún servicio
+            </p>
+            <p className="text-[12.5px] text-ink/80 mb-2.5 leading-relaxed">
+              Vincúlalo para que el servicio programado quede marcado como atendido.
+            </p>
+            {serviciosDisponibles.length > 0 ? (
+              <>
+                <select
+                  value={servicioParaVincular}
+                  onChange={(e) => setServicioParaVincular(e.target.value)}
+                  className="w-full px-3 min-h-[48px] mb-2.5 rounded-xl bg-surface border border-line text-[14.5px] focus:border-teal focus:outline-none"
+                >
+                  <option value="">Elegir servicio…</option>
+                  {serviciosDisponibles.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.proyecto}{s.dias_totales > 1 ? ` · Día ${s.numero_dia} de ${s.dias_totales}` : ''} · {s.fecha.split('-').reverse().join('/')}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleVincularServicio}
+                  disabled={!servicioParaVincular || vinculando}
+                  className="w-full min-h-[48px] rounded-xl bg-teal text-inkOnAccent text-[14.5px] font-semibold active:scale-95 transition-transform disabled:opacity-50"
+                >
+                  {vinculando ? 'Vinculando...' : 'Vincular a este servicio'}
+                </button>
+              </>
+            ) : (
+              <p className="text-[12.5px] text-muted">
+                No hay servicios programados sin reporte disponibles para vincular.
+              </p>
+            )}
+            {errorVinculo && <p className="text-red text-[12.5px] mt-2">{errorVinculo}</p>}
+          </div>
+        )}
         <RevisionFinalSection
           reportId={report.id}
           empresaCliente={report.empresa_cliente}
@@ -665,6 +682,9 @@ export default function ReportDetailModal({
           onGuardarDatos={updateReportData}
         />
 
+        </>)}
+
+        {pestana === 'reporte' && (<>
         {(report.data?.equipos || []).length > 0 && (
           <Section title="Equipo instalado">
             <div className="overflow-x-auto rounded-xl border border-line">
@@ -694,6 +714,9 @@ export default function ReportDetailModal({
           </Section>
         )}
 
+        </>)}
+
+        {pestana === 'fotos' && (<>
         {loadingFotos && <p className="text-[13px] text-muted mt-4">Cargando fotos...</p>}
         {fotoUrls !== null && !loadingFotos && (
           <Section title="Fotos de evidencia">
@@ -714,6 +737,9 @@ export default function ReportDetailModal({
           </Section>
         )}
 
+        </>)}
+
+        {pestana === 'gestion' && (<>
         {/* --- Corrección autorizada --- */}
         {esSupervisor && correccionHabilitada && (
           <div className="mt-5 p-4 rounded-2xl bg-amber/10 border border-amber/30">
@@ -870,9 +896,10 @@ export default function ReportDetailModal({
             >
               {eliminando ? 'Eliminando...' : <><Trash2 size={16} strokeWidth={2.4} />Eliminar este reporte</>}
             </button>
-            <p className="text-[11px] text-muted mt-1.5 text-center">Acción permanente. Quedará registrada en la pestaña Eventos.</p>
+            <p className="text-[11px] text-muted mt-1.5 text-center">Acción permanente. Quedará registrada en Actividad.</p>
           </div>
         )}
+        </>)}
       </div>
     </div>
   );

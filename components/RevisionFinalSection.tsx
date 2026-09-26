@@ -128,7 +128,7 @@ export default function RevisionFinalSection({
           {puedeAprobar && mostrandoFirma && (
             <div>
               <div className="rounded-xl overflow-hidden border border-line mb-2">
-                <SignaturePad ref={firmaRef} height={130} />
+                <SignaturePad ref={firmaRef} height={130} titulo="Firma de revisión final" />
               </div>
               {error && <p className="text-red text-[12px] mb-2">{error}</p>}
               <div className="flex gap-2">

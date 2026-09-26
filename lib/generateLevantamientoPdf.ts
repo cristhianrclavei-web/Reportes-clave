@@ -6,6 +6,7 @@ import {
   embedBrandFonts, drawBadge, drawIconStrip, drawWatermark,
 } from './pdfBranding';
 import { Levantamiento, SistemaLevantamiento } from './levantamientos';
+import { MARCA, MARCA_MAYUS } from './marca';
 
 // Mismo formato de cajas con título que generateReportPdf.ts — un
 // levantamiento es, para efectos de quien lo revisa (el supervisor), el
@@ -83,8 +84,8 @@ export async function generateLevantamientoPdf(
 
   const wordX = MARGIN + badgeSize + 12;
   const wordSize = 15;
-  page.drawText('CLAVE INTELIGENTE', { x: wordX, y: headerTop - 15, size: wordSize, font: display, color: NAVY });
-  const wordmarkW = display.widthOfTextAtSize('CLAVE INTELIGENTE', wordSize);
+  page.drawText(MARCA_MAYUS, { x: wordX, y: headerTop - 15, size: wordSize, font: display, color: NAVY });
+  const wordmarkW = display.widthOfTextAtSize(MARCA_MAYUS, wordSize);
   const lineY = headerTop - 24;
   page.drawLine({ start: { x: wordX, y: lineY }, end: { x: wordX + wordmarkW, y: lineY }, thickness: 1, color: NAVY });
   drawIconStrip(page, wordX, lineY - 8, 14, GRAY_TEXT);
@@ -249,7 +250,7 @@ export async function generateLevantamientoPdf(
     y -= 12;
   }
 
-  page.drawText(`Generado el ${new Date().toLocaleString('es-MX')} · Clave Inteligente · Folio ${levantamiento.folio}`, {
+  page.drawText(`Generado el ${new Date().toLocaleString('es-MX')} · ${MARCA.nombre} · Folio ${levantamiento.folio}`, {
     x: MARGIN, y: MARGIN / 2, size: 6.5, font, color: GRAY_TEXT,
   });
 

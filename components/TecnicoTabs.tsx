@@ -1,5 +1,6 @@
 'use client';
 
+import BarraInferior from '@/components/BarraInferior';
 import Link from 'next/link';
 import { FileText, ClipboardList, NotebookPen, PackageCheck } from 'lucide-react';
 
@@ -35,10 +36,7 @@ export default function TecnicoTabs({ active }: { active: TecnicoTabKey }) {
       </div>
 
       {/* Celular: barra inferior, al alcance del pulgar */}
-      <nav
-        className="lg:hidden fixed bottom-0 inset-x-0 z-30 glass-strong border-t border-line flex justify-around px-1 pt-1.5"
-        style={{ paddingBottom: 'max(0.4rem, env(safe-area-inset-bottom))' }}
-      >
+      <BarraInferior>
         {TABS.map((t) => (
           <Link
             key={t.key}
@@ -51,7 +49,7 @@ export default function TecnicoTabs({ active }: { active: TecnicoTabKey }) {
             {t.label}
           </Link>
         ))}
-      </nav>
+      </BarraInferior>
     </>
   );
 }

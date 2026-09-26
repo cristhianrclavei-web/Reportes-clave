@@ -1,5 +1,6 @@
 'use client';
 
+import BarraInferior from '@/components/BarraInferior';
 import Link from '@/components/TransitionLink';
 import { ReactNode, useEffect, useState } from 'react';
 import Logo from './Logo';
@@ -140,10 +141,7 @@ export default function SupervisorShell({
       </div>
 
       {/* Celular: barra inferior */}
-      <nav
-        className="lg:hidden fixed bottom-0 inset-x-0 z-30 glass-strong border-t border-line flex justify-around px-1 pt-1.5"
-        style={{ paddingBottom: 'max(0.4rem, env(safe-area-inset-bottom))' }}
-      >
+      <BarraInferior>
         {inferiores.map((t) => (
           <Link
             key={t.key}
@@ -163,7 +161,7 @@ export default function SupervisorShell({
           <MoreHorizontal size={21} strokeWidth={masActivo ? 2.5 : 2.1} />
           Más
         </button>
-      </nav>
+      </BarraInferior>
 
       {masAbierto && (
         <ModalOverlay onClose={() => setMasAbierto(false)} className="items-end">

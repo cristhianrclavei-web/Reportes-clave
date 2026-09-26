@@ -1,10 +1,11 @@
 import Link from 'next/link';
 import Logo from '@/components/Logo';
 import { ChevronLeft } from 'lucide-react';
+import { MARCA } from '@/lib/marca';
 
 export const metadata = {
-  title: 'Aviso de Privacidad · Clave Inteligente',
-  description: 'Aviso de privacidad de la app de reportes de servicio de Clave Inteligente.',
+  title: `Aviso de Privacidad · ${MARCA.nombre}`,
+  description: `Aviso de privacidad de la app de reportes de servicio de ${MARCA.nombre}.`,
 };
 
 const h2 = 'font-display font-bold text-[18px] mt-7 mb-2.5';
@@ -26,7 +27,7 @@ export default function AvisoPrivacidadPage() {
         <p className="text-[13px] text-muted mb-6">Última actualización: 23 de septiembre de 2026</p>
 
         <p className={p}>
-          <strong>Clave Inteligente</strong>, con domicilio en Tejedores 578, Col. La Paz, Guadalajara, Jalisco,
+          <strong>{MARCA.nombre}</strong>, con domicilio en {MARCA.domicilio},
           C.P. 44860 ("nosotros"), es responsable del tratamiento de los datos personales que recaba a través de
           esta aplicación de reportes de servicio, de conformidad con la Ley Federal de Protección de Datos
           Personales en Posesión de los Particulares (LFPDPPP).
@@ -94,7 +95,7 @@ export default function AvisoPrivacidadPage() {
         <p className={p}>
           Puedes solicitar en cualquier momento el Acceso, Rectificación, Cancelación u Oposición (derechos ARCO)
           al tratamiento de tus datos personales, así como revocar tu consentimiento, escribiendo a{' '}
-          <a href="mailto:soporte@clave-i.mx" className="text-teal underline">soporte@clave-i.mx</a> o llamando al
+          <a href={`mailto:${MARCA.correoSoporte}`} className="text-teal underline">{MARCA.correoSoporte}</a> o llamando al
           33 1567 2378. Responderemos tu solicitud en un plazo razonable conforme a la ley.
         </p>
 

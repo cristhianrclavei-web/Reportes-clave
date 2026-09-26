@@ -103,6 +103,10 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   const [seccion, setSeccion] = useState<'agendar' | 'agendados' | 'concluidos' | 'checklists' | 'plantillas'>('agendados');
   const [checklists, setChecklists] = useState<ResumenChecklist[]>([]);
   const [rango, setRango] = useState<RangoSeleccionado | null>(null);
+  // Agendados abre en «Próximos» (todo lo pendiente, lo más cercano primero)
+  // y no en la semana actual: si lo siguiente es la semana que entra, la
+  // pantalla parecía vacía.
+  const [modoAgendados, setModoAgendados] = useState<'proximos' | 'semana'>('proximos');
   const [busquedaServicio, setBusquedaServicio] = useState('');
   const fechasDeServicios = useMemo(() => servicios.map((s) => s.fecha).filter(Boolean), [servicios]);
   const [plantillaEditando, setPlantillaEditando] = useState<PlantillaInsumos | null>(null);
@@ -235,12 +239,13 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
     });
   }, [diasTotales, diasSeguidos, fecha]);
 
+  const usarRango = !(seccion === 'agendados' && modoAgendados === 'proximos');
   const gruposFiltrados = useMemo<Grupo[]>(() => {
     const mapa: Record<string, Grupo> = {};
     servicios.forEach((s) => {
       // El rango de fechas no aplica cuando se busca por texto: quien escribe
       // el nombre de un cliente quiere encontrarlo esté en la semana que esté.
-      if (!busquedaServicio && rango) {
+      if (!busquedaServicio && rango && usarRango) {
         // Un proyecto aparece si alguno de sus días cae en el rango: filtrar
         // día por día partiría proyectos a la mitad y confundiría la numeración.
         if (!servicios.some((d) => d.grupo_id === s.grupo_id && d.fecha >= rango.desde && d.fecha <= rango.hasta)) return;
@@ -257,12 +262,18 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
       const fb = b.dias[b.dias.length - 1]?.created_at || '';
       return fb.localeCompare(fa);
     });
-  }, [servicios, rango, busquedaServicio]);
+  }, [servicios, rango, busquedaServicio, usarRango]);
 
   // "Agendados" es lo que todavía tiene trabajo pendiente — incluye los
   // proyectos de varios días que van a medias. Un proyecto con todos sus
   // días concluidos pasa a "Concluidos".
-  const grupos = useMemo(() => gruposFiltrados.filter((g) => g.dias.some((d) => d.estado !== 'concluido')), [gruposFiltrados]);
+  const grupos = useMemo(() => {
+    const pendientes = gruposFiltrados.filter((g) => g.dias.some((d) => d.estado !== 'concluido'));
+    if (modoAgendados !== 'proximos') return pendientes;
+    // Lo más próximo primero: la fecha del siguiente día sin concluir.
+    const siguiente = (g: Grupo) => g.dias.filter((d) => d.estado !== 'concluido').map((d) => d.fecha).sort()[0] || '9999';
+    return [...pendientes].sort((a, b) => siguiente(a).localeCompare(siguiente(b)));
+  }, [gruposFiltrados, modoAgendados]);
   const gruposConcluidos = useMemo(() => gruposFiltrados.filter((g) => g.dias.every((d) => d.estado === 'concluido')), [gruposFiltrados]);
   const lista = seccion === 'concluidos' ? gruposConcluidos : grupos;
 
@@ -1096,7 +1107,22 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
 
         {(seccion === 'agendados' || seccion === 'concluidos') && (
           <>
-            <SelectorSemana fechas={fechasDeServicios} onCambio={setRango} etiqueta="días programados" />
+            {seccion === 'agendados' && (
+              <div className="flex justify-end mb-3">
+                <div className="flex p-0.5 rounded-xl bg-surface-2 border border-line text-[13px] font-semibold">
+                  {([['proximos', 'Próximos'], ['semana', 'Por semana']] as const).map(([k, label]) => (
+                    <button
+                      key={k}
+                      onClick={() => setModoAgendados(k)}
+                      className={`px-3.5 min-h-[36px] rounded-lg transition-colors ${modoAgendados === k ? 'bg-surface text-teal shadow-sm' : 'text-ink/60'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {usarRango && <SelectorSemana fechas={fechasDeServicios} onCambio={setRango} etiqueta="días programados" />}
             <input
               value={busquedaServicio}
               onChange={(e) => setBusquedaServicio(e.target.value)}
@@ -1135,6 +1161,8 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
                 ? 'Ningún proyecto coincide con la búsqueda.'
                 : seccion === 'concluidos'
                 ? 'No hay servicios concluidos en estas fechas. Cambia de semana, o busca el proyecto por nombre.'
+                : modoAgendados === 'proximos'
+                ? 'No hay servicios pendientes. Usa «Agendar» para programar uno.'
                 : 'No hay servicios programados en estas fechas. Cambia de semana o toca «Toda la semana».'}
             </p>
           </div>

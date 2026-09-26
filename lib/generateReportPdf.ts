@@ -5,6 +5,7 @@ import {
   MARGIN, PAGE_W, PAGE_H,
   embedBrandFonts, drawBadge, drawIconStrip, drawWatermark,
 } from './pdfBranding';
+import { MARCA, MARCA_MAYUS } from './marca';
 
 type ReportRow = {
   id: string;
@@ -94,14 +95,14 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
 
   const wordX = MARGIN + badgeSize + 12;
   const wordSize = 15;
-  page.drawText('CLAVE INTELIGENTE', { x: wordX, y: headerTop - 15, size: wordSize, font: display, color: NAVY });
-  const wordmarkW = display.widthOfTextAtSize('CLAVE INTELIGENTE', wordSize);
+  page.drawText(MARCA_MAYUS, { x: wordX, y: headerTop - 15, size: wordSize, font: display, color: NAVY });
+  const wordmarkW = display.widthOfTextAtSize(MARCA_MAYUS, wordSize);
   const lineY = headerTop - 24;
   page.drawLine({ start: { x: wordX, y: lineY }, end: { x: wordX + wordmarkW, y: lineY }, thickness: 1, color: ROJO });
   drawIconStrip(page, wordX, lineY - 8, 14, GRAY_TEXT);
 
   page.drawText('REPORTE DE SERVICIO', { x: PAGE_W - MARGIN - 210, y: headerTop - 10, size: 14, font: display, color: NAVY });
-  page.drawText(`Clave: ${data.claveFormato || 'CRM0851'}  ·  Folio: ${report.id.slice(0, 8).toUpperCase()}`, {
+  page.drawText(`Clave: ${data.claveFormato || MARCA.claveFormato}  ·  Folio: ${report.id.slice(0, 8).toUpperCase()}`, {
     x: PAGE_W - MARGIN - 210,
     y: headerTop - 24,
     size: 7.5,
@@ -504,12 +505,12 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
   if (data.firmaRevisionData) {
     const revY = y - 18 - sigBoxH - 14;
     page.drawText('REVISIÓN FINAL', { x: MARGIN, y: revY, size: 6.5, font: bold, color: GRAY_TEXT });
-    page.drawText(`Aprobado por ${data.firmaRevisionNombre || 'Ing. Everardo Sánchez'} · ${data.firmaRevisionFecha || ''}`, {
+    page.drawText(`Aprobado por ${data.firmaRevisionNombre || MARCA.revisor} · ${data.firmaRevisionFecha || ''}`, {
       x: MARGIN + 100, y: revY, size: 8.5, font: bold, color: TEAL_DARK,
     });
   }
 
-  page.drawText(`Generado el ${new Date().toLocaleString('es-MX')} · Clave Inteligente · Folio ${report.id.slice(0, 8).toUpperCase()}`, {
+  page.drawText(`Generado el ${new Date().toLocaleString('es-MX')} · ${MARCA.nombre} · Folio ${report.id.slice(0, 8).toUpperCase()}`, {
     x: MARGIN, y: MARGIN / 2, size: 6.5, font, color: GRAY_TEXT,
   });
 

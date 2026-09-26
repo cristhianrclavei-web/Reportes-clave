@@ -1,4 +1,5 @@
 'use client';
+import { MARCA, MARCA_MAYUS } from '@/lib/marca';
 
 // Logo de Clave Inteligente en SVG vectorial.
 //
@@ -171,7 +172,7 @@ export default function Logo({
           className="font-display font-bold tracking-[0.07em] leading-tight"
           style={{ fontSize: size * 0.4 }}
         >
-          CLAVE INTELIGENTE
+          {MARCA_MAYUS}
         </p>
         <div className="h-px bg-red/70 my-[6px]" />
         <TiraIconos alto={Math.max(14, size * 0.3)} />

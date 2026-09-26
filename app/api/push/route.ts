@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import webpush from 'web-push';
 import { createClient } from '@/lib/supabaseServer';
 import { createAdminClient, hayClienteAdmin } from '@/lib/supabaseAdmin';
+import { MARCA, MARCA_MAYUS } from '@/lib/marca';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ enviadas: 0, motivo: 'push no configurado' });
   }
 
-  webpush.setVapidDetails('mailto:soporte@clave-i.mx', publica, privada);
+  webpush.setVapidDetails(`mailto:${MARCA.correoSoporte}`, publica, privada);
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

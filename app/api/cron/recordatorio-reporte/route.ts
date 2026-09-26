@@ -5,6 +5,7 @@ import { horaActualMexico } from '@/lib/horaMexico';
 import { avisarUsuarios } from '@/lib/cronPush';
 import { sumarDias } from '@/lib/fechaHoy';
 import { INICIO_COBERTURA, agruparPorTecnico, inicioVentana, mensajePendiente } from '@/lib/coberturaReportes';
+import { MARCA, MARCA_MAYUS } from '@/lib/marca';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,7 +42,7 @@ export async function POST(request: NextRequest) {
   if (!publica || !privada) {
     return NextResponse.json({ enviadas: 0, motivo: 'push no configurado' });
   }
-  webpush.setVapidDetails('mailto:soporte@clave-i.mx', publica, privada);
+  webpush.setVapidDetails(`mailto:${MARCA.correoSoporte}`, publica, privada);
 
   if (!hayClienteAdmin()) {
     return NextResponse.json({ enviadas: 0, motivo: 'falta secret key' });

@@ -249,7 +249,7 @@ export default function FacturacionSection({
           {!puedeFacturar ? (
             <p className="text-[12px] text-muted">
               {factura.estado === 'en_proceso' ? 'Pendiente de resolver.' : 'Aún no se ha facturado.'}{' '}
-              Solo Ing. Everardo Sánchez, Lic. María Clara Zepeda o Lic. Julio Gómez pueden
+              Solo quienes tienen permiso de facturación pueden
               gestionar la facturación.
             </p>
           ) : (

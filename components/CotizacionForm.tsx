@@ -572,7 +572,7 @@ export default function CotizacionForm({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <div>
             <label className={labelCls}>Nombre de quien firma</label>
-            <input className={inputCls} value={firmanteNombre} onChange={(e) => setFirmanteNombre(e.target.value)} placeholder="Ej. Ing. Everardo Sánchez" />
+            <input className={inputCls} value={firmanteNombre} onChange={(e) => setFirmanteNombre(e.target.value)} placeholder="Nombre de quien firma" />
           </div>
           <div>
             <label className={labelCls}>Correo de quien firma</label>

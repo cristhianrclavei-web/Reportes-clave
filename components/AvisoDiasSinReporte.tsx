@@ -141,7 +141,7 @@ export default function AvisoDiasSinReporte() {
               Justificar el {fechaCorta(justificando)}
             </p>
             <p className="text-[13px] text-muted mb-4 leading-relaxed">
-              Queda registrado en Eventos y ya no se te recordará este día.
+              Queda registrado en Actividad y ya no se te recordará este día.
             </p>
             <div className="flex flex-col gap-2 mb-3">
               {MOTIVOS.map((m) => (
