@@ -3,7 +3,7 @@ import { Barlow_Condensed, Inter, IBM_Plex_Mono } from 'next/font/google';
 import './globals.css';
 import ToastContainer from '@/components/Toast';
 import OfflineSyncManager from '@/components/OfflineSyncManager';
-import { MARCA, MARCA_MAYUS } from '@/lib/marca';
+import { MARCA, DEMO } from '@/lib/marca';
 
 const display = Barlow_Condensed({
   subsets: ['latin'],
@@ -24,7 +24,6 @@ const mono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: `${MARCA.appNombre} · ${MARCA.nombre}`,
   description: 'App de reportes de servicio CRM0851 para técnicos y supervisores',
-  manifest: '/manifest.json',
   icons: {
     icon: '/icons/icon-192.png',
     apple: '/icons/icon-192.png',
@@ -67,6 +66,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="font-sans bg-bg text-ink m-0 min-h-screen transition-colors duration-300">
+        {DEMO.activo && (
+          <div className="bg-amber text-black text-center text-[12px] font-semibold px-3 py-1.5">
+            Versión de demostración · datos ficticios que se reinician cada noche
+          </div>
+        )}
         {children}
         <ToastContainer />
         <OfflineSyncManager />

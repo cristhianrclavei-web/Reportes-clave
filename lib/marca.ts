@@ -24,6 +24,26 @@ export const MARCA = {
   claveFormato: valor(process.env.NEXT_PUBLIC_MARCA_CLAVE_FORMATO, 'CRM0851'),
   // Quien firma la revisión final de los reportes.
   revisor: valor(process.env.NEXT_PUBLIC_MARCA_REVISOR, 'Ing. Everardo Sánchez'),
+  // Letras dentro del escudo del logo y nombre corto al instalar la app.
+  iniciales: valor(process.env.NEXT_PUBLIC_MARCA_INICIALES, 'CI').slice(0, 3),
+  nombreCorto: valor(process.env.NEXT_PUBLIC_MARCA_NOMBRE_CORTO, 'Reportes CI'),
+  // Tira de íconos de servicios bajo el nombre (propia de Clave Inteligente).
+  iconos: valor(process.env.NEXT_PUBLIC_MARCA_ICONOS, '1') === '1',
+};
+
+// Modo demostración: aviso fijo arriba y acceso rápido con cuentas de prueba.
+// Las credenciales del demo son públicas a propósito (la base del demo solo
+// tiene datos ficticios y se reinicia cada noche).
+export const DEMO = {
+  activo: process.env.NEXT_PUBLIC_DEMO === '1',
+  supervisor: {
+    correo: process.env.NEXT_PUBLIC_DEMO_SUPERVISOR_CORREO || '',
+    contrasena: process.env.NEXT_PUBLIC_DEMO_SUPERVISOR_CONTRASENA || '',
+  },
+  tecnico: {
+    correo: process.env.NEXT_PUBLIC_DEMO_TECNICO_CORREO || '',
+    contrasena: process.env.NEXT_PUBLIC_DEMO_TECNICO_CONTRASENA || '',
+  },
 };
 
 export const MARCA_MAYUS = MARCA.nombre.toUpperCase();

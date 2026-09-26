@@ -1,6 +1,7 @@
 import { PDFDocument, PDFFont, PDFPage, rgb, degrees, LineCapStyle, StandardFonts } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { BARLOW_CONDENSED_BOLD_BASE64, INTER_REGULAR_BASE64, INTER_SEMIBOLD_BASE64 } from './brandFonts';
+import { MARCA } from './marca';
 
 // Piezas de marca compartidas entre los distintos PDF que genera la app
 // (reporte de servicio, cotización, ...): colores, tipografía y el logo en
@@ -109,11 +110,11 @@ export function drawBadge(
   // internamente), así que su rotación y el punto de anclaje se calculan
   // aparte, sobre el mismo círculo trigonométrico que usa el resto del PDF.
   const fontSize = 38 * scale;
-  const textW = display.widthOfTextAtSize('CI', fontSize);
+  const textW = display.widthOfTextAtSize(MARCA.iniciales, fontSize);
   const localX = scale * 50 - textW / 2;
   const localY = -scale * 62;
   const rad = rotate ? (rotate.angle * Math.PI) / 180 : 0;
-  pg.drawText('CI', {
+  pg.drawText(MARCA.iniciales, {
     x: x + localX * Math.cos(rad) - localY * Math.sin(rad),
     y: yTop + localX * Math.sin(rad) + localY * Math.cos(rad),
     size: fontSize,
@@ -127,6 +128,7 @@ export function drawBadge(
 // Los seis íconos de servicio en fila, anclados en (x, yTop) = tope de cada
 // ícono (viewBox 24x24) — igual que TiraIconos() en Logo.tsx.
 export function drawIconStrip(pg: PDFPage, x: number, yTop: number, size: number, color: ReturnType<typeof rgb>) {
+  if (!MARCA.iconos) return;
   const scale = size / 24;
   const gap = 5;
   let cx = x;
