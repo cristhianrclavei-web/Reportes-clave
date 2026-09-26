@@ -11,14 +11,19 @@ export default function SubTabs<K extends string>({
   activa,
   onCambiar,
   className = '',
+  accion,
 }: {
   opciones: { k: K; label: string; Icono?: any; badge?: ReactNode }[];
   activa: K;
   onCambiar: (k: K) => void;
   className?: string;
+  // Botón al final del renglón (solo en computadora; en celular la acción
+  // principal va como botón flotante).
+  accion?: ReactNode;
 }) {
   return (
-    <div className={`flex gap-1 border-b border-line mb-5 overflow-x-auto no-scrollbar ${className}`} role="tablist">
+    <div className={`flex items-end gap-3 border-b border-line mb-5 ${className}`}>
+    <div className="flex gap-1 flex-1 min-w-0 overflow-x-auto no-scrollbar -mb-px" role="tablist">
       {opciones.map(({ k, label, Icono, badge }) => {
         const on = activa === k;
         return (
@@ -38,6 +43,8 @@ export default function SubTabs<K extends string>({
           </button>
         );
       })}
+    </div>
+    {accion && <div className="hidden lg:block shrink-0 pb-2">{accion}</div>}
     </div>
   );
 }

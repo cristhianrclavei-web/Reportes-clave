@@ -1,5 +1,6 @@
 'use client';
 
+import { BotonAccion, BotonFlotante } from '@/components/AccionPrincipal';
 import SubTabs from '@/components/SubTabs';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -108,14 +109,6 @@ export default function AlmacenList({ userName }: { userName?: string }) {
       title={seccion === 'entrada' ? 'Registrar entrada' : 'Almacén'}
       userName={userName}
       mostrarAlmacen
-      acciones={seccion !== 'entrada' && (
-        <button
-          onClick={() => setSeccion('entrada')}
-          className="min-h-[44px] px-4 rounded-xl bg-teal text-inkOnAccent font-semibold text-[14px] flex items-center gap-1.5 shadow-glow-teal active:scale-95 transition-transform"
-        >
-          <Plus size={17} strokeWidth={2.6} /> Entrada
-        </button>
-      )}
       wrapperClassName="max-w-2xl lg:max-w-6xl mx-auto pb-16 lg:px-6"
     >
         {seccion === 'entrada' ? (
@@ -125,6 +118,7 @@ export default function AlmacenList({ userName }: { userName?: string }) {
         ) : (
           <SubTabs
             activa={seccion}
+            accion={<BotonAccion label="Entrada" Icono={Plus} onClick={() => setSeccion('entrada')} />}
             onCambiar={setSeccion}
             opciones={[
               { k: 'existencias', label: 'Existencias', Icono: Boxes },
@@ -134,6 +128,7 @@ export default function AlmacenList({ userName }: { userName?: string }) {
             ]}
           />
         )}
+        {seccion !== 'entrada' && <BotonFlotante label="Entrada" Icono={Plus} onClick={() => setSeccion('entrada')} />}
 
         {error && (
           <div className="mb-4 p-4 rounded-2xl bg-red/10 border border-red/30">

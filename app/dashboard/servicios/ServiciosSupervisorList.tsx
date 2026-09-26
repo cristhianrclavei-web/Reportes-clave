@@ -1,5 +1,6 @@
 'use client';
 
+import { BotonAccion, BotonFlotante } from '@/components/AccionPrincipal';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import SupervisorShell from '@/components/SupervisorShell';
@@ -604,14 +605,6 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
       active="servicios"
       title={seccion === 'agendar' ? 'Agendar servicio' : 'Servicios'}
       userName={userName}
-      acciones={seccion !== 'agendar' && (
-        <button
-          onClick={() => { setSeccion('agendar'); setShowNuevo(true); }}
-          className="min-h-[44px] px-4 rounded-xl bg-teal text-inkOnAccent font-semibold text-[14px] flex items-center gap-1.5 shadow-glow-teal active:scale-95 transition-transform"
-        >
-          <Plus size={17} strokeWidth={2.6} /> Agendar
-        </button>
-      )}
       wrapperClassName="max-w-2xl lg:max-w-6xl mx-auto pb-28 lg:pb-16 lg:px-6"
     >
         {seccion === 'agendar' ? (
@@ -624,6 +617,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
         ) : (
           <SubTabs
             activa={seccion}
+            accion={<BotonAccion label="Agendar" Icono={Plus} onClick={() => { setSeccion('agendar'); setShowNuevo(true); }} />}
             onCambiar={(k) => { setSeccion(k); setShowNuevo(false); }}
             opciones={[
               { k: 'agendados', label: 'Agendados', Icono: FolderKanban },
@@ -633,6 +627,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
             ]}
           />
         )}
+        {seccion !== 'agendar' && <BotonFlotante label="Agendar" Icono={Plus} onClick={() => { setSeccion('agendar'); setShowNuevo(true); }} />}
 
         {/* Listas de herramienta creadas: un renglón por proyecto */}
         {seccion === 'checklists' && (
