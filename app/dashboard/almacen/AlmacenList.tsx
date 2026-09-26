@@ -1,6 +1,6 @@
 'use client';
 
-import { BotonAccion, BotonFlotante } from '@/components/AccionPrincipal';
+import { BotonNuevo } from '@/components/AccionPrincipal';
 import SubTabs from '@/components/SubTabs';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -118,7 +118,6 @@ export default function AlmacenList({ userName }: { userName?: string }) {
         ) : (
           <SubTabs
             activa={seccion}
-            accion={<BotonAccion label="Entrada" Icono={Plus} onClick={() => setSeccion('entrada')} />}
             onCambiar={setSeccion}
             opciones={[
               { k: 'existencias', label: 'Existencias', Icono: Boxes },
@@ -128,7 +127,6 @@ export default function AlmacenList({ userName }: { userName?: string }) {
             ]}
           />
         )}
-        {seccion !== 'entrada' && <BotonFlotante label="Entrada" Icono={Plus} onClick={() => setSeccion('entrada')} />}
 
         {error && (
           <div className="mb-4 p-4 rounded-2xl bg-red/10 border border-red/30">
@@ -180,14 +178,14 @@ export default function AlmacenList({ userName }: { userName?: string }) {
                   value={busqueda}
                   onChange={(e) => setBusqueda(e.target.value)}
                   placeholder="Buscar artículo o proyecto…"
-                  className="w-full pl-10 pr-3 min-h-[44px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[14.5px]"
+                  className="w-full pl-10 pr-3 min-h-[48px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[14.5px]"
                 />
               </div>
               <select
                 value={filtro}
                 onChange={(e) => setFiltro(e.target.value as any)}
                 aria-label="Tipo de artículo"
-                className={`shrink-0 px-3 min-h-[44px] rounded-xl border focus:border-teal focus:outline-none text-[14px] font-medium ${
+                className={`shrink-0 px-3 min-h-[48px] rounded-xl border focus:border-teal focus:outline-none text-[14px] font-medium ${
                   filtro === 'todos' ? 'bg-surface-2 border-line text-ink/80' : 'bg-teal/12 border-teal/40 text-teal'
                 }`}
               >
@@ -198,6 +196,7 @@ export default function AlmacenList({ userName }: { userName?: string }) {
                   </option>
                 ))}
               </select>
+              <BotonNuevo label="Entrada" Icono={Plus} onClick={() => setSeccion('entrada')} />
             </div>
 
             {existenciasFiltradas.length === 0 && (

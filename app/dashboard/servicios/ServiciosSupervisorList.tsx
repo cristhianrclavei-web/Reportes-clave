@@ -1,6 +1,6 @@
 'use client';
 
-import { BotonAccion, BotonFlotante } from '@/components/AccionPrincipal';
+import { BotonNuevo } from '@/components/AccionPrincipal';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import SupervisorShell from '@/components/SupervisorShell';
@@ -17,7 +17,7 @@ import {
   listarPlantillas, guardarPlantillaDeItems, actualizarPlantilla, eliminarPlantilla, listarChecklists, ResumenChecklist,
   eliminarChecklist, agregarInsumosIniciales,
 } from '@/lib/insumos';
-import { Plus, X, FileText, AlertTriangle, Timer, MapPin, Play, Check, Clock, FolderKanban, Bookmark, Pencil, Copy, Trash2, PackageCheck, TrendingUp, ChevronRight } from 'lucide-react';
+import { Plus, X, FileText, AlertTriangle, Timer, MapPin, Play, Check, Clock, FolderKanban, Bookmark, Pencil, Copy, Trash2, PackageCheck, TrendingUp, ChevronRight, Search, CalendarDays } from 'lucide-react';
 import { calcularResultadoServicio } from '@/lib/resultadoServicio';
 import { ResultadoIconos } from '@/components/ResultadoServicioBadges';
 import { showToast } from '@/components/Toast';
@@ -108,6 +108,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   // y no en la semana actual: si lo siguiente es la semana que entra, la
   // pantalla parecía vacía.
   const [modoAgendados, setModoAgendados] = useState<'proximos' | 'semana'>('proximos');
+  const [fechaFiltro, setFechaFiltro] = useState('');
   const [busquedaServicio, setBusquedaServicio] = useState('');
   const fechasDeServicios = useMemo(() => servicios.map((s) => s.fecha).filter(Boolean), [servicios]);
   const [plantillaEditando, setPlantillaEditando] = useState<PlantillaInsumos | null>(null);
@@ -246,7 +247,11 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
     servicios.forEach((s) => {
       // El rango de fechas no aplica cuando se busca por texto: quien escribe
       // el nombre de un cliente quiere encontrarlo esté en la semana que esté.
-      if (!busquedaServicio && rango && usarRango) {
+      // Con una fecha elegida en el calendario manda esa fecha: aparece el
+      // proyecto que tiene algún día ese día, sin importar semana o modo.
+      if (fechaFiltro) {
+        if (!servicios.some((d) => d.grupo_id === s.grupo_id && d.fecha === fechaFiltro)) return;
+      } else if (!busquedaServicio && rango && usarRango) {
         // Un proyecto aparece si alguno de sus días cae en el rango: filtrar
         // día por día partiría proyectos a la mitad y confundiría la numeración.
         if (!servicios.some((d) => d.grupo_id === s.grupo_id && d.fecha >= rango.desde && d.fecha <= rango.hasta)) return;
@@ -263,7 +268,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
       const fb = b.dias[b.dias.length - 1]?.created_at || '';
       return fb.localeCompare(fa);
     });
-  }, [servicios, rango, busquedaServicio, usarRango]);
+  }, [servicios, rango, busquedaServicio, usarRango, fechaFiltro]);
 
   // "Agendados" es lo que todavía tiene trabajo pendiente — incluye los
   // proyectos de varios días que van a medias. Un proyecto con todos sus
@@ -617,7 +622,6 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
         ) : (
           <SubTabs
             activa={seccion}
-            accion={<BotonAccion label="Agendar" Icono={Plus} onClick={() => { setSeccion('agendar'); setShowNuevo(true); }} />}
             onCambiar={(k) => { setSeccion(k); setShowNuevo(false); }}
             opciones={[
               { k: 'agendados', label: 'Agendados', Icono: FolderKanban },
@@ -627,7 +631,6 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
             ]}
           />
         )}
-        {seccion !== 'agendar' && <BotonFlotante label="Agendar" Icono={Plus} onClick={() => { setSeccion('agendar'); setShowNuevo(true); }} />}
 
         {/* Listas de herramienta creadas: un renglón por proyecto */}
         {seccion === 'checklists' && (
@@ -1118,12 +1121,40 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
               </div>
             )}
             {usarRango && <SelectorSemana fechas={fechasDeServicios} onCambio={setRango} etiqueta="días programados" />}
-            <input
-              value={busquedaServicio}
-              onChange={(e) => setBusquedaServicio(e.target.value)}
-              placeholder="Buscar proyecto o cliente..."
-              className="w-full px-3.5 min-h-[48px] mb-4 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]"
-            />
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="relative flex-1 min-w-0">
+                <Search size={16} strokeWidth={2.4} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
+                <input
+                  value={busquedaServicio}
+                  onChange={(e) => setBusquedaServicio(e.target.value)}
+                  placeholder="Buscar proyecto o cliente..."
+                  className="w-full pl-10 pr-3.5 min-h-[48px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[14.5px]"
+                />
+              </div>
+              {/* Ir a un día concreto: muestra los proyectos que trabajan esa fecha */}
+              <label
+                className={`relative shrink-0 min-h-[48px] px-3.5 rounded-xl border flex items-center gap-1.5 text-[13.5px] font-semibold cursor-pointer ${
+                  fechaFiltro ? 'bg-teal/12 border-teal/40 text-teal' : 'bg-surface-2 border-line text-ink/70'
+                }`}
+                title="Buscar por fecha"
+              >
+                <CalendarDays size={17} strokeWidth={2.3} />
+                {fechaFiltro && <span>{fechaFiltro.split('-').reverse().slice(0, 2).join('/')}</span>}
+                <input
+                  type="date"
+                  value={fechaFiltro}
+                  onChange={(e) => setFechaFiltro(e.target.value)}
+                  aria-label="Buscar por fecha"
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                />
+              </label>
+              {fechaFiltro && (
+                <button type="button" onClick={() => setFechaFiltro('')} aria-label="Quitar fecha" className="shrink-0 w-10 h-10 -ml-1.5 rounded-full flex items-center justify-center text-muted hover:text-ink">
+                  <X size={17} strokeWidth={2.4} />
+                </button>
+              )}
+              <BotonNuevo label="Agendar" Icono={Plus} onClick={() => { setSeccion('agendar'); setShowNuevo(true); }} />
+            </div>
           </>
         )}
 
@@ -1152,6 +1183,8 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
             <p className="text-[13px] text-muted leading-relaxed max-w-[280px]">
               {servicios.length === 0
                 ? 'Usa «Agendar» para programar el primero.'
+                : fechaFiltro
+                ? 'No hay servicios programados ese día.'
                 : busquedaServicio
                 ? 'Ningún proyecto coincide con la búsqueda.'
                 : seccion === 'concluidos'
