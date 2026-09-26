@@ -151,7 +151,10 @@ export type TipoAviso =
   | 'recordatorio_llegada_pendiente'
   | 'reporte_pendiente'
   | 'devolucion_herramienta'
-  | 'confirmacion_devolucion';
+  | 'confirmacion_devolucion'
+  | 'servicio_confirmado'
+  | 'servicio_sin_confirmar'
+  | 'recordatorio_confirmar_servicio';
 
 export const TIPOS_AVISO: { valor: TipoAviso; label: string; detalle: string; paraTecnico?: boolean }[] = [
   { valor: 'aviso_servicio', label: 'Avisos sobre días programados', detalle: 'Cuando un técnico avisa que un día no se va a poder' },
@@ -173,6 +176,9 @@ export const TIPOS_AVISO: { valor: TipoAviso; label: string; detalle: string; pa
   { valor: 'bitacora_inicio', label: 'Inicio de actividades', detalle: 'Cuando alguien abre una actividad en bitácora' },
   { valor: 'bitacora_fin', label: 'Cierre de actividades', detalle: 'Cuando alguien concluye una actividad' },
   { valor: 'servicio_asignado', label: 'Servicios programados', detalle: 'Cuando te programan un servicio', paraTecnico: true },
+  { valor: 'recordatorio_confirmar_servicio', label: 'Recordatorio de confirmar servicio', detalle: 'A las 6pm del día anterior (o 1 h después de asignado) si no has tocado «Enterado»', paraTecnico: true },
+  { valor: 'servicio_confirmado', label: 'Servicios confirmados', detalle: 'Cuando un técnico toca «Enterado» en un servicio asignado' },
+  { valor: 'servicio_sin_confirmar', label: 'Servicios sin confirmar', detalle: 'Cuando un técnico sigue sin confirmar 1 h después de su recordatorio' },
   { valor: 'correccion_resuelta', label: 'Respuesta a tus correcciones', detalle: 'Cuando autorizan o cierran una corrección que pediste', paraTecnico: true },
 ];
 

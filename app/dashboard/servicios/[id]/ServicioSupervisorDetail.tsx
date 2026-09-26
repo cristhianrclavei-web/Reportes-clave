@@ -1,5 +1,6 @@
 'use client';
 
+import ConfirmacionTecnicos from '@/components/ConfirmacionTecnicos';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -527,9 +528,15 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
           {!editandoTecnicos ? (
             <div className="flex flex-wrap gap-2">
               {tecnicosAsignados.length === 0 && <p className="text-muted text-[13px]">Sin técnicos asignados.</p>}
-              {tecnicosAsignados.map((t) => (
-                <span key={t.tecnico_id} className="px-3 py-1.5 rounded-full bg-surface-2 text-[12px] font-medium">{nombre(t.profiles)}</span>
-              ))}
+              {servicio.estado === 'programado' ? (
+                <ConfirmacionTecnicos
+                  items={tecnicosAsignados.map((t) => ({ tecnico_id: t.tecnico_id, nombre: nombre(t.profiles), visto_en: t.visto_en ?? null, enterado_en: t.enterado_en ?? null }))}
+                />
+              ) : (
+                tecnicosAsignados.map((t) => (
+                  <span key={t.tecnico_id} className="px-3 py-1.5 rounded-full bg-surface-2 text-[12px] font-medium">{nombre(t.profiles)}</span>
+                ))
+              )}
             </div>
           ) : (
             <div>

@@ -269,6 +269,8 @@ export async function reprogramarDia(servicioId: string, nuevaFecha: string): Pr
   const cambio = `Reprogramó el día ${nuevoNumeroDelDia} de «${actual.proyecto}»: de ${fechaAnterior} a ${nuevaFecha}`;
   await supabase.from('servicio_auditoria').insert({ servicio_id: servicioId, supervisor_id: user.id, cambio });
   await registrarAccionGlobal('reprogramo_dia', 'servicio', servicioId, cambio);
+  const [y, m, d] = nuevaFecha.split('-');
+  await avisarCambioATecnicos(servicioId, actual.proyecto, `ahora es el ${d}/${m}/${y}`);
 }
 
 // Amplía un proyecto ya existente agregando más días — copia los técnicos
@@ -352,6 +354,100 @@ export async function listarTecnicosPorServicio(): Promise<Record<string, string
     mapa[r.servicio_id].push(nombre);
   });
   return mapa;
+}
+
+// --- Confirmación de servicio asignado (ver patch_confirmacion_servicio.sql) ---
+
+export type ConfirmacionTecnico = {
+  tecnico_id: string;
+  nombre: string;
+  visto_en: string | null;
+  enterado_en: string | null;
+};
+
+// Estado de confirmación de cada técnico, por día de servicio. Solo el
+// supervisor ve todas las filas (RLS); al técnico le devuelve la suya.
+export async function listarConfirmacionesPorServicio(): Promise<Record<string, ConfirmacionTecnico[]>> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('servicio_tecnicos')
+    .select('servicio_id, tecnico_id, visto_en, enterado_en, profiles(full_name)');
+  if (error) throw error;
+  const mapa: Record<string, ConfirmacionTecnico[]> = {};
+  (data || []).forEach((r: any) => {
+    const nombre = Array.isArray(r.profiles) ? r.profiles[0]?.full_name : r.profiles?.full_name;
+    if (!mapa[r.servicio_id]) mapa[r.servicio_id] = [];
+    mapa[r.servicio_id].push({ tecnico_id: r.tecnico_id, nombre: nombre || 'Técnico', visto_en: r.visto_en, enterado_en: r.enterado_en });
+  });
+  return mapa;
+}
+
+// Mis asignaciones con su estado de confirmación (vista del técnico).
+export async function listarMisConfirmaciones(): Promise<Record<string, { visto_en: string | null; enterado_en: string | null }>> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return {};
+  const { data, error } = await supabase
+    .from('servicio_tecnicos')
+    .select('servicio_id, visto_en, enterado_en')
+    .eq('tecnico_id', user.id);
+  if (error) throw error;
+  const mapa: Record<string, { visto_en: string | null; enterado_en: string | null }> = {};
+  (data || []).forEach((r: any) => { mapa[r.servicio_id] = { visto_en: r.visto_en, enterado_en: r.enterado_en }; });
+  return mapa;
+}
+
+// Best-effort: si falla, el técnico sigue viendo su lista con normalidad.
+export async function marcarServiciosVistos(servicioIds: string[]): Promise<void> {
+  if (servicioIds.length === 0) return;
+  try {
+    await createClient().rpc('marcar_servicios_vistos', { p_servicios: servicioIds });
+  } catch (e) {
+    console.error('No se pudo marcar como visto:', e);
+  }
+}
+
+// "Enterado": confirma este día y los demás pendientes del mismo proyecto, y
+// avisa a los supervisores.
+export async function confirmarServicio(servicio: Pick<Servicio, 'id' | 'proyecto' | 'fecha' | 'dias_totales'>): Promise<number> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc('confirmar_servicio', { p_servicio: servicio.id });
+  if (error) throw error;
+  const n = (data as number) || 0;
+  if (n > 0) {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: perfil } = user
+      ? await supabase.from('profiles').select('full_name').eq('id', user.id).single()
+      : { data: null };
+    const [y, m, d] = servicio.fecha.split('-');
+    await notificar({
+      destino: 'supervisores',
+      tipo: 'servicio_confirmado',
+      titulo: 'Servicio confirmado',
+      mensaje: `${perfil?.full_name || 'Un técnico'} está enterado de «${servicio.proyecto}» (${servicio.dias_totales > 1 ? `${n} día(s) desde el ` : ''}${d}/${m}/${y})`,
+      url: `/dashboard/servicios/${servicio.id}`,
+      tag: `servicio-confirmado-${servicio.id}`,
+    });
+  }
+  return n;
+}
+
+// Cuando cambia el plan de un día (fecha u hora), la confirmación se
+// reinicia en la base (trigger); esto le avisa al técnico que debe volver a
+// confirmar.
+async function avisarCambioATecnicos(servicioId: string, proyecto: string, detalle: string): Promise<void> {
+  const supabase = createClient();
+  const { data } = await supabase.from('servicio_tecnicos').select('tecnico_id').eq('servicio_id', servicioId);
+  const ids = (data || []).map((r: any) => r.tecnico_id as string);
+  if (ids.length === 0) return;
+  await notificar({
+    usuarios: ids,
+    tipo: 'servicio_asignado',
+    titulo: 'Cambió un servicio tuyo',
+    mensaje: `«${proyecto}»: ${detalle}. Confirma que estás enterado.`,
+    url: `/servicios/${servicioId}`,
+    tag: `servicio-cambio-${servicioId}`,
+  });
 }
 
 export async function listarServiciosSupervisor(fecha?: string): Promise<Servicio[]> {
@@ -502,7 +598,7 @@ export async function obtenerServicioCompleto(id: string) {
     await Promise.all([
       supabase.from('servicio_tareas').select('*').eq('grupo_id', (servicio as Servicio).grupo_id).order('orden'),
       supabase.from('servicio_eventos').select('*').eq('servicio_id', id).order('created_at', { ascending: false }),
-      supabase.from('servicio_tecnicos').select('tecnico_id, profiles(full_name)').eq('servicio_id', id),
+      supabase.from('servicio_tecnicos').select('tecnico_id, visto_en, enterado_en, profiles(full_name)').eq('servicio_id', id),
       supabase.from('servicio_auditoria').select('*, profiles(full_name)').eq('servicio_id', id).order('created_at', { ascending: false }),
     ]);
   if (e2) throw e2;
@@ -539,7 +635,7 @@ export async function editarServicio(
   if (!user) throw new Error('No hay sesión activa');
 
   const { data: actual, error: eGet } = await supabase
-    .from('servicios_programados').select('estado').eq('id', id).single();
+    .from('servicios_programados').select('estado, fecha').eq('id', id).single();
   if (eGet) throw eGet;
   const motivo = motivoNoEditable(actual.estado);
   if (motivo) throw new Error(motivo);
@@ -557,6 +653,10 @@ export async function editarServicio(
   const { data: sv } = await supabase.from('servicios_programados').select('proyecto, numero_dia, dias_totales').eq('id', id).single();
   const etiqueta = sv ? `«${sv.proyecto}»${sv.dias_totales > 1 ? ` (día ${sv.numero_dia}/${sv.dias_totales})` : ''}` : 'servicio';
   await registrarAccionGlobal('edito_servicio', 'servicio', id, `Editó ${etiqueta}: ${descripcionCambio}`);
+  if (cambios.fecha && cambios.fecha !== actual.fecha) {
+    const [y, m, d] = cambios.fecha.split('-');
+    await avisarCambioATecnicos(id, sv?.proyecto || cambios.proyecto || 'Servicio', `ahora es el ${d}/${m}/${y}`);
+  }
 }
 
 export async function reasignarTecnicos(id: string, tecnicoIds: string[], descripcionCambio: string) {
@@ -571,10 +671,19 @@ export async function reasignarTecnicos(id: string, tecnicoIds: string[], descri
     throw new Error('No se pueden cambiar los técnicos de un servicio que ya empezó. Quien hizo el trabajo debe seguir apareciendo en él.');
   }
 
-  const { error: eDel } = await supabase.from('servicio_tecnicos').delete().eq('servicio_id', id);
-  if (eDel) throw eDel;
-  if (tecnicoIds.length > 0) {
-    const { error: eIns } = await supabase.from('servicio_tecnicos').insert(tecnicoIds.map((tid) => ({ servicio_id: id, tecnico_id: tid })));
+  // Solo se quitan los que salen y se agregan los que entran: quien sigue
+  // asignado conserva su "Visto"/"Enterado".
+  const { data: actuales, error: eAct } = await supabase.from('servicio_tecnicos').select('tecnico_id').eq('servicio_id', id);
+  if (eAct) throw eAct;
+  const antes = new Set((actuales || []).map((r: any) => r.tecnico_id as string));
+  const salen = [...antes].filter((tid) => !tecnicoIds.includes(tid));
+  const entran = tecnicoIds.filter((tid) => !antes.has(tid));
+  if (salen.length > 0) {
+    const { error: eDel } = await supabase.from('servicio_tecnicos').delete().eq('servicio_id', id).in('tecnico_id', salen);
+    if (eDel) throw eDel;
+  }
+  if (entran.length > 0) {
+    const { error: eIns } = await supabase.from('servicio_tecnicos').insert(entran.map((tid) => ({ servicio_id: id, tecnico_id: tid })));
     if (eIns) throw eIns;
   }
   const { error: eAud } = await supabase.from('servicio_auditoria').insert({ servicio_id: id, supervisor_id: user.id, cambio: descripcionCambio });
@@ -583,6 +692,16 @@ export async function reasignarTecnicos(id: string, tecnicoIds: string[], descri
   const { data: sv } = await supabase.from('servicios_programados').select('proyecto, numero_dia, dias_totales').eq('id', id).single();
   const etiqueta = sv ? `«${sv.proyecto}»${sv.dias_totales > 1 ? ` (día ${sv.numero_dia}/${sv.dias_totales})` : ''}` : 'servicio';
   await registrarAccionGlobal('reasigno_tecnicos', 'servicio', id, `${descripcionCambio} en ${etiqueta}`);
+  if (entran.length > 0 && sv) {
+    await notificar({
+      usuarios: entran,
+      tipo: 'servicio_asignado',
+      titulo: 'Te asignaron un servicio',
+      mensaje: `${etiqueta}. Confirma que estás enterado.`,
+      url: `/servicios/${id}`,
+      tag: 'servicio-asignado',
+    });
+  }
 }
 
 // Elimina un proyecto COMPLETO (todos sus días). Solo supervisores — la

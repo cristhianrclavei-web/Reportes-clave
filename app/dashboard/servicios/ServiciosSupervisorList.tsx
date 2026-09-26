@@ -7,7 +7,8 @@ import EmptyIllustration from '@/components/EmptyIllustration';
 import SelectorSemana, { RangoSeleccionado } from '@/components/SelectorSemana';
 import { useTheme } from '@/lib/useTheme';
 import { listarFestivos, festivoDe, festivosEnCache, Festivo } from '@/lib/avisos';
-import { crearServicio, listarServiciosSupervisor, listarTecnicos, Servicio, calcularEstadoTiempo, listarProgresoPorGrupo, ProgresoTareas } from '@/lib/serviciosProgramados';
+import { crearServicio, listarServiciosSupervisor, listarTecnicos, Servicio, calcularEstadoTiempo, listarProgresoPorGrupo, ProgresoTareas, listarConfirmacionesPorServicio, ConfirmacionTecnico } from '@/lib/serviciosProgramados';
+import ConfirmacionTecnicos, { ResumenConfirmacion } from '@/components/ConfirmacionTecnicos';
 import ProgressBar from '@/components/ProgressBar';
 import {
   InsumoNuevo, CategoriaInsumo, CATEGORIAS, UNIDADES, PlantillaInsumos,
@@ -92,6 +93,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   const theme = useTheme();
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [progresoPorGrupo, setProgresoPorGrupo] = useState<Record<string, ProgresoTareas>>({});
+  const [confirmaciones, setConfirmaciones] = useState<Record<string, ConfirmacionTecnico[]>>({});
   const [tecnicos, setTecnicos] = useState<{ id: string; full_name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNuevo, setShowNuevo] = useState(false);
@@ -183,6 +185,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
       setServicios(s);
       setTecnicos(t);
       setProgresoPorGrupo(p);
+      listarConfirmacionesPorServicio().then(setConfirmaciones).catch(() => {});
     } catch (e: any) {
       setError(e?.message || 'No se pudieron cargar los servicios');
     } finally {
@@ -1139,6 +1142,8 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
             const abierto = grupoAbierto === g.grupoId;
             const diasTotalesGrupo = g.dias[0]?.dias_totales || g.dias.length;
             const pr = progresoPorGrupo[g.grupoId];
+            // Confirmación solo de los días que aún no se trabajan.
+            const confProgramados = g.dias.filter((d) => d.estado === 'programado').flatMap((d) => confirmaciones[d.id] || []);
             return (
               <div key={g.grupoId} className="rounded-2xl border-l-4 border-teal bg-surface overflow-hidden transition-shadow duration-150 hover:shadow-diffuse">
                 <button
@@ -1156,6 +1161,9 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
                       <ProgressBar pct={pr.pct} className="flex-1" />
                       <span className={`text-[13px] font-display font-bold shrink-0 ${pr.pct >= 100 ? 'text-teal' : 'text-amber'}`}>{pr.pct}%</span>
                     </div>
+                  )}
+                  {seccion !== 'concluidos' && confProgramados.length > 0 && (
+                    <div className="mt-2"><ResumenConfirmacion items={confProgramados} /></div>
                   )}
                   <p className="text-[13px] text-muted mt-2">
                     {diasTotalesGrupo === 1
@@ -1202,6 +1210,9 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
                               {et.tipo === 'retraso' && <span className="text-[12px] font-semibold px-2.5 py-1 rounded-full bg-red/15 text-red flex items-center gap-1.5"><AlertTriangle size={12} strokeWidth={2.6} />{et.minutos} min</span>}
                               {et.tipo === 'excedido' && <span className="text-[12px] font-semibold px-2.5 py-1 rounded-full bg-amber/15 text-amber flex items-center gap-1.5"><Timer size={12} strokeWidth={2.6} />Excedido</span>}
                             </div>
+                            {d.estado === 'programado' && (confirmaciones[d.id] || []).length > 0 && (
+                              <ConfirmacionTecnicos items={confirmaciones[d.id]} className="mt-1.5" />
+                            )}
                           </div>
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-muted shrink-0"><path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" /></svg>
                         </Link>

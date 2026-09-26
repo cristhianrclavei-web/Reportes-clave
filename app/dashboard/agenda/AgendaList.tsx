@@ -7,8 +7,9 @@ import EmptyIllustration from '@/components/EmptyIllustration';
 import ProgressBar from '@/components/ProgressBar';
 import {
   Servicio, listarServiciosSupervisor, listarTecnicosPorServicio,
-  listarProgresoPorGrupo, ProgresoTareas, reprogramarDia,
+  listarProgresoPorGrupo, ProgresoTareas, reprogramarDia, listarConfirmacionesPorServicio, ConfirmacionTecnico,
 } from '@/lib/serviciosProgramados';
+import ConfirmacionTecnicos from '@/components/ConfirmacionTecnicos';
 import { construirAgenda, formatFechaAgenda, diasDeDiferencia } from '@/lib/agenda';
 import { showToast } from '@/components/Toast';
 import { MapPin, Play, Clock, Users, CalendarClock, AlertTriangle } from 'lucide-react';
@@ -26,6 +27,7 @@ export default function AgendaList({ userName }: { userName?: string }) {
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [tecnicosPorServicio, setTecnicosPorServicio] = useState<Record<string, string[]>>({});
   const [progresoPorGrupo, setProgresoPorGrupo] = useState<Record<string, ProgresoTareas>>({});
+  const [confirmaciones, setConfirmaciones] = useState<Record<string, ConfirmacionTecnico[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filtroTecnico, setFiltroTecnico] = useState('');
@@ -44,6 +46,7 @@ export default function AgendaList({ userName }: { userName?: string }) {
         listarTecnicosPorServicio(),
         listarProgresoPorGrupo(),
       ]);
+      listarConfirmacionesPorServicio().then(setConfirmaciones).catch(() => {});
       setServicios(s);
       setTecnicosPorServicio(t);
       setProgresoPorGrupo(p);
@@ -195,7 +198,9 @@ export default function AgendaList({ userName }: { userName?: string }) {
                         </p>
                       )}
 
-                      {tecnicos.length > 0 && (
+                      {s.estado === 'programado' && (confirmaciones[s.id] || []).length > 0 ? (
+                        <ConfirmacionTecnicos items={confirmaciones[s.id]} className="mt-2" />
+                      ) : tecnicos.length > 0 && (
                         <p className="text-[12.5px] text-muted mt-1.5 flex items-center gap-1.5">
                           <Users size={13} strokeWidth={2.3} className="shrink-0" />
                           {tecnicos.join(', ')}

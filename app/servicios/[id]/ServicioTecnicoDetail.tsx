@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import BotonEnterado from '@/components/BotonEnterado';
 import Link from 'next/link';
 import ThemeToggle from '@/components/ThemeToggle';
 import LogoutButton from '@/components/LogoutButton';
@@ -8,6 +9,7 @@ import Logo from '@/components/Logo';
 import {
   Servicio, Tarea, Evento,
   obtenerServicioCompleto, marcarLlegada, iniciarServicio, sigoAsignadoAServicio,
+  listarMisConfirmaciones, marcarServiciosVistos,
   registrarAvanceTarea, registrarRetraso, concluirServicio, concluirServicioAnticipado, agregarEvidenciaExtra,
   calcularProgresoTareas, pausarServicio, reanudarServicio, minutosPausadosTotales,
 } from '@/lib/serviciosProgramados';
@@ -100,6 +102,9 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
   const [fotoEvidenciaExtraPreview, setFotoEvidenciaExtraPreview] = useState<string | null>(null);
   const fotoEvidenciaExtraRef = useRef<HTMLInputElement>(null);
 
+  // null = aún no se sabe (no se muestra nada).
+  const [enterado, setEnterado] = useState<boolean | null>(null);
+
   async function cargar() {
     setLoading(true);
     try {
@@ -111,6 +116,13 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
       }
       const { servicio: s, tareas: t, eventos: e } = await obtenerServicioCompleto(servicioId);
       setServicio(s);
+      listarMisConfirmaciones()
+        .then((c) => {
+          const mia = c[servicioId];
+          setEnterado(!!mia?.enterado_en);
+          if (mia && !mia.visto_en) marcarServiciosVistos([servicioId]);
+        })
+        .catch(() => {});
       setTareas(t);
       setEventos(e);
 
@@ -437,8 +449,13 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
 
         {/* Solo mientras el día no se haya trabajado: después ya no hay nada
             que reprogramar y el canal correcto es el retraso. */}
-        {servicio.estado === 'programado' && (
-          <div className="mb-4">
+        {servicio.estado === 'programado' && enterado === false && (
+          <div className="mb-4 p-4 rounded-2xl bg-teal/10 border border-teal/30">
+            <p className="text-[14px] font-semibold mb-1">¿Ya viste este servicio?</p>
+            <p className="text-[13px] text-ink/80 leading-relaxed mb-3">
+              Confírmalo para que tu supervisor sepa que estás enterado{servicio.dias_totales > 1 ? ' (vale para todos los días del proyecto)' : ''}.
+            </p>
+            <BotonEnterado servicio={servicio} onConfirmado={() => setEnterado(true)} className="w-full" />
           </div>
         )}
 

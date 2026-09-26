@@ -7,13 +7,14 @@ import LogoutButton from '@/components/LogoutButton';
 import Logo from '@/components/Logo';
 import {
   listarMisServicios, Servicio, filtrarSiguienteDiaPorGrupo, listarProgresoPorGrupo, ProgresoTareas,
-  listarSitiosActivosHoy, avisarTecnicoFueraDeSitio,
+  listarSitiosActivosHoy, avisarTecnicoFueraDeSitio, listarMisConfirmaciones, marcarServiciosVistos,
 } from '@/lib/serviciosProgramados';
+import BotonEnterado from '@/components/BotonEnterado';
 import { getCurrentLocation } from '@/lib/geolocation';
 import { distanciaMetros } from '@/lib/geocerca';
 import ProgressBar from '@/components/ProgressBar';
 import EmptyIllustration from '@/components/EmptyIllustration';
-import { MapPin, Play, Check, Clock } from 'lucide-react';
+import { MapPin, Play, Check, Clock, CheckCheck } from 'lucide-react';
 import { calcularResultadoServicio } from '@/lib/resultadoServicio';
 import { ResultadoIconos } from '@/components/ResultadoServicioBadges';
 import { evaluarVentanaServicio } from '@/lib/ventanaServicio';
@@ -37,14 +38,19 @@ function formatFecha(fecha: string): string {
 export default function MisServiciosList({ userName }: { userName?: string }) {
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [progresoPorGrupo, setProgresoPorGrupo] = useState<Record<string, ProgresoTareas>>({});
+  const [confirmaciones, setConfirmaciones] = useState<Record<string, { visto_en: string | null; enterado_en: string | null }>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([listarMisServicios(), listarProgresoPorGrupo()])
-      .then(([s, p]) => {
+    Promise.all([listarMisServicios(), listarProgresoPorGrupo(), listarMisConfirmaciones().catch(() => ({} as Awaited<ReturnType<typeof listarMisConfirmaciones>>))])
+      .then(([s, p, c]) => {
         setServicios(s);
         setProgresoPorGrupo(p);
+        setConfirmaciones(c);
+        // Abrir esta lista cuenta como «visto» para lo que aún no lo estaba.
+        const sinVer = s.filter((sv) => sv.estado !== 'concluido' && c[sv.id] && !c[sv.id].visto_en).map((sv) => sv.id);
+        marcarServiciosVistos(sinVer);
       })
       .catch((e) => setError(e?.message || 'No se pudieron cargar tus servicios'))
       .finally(() => setLoading(false));
@@ -77,6 +83,18 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
   }, []);
 
   const pendientes = filtrarSiguienteDiaPorGrupo(servicios);
+
+  // «Enterado» confirma todo el proyecto: se refleja en todos sus días.
+  function marcarGrupoEnterado(grupoId: string) {
+    const ahora = new Date().toISOString();
+    setConfirmaciones((prev) => {
+      const nuevo = { ...prev };
+      servicios.filter((sv) => sv.grupo_id === grupoId).forEach((sv) => {
+        nuevo[sv.id] = { visto_en: prev[sv.id]?.visto_en || ahora, enterado_en: prev[sv.id]?.enterado_en || ahora };
+      });
+      return nuevo;
+    });
+  }
   const concluidos = servicios.filter((s) => s.estado === 'concluido');
 
   return (
@@ -138,6 +156,18 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
                       <CalendarClock size={13} strokeWidth={2.5} className="shrink-0" />
                       Disponible el {ventana.fechaTexto}
                     </p>
+                  )}
+                  {s.estado === 'programado' && confirmaciones[s.id] && (
+                    confirmaciones[s.id].enterado_en ? (
+                      <p className="text-[12.5px] text-teal font-medium mt-1.5 flex items-center gap-1.5">
+                        <CheckCheck size={14} strokeWidth={2.5} className="shrink-0" /> Confirmaste que estás enterado
+                      </p>
+                    ) : (
+                      <div className="mt-3 flex items-center gap-2.5">
+                        <BotonEnterado servicio={s} onConfirmado={() => marcarGrupoEnterado(s.grupo_id)} />
+                        <span className="text-[12px] text-muted leading-snug">Confirma que viste este servicio</span>
+                      </div>
+                    )
                   )}
                 </Link>
                 );
