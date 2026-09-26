@@ -116,6 +116,14 @@ export function precioUnitarioDesdeCosto(costo: number, margenPct: number): numb
   return redondear((costo || 0) * (1 + (margenPct || 0) / 100));
 }
 
+// Pasa un costo de una moneda a otra con el tipo de cambio (MXN por 1 USD).
+// Cambiar la moneda de una cotización ya capturada no debe dejar el mismo
+// número con otra etiqueta: 1,000 USD no son 1,000 MXN.
+export function convertirMonto(monto: number, de: MonedaCotizacion, a: MonedaCotizacion, tipoCambio: number): number {
+  if (de === a || !(tipoCambio > 0)) return monto;
+  return redondear(de === 'USD' ? monto * tipoCambio : monto / tipoCambio);
+}
+
 export function calcularTotales(lineas: LineaInput[], ivaPct: number) {
   const subtotal = redondear(lineas.reduce((acc, l) => acc + l.cantidad * l.precio_unitario, 0));
   const iva = redondear(subtotal * (ivaPct / 100));

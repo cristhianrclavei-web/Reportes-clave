@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Cotizacion, LineaCotizacion, LineaInput, CotizacionInput, MonedaCotizacion, PresentacionPrecios,
+  Cotizacion, LineaCotizacion, convertirMonto, LineaInput, CotizacionInput, MonedaCotizacion, PresentacionPrecios,
   crearCotizacion, actualizarCotizacion, calcularTotales, precioUnitarioDesdeCosto,
 } from '@/lib/cotizaciones';
 import { generarUUID } from '@/lib/uuid';
@@ -79,6 +79,10 @@ export default function CotizacionForm({
   const [ivaPct, setIvaPct] = useState(String(c?.iva_pct ?? 16));
   const [moneda, setMoneda] = useState<MonedaCotizacion>(c?.moneda || 'MXN');
   const [tipoCambio, setTipoCambio] = useState(c?.tipo_cambio && c.tipo_cambio !== 1 ? String(c.tipo_cambio) : '');
+  // Al cambiar de moneda con precios ya capturados queda pendiente decidir
+  // si se convierten o si solo se corrige la etiqueta. `de` es la moneda en
+  // que están los costos capturados.
+  const [conversionPendiente, setConversionPendiente] = useState<{ de: MonedaCotizacion } | null>(null);
   const [notas, setNotas] = useState(c?.notas || '');
   const [firmanteNombre, setFirmanteNombre] = useState(c?.firmante_nombre || nombreUsuario || '');
   const [firmanteCorreo, setFirmanteCorreo] = useState(c?.firmante_correo || correoUsuario || '');
@@ -132,6 +136,35 @@ export default function CotizacionForm({
     setBuscandoParaItem(null);
   }
 
+  function cambiarMoneda(nueva: MonedaCotizacion) {
+    if (nueva === moneda) return;
+    setMoneda(nueva);
+    // Volver a la moneda original deja todo como estaba.
+    if (conversionPendiente?.de === nueva) {
+      setConversionPendiente(null);
+      return;
+    }
+    const hayPrecios = grupos.some((g) => g.items.some((it) => (parseFloat(it.costo) || 0) > 0));
+    if (hayPrecios && !conversionPendiente) setConversionPendiente({ de: moneda });
+  }
+
+  function convertirPrecios() {
+    if (!conversionPendiente || !(tipoCambioNum > 0)) return;
+    const de = conversionPendiente.de;
+    setGrupos((prev) =>
+      prev.map((g) => ({
+        ...g,
+        items: g.items.map((it) => {
+          const costo = parseFloat(it.costo);
+          if (!(costo > 0)) return it;
+          return { ...it, costo: String(convertirMonto(costo, de, moneda, tipoCambioNum)) };
+        }),
+      }))
+    );
+    setConversionPendiente(null);
+    showToast(`Precios convertidos de ${de} a ${moneda} (T.C. ${tipoCambioNum.toFixed(2)})`, 'success');
+  }
+
   function agregarItem(grupoId: string) {
     setGrupos((prev) => prev.map((g) => (g.id === grupoId ? { ...g, items: [...g.items, nuevoItem()] } : g)));
   }
@@ -178,15 +211,24 @@ export default function CotizacionForm({
   const totales = useMemo(() => calcularTotales(lineasValidas, ivaPctNum), [lineasValidas, ivaPctNum]);
   const tipoCambioNum = parseFloat(tipoCambio) || 0;
 
-  const faltantes: string[] = [];
-  if (!empresa.trim()) faltantes.push('empresa / cliente');
-  if (lineasValidas.length === 0) faltantes.push('al menos una partida con descripción');
-  if (moneda === 'USD' && tipoCambioNum <= 0) faltantes.push('tipo de cambio');
+  // Cada faltante apunta a su campo (data-campo) para llevar la vista ahí.
+  // Antes se subía al inicio del formulario, y el mensaje (que está junto al
+  // botón de guardar) quedaba fuera de la pantalla.
+  const faltantes: { texto: string; campo: string }[] = [];
+  if (!empresa.trim()) faltantes.push({ texto: 'empresa / cliente', campo: 'empresa' });
+  if (lineasValidas.length === 0) faltantes.push({ texto: 'al menos una partida con descripción', campo: 'partidas' });
+  if (moneda === 'USD' && tipoCambioNum <= 0) faltantes.push({ texto: 'tipo de cambio', campo: 'moneda' });
+  if (conversionPendiente) faltantes.push({ texto: 'decidir si se convierten los precios a la nueva moneda', campo: 'moneda' });
 
   async function handleGuardar() {
     if (faltantes.length > 0) {
-      setMsg('Falta por llenar: ' + faltantes.join(', '));
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      setMsg('Falta por llenar: ' + faltantes.map((f) => f.texto).join(', '));
+      const destino = document.querySelector<HTMLElement>(`[data-campo="${faltantes[0].campo}"]`);
+      if (destino) {
+        destino.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const input = destino.matches('input, textarea') ? destino : destino.querySelector<HTMLElement>('input:not([disabled]), textarea');
+        if (input && !(input as HTMLInputElement).value) input.focus({ preventScroll: true });
+      }
       return;
     }
     setGuardando(true);
@@ -254,7 +296,7 @@ export default function CotizacionForm({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <div>
             <label className={labelCls}>Empresa / Cliente *</label>
-            <input className={inputCls} value={empresa} onChange={(e) => setEmpresa(e.target.value)} placeholder="Ej. Administración Torre Classiqa" />
+            <input data-campo="empresa" className={inputCls} value={empresa} onChange={(e) => setEmpresa(e.target.value)} placeholder="Ej. Administración Torre Classiqa" />
           </div>
           <div>
             <label className={labelCls}>Fecha</label>
@@ -312,6 +354,7 @@ export default function CotizacionForm({
                 <div key={it.id} className="p-3.5 rounded-xl bg-surface-2 border border-line">
                   <div className="flex items-start gap-2 mb-2.5">
                     <textarea
+                      data-campo={gi === 0 && ii === 0 ? 'partidas' : undefined}
                       value={it.descripcion}
                       onChange={(e) => actualizarItem(g.id, it.id, { descripcion: e.target.value })}
                       placeholder="Descripción del concepto: equipo, mano de obra, tubería, cableado..."
@@ -443,7 +486,7 @@ export default function CotizacionForm({
               <input type="number" className={inputCls} value={ivaPct} onChange={(e) => setIvaPct(e.target.value)} />
             </div>
           </div>
-          <div className={moneda === 'USD' ? 'grid grid-cols-2 gap-3.5' : ''}>
+          <div data-campo="moneda" className={`scroll-mt-24 ${moneda === 'USD' ? 'grid grid-cols-2 gap-3.5' : ''}`}>
             <div>
               <label className={labelCls}>Moneda</label>
               <div className="flex gap-1 p-1 rounded-xl bg-surface-2 border border-line w-fit">
@@ -451,7 +494,7 @@ export default function CotizacionForm({
                   <button
                     key={m}
                     type="button"
-                    onClick={() => setMoneda(m)}
+                    onClick={() => cambiarMoneda(m)}
                     className={`px-4 py-1.5 rounded-lg text-[13px] font-semibold transition-colors ${
                       moneda === m ? 'bg-teal text-inkOnAccent' : 'text-muted'
                     }`}
@@ -475,6 +518,48 @@ export default function CotizacionForm({
               </div>
             )}
           </div>
+          {conversionPendiente && (
+            <div className="p-3.5 rounded-xl bg-amber/12 border-2 border-amber/40">
+              <p className="text-[13.5px] font-semibold text-amber mb-1">
+                Los precios capturados siguen en {conversionPendiente.de}
+              </p>
+              <p className="text-[12.5px] text-ink/80 leading-relaxed mb-3">
+                Cambiaste la moneda a {moneda}. Conviértelos con el tipo de cambio, o déjalos igual si solo estabas corrigiendo la moneda.
+              </p>
+              {moneda === 'MXN' && (
+                <div className="mb-3">
+                  <label className={labelCls}>Tipo de cambio (MXN por 1 USD)</label>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    placeholder="Ej. 18.50"
+                    className={inputCls}
+                    value={tipoCambio}
+                    onChange={(e) => setTipoCambio(e.target.value)}
+                  />
+                </div>
+              )}
+              <div className="flex flex-col sm:flex-row gap-2">
+                <button
+                  type="button"
+                  onClick={convertirPrecios}
+                  disabled={!(tipoCambioNum > 0)}
+                  className="flex-1 min-h-[44px] px-3 rounded-xl bg-teal text-inkOnAccent font-semibold text-[13.5px] disabled:opacity-50"
+                >
+                  {tipoCambioNum > 0
+                    ? `Convertir a ${moneda} (T.C. ${tipoCambioNum.toFixed(2)})`
+                    : 'Escribe el tipo de cambio para convertir'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConversionPendiente(null)}
+                  className="flex-1 min-h-[44px] px-3 rounded-xl bg-surface-2 border border-line font-semibold text-[13.5px]"
+                >
+                  Dejar los números igual
+                </button>
+              </div>
+            </div>
+          )}
           <div>
             <label className={labelCls}>Notas adicionales (opcional)</label>
             <textarea className={`${inputCls} min-h-[60px]`} value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Cualquier condición especial de esta cotización" />

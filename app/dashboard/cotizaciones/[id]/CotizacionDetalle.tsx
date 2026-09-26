@@ -426,7 +426,11 @@ export default function CotizacionDetalle({
           falta. */}
       <div className="flex gap-2.5 mb-1.5">
         <a
-          href={`/api/cotizaciones/${cotizacion.id}/pdf?t=${Date.now()}`}
+          // La versión sale de updated_at y no de Date.now(): el reloj en el
+          // render da un href distinto en servidor y navegador (hidratación).
+          // El PDF ya se sirve con no-store; esto solo evita reusar la
+          // pestaña vieja después de editar.
+          href={`/api/cotizaciones/${cotizacion.id}/pdf?v=${encodeURIComponent(cotizacion.updated_at || '')}`}
           target="_blank"
           rel="noopener noreferrer"
           className="flex-1 min-h-[52px] rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15px] flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-glow-teal"
