@@ -13,7 +13,7 @@ import { showToast } from '@/components/Toast';
 import SavingOverlay from '@/components/SavingOverlay';
 import ReportPreviewModal, { PreviewData } from '@/components/ReportPreviewModal';
 import { listarMisServicios, vincularReporteAServicio, Servicio, filtrarSiguienteDiaPorGrupo, listarTecnicosDeServicio, listarFotosDelDia, FotoDelDia } from '@/lib/serviciosProgramados';
-import { X, Camera, Images, Plus, AlertTriangle, Eye } from 'lucide-react';
+import { X, Camera, Images, Plus, AlertTriangle, Eye, ChevronDown } from 'lucide-react';
 import { generarUUID } from '@/lib/uuid';
 import { notificar } from '@/lib/push';
 import { evaluarVentanaServicio } from '@/lib/ventanaServicio';
@@ -37,6 +37,28 @@ const inputCls =
 const labelCls = 'block text-[11px] font-semibold uppercase tracking-wider text-muted mb-1.5';
 const cardCls = 'glass rounded-2xl p-4';
 const PASOS = ['Datos', 'Trabajo', 'Evidencia', 'Firmas'];
+
+// Secciones que muchos servicios no llevan (tubería, cable, montaje): un
+// renglón compacto que se abre al tocarlo. Si ya tiene algo capturado se
+// muestra cuánto, para no esconder información.
+function Plegable({ titulo, cuenta, children }: { titulo: string; cuenta: number; children: React.ReactNode }) {
+  const [abierto, setAbierto] = useState(false);
+  return (
+    <div className={cardCls}>
+      <button type="button" onClick={() => setAbierto((v) => !v)} className="w-full flex items-center justify-between gap-2 text-left">
+        <span className={`${cardTitleCls} !mb-0`}>
+          <span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> {titulo}
+          {cuenta > 0 && <span className="ml-1.5 text-teal normal-case tracking-normal">· {cuenta}</span>}
+        </span>
+        <span className="text-[12.5px] text-muted flex items-center gap-1 shrink-0">
+          {abierto ? 'Ocultar' : cuenta > 0 ? 'Ver' : 'Agregar'}
+          <ChevronDown size={15} className={`transition-transform ${abierto ? 'rotate-180' : ''}`} />
+        </span>
+      </button>
+      {abierto && <div className="mt-3">{children}</div>}
+    </div>
+  );
+}
 const cardTitleCls = 'font-display font-semibold text-[13px] uppercase tracking-wider text-teal mb-3.5 flex items-center gap-2';
 
 function chipCls(selected: boolean) {
@@ -821,7 +843,7 @@ export default function NuevoReportePage() {
 
               {serviciosVinculables.length === 0 && (
                 <p className="text-[12.5px] text-amber mt-2 leading-relaxed">
-                  Ninguno de tus servicios programados corresponde a hoy, así que no hay nada que vincular. Llena el reporte manualmente o repórtalo con un supervisor.
+                  Ninguno de tus servicios es de hoy; llena el reporte manualmente.
                 </p>
               )}
 
@@ -1032,8 +1054,7 @@ export default function NuevoReportePage() {
         </div>
 
         {/* Tubería */}
-        <div className={cardCls}>
-          <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Tubería</p>
+        <Plegable titulo="Tubería" cuenta={Object.values(tuberia).filter((t) => t.active).length}>
           {TUBERIA_TYPES.map((t) => (
             <div key={t} className="mb-2 last:mb-0">
               <span
@@ -1079,11 +1100,10 @@ export default function NuevoReportePage() {
               )}
             </div>
           ))}
-        </div>
+        </Plegable>
 
         {/* Cable instalado */}
-        <div className={cardCls}>
-          <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Cable instalado</p>
+        <Plegable titulo="Cable instalado" cuenta={cables.filter((c) => c.tipo || c.calibre || c.metros).length}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {cables.map((c, i) => (
               <div key={i} className="p-3 rounded-xl bg-surface-2 border border-line relative">
@@ -1121,11 +1141,10 @@ export default function NuevoReportePage() {
           >
             + Agregar cable
           </button>
-        </div>
+        </Plegable>
 
         {/* Montaje de soportería y equipo */}
-        <div className={cardCls}>
-          <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Montaje de soportería y equipo</p>
+        <Plegable titulo="Montaje de soportería y equipo" cuenta={equipos.filter((e) => e.cant || e.desc || e.modelo || e.marca || e.serie).length}>
           {equipos.map((eq, i) => (
             <div key={i} className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-2">
               <input placeholder="Cant." className={inputCls} value={eq.cant} onChange={(e) => updateEquipo(i, 'cant', e.target.value)} />
@@ -1142,7 +1161,7 @@ export default function NuevoReportePage() {
           >
             + Agregar equipo
           </button>
-        </div>
+        </Plegable>
 
         {/* Descripción de actividades realizadas */}
         <div className={cardCls}>

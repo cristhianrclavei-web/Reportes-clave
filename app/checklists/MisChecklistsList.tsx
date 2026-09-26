@@ -1,5 +1,6 @@
 'use client';
 
+import PerfilChip from '@/components/PerfilChip';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -52,6 +53,7 @@ export default function MisChecklistsList({ userName }: { userName?: string }) {
       <div className="sticky top-0 z-20 glass-strong px-5 py-3.5 flex items-center justify-between gap-3">
         <Logo variante="completo" size={34} className="min-w-0" compactoEnMovil />
         <div className="flex items-center gap-1 shrink-0">
+          <PerfilChip nombre={userName} respaldo="Técnico" />
           <ThemeToggle />
           <LogoutButton compacto />
         </div>
@@ -78,7 +80,7 @@ export default function MisChecklistsList({ userName }: { userName?: string }) {
 
         {!loading && !error && lista.length === 0 && (
           <p className="text-center text-muted py-10 text-[14px] leading-relaxed">
-            No tienes listas de herramienta asignadas. Aparecerán aquí cuando tu supervisor programe un servicio con herramienta o material.
+            Aún no tienes listas de herramienta asignadas.
           </p>
         )}
 

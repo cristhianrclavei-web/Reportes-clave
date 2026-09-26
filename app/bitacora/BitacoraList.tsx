@@ -1,5 +1,6 @@
 'use client';
 
+import PerfilChip from '@/components/PerfilChip';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -77,13 +78,9 @@ export default function BitacoraList({ userName }: { userName: string }) {
   return (
     <div className="max-w-2xl lg:max-w-4xl mx-auto pb-28 lg:pb-16">
       <div className="sticky top-0 z-20 glass-strong px-5 py-3.5 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <Link href="/mis-reportes" aria-label="Volver" className="shrink-0 w-11 h-11 -ml-1.5 rounded-full flex items-center justify-center active:scale-90 transition-transform">
-            <ChevronLeft size={24} strokeWidth={2.4} />
-          </Link>
-          <Logo variante="completo" size={32} className="min-w-0" compactoEnMovil />
-        </div>
+        <Logo variante="completo" size={32} className="min-w-0" compactoEnMovil />
         <div className="flex items-center gap-1 shrink-0">
+          <PerfilChip nombre={userName} respaldo="Técnico" />
           <ThemeToggle />
           <LogoutButton compacto />
         </div>
@@ -91,7 +88,6 @@ export default function BitacoraList({ userName }: { userName: string }) {
 
       <div className="px-4 pt-5">
         <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-wide mb-4">Bitácora</h1>
-        {userName && <p className="text-[15px] text-muted font-medium mb-4 -mt-2.5">{userName}</p>}
 
         <TecnicoTabs active="bitacora" />
 

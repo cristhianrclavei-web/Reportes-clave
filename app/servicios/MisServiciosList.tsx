@@ -1,5 +1,6 @@
 'use client';
 
+import PerfilChip from '@/components/PerfilChip';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -102,6 +103,7 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
       <div className="sticky top-0 z-20 glass-strong px-5 py-3.5 flex items-center justify-between gap-3">
         <Logo variante="completo" size={32} className="min-w-0" compactoEnMovil />
         <div className="flex items-center gap-1 shrink-0">
+          <PerfilChip nombre={userName} respaldo="Técnico" />
           <ThemeToggle />
           <LogoutButton compacto />
         </div>
@@ -109,7 +111,6 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
 
       <div className="px-4 pt-5">
         <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-wide mb-4">Mis servicios</h1>
-        {userName && <p className="text-[15px] text-muted font-medium mb-4 -mt-2.5">{userName}</p>}
 
         <TecnicoTabs active="servicios" />
         {loading && (

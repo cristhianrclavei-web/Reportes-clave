@@ -122,7 +122,7 @@ export default function AvisoCuentaPrueba() {
         <div className="min-w-0">
           <p className="text-[14px] font-semibold text-amber mb-0.5">Estás usando una cuenta de prueba</p>
           <p className="text-[12.5px] text-ink/80 leading-relaxed">
-            Tus reportes se guardan a nombre de esta cuenta. Toca aquí para registrar tus datos reales.
+            Toca aquí para registrar tus datos reales.
           </p>
         </div>
       </button>

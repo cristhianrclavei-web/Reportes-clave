@@ -443,7 +443,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
                   className="w-full px-3 min-h-[46px] mb-2.5 rounded-lg bg-surface border border-line text-[14.5px]"
                 />
                 <p className="text-[12.5px] text-muted mb-2.5 leading-relaxed">
-                  Si la nueva fecha altera el orden, los días del proyecto se renumeran para que sigan siendo cronológicos. Queda registrado en Actividad con tu nombre.
+                  Los días se renumeran en orden de fecha. Queda registrado en Actividad.
                 </p>
                 <div className="flex gap-2">
                   <button onClick={() => setShowReprogramar(false)} className="flex-1 min-h-[46px] border border-line-strong text-ink/80 rounded-xl text-[14px]">Cancelar</button>

@@ -379,7 +379,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
           <Lock size={28} strokeWidth={2.2} className="text-amber mx-auto mb-3" />
           <p className="font-display font-semibold text-[16px] mb-1.5">Este servicio ya no está asignado a ti</p>
           <p className="text-[13.5px] text-muted leading-relaxed mb-4">
-            Tu supervisor reasignó el proyecto. Si crees que es un error, avísale para que te vuelva a incluir.
+            Tu supervisor reasignó el proyecto. Si es un error, avísale.
           </p>
           <Link href="/servicios" className="inline-flex items-center justify-center min-h-[48px] px-5 rounded-xl bg-teal text-inkOnAccent text-[14.5px] font-semibold">
             Ver mis servicios
@@ -541,7 +541,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
         )}
         {servicio.estado === 'en_sitio' && tiempoExcedido && (
           <p className="text-[13.5px] text-red mb-4 leading-relaxed">
-            Ya se superó el tiempo estimado sin iniciar el servicio — usa «Terminar servicio» abajo para cerrarlo con la justificación correspondiente.
+            Ya pasó el tiempo estimado sin iniciar. Usa «Terminar servicio» para cerrarlo con justificación.
           </p>
         )}
         {servicio.hora_llegada && (

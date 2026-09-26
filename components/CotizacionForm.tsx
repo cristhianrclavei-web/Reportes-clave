@@ -287,7 +287,7 @@ export default function CotizacionForm({
           <option value="kit">Precio único por kit — sin desglose por partida, solo el total de cada sección</option>
         </select>
         <p className="text-[12px] text-faint mt-1.5">
-          No cambia cómo se captura la cotización, solo cómo se ve la columna de precio unitario en el PDF.
+          Solo cambia cómo se ve el precio en el PDF.
         </p>
       </div>
 

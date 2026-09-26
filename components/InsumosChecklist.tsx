@@ -476,8 +476,7 @@ export default function InsumosChecklist({
               </>
             ) : (
               <>
-                Marca lo que estés devolviendo al almacén. Si alguna pieza no regresa, indica qué pasó con ella antes de
-                firmar. La firma cierra tu responsabilidad sobre lo devuelto.
+                Marca lo que devuelves; si algo no regresa, indica qué pasó antes de firmar.
               </>
             )}
           </p>

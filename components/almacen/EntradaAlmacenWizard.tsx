@@ -246,7 +246,7 @@ export default function EntradaAlmacenWizard({
             className="w-full px-3.5 py-2.5 mb-1 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[14px] min-h-[70px]"
           />
           <p className="text-[12.5px] text-muted leading-relaxed">
-            Sirve para rastrear una pieza concreta si falla o se pierde. Déjalo vacío en material a granel.
+            Opcional; vacío en material a granel.
           </p>
         </div>
       )}
@@ -622,7 +622,7 @@ export function ModalNuevoArticulo({
           <span className="text-[15px] text-muted shrink-0 w-[60px]">{unidad}</span>
         </div>
         <p className="text-[12.5px] text-muted mb-4 leading-relaxed">
-          Cuando el inventario general baje de aquí, aparecerá un aviso. Déjalo en 0 si no lo quieres controlar.
+          Avisa cuando baje de aquí; 0 para no controlarlo.
         </p>
 
         <label className="flex items-start gap-2.5 min-h-[44px] cursor-pointer mb-4">

@@ -118,7 +118,7 @@ export default function AvisoActualizarCredenciales() {
         <div className="min-w-0">
           <p className="text-[14px] font-semibold text-red mb-0.5">Hace falta actualizar tus credenciales</p>
           <p className="text-[12.5px] text-ink/80 leading-relaxed">
-            Tu cuenta sigue con una contraseña genérica. Toca aquí para poner una propia — este aviso no desaparece hasta que la cambies.
+            Tu cuenta tiene una contraseña genérica. Toca aquí para cambiarla.
           </p>
         </div>
       </button>

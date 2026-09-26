@@ -126,7 +126,7 @@ export default function EventosList({ userName }: { userName?: string }) {
       wrapperClassName="max-w-2xl lg:max-w-6xl mx-auto pb-28 lg:pb-16 lg:px-6"
     >
         <p className="text-[12.5px] text-muted mb-4">
-          Registro de todas las acciones de los supervisores (servicios programados, ediciones, eliminaciones, revisiones, facturación y días festivos) y de las justificaciones de días sin reporte de los técnicos. Las eliminaciones quedan aquí de forma permanente aunque el registro original ya no exista.
+          Registro permanente de lo que hace el equipo, incluidas las eliminaciones.
         </p>
 
         <div className="flex gap-2 mb-5">

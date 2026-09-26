@@ -407,7 +407,7 @@ export default function ReportDetailModal({
               <p className="text-[13.5px] text-ink/85 leading-relaxed mb-3 italic">«{report.correccion_motivo}»</p>
             )}
             <p className="text-[13px] text-muted leading-relaxed mb-3">
-              Si lo autorizas, solo podrá agregar fotos y cambiar el servicio vinculado. Quedará registrado en Actividad con tu nombre.
+              Podrá agregar fotos y cambiar el servicio vinculado. Queda registrado en Actividad.
             </p>
             <div className="flex gap-2">
               <button
@@ -748,7 +748,7 @@ export default function ReportDetailModal({
               Corrección autorizada
             </p>
             <p className="text-[13px] text-muted leading-relaxed mb-3">
-              El técnico puede agregar fotos y cambiar el servicio vinculado. El permiso se cierra solo cuando aplique los cambios.
+              El permiso se cierra solo cuando el técnico aplique los cambios.
             </p>
             <button
               onClick={handleCancelarCorreccion}
@@ -768,7 +768,7 @@ export default function ReportDetailModal({
               Solicitud enviada
             </p>
             <p className="text-[13px] text-muted leading-relaxed">
-              Un supervisor tiene que autorizarla. En cuanto lo haga, aquí mismo podrás agregar fotos y cambiar el servicio vinculado.
+              Espera a que un supervisor la autorice.
             </p>
           </div>
         )}
@@ -787,7 +787,7 @@ export default function ReportDetailModal({
               <div className="p-4 rounded-2xl bg-surface-2 border border-line">
                 <p className="font-display font-semibold text-[14.5px] mb-1">Solicitar corrección</p>
                 <p className="text-[13px] text-muted leading-relaxed mb-3">
-                  Explica qué hay que corregir. Si el supervisor lo autoriza, podrás agregar fotos y cambiar el servicio vinculado.
+                  Explica qué hay que corregir.
                 </p>
                 <textarea
                   value={motivoSolicitud}
@@ -822,7 +822,7 @@ export default function ReportDetailModal({
               Corrección autorizada
             </p>
             <p className="text-[13px] text-muted leading-relaxed mb-3.5">
-              Puedes agregar fotos y cambiar el servicio vinculado. Al guardar, el reporte vuelve a quedar fijo.
+              Al guardar, el reporte vuelve a quedar fijo.
             </p>
 
             <label className="text-[13px] text-ink/80 block mb-1.5">Servicio vinculado</label>
