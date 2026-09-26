@@ -1106,7 +1106,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
         {(seccion === 'agendados' || seccion === 'concluidos') && (
           <>
             {seccion === 'agendados' && (
-              <div className="flex justify-end mb-3">
+              <div className="flex justify-start mb-3">
                 <div className="flex p-0.5 rounded-xl bg-surface-2 border border-line text-[13px] font-semibold">
                   {([['proximos', 'Próximos'], ['semana', 'Por semana']] as const).map(([k, label]) => (
                     <button
