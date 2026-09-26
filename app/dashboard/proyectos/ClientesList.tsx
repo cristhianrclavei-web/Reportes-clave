@@ -73,7 +73,7 @@ export default function ClientesList({ userName }: { userName?: string }) {
   }
 
   return (
-    <SupervisorShell active="proyectos" title="Clientes y proyectos" userName={userName}>
+    <SupervisorShell active="proyectos" volver title="Clientes y proyectos" userName={userName}>
       {error && (
         <div className="mb-4 p-4 rounded-2xl bg-red/10 border border-red/30">
           <p className="text-[14px] font-semibold text-red mb-1">No se pudieron cargar los clientes</p>

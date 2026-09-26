@@ -105,7 +105,7 @@ export default function AlmacenList({ userName }: { userName?: string }) {
 
   return (
     <SupervisorShell
-      active="almacen"
+      active="almacen" volver={seccion !== 'entrada'}
       title={seccion === 'entrada' ? 'Registrar entrada' : 'Almacén'}
       userName={userName}
       mostrarAlmacen

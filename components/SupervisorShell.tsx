@@ -12,7 +12,8 @@ import ModalOverlay from './ModalOverlay';
 import { DashboardTabKey, TABS, TAB_ALMACEN, GRUPOS_NAV, TABS_INFERIORES } from './DashboardTabs';
 import { usePuedeAlmacen } from '@/lib/usePuedeAlmacen';
 import { VistaSupervisorContext, VistaSupervisor, KEY_VISTA_SUPERVISOR } from '@/lib/vistaSupervisor';
-import { LayoutGrid, Rows3, MoreHorizontal } from 'lucide-react';
+import { LayoutGrid, Rows3, MoreHorizontal, ChevronLeft } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 // Encabezado + navegación de todas las pantallas del supervisor.
 //
@@ -31,6 +32,7 @@ export default function SupervisorShell({
   userName,
   mostrarAlmacen,
   acciones,
+  volver,
   wrapperClassName = 'max-w-2xl lg:max-w-6xl mx-auto pb-10 lg:px-8',
   children,
 }: {
@@ -40,6 +42,9 @@ export default function SupervisorShell({
   mostrarAlmacen?: boolean;
   // Acción principal de la pantalla (p. ej. «Agendar»), junto al título.
   acciones?: ReactNode;
+  // Flecha de regresar junto al título, para las secciones que se abren
+  // desde «Más» (en el celular no tienen botón propio en la barra inferior).
+  volver?: boolean;
   // Cada pantalla trae su ancho ya afinado; en computadora lo controla el
   // layout de dos columnas y se anula con `!`.
   wrapperClassName?: string;
@@ -55,6 +60,14 @@ export default function SupervisorShell({
   function setVista(v: VistaSupervisor) {
     setVistaState(v);
     try { localStorage.setItem(KEY_VISTA_SUPERVISOR, v); } catch { /* no crítico */ }
+  }
+
+  const router = useRouter();
+  // Regresa a la pantalla anterior; si se entró directo (sin historial),
+  // al Resumen.
+  function regresar() {
+    if (typeof window !== 'undefined' && window.history.length > 1) router.back();
+    else router.push('/dashboard');
   }
 
   const puedeAlmacen = usePuedeAlmacen(mostrarAlmacen);
@@ -79,7 +92,19 @@ export default function SupervisorShell({
     <VistaSupervisorContext.Provider value={{ vista, setVista }}>
       <div className="px-4 lg:px-0 pt-5">
         <div className="flex items-center justify-between gap-3 mb-5">
-          <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-wide min-w-0">{title}</h1>
+          <div className="flex items-center gap-1.5 min-w-0">
+            {volver && (
+              <button
+                type="button"
+                onClick={regresar}
+                aria-label="Regresar"
+                className="shrink-0 w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-ink/70 hover:bg-surface-2 active:scale-90 transition-transform"
+              >
+                <ChevronLeft size={24} strokeWidth={2.4} />
+              </button>
+            )}
+            <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-wide min-w-0">{title}</h1>
+          </div>
           {acciones && <div className="shrink-0 flex items-center gap-2">{acciones}</div>}
         </div>
         {children}
@@ -134,6 +159,7 @@ export default function SupervisorShell({
           <Logo variante="completo" size={32} className="min-w-0" compactoEnMovil />
           <div className="flex items-center gap-1 shrink-0">
             <CommandPalette puedeAlmacen={puedeAlmacen} />
+            <ThemeToggle />
             <PerfilChip nombre={userName} respaldo="Supervisor" />
           </div>
         </div>
@@ -183,7 +209,6 @@ export default function SupervisorShell({
             </div>
             <div className="flex items-center justify-between gap-2 pt-3 border-t border-line">
               <div className="flex items-center gap-1.5">
-                <ThemeToggle />
                 {botonCambiarVista}
               </div>
               <LogoutButton />

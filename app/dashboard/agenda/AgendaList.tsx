@@ -93,7 +93,7 @@ export default function AgendaList({ userName }: { userName?: string }) {
 
   return (
     <SupervisorShell
-      active="agenda"
+      active="agenda" volver
       title="Agenda"
       userName={userName}
       wrapperClassName="max-w-2xl lg:max-w-6xl mx-auto pb-28 lg:pb-16 lg:px-6"
