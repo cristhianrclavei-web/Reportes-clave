@@ -1,5 +1,6 @@
 'use client';
 
+import SubTabs from '@/components/SubTabs';
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabaseClient';
@@ -53,7 +54,7 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
   }, [reports, search, filterType]);
 
   return (
-    <div className="max-w-2xl lg:max-w-4xl mx-auto pb-10">
+    <div className="max-w-2xl lg:max-w-4xl mx-auto pb-28 lg:pb-10">
       {/* Header */}
       <div className="sticky top-0 z-20 glass-strong px-5 py-3.5 flex items-center justify-between gap-3">
         <Logo variante="completo" size={34} className="min-w-0" compactoEnMovil />
@@ -68,7 +69,6 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
         <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-wide mb-4">
           Mis reportes
         </h1>
-        <p className="text-[15px] text-muted font-medium mb-4 -mt-2.5">{userName || 'Técnico'}</p>
 
         <TecnicoTabs active="reportes" />
 
@@ -78,26 +78,14 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
 
         <NotificacionesToggle esTecnico />
 
-        <div className="grid grid-cols-2 gap-2 mb-5">
-          <button
-            onClick={() => setSubseccion('reportes')}
-            className={`min-h-[50px] px-2 rounded-2xl text-[13.5px] font-display font-semibold border transition-colors flex items-center justify-center gap-1.5 ${
-              subseccion === 'reportes' ? 'bg-teal text-inkOnAccent border-teal shadow-glow-teal' : 'bg-surface-2 border-line-strong text-ink/80'
-            }`}
-          >
-            <FileText size={16} strokeWidth={2.4} className="shrink-0" />
-            Reportes
-          </button>
-          <button
-            onClick={() => setSubseccion('levantamientos')}
-            className={`min-h-[50px] px-2 rounded-2xl text-[13.5px] font-display font-semibold border transition-colors flex items-center justify-center gap-1.5 ${
-              subseccion === 'levantamientos' ? 'bg-teal text-inkOnAccent border-teal shadow-glow-teal' : 'bg-surface-2 border-line-strong text-ink/80'
-            }`}
-          >
-            <ClipboardList size={16} strokeWidth={2.4} className="shrink-0" />
-            Levantamientos
-          </button>
-        </div>
+        <SubTabs
+          activa={subseccion}
+          onCambiar={setSubseccion}
+          opciones={[
+            { k: 'reportes', label: 'Reportes', Icono: FileText },
+            { k: 'levantamientos', label: 'Levantamientos', Icono: ClipboardList },
+          ]}
+        />
 
         {subseccion === 'levantamientos' && <LevantamientosSeccion soloPropios />}
 

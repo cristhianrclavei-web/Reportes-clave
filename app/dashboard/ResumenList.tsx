@@ -115,6 +115,15 @@ export default function ResumenList({
 
         <NotificacionesToggle />
 
+        {/* Lo de hoy, arriba: es lo primero que el supervisor busca */}
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
+          <Stat label="Hoy" value={totalToday} accent="red" />
+          <Stat label="Esta semana" value={totalWeek} accent="amber" />
+          <Stat label="Por facturar" value={porFacturar} accent="amber" />
+          <Stat label="Técnicos activos" value={tecnicosActivos} accent="teal" />
+          <Stat label="Reportes totales" value={reports.length} accent="teal" />
+        </div>
+
         {errorCarga && (
           <div className="mb-4 p-4 rounded-2xl bg-red/10 border border-red/30">
             <p className="text-[14px] font-semibold text-red mb-1">No se pudieron cargar los reportes</p>
@@ -262,13 +271,6 @@ export default function ResumenList({
         <KpiOperativos servicios={servicios} reports={reports} />
         <BitacoraSupervisorSection />
 
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
-          <Stat label="Total" value={reports.length} accent="teal" />
-          <Stat label="Esta semana" value={totalWeek} accent="amber" />
-          <Stat label="Hoy" value={totalToday} accent="red" />
-          <Stat label="Técnicos activos" value={tecnicosActivos} accent="teal" />
-          <Stat label="Por facturar" value={porFacturar} accent="amber" />
-        </div>
     </SupervisorShell>
   );
 }

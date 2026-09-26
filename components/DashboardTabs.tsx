@@ -1,48 +1,32 @@
 'use client';
 
-import Link from '@/components/TransitionLink';
 import { FileText, FolderKanban, History, CalendarDays, LayoutDashboard, Warehouse, Receipt, Building2 } from 'lucide-react';
-import { usePuedeAlmacen } from '@/lib/usePuedeAlmacen';
 
-// Pestañas superiores del panel del supervisor. Una sola fuente de verdad
-// para que las pantallas se sientan como secciones de un mismo panel y no
-// como páginas sueltas. En pantallas muy angostas solo se muestra el ícono.
+// Secciones del panel del supervisor: una sola fuente de verdad para la
+// barra lateral, la barra inferior del celular y el buscador (Ctrl+K).
+// `corto` es la etiqueta de la barra inferior, donde el espacio es poco.
 export const TABS = [
-  { key: 'resumen', label: 'Resumen', href: '/dashboard', Icono: LayoutDashboard },
-  { key: 'reportes', label: 'Reportes', href: '/dashboard/reportes', Icono: FileText },
-  { key: 'cotizaciones', label: 'Cotizaciones', href: '/dashboard/cotizaciones', Icono: Receipt },
-  { key: 'proyectos', label: 'Proyectos', href: '/dashboard/proyectos', Icono: Building2 },
-  { key: 'servicios', label: 'Servicios', href: '/dashboard/servicios', Icono: FolderKanban },
-  { key: 'agenda', label: 'Agenda', href: '/dashboard/agenda', Icono: CalendarDays },
-  { key: 'eventos', label: 'Eventos', href: '/dashboard/eventos', Icono: History },
+  { key: 'resumen', label: 'Resumen', corto: 'Inicio', href: '/dashboard', Icono: LayoutDashboard },
+  { key: 'servicios', label: 'Servicios', corto: 'Servicios', href: '/dashboard/servicios', Icono: FolderKanban },
+  { key: 'agenda', label: 'Agenda', corto: 'Agenda', href: '/dashboard/agenda', Icono: CalendarDays },
+  { key: 'reportes', label: 'Reportes', corto: 'Reportes', href: '/dashboard/reportes', Icono: FileText },
+  { key: 'cotizaciones', label: 'Cotizaciones', corto: 'Cotizar', href: '/dashboard/cotizaciones', Icono: Receipt },
+  { key: 'proyectos', label: 'Clientes', corto: 'Clientes', href: '/dashboard/proyectos', Icono: Building2 },
+  { key: 'eventos', label: 'Actividad', corto: 'Actividad', href: '/dashboard/eventos', Icono: History },
 ] as const;
 
 // El almacén solo aparece para quien lo lleva, no para todo supervisor.
-export const TAB_ALMACEN = { key: 'almacen', label: 'Almacén', href: '/dashboard/almacen', Icono: Warehouse } as const;
+export const TAB_ALMACEN = { key: 'almacen', label: 'Almacén', corto: 'Almacén', href: '/dashboard/almacen', Icono: Warehouse } as const;
 
 export type DashboardTabKey = (typeof TABS)[number]['key'] | 'almacen';
 
-export default function DashboardTabs({ active, mostrarAlmacen }: { active: DashboardTabKey; mostrarAlmacen?: boolean }) {
-  // El permiso se consulta aquí para no tener que pasarlo desde cada
-  // pantalla. El resultado se guarda en la sesión: no cambia mientras el
-  // usuario esté dentro.
-  const puedeAlmacen = usePuedeAlmacen(mostrarAlmacen);
+// Agrupación de la barra lateral: qué se opera a diario, qué se vende y qué
+// se controla.
+export const GRUPOS_NAV: { titulo: string; keys: DashboardTabKey[] }[] = [
+  { titulo: 'Operación', keys: ['resumen', 'servicios', 'agenda', 'reportes'] },
+  { titulo: 'Ventas', keys: ['cotizaciones', 'proyectos'] },
+  { titulo: 'Control', keys: ['almacen', 'eventos'] },
+];
 
-  const tabs = puedeAlmacen ? [...TABS, TAB_ALMACEN] : TABS;
-  return (
-    <div className="flex gap-1.5 p-1 rounded-2xl bg-surface-2 border border-line mb-5">
-      {tabs.map((t) => (
-        <Link
-          key={t.key}
-          href={t.href}
-          className={`flex-1 min-h-[46px] flex items-center justify-center gap-1.5 rounded-xl text-[13.5px] font-display font-semibold tracking-wide transition-colors ${
-            active === t.key ? 'bg-teal text-inkOnAccent shadow-glow-teal' : 'text-ink/70 active:scale-95'
-          }`}
-        >
-          <t.Icono size={16} strokeWidth={2.4} className="shrink-0" />
-          <span className="hidden min-[640px]:inline">{t.label}</span>
-        </Link>
-      ))}
-    </div>
-  );
-}
+// Las 4 que van fijas en la barra inferior del celular; el resto va en «Más».
+export const TABS_INFERIORES: DashboardTabKey[] = ['resumen', 'servicios', 'reportes', 'cotizaciones'];

@@ -179,3 +179,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   background: rgb(var(--c-line-rgb) / var(--c-line-a-strong));
   border-radius: 999px;
 }
+
+/* Pestañas deslizables sin barra visible */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }

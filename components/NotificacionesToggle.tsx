@@ -84,71 +84,61 @@ export default function NotificacionesToggle({ esTecnico = false }: { esTecnico?
     );
   }
 
-  return (
-    <div className={`mb-4 rounded-2xl border ${activas ? 'bg-surface-2 border-line' : 'bg-teal/10 border-teal/30'}`}>
-      <button
-        onClick={alternar}
-        disabled={cargando}
-        className="w-full p-4 text-left flex items-start gap-3 active:scale-[0.99] transition-transform disabled:opacity-60"
-      >
-        {/* Círculo de color para que el estado se lea de un vistazo, sin
-            depender de distinguir campana de campana tachada. */}
-        <span
-          className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-            activas ? 'bg-teal/15' : 'bg-teal'
-          }`}
-        >
-          {activas ? (
-            <BellRing size={19} strokeWidth={2.3} className="text-teal" />
-          ) : (
-            <Bell size={19} strokeWidth={2.4} className="text-inkOnAccent" />
-          )}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[14px] font-semibold mb-0.5 flex items-center gap-2">
-            {activas ? 'Notificaciones activadas' : 'Activar notificaciones'}
-            {activas && <span className="w-2 h-2 rounded-full bg-teal shrink-0" aria-hidden="true" />}
-          </p>
-          <p className="text-[12.5px] text-muted leading-relaxed">
-            {activas
-              ? 'Este dispositivo recibe avisos aunque la app esté cerrada. Toca para desactivarlas.'
-              : 'Recibe avisos en el celular aunque la app esté cerrada.'}
-          </p>
-        </div>
-      </button>
-
-      {/* Qué recibir. Sin esto, notificar todo lleva a que la gente silencie
-          la app y se pierdan los avisos que sí exigen acción. */}
-      {activas && (
-        <div className="px-4 pb-4">
-          <button
-            onClick={() => setAbierto((v) => !v)}
-            className="w-full min-h-[42px] flex items-center justify-between text-[13.5px] font-medium text-ink/80 border-t border-line pt-3"
-          >
-            Elegir qué avisos recibir
-            {abierto ? <ChevronUp size={16} strokeWidth={2.4} /> : <ChevronDown size={16} strokeWidth={2.4} />}
+  // Ya activas: una sola línea discreta. Mientras están apagadas, la
+  // invitación sí va completa porque es una acción que conviene hacer.
+  if (activas) {
+    return (
+      <div className="mb-4 rounded-2xl bg-surface-2 border border-line">
+        <div className="flex items-center gap-2.5 px-4 min-h-[48px]">
+          <BellRing size={16} strokeWidth={2.4} className="text-teal shrink-0" />
+          <span className="text-[13.5px] font-medium flex-1">Notificaciones activas</span>
+          <button onClick={() => setAbierto((v) => !v)} className="text-[13px] font-semibold text-teal flex items-center gap-1">
+            {abierto ? 'Cerrar' : 'Ajustar'}
+            {abierto ? <ChevronUp size={15} strokeWidth={2.4} /> : <ChevronDown size={15} strokeWidth={2.4} />}
           </button>
-
-          {abierto && (
-            <div className="mt-2 flex flex-col">
-              {tiposVisibles.map((t) => (
-                <label key={t.valor} className="flex items-start gap-3 py-2.5 border-t border-line cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={!!prefs[t.valor]}
-                    onChange={() => alternarTipo(t.valor)}
-                    className="w-5 h-5 accent-teal mt-0.5 shrink-0"
-                  />
-                  <span className="min-w-0">
-                    <span className="block text-[14px] font-medium">{t.label}</span>
-                    <span className="block text-[12.5px] text-muted leading-snug">{t.detalle}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
-          )}
         </div>
-      )}
-    </div>
+        {abierto && (
+          <div className="px-4 pb-4 flex flex-col">
+            {tiposVisibles.map((t) => (
+              <label key={t.valor} className="flex items-start gap-3 py-2.5 border-t border-line cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={!!prefs[t.valor]}
+                  onChange={() => alternarTipo(t.valor)}
+                  className="w-5 h-5 accent-teal mt-0.5 shrink-0"
+                />
+                <span className="min-w-0">
+                  <span className="block text-[14px] font-medium">{t.label}</span>
+                  <span className="block text-[12.5px] text-muted leading-snug">{t.detalle}</span>
+                </span>
+              </label>
+            ))}
+            <button
+              onClick={alternar}
+              disabled={cargando}
+              className="mt-3 min-h-[42px] rounded-xl border border-line-strong text-[13px] font-medium text-ink/80 disabled:opacity-60"
+            >
+              Desactivar en este dispositivo
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={alternar}
+      disabled={cargando}
+      className="w-full mb-4 p-4 rounded-2xl border bg-teal/10 border-teal/30 text-left flex items-center gap-3 active:scale-[0.99] transition-transform disabled:opacity-60"
+    >
+      <span className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-teal">
+        <Bell size={19} strokeWidth={2.4} className="text-inkOnAccent" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[14px] font-semibold mb-0.5">Activar notificaciones</p>
+        <p className="text-[12.5px] text-muted leading-relaxed">Recibe avisos en el celular aunque la app esté cerrada.</p>
+      </div>
+    </button>
   );
 }

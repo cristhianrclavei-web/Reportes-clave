@@ -753,7 +753,7 @@ export default function NuevoReportePage() {
                 ))}
               </select>
               <p className="text-[12.5px] text-muted mt-1.5">
-                Al elegirlo se llena el cliente y se sugiere el personal asignado. Puedes cambiar cualquier dato después.
+                Llena el cliente y el personal; puedes cambiarlos.
               </p>
 
               {serviciosVinculables.length === 0 && (

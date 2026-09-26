@@ -1,5 +1,6 @@
 'use client';
 
+import SubTabs from '@/components/SubTabs';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabaseClient';
@@ -106,30 +107,18 @@ export default function ReportesList({
   return (
     <SupervisorShell
       active="reportes"
-      title="Reportes de servicio"
+      title="Reportes"
       userName={userName}
       wrapperClassName="max-w-3xl lg:max-w-6xl mx-auto pb-10 px-0 lg:px-4"
     >
-        <div className="grid grid-cols-2 gap-2 mb-5">
-          <button
-            onClick={() => setSubseccion('reportes')}
-            className={`min-h-[54px] px-2 rounded-2xl text-[13.5px] font-display font-semibold border transition-colors flex items-center justify-center gap-1.5 ${
-              subseccion === 'reportes' ? 'bg-teal text-inkOnAccent border-teal shadow-glow-teal' : 'bg-surface-2 border-line-strong text-ink/80'
-            }`}
-          >
-            <FileText size={17} strokeWidth={2.4} className="shrink-0" />
-            Reportes
-          </button>
-          <button
-            onClick={() => setSubseccion('levantamientos')}
-            className={`min-h-[54px] px-2 rounded-2xl text-[13.5px] font-display font-semibold border transition-colors flex items-center justify-center gap-1.5 ${
-              subseccion === 'levantamientos' ? 'bg-teal text-inkOnAccent border-teal shadow-glow-teal' : 'bg-surface-2 border-line-strong text-ink/80'
-            }`}
-          >
-            <ClipboardList size={17} strokeWidth={2.4} className="shrink-0" />
-            Levantamientos
-          </button>
-        </div>
+        <SubTabs
+          activa={subseccion}
+          onCambiar={setSubseccion}
+          opciones={[
+            { k: 'reportes', label: 'Reportes', Icono: FileText },
+            { k: 'levantamientos', label: 'Levantamientos', Icono: ClipboardList },
+          ]}
+        />
 
         {subseccion === 'levantamientos' && <LevantamientosSeccion soloPropios={false} />}
 

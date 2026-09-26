@@ -1,5 +1,6 @@
 'use client';
 
+import SubTabs from '@/components/SubTabs';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import SupervisorShell from '@/components/SupervisorShell';
@@ -16,7 +17,7 @@ import {
 import EntradaAlmacenWizard, { ModalNuevoArticulo } from '@/components/almacen/EntradaAlmacenWizard';
 import {
   Plus, FileText, ScrollText, Wrench, Package, HardHat,
-  Trash2, Boxes, ArrowLeftRight, ArrowDown, ArrowUp, RotateCcw, AlertTriangle, LayoutGrid,
+  Trash2, Boxes, ArrowLeftRight, ArrowDown, ArrowUp, RotateCcw, AlertTriangle, LayoutGrid, Search,
 } from 'lucide-react';
 
 const ICONO: Record<CategoriaInsumo, any> = { herramienta: Wrench, material: Package, equipo: HardHat };
@@ -44,6 +45,7 @@ export default function AlmacenList({ userName }: { userName?: string }) {
   const [sistemas, setSistemas] = useState<Sistema[]>([]);
 
   const [filtro, setFiltro] = useState<'todos' | CategoriaInsumo>('todos');
+  const [busqueda, setBusqueda] = useState('');
   const [verBaja, setVerBaja] = useState(false);
 
   async function cargar() {
@@ -71,8 +73,15 @@ export default function AlmacenList({ userName }: { userName?: string }) {
   useEffect(() => { cargar(); }, []);
 
   const existenciasFiltradas = useMemo(
-    () => (filtro === 'todos' ? existencias : existencias.filter((e) => e.articulo.categoria === filtro)),
-    [existencias, filtro]
+    () => {
+      const q = busqueda.trim().toLowerCase();
+      return existencias.filter((e) => {
+        if (filtro !== 'todos' && e.articulo.categoria !== filtro) return false;
+        if (q && !`${e.articulo.descripcion} ${e.proyecto || ''}`.toLowerCase().includes(q)) return false;
+        return true;
+      });
+    },
+    [existencias, filtro, busqueda]
   );
 
   async function handleNuevoSistema() {
@@ -96,31 +105,35 @@ export default function AlmacenList({ userName }: { userName?: string }) {
   return (
     <SupervisorShell
       active="almacen"
-      title="Almacén"
+      title={seccion === 'entrada' ? 'Registrar entrada' : 'Almacén'}
       userName={userName}
       mostrarAlmacen
+      acciones={seccion !== 'entrada' && (
+        <button
+          onClick={() => setSeccion('entrada')}
+          className="min-h-[44px] px-4 rounded-xl bg-teal text-inkOnAccent font-semibold text-[14px] flex items-center gap-1.5 shadow-glow-teal active:scale-95 transition-transform"
+        >
+          <Plus size={17} strokeWidth={2.6} /> Entrada
+        </button>
+      )}
       wrapperClassName="max-w-2xl lg:max-w-6xl mx-auto pb-16 lg:px-6"
     >
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-5">
-          {([
-            { k: 'existencias', label: 'Existencias', Icono: Boxes },
-            { k: 'entrada', label: 'Entrada', Icono: Plus },
-            { k: 'movimientos', label: 'Movimientos', Icono: ArrowLeftRight },
-            { k: 'catalogo', label: 'Catálogo', Icono: ScrollText },
-            { k: 'sistemas', label: 'Sistemas', Icono: LayoutGrid },
-          ] as const).map(({ k, label, Icono }) => (
-            <button
-              key={k}
-              onClick={() => setSeccion(k)}
-              className={`min-h-[54px] px-2 rounded-2xl text-[13px] font-display font-semibold border transition-all duration-150 flex items-center justify-center gap-1.5 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.97] ${
-                seccion === k ? 'bg-teal text-inkOnAccent border-teal shadow-glow-teal hover:brightness-110' : 'bg-surface-2 border-line-strong text-ink/80 hover:text-ink'
-              }`}
-            >
-              <Icono size={16} strokeWidth={2.4} className="shrink-0" />
-              <span className="truncate">{label}</span>
-            </button>
-          ))}
-        </div>
+        {seccion === 'entrada' ? (
+          <button onClick={() => setSeccion('existencias')} className="mb-4 text-[13.5px] font-semibold text-teal">
+            ← Volver al almacén
+          </button>
+        ) : (
+          <SubTabs
+            activa={seccion}
+            onCambiar={setSeccion}
+            opciones={[
+              { k: 'existencias', label: 'Existencias', Icono: Boxes },
+              { k: 'movimientos', label: 'Movimientos', Icono: ArrowLeftRight },
+              { k: 'catalogo', label: 'Catálogo', Icono: ScrollText },
+              { k: 'sistemas', label: 'Sistemas', Icono: LayoutGrid },
+            ]}
+          />
+        )}
 
         {error && (
           <div className="mb-4 p-4 rounded-2xl bg-red/10 border border-red/30">
@@ -164,21 +177,32 @@ export default function AlmacenList({ userName }: { userName?: string }) {
               </div>
             )}
 
-            <div className="flex gap-2 mb-4 overflow-x-auto">
-              {([
-                { k: 'todos', label: 'Todo' },
-                ...CATEGORIAS.map((c) => ({ k: c.valor, label: c.label })),
-              ] as const).map(({ k, label }) => (
-                <button
-                  key={k}
-                  onClick={() => setFiltro(k as any)}
-                  className={`min-h-[42px] px-4 rounded-full text-[13.5px] font-medium border shrink-0 ${
-                    filtro === k ? 'bg-teal text-inkOnAccent border-teal' : 'bg-surface-2 border-line-strong text-ink/80'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
+            {/* Un solo renglón: buscar y, si hace falta, acotar por tipo */}
+            <div className="flex gap-2 mb-4">
+              <div className="relative flex-1 min-w-0">
+                <Search size={16} strokeWidth={2.3} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+                <input
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
+                  placeholder="Buscar artículo o proyecto…"
+                  className="w-full pl-10 pr-3 min-h-[44px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[14.5px]"
+                />
+              </div>
+              <select
+                value={filtro}
+                onChange={(e) => setFiltro(e.target.value as any)}
+                aria-label="Tipo de artículo"
+                className={`shrink-0 px-3 min-h-[44px] rounded-xl border focus:border-teal focus:outline-none text-[14px] font-medium ${
+                  filtro === 'todos' ? 'bg-surface-2 border-line text-ink/80' : 'bg-teal/12 border-teal/40 text-teal'
+                }`}
+              >
+                <option value="todos">Todo ({existencias.length})</option>
+                {CATEGORIAS.map((c) => (
+                  <option key={c.valor} value={c.valor}>
+                    {c.label} ({existencias.filter((e) => e.articulo.categoria === c.valor).length})
+                  </option>
+                ))}
+              </select>
             </div>
 
             {existenciasFiltradas.length === 0 && (
@@ -186,7 +210,9 @@ export default function AlmacenList({ userName }: { userName?: string }) {
                 <div className="w-14 h-14 rounded-2xl bg-surface-2 border border-line flex items-center justify-center mb-3.5">
                   <EmptyIllustration variante="almacen" />
                 </div>
-                <p className="text-[13.5px] text-muted leading-relaxed max-w-[260px]">Todavía no hay existencias. Registra una entrada para empezar.</p>
+                <p className="text-[13.5px] text-muted leading-relaxed max-w-[260px]">
+                  {existencias.length === 0 ? 'Todavía no hay existencias. Registra una entrada para empezar.' : 'Nada coincide con la búsqueda.'}
+                </p>
               </div>
             )}
 
@@ -207,7 +233,7 @@ export default function AlmacenList({ userName }: { userName?: string }) {
                 return (
                   <div
                     key={`${e.articulo.id}-${e.inventario}-${e.grupoId || 'g'}-${i}`}
-                    className="rounded-2xl lg:rounded-xl bg-surface border border-line p-4 lg:py-3 lg:grid lg:grid-cols-[1.6fr_90px_90px_1.3fr_100px_110px] lg:gap-3 lg:items-center"
+                    className="rounded-2xl lg:rounded-xl bg-surface border border-line p-4 lg:py-3 lg:grid lg:grid-cols-[1.6fr_90px_90px_1.3fr_100px_110px] lg:gap-3 lg:items-center transition-all duration-150 hover:-translate-y-0.5 hover:shadow-diffuse hover:border-line-strong"
                   >
                     <div className="min-w-0 flex items-center gap-2">
                       <Icono size={15} strokeWidth={2.3} className="text-muted shrink-0" />
@@ -302,7 +328,7 @@ export default function AlmacenList({ userName }: { userName?: string }) {
                   ajuste: { Icono: ArrowLeftRight, color: 'text-amber', signo: '', label: 'Ajuste' },
                 }[m.tipo];
                 return (
-                  <div key={m.id} className="rounded-2xl lg:rounded-xl bg-surface border border-line p-4 lg:py-3 flex items-center gap-3">
+                  <div key={m.id} className="rounded-2xl lg:rounded-xl bg-surface border border-line p-4 lg:py-3 flex items-center gap-3 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-diffuse hover:border-line-strong">
                     <cfg.Icono size={17} strokeWidth={2.4} className={`${cfg.color} shrink-0`} />
                     <div className="flex-1 min-w-0">
                       <p className="text-[14.5px] font-semibold truncate">
@@ -347,7 +373,7 @@ export default function AlmacenList({ userName }: { userName?: string }) {
 
             <div className="flex flex-col gap-2.5 lg:grid lg:grid-cols-2">
               {sistemas.map((sis) => (
-                <div key={sis.id} className="rounded-2xl bg-surface border border-line p-4 flex items-center gap-3">
+                <div key={sis.id} className="rounded-2xl bg-surface border border-line p-4 flex items-center gap-3 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-diffuse hover:border-line-strong">
                   <LayoutGrid size={17} strokeWidth={2.3} className="text-muted shrink-0" />
                   <p className="flex-1 min-w-0 text-[14.5px] font-semibold truncate">{sis.nombre}</p>
                   <button
@@ -413,7 +439,7 @@ export default function AlmacenList({ userName }: { userName?: string }) {
                 {mostrar.map((a) => {
                   const Icono = ICONO[a.categoria];
                   return (
-                    <div key={a.id} className={`rounded-2xl bg-surface border border-line p-4 flex items-center gap-3 ${a.activo ? '' : 'opacity-70'}`}>
+                    <div key={a.id} className={`rounded-2xl bg-surface border border-line p-4 flex items-center gap-3 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-diffuse hover:border-line-strong ${a.activo ? '' : 'opacity-70'}`}>
                       <Icono size={17} strokeWidth={2.3} className="text-muted shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-[14.5px] font-semibold truncate">{a.descripcion}</p>

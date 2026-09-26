@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import SupervisorShell from '@/components/SupervisorShell';
+import SubTabs from '@/components/SubTabs';
 import EmptyIllustration from '@/components/EmptyIllustration';
 import SelectorSemana, { RangoSeleccionado } from '@/components/SelectorSemana';
 import { useTheme } from '@/lib/useTheme';
@@ -590,39 +591,43 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   return (
     <SupervisorShell
       active="servicios"
-      title="Servicios"
+      title={seccion === 'agendar' ? 'Agendar servicio' : 'Servicios'}
       userName={userName}
+      acciones={seccion !== 'agendar' && (
+        <button
+          onClick={() => { setSeccion('agendar'); setShowNuevo(true); }}
+          className="min-h-[44px] px-4 rounded-xl bg-teal text-inkOnAccent font-semibold text-[14px] flex items-center gap-1.5 shadow-glow-teal active:scale-95 transition-transform"
+        >
+          <Plus size={17} strokeWidth={2.6} /> Agendar
+        </button>
+      )}
       wrapperClassName="max-w-2xl lg:max-w-6xl mx-auto pb-28 lg:pb-16 lg:px-6"
     >
-        {/* Cuatro secciones con su nombre: en una sola fila no caben cuatro
-            etiquetas en un celular, así que se acomodan en dos por dos y pasan
-            a una fila en pantallas anchas. Un ícono solo obliga a adivinar. */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-5">
-          {([
-            { k: 'agendar', label: 'Agendar', Icono: Plus },
-            { k: 'agendados', label: 'Agendados', Icono: FolderKanban },
-            { k: 'concluidos', label: 'Concluidos', Icono: Check },
-            { k: 'checklists', label: 'Listas de carga', Icono: PackageCheck },
-            { k: 'plantillas', label: 'Plantillas', Icono: Bookmark },
-          ] as const).map(({ k, label, Icono }) => (
-            <button
-              key={k}
-              onClick={() => { setSeccion(k); setShowNuevo(k === 'agendar'); }}
-              className={`min-h-[54px] px-2 rounded-2xl text-[13.5px] font-display font-semibold border transition-all duration-150 flex items-center justify-center gap-1.5 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.97] ${
-                seccion === k ? 'bg-teal text-inkOnAccent border-teal shadow-glow-teal hover:brightness-110' : 'bg-surface-2 border-line-strong text-ink/80 hover:text-ink'
-              }`}
-            >
-              <Icono size={17} strokeWidth={2.4} className="shrink-0" />
-              <span className="truncate">{label}</span>
-            </button>
-          ))}
-        </div>
+        {seccion === 'agendar' ? (
+          <button
+            onClick={() => { setSeccion('agendados'); setShowNuevo(false); }}
+            className="mb-4 text-[13.5px] font-semibold text-teal flex items-center gap-1"
+          >
+            ← Volver a los servicios
+          </button>
+        ) : (
+          <SubTabs
+            activa={seccion}
+            onCambiar={(k) => { setSeccion(k); setShowNuevo(false); }}
+            opciones={[
+              { k: 'agendados', label: 'Agendados', Icono: FolderKanban },
+              { k: 'concluidos', label: 'Concluidos', Icono: Check },
+              { k: 'checklists', label: 'Listas de carga', Icono: PackageCheck },
+              { k: 'plantillas', label: 'Plantillas', Icono: Bookmark },
+            ]}
+          />
+        )}
 
         {/* Listas de herramienta creadas: un renglón por proyecto */}
         {seccion === 'checklists' && (
           <div>
             <p className="text-[12.5px] text-muted mb-3 leading-relaxed">
-              Listas de herramienta y material creadas, una por proyecto. También se crean al programar un servicio.
+              Una lista de herramienta y material por proyecto.
             </p>
 
             <button
@@ -926,7 +931,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
                 className="w-full px-3.5 min-h-[48px] mb-1 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]"
               />
               <p className="text-[12.5px] text-muted">
-                Cada día lleva su propia fecha y solo se puede trabajar ese día. Si después hacen falta más, se amplía desde el detalle del proyecto.
+                Cada día solo se puede trabajar en su fecha.
               </p>
             </div>
 
@@ -951,7 +956,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
             <div className={cardCls}>
               <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Lista de tareas a realizar</p>
               <p className="text-[12.5px] text-muted mb-2.5">
-                Del proyecto completo. En proyectos de varios días la lista es una sola y se comparte: lo que quede pendiente un día aparece pendiente el siguiente, y el avance se acumula.
+                Una sola lista para todo el proyecto; lo pendiente pasa al día siguiente.
               </p>
               {tareas.map((t, i) => (
                 <div key={i} className="flex items-center gap-2 mb-2">
@@ -973,7 +978,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
                   supervisor sabe qué se necesita para el trabajo. */}
               <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Herramienta, material y equipo</p>
               <p className="text-[12.5px] text-muted mb-2.5">
-                Lo que la cuadrilla debe llevar. El técnico la verifica al salir y al regresar, cada día del proyecto.
+                El técnico la verifica al salir y al regresar.
               </p>
 
               {plantillas.length > 0 && (

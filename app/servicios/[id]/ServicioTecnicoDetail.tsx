@@ -612,7 +612,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
         {/* Checklist estilo rondín */}
         {servicio.dias_totales > 1 && (
           <p className="text-[11.5px] text-muted mb-2.5">
-            Checklist del proyecto completo — lo que se complete hoy queda registrado y lo pendiente sigue disponible los demás días.
+            Lo pendiente sigue disponible los demás días.
           </p>
         )}
         {servicio.estado === 'programado' || servicio.estado === 'en_sitio' ? (
