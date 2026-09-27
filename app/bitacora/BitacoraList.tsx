@@ -76,20 +76,22 @@ export default function BitacoraList({ userName }: { userName: string }) {
   const concluidas = actividades.filter((a) => a.estado === 'concluida');
 
   return (
-    <div className="max-w-2xl lg:max-w-4xl mx-auto pb-28 lg:pb-16">
-      <div className="sticky top-0 z-20 glass-strong px-5 py-3.5 flex items-center justify-between gap-3">
+    <div className="max-w-2xl lg:max-w-4xl mx-auto pb-16">
+      <div className="sticky top-0 z-20 glass-strong">
+        <div className="px-5 pb-1 flex items-center justify-between gap-3">
         <Logo variante="completo" size={32} className="min-w-0" compactoEnMovil />
         <div className="flex items-center gap-1 shrink-0">
           <PerfilChip nombre={userName} respaldo="Técnico" />
           <ThemeToggle />
           <LogoutButton compacto />
         </div>
+        </div>
+        <TecnicoTabs active="bitacora" />
       </div>
 
       <div className="px-4 pt-5">
         <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-wide mb-4">Bitácora</h1>
 
-        <TecnicoTabs active="bitacora" />
 
         {!showNueva ? (
           <button

@@ -1,6 +1,5 @@
 'use client';
 
-import BarraInferior from '@/components/BarraInferior';
 import Link from '@/components/TransitionLink';
 import { ReactNode, useEffect, useState } from 'react';
 import Logo from './Logo';
@@ -8,18 +7,18 @@ import PerfilChip from './PerfilChip';
 import ThemeToggle from './ThemeToggle';
 import CommandPalette from './CommandPalette';
 import LogoutButton from './LogoutButton';
-import ModalOverlay from './ModalOverlay';
-import { DashboardTabKey, TABS, TAB_ALMACEN, GRUPOS_NAV, TABS_INFERIORES } from './DashboardTabs';
+import { DashboardTabKey, TABS, TAB_ALMACEN, GRUPOS_NAV } from './DashboardTabs';
+import NavPestanas from './NavPestanas';
 import { usePuedeAlmacen } from '@/lib/usePuedeAlmacen';
 import { VistaSupervisorContext, VistaSupervisor, KEY_VISTA_SUPERVISOR } from '@/lib/vistaSupervisor';
-import { LayoutGrid, Rows3, MoreHorizontal, ChevronLeft } from 'lucide-react';
+import { LayoutGrid, Rows3, ChevronLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 // Encabezado + navegación de todas las pantallas del supervisor.
 //
 // Dos niveles claros de navegación (ver el documento de rediseño):
 //   · computadora: barra lateral fija con las secciones agrupadas;
-//   · celular: barra inferior con las 4 más usadas + «Más» para el resto.
+//   · celular: pestañas fijas bajo el encabezado con todas las secciones.
 // Las pestañas DENTRO de cada sección (filtros) usan otro estilo
 // (SubTabs), para que no se confundan con esta navegación.
 //
@@ -51,7 +50,6 @@ export default function SupervisorShell({
   children: ReactNode;
 }) {
   const [vista, setVistaState] = useState<VistaSupervisor>('clasica');
-  const [masAbierto, setMasAbierto] = useState(false);
   useEffect(() => {
     try {
       if (localStorage.getItem(KEY_VISTA_SUPERVISOR) === 'nueva') setVistaState('nueva');
@@ -73,9 +71,6 @@ export default function SupervisorShell({
   const puedeAlmacen = usePuedeAlmacen(mostrarAlmacen);
   const todas = puedeAlmacen ? [...TABS, TAB_ALMACEN] : [...TABS];
   const porKey = Object.fromEntries(todas.map((t) => [t.key, t]));
-  const inferiores = TABS_INFERIORES.map((k) => porKey[k]).filter(Boolean);
-  const enMas = todas.filter((t) => !TABS_INFERIORES.includes(t.key as any));
-  const masActivo = enMas.some((t) => t.key === active);
 
   const botonCambiarVista = (
     <button
@@ -153,69 +148,23 @@ export default function SupervisorShell({
         </div>
       </aside>
 
-      <div className={`${wrapperClassName} pb-28 lg:pb-10 lg:!max-w-none lg:!mx-0 lg:!px-0 lg:flex-1`}>
-        {/* Celular: encabezado ligero; lo demás vive en «Más» */}
-        <div className="lg:hidden sticky top-0 z-20 glass-strong px-4 py-3 flex items-center justify-between gap-3">
-          <Logo variante="completo" size={32} className="min-w-0" compactoEnMovil />
-          <div className="flex items-center gap-1 shrink-0">
-            <CommandPalette puedeAlmacen={puedeAlmacen} />
-            <ThemeToggle />
-            <PerfilChip nombre={userName} respaldo="Supervisor" />
+      <div className={`${wrapperClassName} pb-10 lg:!max-w-none lg:!mx-0 lg:!px-0 lg:flex-1`}>
+        {/* Celular: encabezado con las pestañas de secciones debajo del logo */}
+        <div className="lg:hidden sticky top-0 z-20 glass-strong">
+          <div className="px-4 pb-1 flex items-center justify-between gap-3">
+            <Logo variante="completo" size={32} className="min-w-0" compactoEnMovil />
+            <div className="flex items-center gap-0.5 shrink-0">
+              <CommandPalette puedeAlmacen={puedeAlmacen} />
+              <ThemeToggle />
+              <PerfilChip nombre={userName} respaldo="Supervisor" />
+              <LogoutButton compacto />
+            </div>
           </div>
+          <NavPestanas items={todas} active={active} />
         </div>
         {cuerpo}
       </div>
 
-      {/* Celular: barra inferior */}
-      <BarraInferior>
-        {inferiores.map((t) => (
-          <Link
-            key={t.key}
-            href={t.href}
-            className={`flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-xl text-[11px] font-semibold ${
-              active === t.key ? 'text-teal' : 'text-ink/60'
-            }`}
-          >
-            <t.Icono size={21} strokeWidth={active === t.key ? 2.5 : 2.1} />
-            {t.corto}
-          </Link>
-        ))}
-        <button
-          onClick={() => setMasAbierto(true)}
-          className={`flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-xl text-[11px] font-semibold ${masActivo ? 'text-teal' : 'text-ink/60'}`}
-        >
-          <MoreHorizontal size={21} strokeWidth={masActivo ? 2.5 : 2.1} />
-          Más
-        </button>
-      </BarraInferior>
-
-      {masAbierto && (
-        <ModalOverlay onClose={() => setMasAbierto(false)} className="items-end">
-          <div className="glass-strong rounded-3xl w-full max-w-md p-4 mb-2">
-            <div className="grid grid-cols-3 gap-2 mb-4">
-              {enMas.map((t) => (
-                <Link
-                  key={t.key}
-                  href={t.href}
-                  onClick={() => setMasAbierto(false)}
-                  className={`flex flex-col items-center gap-1.5 py-3.5 rounded-2xl border text-[12.5px] font-semibold ${
-                    active === t.key ? 'bg-teal/12 border-teal/40 text-teal' : 'bg-surface border-line text-ink/80'
-                  }`}
-                >
-                  <t.Icono size={22} strokeWidth={2.2} />
-                  {t.label}
-                </Link>
-              ))}
-            </div>
-            <div className="flex items-center justify-between gap-2 pt-3 border-t border-line">
-              <div className="flex items-center gap-1.5">
-                {botonCambiarVista}
-              </div>
-              <LogoutButton />
-            </div>
-          </div>
-        </ModalOverlay>
-      )}
     </div>
   );
 }

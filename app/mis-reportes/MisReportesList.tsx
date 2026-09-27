@@ -54,15 +54,18 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
   }, [reports, search, filterType]);
 
   return (
-    <div className="max-w-2xl lg:max-w-4xl mx-auto pb-28 lg:pb-10">
+    <div className="max-w-2xl lg:max-w-4xl mx-auto pb-10">
       {/* Header */}
-      <div className="sticky top-0 z-20 glass-strong px-5 py-3.5 flex items-center justify-between gap-3">
+      <div className="sticky top-0 z-20 glass-strong">
+        <div className="px-5 pb-1 flex items-center justify-between gap-3">
         <Logo variante="completo" size={34} className="min-w-0" compactoEnMovil />
         <div className="flex items-center gap-1 shrink-0">
           <PerfilChip nombre={userName} respaldo="Técnico" />
           <ThemeToggle />
           <LogoutButton compacto />
         </div>
+        </div>
+        <TecnicoTabs active="reportes" />
       </div>
 
       <div className="px-4 pt-5">
@@ -70,7 +73,6 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
           Mis reportes
         </h1>
 
-        <TecnicoTabs active="reportes" />
 
         <AvisoActualizarCredenciales />
         <AvisoCuentaPrueba />

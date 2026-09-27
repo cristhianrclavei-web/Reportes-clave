@@ -99,20 +99,22 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
   const concluidos = servicios.filter((s) => s.estado === 'concluido');
 
   return (
-    <div className="max-w-2xl lg:max-w-4xl mx-auto pb-28 lg:pb-16">
-      <div className="sticky top-0 z-20 glass-strong px-5 py-3.5 flex items-center justify-between gap-3">
+    <div className="max-w-2xl lg:max-w-4xl mx-auto pb-16">
+      <div className="sticky top-0 z-20 glass-strong">
+        <div className="px-5 pb-1 flex items-center justify-between gap-3">
         <Logo variante="completo" size={32} className="min-w-0" compactoEnMovil />
         <div className="flex items-center gap-1 shrink-0">
           <PerfilChip nombre={userName} respaldo="Técnico" />
           <ThemeToggle />
           <LogoutButton compacto />
         </div>
+        </div>
+        <TecnicoTabs active="servicios" />
       </div>
 
       <div className="px-4 pt-5">
         <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-wide mb-4">Mis servicios</h1>
 
-        <TecnicoTabs active="servicios" />
         {loading && (
           <div className="flex flex-col gap-3" aria-busy="true">
             {[0, 1, 2].map((i) => (

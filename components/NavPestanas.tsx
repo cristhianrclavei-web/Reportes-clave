@@ -1,0 +1,40 @@
+'use client';
+
+import Link from '@/components/TransitionLink';
+import { useEffect, useRef } from 'react';
+
+type Item = { key: string; label: string; href: string; Icono: any };
+
+// Navegación entre secciones en el celular: una fila de pestañas fija bajo
+// el encabezado. Todas las secciones quedan visibles (se desliza de lado si
+// no caben) y la activa se acomoda sola a la vista al abrir la pantalla.
+export default function NavPestanas({ items, active }: { items: readonly Item[]; active: string }) {
+  const navRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const activa = navRef.current?.querySelector<HTMLElement>('[aria-current="page"]');
+    activa?.scrollIntoView({ block: 'nearest', inline: 'center' });
+  }, [active]);
+
+  return (
+    <nav ref={navRef} className="flex gap-1 px-3 overflow-x-auto no-scrollbar" aria-label="Secciones">
+      {items.map((t) => {
+        const on = t.key === active;
+        return (
+          <Link
+            key={t.key}
+            href={t.href}
+            aria-current={on ? 'page' : undefined}
+            className={`relative shrink-0 flex items-center gap-1.5 px-3 pt-1.5 pb-2.5 text-[13.5px] font-semibold whitespace-nowrap transition-colors ${
+              on ? 'text-teal' : 'text-ink/60 hover:text-ink'
+            }`}
+          >
+            <t.Icono size={16} strokeWidth={on ? 2.5 : 2.2} className="shrink-0" />
+            {t.label}
+            <span className={`absolute left-2 right-2 bottom-0 h-[2.5px] rounded-full ${on ? 'bg-teal' : 'bg-transparent'}`} />
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
