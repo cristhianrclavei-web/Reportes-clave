@@ -17,7 +17,7 @@ export default function NavPestanas({ items, active }: { items: readonly Item[];
   }, [active]);
 
   return (
-    <nav ref={navRef} className="flex gap-3 px-3 pt-1.5 mt-2 border-t border-line overflow-x-auto no-scrollbar" aria-label="Secciones">
+    <nav ref={navRef} className="flex gap-2 mx-3 mt-2 mb-2.5 px-1.5 rounded-2xl bg-surface-2/80 border border-line overflow-x-auto no-scrollbar" aria-label="Secciones">
       {items.map((t) => {
         const on = t.key === active;
         return (
@@ -25,13 +25,13 @@ export default function NavPestanas({ items, active }: { items: readonly Item[];
             key={t.key}
             href={t.href}
             aria-current={on ? 'page' : undefined}
-            className={`relative shrink-0 flex items-center gap-1.5 px-3.5 pt-2 pb-2.5 text-[13.5px] font-semibold whitespace-nowrap transition-colors ${
+            className={`relative shrink-0 flex items-center gap-1.5 px-3.5 py-2.5 text-[13.5px] font-semibold whitespace-nowrap transition-colors ${
               on ? 'text-teal' : 'text-ink/60 hover:text-ink'
             }`}
           >
             <t.Icono size={16} strokeWidth={on ? 2.5 : 2.2} className="shrink-0" />
             {t.label}
-            <span className={`absolute left-2 right-2 bottom-0 h-[2.5px] rounded-full ${on ? 'bg-teal' : 'bg-transparent'}`} />
+            <span className={`absolute left-3 right-3 bottom-1 h-[2.5px] rounded-full ${on ? 'bg-teal' : 'bg-transparent'}`} />
           </Link>
         );
       })}
