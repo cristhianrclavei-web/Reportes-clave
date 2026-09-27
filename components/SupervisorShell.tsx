@@ -150,7 +150,7 @@ export default function SupervisorShell({
 
       <div className={`${wrapperClassName} pb-10 lg:!max-w-none lg:!mx-0 lg:!px-0 lg:flex-1`}>
         {/* Celular: encabezado con las pestañas de secciones debajo del logo */}
-        <div className="lg:hidden sticky top-0 z-20">
+        <div className="lg:hidden sticky top-0 z-20 bg-bg pb-2">
           <div
             className="barra-fija px-4 pb-3 flex items-center justify-between gap-3"
             style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}

@@ -187,12 +187,12 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 /* Encabezado y pestañas fijos del celular: casi opacos, para que el
    contenido (fotos de portada, tarjetas) no se vea a través al desplazarse. */
 .barra-fija {
-  background: rgb(var(--c-bg) / 0.97);
+  background: rgb(var(--c-bg));
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border-bottom: 1px solid rgb(var(--c-line-rgb) / var(--c-line-a));
 }
 .pestanas-fijas {
-  background: rgb(var(--c-surface) / 0.98);
+  background: rgb(var(--c-surface));
   border: 1px solid rgb(var(--c-line-rgb) / var(--c-line-a-strong));
 }

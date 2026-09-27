@@ -76,7 +76,7 @@ export default function ReportesDelCliente({ clienteId, clienteNombre }: { clien
             <p className="sm:hidden px-4 pt-3 text-[12px] font-semibold text-amber">{pendientes} pendiente(s) de revisión</p>
           )}
           {/* Encabezado de columnas */}
-          <div className="grid grid-cols-[84px_1fr_auto_48px] sm:grid-cols-[110px_1fr_130px_60px] gap-3 px-4 pt-3 pb-2 text-[10.5px] uppercase tracking-wider text-muted font-semibold">
+          <div className="hidden sm:grid grid-cols-[110px_1fr_130px_60px] gap-3 px-4 pt-3 pb-2 text-[10.5px] uppercase tracking-wider text-muted font-semibold">
             <span>Fecha</span>
             <span>Ing. a cargo</span>
             <span>Folio</span>
@@ -87,18 +87,23 @@ export default function ReportesDelCliente({ clienteId, clienteNombre }: { clien
               <li key={f.id} className="border-t border-line first:border-t-0">
                 <Link
                   href={`/dashboard/reportes?reporte=${f.id}`}
-                  className="grid grid-cols-[84px_1fr_auto_48px] sm:grid-cols-[110px_1fr_130px_60px] gap-3 items-center px-4 py-3 text-[13.5px] transition-colors hover:bg-surface-2 active:bg-surface-2"
+                  className="flex items-center gap-3 px-4 py-3.5 sm:py-3 text-[13.5px] transition-colors hover:bg-surface-2 active:bg-surface-2 sm:grid sm:grid-cols-[110px_1fr_130px_60px]"
                 >
-                  <span className="flex items-center gap-2 tabular-nums">
-                    <span
-                      className={`w-2 h-2 rounded-full shrink-0 ${f.revisado ? 'bg-teal' : 'bg-amber'}`}
-                      title={f.revisado ? 'Revisado' : 'Pendiente de revisión'}
-                    />
-                    {fechaCorta(f.fecha)}
+                  {/* Celular: dos renglones (fecha y folio arriba, ingeniero
+                      abajo). Computadora: columnas. */}
+                  <span className="flex-1 min-w-0 sm:contents">
+                    <span className="flex items-center gap-2 tabular-nums font-semibold sm:font-normal">
+                      <span
+                        className={`w-2 h-2 rounded-full shrink-0 ${f.revisado ? 'bg-teal' : 'bg-amber'}`}
+                        title={f.revisado ? 'Revisado' : 'Pendiente de revisión'}
+                      />
+                      {fechaCorta(f.fecha)}
+                      <span className="sm:hidden font-mono font-normal text-[11.5px] text-teal bg-teal/10 px-2 py-0.5 rounded-md">{f.folio || '—'}</span>
+                    </span>
+                    <span className="block truncate text-[12.5px] text-muted mt-1 pl-4 sm:pl-0 sm:mt-0 sm:text-[13.5px] sm:text-ink sm:font-medium">{f.ing || '—'}</span>
+                    <span className="hidden sm:block font-mono text-[12px] text-teal truncate">{f.folio || '—'}</span>
                   </span>
-                  <span className="truncate font-medium">{f.ing || '—'}</span>
-                  <span className="font-mono text-[12px] text-teal truncate">{f.folio || '—'}</span>
-                  <span className="text-teal font-semibold text-[13px] flex items-center justify-end gap-0.5">
+                  <span className="shrink-0 text-teal font-semibold text-[13px] flex items-center justify-end gap-0.5">
                     Ver
                     <ChevronRight size={16} strokeWidth={2.4} />
                   </span>
