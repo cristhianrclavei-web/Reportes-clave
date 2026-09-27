@@ -51,6 +51,20 @@ export default function ReportesList({
   const [ahora, setAhora] = useState<number | null>(null);
   useEffect(() => setAhora(Date.now()), []);
 
+  // Enlaces desde otras pantallas (p. ej. el detalle de un cliente):
+  //   ?reporte=<id>  abre ese reporte;  ?q=<texto>  llena la búsqueda.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get('q');
+    if (q) setSearch(q);
+    const id = params.get('reporte');
+    if (id) {
+      const r = reportsIniciales.find((x) => x.id === id);
+      if (r) setOpen(r);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function handleReporteEliminado(reportId: string) {
     setReports((prev) => prev.filter((r) => r.id !== reportId));
     showToast('Reporte eliminado', 'success');

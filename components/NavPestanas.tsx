@@ -17,7 +17,7 @@ export default function NavPestanas({ items, active }: { items: readonly Item[];
   }, [active]);
 
   return (
-    <nav ref={navRef} className="flex gap-2 mx-3 mt-2 px-2.5 py-1.5 rounded-2xl glass-strong shadow-glow overflow-x-auto no-scrollbar" aria-label="Secciones">
+    <nav ref={navRef} className="flex gap-2 mx-3 mt-2 px-2.5 py-1.5 rounded-2xl pestanas-fijas shadow-glow overflow-x-auto no-scrollbar" aria-label="Secciones">
       {items.map((t) => {
         const on = t.key === active;
         return (

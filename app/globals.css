@@ -183,3 +183,16 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 /* Pestañas deslizables sin barra visible */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { scrollbar-width: none; }
+
+/* Encabezado y pestañas fijos del celular: casi opacos, para que el
+   contenido (fotos de portada, tarjetas) no se vea a través al desplazarse. */
+.barra-fija {
+  background: rgb(var(--c-bg) / 0.97);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgb(var(--c-line-rgb) / var(--c-line-a));
+}
+.pestanas-fijas {
+  background: rgb(var(--c-surface) / 0.98);
+  border: 1px solid rgb(var(--c-line-rgb) / var(--c-line-a-strong));
+}

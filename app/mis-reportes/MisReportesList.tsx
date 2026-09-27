@@ -61,7 +61,7 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
       {/* Header */}
       <div className="sticky top-0 z-20">
         <div
-          className="glass-strong border-x-0 border-t-0 px-5 pb-3 flex items-center justify-between gap-3"
+          className="barra-fija px-5 pb-3 flex items-center justify-between gap-3"
           style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}
         >
         <Logo variante="completo" size={34} className="min-w-0" compactoEnMovil />
