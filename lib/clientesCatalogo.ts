@@ -5,7 +5,8 @@ import { createClient } from './supabaseClient';
 // supabase/patch_clientes_vinculo_reportes.sql). Se guarda una copia local
 // para que funcione sin conexión, igual que vehículos y personal.
 
-export type ClienteCatalogo = { id: string; nombre: string; alias: string[] };
+export type ContactoCatalogo = { nombre: string; puesto: string | null };
+export type ClienteCatalogo = { id: string; nombre: string; alias: string[]; contactos?: ContactoCatalogo[] };
 
 const CACHE = 'catalogoClientes';
 
@@ -86,7 +87,12 @@ export function catalogoEnCache(): ClienteCatalogo[] {
 export async function listarCatalogoClientes(): Promise<ClienteCatalogo[]> {
   const { data, error } = await createClient().rpc('catalogo_clientes');
   if (error || !data) return catalogoEnCache();
-  const lista = (data as any[]).map((r) => ({ id: r.id as string, nombre: r.nombre as string, alias: (r.alias as string[]) || [] }));
+  const lista = (data as any[]).map((r) => ({
+    id: r.id as string,
+    nombre: r.nombre as string,
+    alias: (r.alias as string[]) || [],
+    contactos: (r.contactos as ContactoCatalogo[]) || [],
+  }));
   try { localStorage.setItem(CACHE, JSON.stringify(lista)); } catch { /* sin caché */ }
   return lista;
 }

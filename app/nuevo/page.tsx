@@ -1,5 +1,6 @@
 'use client';
 
+import { ContactoCatalogo, normalizar as normalizarNombre } from '@/lib/clientesCatalogo';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -194,6 +195,7 @@ export default function NuevoReportePage() {
   // Cliente de la sección Clientes al que quedó ligado lo escrito (null =
   // nuevo o sin reconocer; la base lo resuelve al guardar).
   const [clienteId, setClienteId] = useState<string | null>(null);
+  const [contactosCliente, setContactosCliente] = useState<ContactoCatalogo[]>([]);
   const [serviciosAsignados, setServiciosAsignados] = useState<Servicio[]>([]);
   const [servicioSeleccionadoId, setServicioSeleccionadoId] = useState<string | null>(null);
   // Personal que el supervisor asignó al servicio elegido — se ofrece como
@@ -271,7 +273,7 @@ export default function NuevoReportePage() {
     }
     setServicioSeleccionadoId(id);
     const s = serviciosAsignados.find((x) => x.id === id);
-    if (s) { setEmpresaCliente(s.proyecto); setClienteId(null); }
+    if (s) { setEmpresaCliente(s.proyecto); setClienteId(null); setContactosCliente([]); }
     try {
       const nombres = await listarTecnicosDeServicio(id);
       setPersonalAsignado(nombres);
@@ -484,7 +486,7 @@ export default function NuevoReportePage() {
       });
     }
     setServicioSeleccionadoId(null);
-    setEmpresaCliente(''); setClienteId(null); setOrdCompra(''); setHoraLlegada(''); setHoraSalida('');
+    setEmpresaCliente(''); setClienteId(null); setContactosCliente([]); setOrdCompra(''); setHoraLlegada(''); setHoraSalida('');
     setListaConceptos(''); setContactoUsuario(''); setPuestoArea(''); setTipoServicio(null);
     setVehiculo(''); setPlacas(''); setManejadoPor('');
     setSubTipo(null); setTipoServicioOtroTexto('');
@@ -869,7 +871,25 @@ export default function NuevoReportePage() {
             </div>
           )}
 
-          <div className="mb-3"><label className={labelCls}>Empresa / Cliente</label><AutocompletarCliente value={empresaCliente} onChange={(nombre, id) => { setEmpresaCliente(nombre); setClienteId(id); }} className={inputCls} placeholder="Escribe para buscar en Clientes" /></div>
+          <div className="mb-3"><label className={labelCls}>Empresa / Cliente</label><AutocompletarCliente value={empresaCliente} onChange={(nombre, id, contactos) => { setEmpresaCliente(nombre); setClienteId(id); setContactosCliente(contactos); }} className={inputCls} placeholder="Escribe para buscar en Clientes" /></div>
+          {/* Datos del cliente: van junto al cliente. El contacto se sugiere de
+              los ya registrados; si es nuevo, al guardar se agrega a Clientes. */}
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className={labelCls}>Contacto/Usuario</label>
+              <AutocompletarPersona
+                value={contactoUsuario}
+                onChange={(v) => {
+                  setContactoUsuario(v);
+                  const k = contactosCliente.find((c) => normalizarNombre(c.nombre) === normalizarNombre(v));
+                  if (k?.puesto && !puestoArea.trim()) setPuestoArea(k.puesto);
+                }}
+                grupos={contactosCliente.length > 0 ? [{ etiqueta: 'Contactos de este cliente', nombres: contactosCliente.map((c) => c.nombre) }] : []}
+                className={inputCls}
+              />
+            </div>
+            <div><label className={labelCls}>Puesto/Área</label><input type="text" className={inputCls} value={puestoArea} onChange={(e) => setPuestoArea(e.target.value)} /></div>
+          </div>
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div><label className={labelCls}>Fecha</label><input type="date" className={inputCls} value={fecha} onChange={(e) => setFecha(e.target.value)} /></div>
             <div><label className={labelCls}>Orden de compra</label><input type="text" className={inputCls} value={ordCompra} onChange={(e) => setOrdCompra(e.target.value)} /></div>
@@ -959,10 +979,6 @@ export default function NuevoReportePage() {
             />
           </div>
           <div className="mb-3"><label className={labelCls}>Lista de conceptos</label><input type="text" className={inputCls} value={listaConceptos} onChange={(e) => setListaConceptos(e.target.value)} /></div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className={labelCls}>Contacto/Usuario</label><input type="text" className={inputCls} value={contactoUsuario} onChange={(e) => setContactoUsuario(e.target.value)} /></div>
-            <div><label className={labelCls}>Puesto/Área</label><input type="text" className={inputCls} value={puestoArea} onChange={(e) => setPuestoArea(e.target.value)} /></div>
-          </div>
         </div>
 
         {/* Personal en el servicio */}

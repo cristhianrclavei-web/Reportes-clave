@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, UserPlus } from 'lucide-react';
 import {
-  ClienteCatalogo, catalogoEnCache, listarCatalogoClientes, clienteExacto, coincidencias, parecidos, agregarAliasCliente,
+  ClienteCatalogo, ContactoCatalogo, catalogoEnCache, listarCatalogoClientes, clienteExacto, coincidencias, parecidos, agregarAliasCliente,
 } from '@/lib/clientesCatalogo';
 
 // Campo «Empresa / Cliente» ligado a la sección Clientes.
@@ -23,7 +23,8 @@ export default function AutocompletarCliente({
   placeholder,
 }: {
   value: string;
-  onChange: (nombre: string, clienteId: string | null) => void;
+  // contactos: los ya registrados del cliente elegido (para sugerirlos).
+  onChange: (nombre: string, clienteId: string | null, contactos: ContactoCatalogo[]) => void;
   className?: string;
   placeholder?: string;
 }) {
@@ -64,19 +65,20 @@ export default function AutocompletarCliente({
   // Si al cambiar el catálogo (llega fresco) lo escrito ya es un cliente,
   // se vincula aunque no se haya tecleado nada nuevo.
   useEffect(() => {
-    if (exacto) onChange(value, exacto.id);
+    if (exacto) onChange(value, exacto.id, exacto.contactos || []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exacto?.id]);
 
   function escribir(texto: string) {
     setDescartado(false);
     setAbierto(true);
-    onChange(texto, clienteExacto(texto, catalogo)?.id || null);
+    const c = clienteExacto(texto, catalogo);
+    onChange(texto, c?.id || null, c?.contactos || []);
   }
 
   function elegir(c: ClienteCatalogo) {
     setAbierto(false);
-    onChange(c.nombre, c.id);
+    onChange(c.nombre, c.id, c.contactos || []);
   }
 
   function elegirParecido(c: ClienteCatalogo) {
