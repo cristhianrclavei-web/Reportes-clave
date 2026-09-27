@@ -105,3 +105,22 @@ export async function agregarAliasCliente(clienteId: string, alias: string): Pro
     /* sin conexión */
   }
 }
+
+// Dirección y contactos completos (con teléfono y correo) de un cliente.
+// Solo el supervisor los puede leer (RLS); para un técnico devuelve null y
+// el formulario se queda con los nombres del catálogo.
+export type ContactoDetalle = { nombre: string; puesto: string | null; telefono: string | null; correo: string | null };
+
+export async function datosCliente(id: string): Promise<{ direccion: string | null; contactos: ContactoDetalle[] } | null> {
+  try {
+    const supabase = createClient();
+    const [c, k] = await Promise.all([
+      supabase.from('clientes').select('direccion').eq('id', id).maybeSingle(),
+      supabase.from('cliente_contactos').select('nombre, puesto, telefono, correo').eq('cliente_id', id).order('nombre'),
+    ]);
+    if (!c.data) return null;
+    return { direccion: (c.data as any).direccion || null, contactos: (k.data as ContactoDetalle[]) || [] };
+  } catch {
+    return null;
+  }
+}

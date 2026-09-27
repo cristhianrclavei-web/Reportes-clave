@@ -1,6 +1,6 @@
 'use client';
 
-import { ContactoCatalogo, normalizar as normalizarNombre } from '@/lib/clientesCatalogo';
+import { ContactoCatalogo, catalogoEnCache, normalizar as normalizarNombre } from '@/lib/clientesCatalogo';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -273,7 +273,14 @@ export default function NuevoReportePage() {
     }
     setServicioSeleccionadoId(id);
     const s = serviciosAsignados.find((x) => x.id === id);
-    if (s) { setEmpresaCliente(s.proyecto); setClienteId(null); setContactosCliente([]); }
+    if (s) {
+      // Si el servicio ya está ligado a un cliente, el reporte usa ese cliente
+      // (no el nombre del proyecto, que suele llevar la etapa).
+      const c = s.cliente_id ? catalogoEnCache().find((x) => x.id === s.cliente_id) : null;
+      setEmpresaCliente(c?.nombre || s.proyecto);
+      setClienteId(s.cliente_id || null);
+      setContactosCliente(c?.contactos || []);
+    }
     try {
       const nombres = await listarTecnicosDeServicio(id);
       setPersonalAsignado(nombres);

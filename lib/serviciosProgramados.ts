@@ -26,6 +26,9 @@ export type Servicio = {
   pausado_desde: string | null;
   minutos_pausados: number;
   report_id: string | null;
+  // Cliente de la sección Clientes (patch_clientes_fase3.sql); null si no
+  // se eligió de la lista ni coincide exacto con uno.
+  cliente_id?: string | null;
   grupo_id: string;
   numero_dia: number;
   dias_totales: number;
@@ -90,6 +93,8 @@ export async function listarTecnicos(): Promise<{ id: string; full_name: string 
 // y obligaba a aflojar el bloqueo por fecha en proyectos multi-día.
 export async function crearServicio(input: {
   proyecto: string;
+  // Cliente elegido de la lista al escribir el proyecto (opcional).
+  clienteId?: string | null;
   descripcion: string;
   fechas: string[]; // una fecha por día, en orden cronológico
   // Hora de llegada acordada. Opcional: sin ella no se mide puntualidad,
@@ -126,6 +131,7 @@ export async function crearServicio(input: {
       .insert({
         creado_por: user.id,
         proyecto: input.proyecto,
+        cliente_id: input.clienteId || null,
         descripcion: input.descripcion || null,
         fecha: fechas[dia - 1],
         hora_programada: input.horaProgramada || null,
@@ -310,6 +316,7 @@ export async function agregarDiasAGrupo(grupoId: string, fechasNuevas: string[])
       .insert({
         creado_por: ultimoDia.creado_por,
         proyecto: ultimoDia.proyecto,
+        cliente_id: ultimoDia.cliente_id || null,
         descripcion: ultimoDia.descripcion,
         fecha: fechas[i - 1],
         duracion_estimada_min: ultimoDia.duracion_estimada_min,

@@ -1,5 +1,7 @@
 'use client';
 
+import AutocompletarCliente from '@/components/AutocompletarCliente';
+import { normalizar as normalizarCliente } from '@/lib/clientesCatalogo';
 import { BotonNuevo } from '@/components/AccionPrincipal';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -142,6 +144,9 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   }, [servicios, checklists]);
 
   const [proyecto, setProyecto] = useState('');
+  // Cliente elegido de la lista; se conserva aunque después se le agregue la
+  // etapa al nombre («PRINT PACK — Etapa 4»), mientras empiece igual.
+  const [proyectoCliente, setProyectoCliente] = useState<{ id: string; nombre: string } | null>(null);
   const [descripcion, setDescripcion] = useState('');
   const [fecha, setFecha] = useState(hoyLocal());
   const [duracionMin, setDuracionMin] = useState(120);
@@ -578,6 +583,10 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
     try {
       await crearServicio({
         proyecto: proyecto.trim(),
+        clienteId:
+          proyectoCliente && normalizarCliente(proyecto).startsWith(normalizarCliente(proyectoCliente.nombre))
+            ? proyectoCliente.id
+            : null,
         descripcion: descripcion.trim(),
         fechas: fechasFinales,
         horaProgramada: horaProgramada || null,
@@ -591,7 +600,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
       showToast(fechasFinales.length > 1 ? `Proyecto programado (${fechasFinales.length} días)` : 'Servicio programado', 'success');
       setShowNuevo(false);
       setSeccion('agendados');
-      setProyecto(''); setDescripcion(''); setTecnicoIds([]); setTareas(['']); setDuracionMin(120);
+      setProyecto(''); setProyectoCliente(null); setDescripcion(''); setTecnicoIds([]); setTareas(['']); setDuracionMin(120);
       setHoraProgramada(''); setHoraSalidaProgramada(''); setUltimoCampoEditado(null);
       setUbicLat(''); setUbicLng(''); setUbicDireccion(''); setUbicSugerencias([]); setUbicEnlace(''); setUbicError(null);
       setDiasTotales(1);
@@ -797,7 +806,18 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
               <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Datos del proyecto</p>
 
               <label className="text-[13px] text-ink/75 block mb-1.5">Proyecto / Cliente</label>
-              <input value={proyecto} onChange={(e) => setProyecto(e.target.value)} className="w-full px-3.5 min-h-[48px] mb-3 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]" placeholder="Ej. PRINT PACK — Etapa 4" />
+              <div className="mb-3">
+                <AutocompletarCliente
+                  soloSugerir
+                  value={proyecto}
+                  onChange={(nombre, id) => {
+                    setProyecto(nombre);
+                    if (id) setProyectoCliente({ id, nombre });
+                  }}
+                  className="w-full px-3.5 min-h-[48px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]"
+                  placeholder="Ej. PRINT PACK — Etapa 4"
+                />
+              </div>
 
               <label className="text-[13px] text-ink/75 block mb-1.5">Descripción (opcional)</label>
               <input value={descripcion} onChange={(e) => setDescripcion(e.target.value)} className="w-full px-3.5 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px] min-h-[48px]" placeholder="Detalle breve del servicio" />

@@ -21,12 +21,16 @@ export default function AutocompletarCliente({
   onChange,
   className = '',
   placeholder,
+  soloSugerir = false,
 }: {
   value: string;
   // contactos: los ya registrados del cliente elegido (para sugerirlos).
   onChange: (nombre: string, clienteId: string | null, contactos: ContactoCatalogo[]) => void;
   className?: string;
   placeholder?: string;
+  // Solo sugiere clientes: sin «¿Es alguno de estos?» ni aviso de cliente
+  // nuevo (p. ej. al agendar, donde el nombre lleva la etapa del proyecto).
+  soloSugerir?: boolean;
 }) {
   const [catalogo, setCatalogo] = useState<ClienteCatalogo[]>([]);
   const [abierto, setAbierto] = useState(false);
@@ -120,9 +124,9 @@ export default function AutocompletarCliente({
         </div>
       )}
 
-      {exacto && <p className="text-[11.5px] text-teal mt-1.5">Cliente registrado</p>}
+      {exacto && !soloSugerir && <p className="text-[11.5px] text-teal mt-1.5">Cliente registrado</p>}
 
-      {!exacto && similares.length > 0 && !descartado && !abierto && (
+      {!soloSugerir && !exacto && similares.length > 0 && !descartado && !abierto && (
         <div className="mt-2 p-3 rounded-xl bg-amber/10 border border-amber/30">
           <p className="text-[13px] font-semibold text-amber mb-2">¿Es alguno de estos clientes?</p>
           <div className="flex flex-col gap-1.5">
@@ -143,7 +147,7 @@ export default function AutocompletarCliente({
         </div>
       )}
 
-      {!exacto && value.trim().length >= 3 && (descartado || similares.length === 0) && !abierto && (
+      {!soloSugerir && !exacto && value.trim().length >= 3 && (descartado || similares.length === 0) && !abierto && (
         <p className="text-[11.5px] text-muted mt-1.5 flex items-center gap-1">
           <UserPlus size={13} strokeWidth={2.3} /> Cliente nuevo: se agregará a Clientes al guardar
         </p>

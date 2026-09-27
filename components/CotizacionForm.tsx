@@ -1,5 +1,8 @@
 'use client';
 
+import AutocompletarCliente from '@/components/AutocompletarCliente';
+import AutocompletarPersona from '@/components/AutocompletarPersona';
+import { useContactosCliente } from '@/lib/useContactosCliente';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -64,6 +67,8 @@ export default function CotizacionForm({
   const c = inicial?.cotizacion;
   const [presentacionPrecios, setPresentacionPrecios] = useState<PresentacionPrecios>(c?.presentacion_precios || 'desglose');
   const [fecha, setFecha] = useState(c?.fecha || hoyLocal());
+  // Contactos del cliente elegido (sugerencias en «Atención»).
+  const contactosCliente = useContactosCliente();
   const [empresa, setEmpresa] = useState(c?.empresa || '');
   const [atencion, setAtencion] = useState(c?.atencion || '');
   const [telefono, setTelefono] = useState(c?.telefono || '');
@@ -296,7 +301,19 @@ export default function CotizacionForm({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <div>
             <label className={labelCls}>Empresa / Cliente *</label>
-            <input data-campo="empresa" className={inputCls} value={empresa} onChange={(e) => setEmpresa(e.target.value)} placeholder="Ej. Administración Torre Classiqa" />
+            <div data-campo="empresa">
+            <AutocompletarCliente
+              value={empresa}
+              onChange={(nombre, id, contactos) => {
+                setEmpresa(nombre);
+                contactosCliente.alElegirCliente(id, contactos).then((dir) => {
+                  if (dir) setDireccion((prev) => (prev.trim() ? prev : dir));
+                });
+              }}
+              className={inputCls}
+              placeholder="Escribe para buscar en Clientes"
+            />
+            </div>
           </div>
           <div>
             <label className={labelCls}>Fecha</label>
@@ -304,7 +321,17 @@ export default function CotizacionForm({
           </div>
           <div>
             <label className={labelCls}>Atención (contacto)</label>
-            <input className={inputCls} value={atencion} onChange={(e) => setAtencion(e.target.value)} placeholder="Nombre de quien recibe la cotización" />
+            <AutocompletarPersona
+              value={atencion}
+              onChange={(v) => {
+                setAtencion(v);
+                const k = contactosCliente.buscar(v);
+                if (k?.telefono) setTelefono((prev) => (prev.trim() ? prev : k.telefono!));
+                if (k?.correo) setCorreo((prev) => (prev.trim() ? prev : k.correo!));
+              }}
+              grupos={contactosCliente.grupos}
+              className={inputCls}
+            />
           </div>
           <div>
             <label className={labelCls}>Teléfono</label>

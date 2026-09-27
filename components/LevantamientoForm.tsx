@@ -1,5 +1,8 @@
 'use client';
 
+import AutocompletarCliente from '@/components/AutocompletarCliente';
+import AutocompletarPersona from '@/components/AutocompletarPersona';
+import { useContactosCliente } from '@/lib/useContactosCliente';
 import { useMemo, useRef, useState } from 'react';
 import {
   Levantamiento, SistemaLevantamiento, LevantamientoInput, SistemaInput, FotoGuardada,
@@ -105,6 +108,8 @@ export default function LevantamientoForm({
 
   const l = inicial?.levantamiento;
   const [fecha, setFecha] = useState(l?.fecha || hoyLocal());
+  // Contactos del cliente elegido (sugerencias en «Atención»).
+  const contactosCliente = useContactosCliente();
   const [empresa, setEmpresa] = useState(l?.empresa || '');
   const [atencion, setAtencion] = useState(l?.atencion || '');
   const [telefono, setTelefono] = useState(l?.telefono || '');
@@ -186,7 +191,17 @@ export default function LevantamientoForm({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <div>
             <label className={labelCls}>Empresa / Cliente *</label>
-            <input className={inputCls} value={empresa} onChange={(e) => setEmpresa(e.target.value)} placeholder="Ej. Administración Torre Classiqa" />
+            <AutocompletarCliente
+              value={empresa}
+              onChange={(nombre, id, contactos) => {
+                setEmpresa(nombre);
+                contactosCliente.alElegirCliente(id, contactos).then((dir) => {
+                  if (dir) setDireccion((prev) => (prev.trim() ? prev : dir));
+                });
+              }}
+              className={inputCls}
+              placeholder="Escribe para buscar en Clientes"
+            />
           </div>
           <div>
             <label className={labelCls}>Fecha</label>
@@ -194,7 +209,17 @@ export default function LevantamientoForm({
           </div>
           <div>
             <label className={labelCls}>Atención (contacto)</label>
-            <input className={inputCls} value={atencion} onChange={(e) => setAtencion(e.target.value)} placeholder="Quién recibió en el sitio" />
+            <AutocompletarPersona
+              value={atencion}
+              onChange={(v) => {
+                setAtencion(v);
+                const k = contactosCliente.buscar(v);
+                if (k?.telefono) setTelefono((prev) => (prev.trim() ? prev : k.telefono!));
+                if (k?.correo) setCorreo((prev) => (prev.trim() ? prev : k.correo!));
+              }}
+              grupos={contactosCliente.grupos}
+              className={inputCls}
+            />
           </div>
           <div>
             <label className={labelCls}>Teléfono</label>
