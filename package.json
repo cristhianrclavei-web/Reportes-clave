@@ -17,6 +17,7 @@
     "@vercel/functions": "^3.9.7",
     "exceljs": "^4.4.0",
     "lucide-react": "^1.41.0",
+    "motion": "^13.4.4",
     "next": "16.3.5",
     "pdf-lib": "^1.17.1",
     "react": "19.3.0",
