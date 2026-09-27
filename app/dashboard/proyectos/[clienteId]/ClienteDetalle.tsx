@@ -8,7 +8,7 @@ import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
 import {
   ClienteContacto, obtenerClienteCompleto, actualizarPerfilCliente, subirLogoCliente, subirFotoPortadaCliente,
-  eliminarFotoPortadaCliente, agregarContacto, eliminarContacto, eliminarCliente,
+  eliminarFotoPortadaCliente, agregarContacto, eliminarContacto, eliminarCliente, marcarClienteRevisado,
 } from '@/lib/clientes';
 import { EstadoProyecto, SISTEMAS_SUGERIDOS, crearProyectoParaCliente } from '@/lib/proyectos';
 import { DatosCliente, datosClienteVacios, datosDesdeCliente } from '@/lib/clienteDatos';
@@ -235,6 +235,30 @@ export default function ClienteDetalle({ clienteId, userName }: { clienteId: str
         <ChevronLeft size={16} strokeWidth={2.4} />
         Todos los clientes
       </Link>
+
+      {/* Creado solo desde un reporte: pide que alguien lo revise */}
+      {cliente.pendiente_revision && (
+        <div className="mb-4 p-3.5 rounded-2xl bg-amber/10 border border-amber/30 flex flex-col sm:flex-row sm:items-center gap-3">
+          <p className="text-[13px] text-ink/85 flex-1">
+            <b className="text-amber">Por revisar.</b> Se creó solo desde un reporte. Revisa que el nombre esté bien escrito y completa sus datos.
+          </p>
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                await marcarClienteRevisado(cliente.id);
+                setDatos((d) => (d ? { ...d, cliente: { ...d.cliente, pendiente_revision: false } } : d));
+                showToast('Cliente revisado', 'success');
+              } catch (e: any) {
+                showToast('No se pudo marcar: ' + (e?.message || 'error'), 'error');
+              }
+            }}
+            className="shrink-0 min-h-[40px] px-4 rounded-xl bg-teal text-inkOnAccent text-[13.5px] font-semibold"
+          >
+            Marcar como revisado
+          </button>
+        </div>
+      )}
 
       {/* Foto de portada: fachada o sitio del cliente, aparte del logo. */}
       <button

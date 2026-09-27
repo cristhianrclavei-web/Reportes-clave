@@ -23,6 +23,9 @@ export type PendingReport = {
   userName: string;
   userEmail: string;
   empresaCliente: string;
+  // Cliente elegido de la lista (opcional: si falta, la base lo resuelve
+  // por nombre al sincronizar).
+  clienteId?: string | null;
   fecha: string;
   tipoServicio: string | null;
   subTipoServicio: string | null;

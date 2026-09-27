@@ -1,5 +1,6 @@
 'use client';
 
+import AutocompletarCliente from '@/components/AutocompletarCliente';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabaseClient';
@@ -190,6 +191,9 @@ export default function NuevoReportePage() {
 
 
   const [empresaCliente, setEmpresaCliente] = useState('');
+  // Cliente de la sección Clientes al que quedó ligado lo escrito (null =
+  // nuevo o sin reconocer; la base lo resuelve al guardar).
+  const [clienteId, setClienteId] = useState<string | null>(null);
   const [serviciosAsignados, setServiciosAsignados] = useState<Servicio[]>([]);
   const [servicioSeleccionadoId, setServicioSeleccionadoId] = useState<string | null>(null);
   // Personal que el supervisor asignó al servicio elegido — se ofrece como
@@ -267,7 +271,7 @@ export default function NuevoReportePage() {
     }
     setServicioSeleccionadoId(id);
     const s = serviciosAsignados.find((x) => x.id === id);
-    if (s) setEmpresaCliente(s.proyecto);
+    if (s) { setEmpresaCliente(s.proyecto); setClienteId(null); }
     try {
       const nombres = await listarTecnicosDeServicio(id);
       setPersonalAsignado(nombres);
@@ -480,7 +484,7 @@ export default function NuevoReportePage() {
       });
     }
     setServicioSeleccionadoId(null);
-    setEmpresaCliente(''); setOrdCompra(''); setHoraLlegada(''); setHoraSalida('');
+    setEmpresaCliente(''); setClienteId(null); setOrdCompra(''); setHoraLlegada(''); setHoraSalida('');
     setListaConceptos(''); setContactoUsuario(''); setPuestoArea(''); setTipoServicio(null);
     setVehiculo(''); setPlacas(''); setManejadoPor('');
     setSubTipo(null); setTipoServicioOtroTexto('');
@@ -625,6 +629,7 @@ export default function NuevoReportePage() {
           userName,
           userEmail,
           empresaCliente,
+          clienteId,
           fecha,
           tipoServicio,
           subTipoServicio: subTipo,
@@ -673,6 +678,7 @@ export default function NuevoReportePage() {
             id: reportId,
             created_by: user!.id,
             empresa_cliente: empresaCliente,
+            cliente_id: clienteId,
             fecha,
             tipo_servicio: tipoServicio,
             sub_tipo_servicio: subTipo,
@@ -863,7 +869,7 @@ export default function NuevoReportePage() {
             </div>
           )}
 
-          <div className="mb-3"><label className={labelCls}>Empresa / Cliente</label><input type="text" className={inputCls} value={empresaCliente} onChange={(e) => setEmpresaCliente(e.target.value)} /></div>
+          <div className="mb-3"><label className={labelCls}>Empresa / Cliente</label><AutocompletarCliente value={empresaCliente} onChange={(nombre, id) => { setEmpresaCliente(nombre); setClienteId(id); }} className={inputCls} placeholder="Escribe para buscar en Clientes" /></div>
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div><label className={labelCls}>Fecha</label><input type="date" className={inputCls} value={fecha} onChange={(e) => setFecha(e.target.value)} /></div>
             <div><label className={labelCls}>Orden de compra</label><input type="text" className={inputCls} value={ordCompra} onChange={(e) => setOrdCompra(e.target.value)} /></div>

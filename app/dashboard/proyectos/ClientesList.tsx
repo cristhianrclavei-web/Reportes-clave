@@ -38,11 +38,14 @@ export default function ClientesList({ userName }: { userName?: string }) {
 
   useEffect(() => { cargar(); }, []);
 
+  const [soloPorRevisar, setSoloPorRevisar] = useState(false);
+  const porRevisar = clientes.filter((c) => c.pendiente_revision).length;
   const filtrados = useMemo(() => {
-    if (!search) return clientes;
     const q = search.toLowerCase();
-    return clientes.filter((c) => `${c.nombre} ${c.direccion || ''} ${c.sistemas.join(' ')}`.toLowerCase().includes(q));
-  }, [clientes, search]);
+    return clientes
+      .filter((c) => !soloPorRevisar || c.pendiente_revision)
+      .filter((c) => !q || `${c.nombre} ${c.direccion || ''} ${c.sistemas.join(' ')}`.toLowerCase().includes(q));
+  }, [clientes, search, soloPorRevisar]);
 
   const stats = useMemo(() => {
     const totalProyectos = clientes.reduce((acc, c) => acc + c.total_proyectos, 0);
@@ -106,6 +109,22 @@ export default function ClientesList({ userName }: { userName?: string }) {
             )}
           </div>
         </div>
+      )}
+
+      {porRevisar > 0 && (
+        <button
+          type="button"
+          onClick={() => setSoloPorRevisar((v) => !v)}
+          className={`w-full mb-3 p-3 rounded-xl border text-left text-[13px] flex items-center justify-between gap-2 ${
+            soloPorRevisar ? 'bg-amber/15 border-amber/40' : 'bg-amber/10 border-amber/30'
+          }`}
+        >
+          <span>
+            <b className="text-amber">{porRevisar} {porRevisar === 1 ? 'cliente por revisar' : 'clientes por revisar'}</b>
+            <span className="text-ink/75"> · se crearon solos desde reportes</span>
+          </span>
+          <span className="text-amber font-semibold shrink-0">{soloPorRevisar ? 'Ver todos' : 'Ver'}</span>
+        </button>
       )}
 
       <div className="flex items-center gap-2.5 mb-4">
@@ -187,6 +206,9 @@ export default function ClientesList({ userName }: { userName?: string }) {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="font-display font-bold text-[15.5px] leading-tight tracking-tight truncate transition-colors group-hover:text-teal">{c.nombre}</p>
+                  {c.pendiente_revision && (
+                    <span className="inline-block mt-1 text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-amber/15 text-amber">Por revisar · creado desde un reporte</span>
+                  )}
                   {c.direccion && (
                     <p className="text-[11.5px] text-muted flex items-center gap-1 mt-0.5 truncate">
                       <MapPin size={10} strokeWidth={2.4} className="shrink-0" /> {c.direccion}

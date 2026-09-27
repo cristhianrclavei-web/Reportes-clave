@@ -41,6 +41,7 @@ async function syncOne(item: PendingReport): Promise<void> {
     id: reportId,
     created_by: item.userId,
     empresa_cliente: item.empresaCliente,
+    cliente_id: item.clienteId || null,
     fecha: item.fecha,
     tipo_servicio: item.tipoServicio,
     sub_tipo_servicio: item.subTipoServicio,

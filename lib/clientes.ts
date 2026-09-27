@@ -19,6 +19,8 @@ export type Cliente = {
   estado?: string | null;
   logo_path: string | null;
   foto_portada_path: string | null;
+  // Creado solo desde un reporte; falta que un supervisor lo revise.
+  pendiente_revision?: boolean;
   created_by: string;
   created_at: string;
 };
@@ -240,6 +242,11 @@ export async function agregarContacto(
 export async function eliminarContacto(contactoId: string): Promise<void> {
   const supabase = createClient();
   const { error } = await supabase.from('cliente_contactos').delete().eq('id', contactoId);
+  if (error) throw error;
+}
+
+export async function marcarClienteRevisado(id: string): Promise<void> {
+  const { error } = await createClient().from('clientes').update({ pendiente_revision: false }).eq('id', id);
   if (error) throw error;
 }
 
