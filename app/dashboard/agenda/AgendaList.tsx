@@ -1,5 +1,6 @@
 'use client';
 
+import { coincideBusqueda } from '@/lib/busqueda';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import SupervisorShell from '@/components/SupervisorShell';
@@ -68,7 +69,7 @@ export default function AgendaList({ userName }: { userName?: string }) {
   const serviciosFiltrados = useMemo(() => {
     return servicios.filter((s) => {
       if (filtroTecnico && !(tecnicosPorServicio[s.id] || []).includes(filtroTecnico)) return false;
-      if (search && !s.proyecto.toLowerCase().includes(search.toLowerCase())) return false;
+      if (search && !coincideBusqueda(s.proyecto, search)) return false;
       return true;
     });
   }, [servicios, filtroTecnico, search, tecnicosPorServicio]);

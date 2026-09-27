@@ -1,5 +1,6 @@
 'use client';
 
+import { coincideBusqueda } from '@/lib/busqueda';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
 import { normalizar as normalizarCliente } from '@/lib/clientesCatalogo';
 import { BotonNuevo } from '@/components/AccionPrincipal';
@@ -262,7 +263,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
         if (!servicios.some((d) => d.grupo_id === s.grupo_id && d.fecha >= rango.desde && d.fecha <= rango.hasta)) return;
       }
       if (busquedaServicio) {
-        if (!s.proyecto.toLowerCase().includes(busquedaServicio.toLowerCase())) return;
+        if (!coincideBusqueda(s.proyecto, busquedaServicio)) return;
       }
       if (!mapa[s.grupo_id]) mapa[s.grupo_id] = { grupoId: s.grupo_id, proyecto: s.proyecto, dias: [] };
       mapa[s.grupo_id].dias.push(s);

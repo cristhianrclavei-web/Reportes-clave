@@ -1,4 +1,5 @@
 import { createClient } from './supabaseClient';
+import { coincideBusqueda } from './busqueda';
 import { registrarAccionGlobal } from './auditoriaGlobal';
 import type { Cliente } from './clientes';
 
@@ -217,14 +218,16 @@ export async function buscarCotizacionesParaVincular(busqueda: string): Promise<
   const supabase = createClient();
   const q = busqueda.trim();
   if (q.length < 2) return [];
+  // Se filtra aquí (sin acentos ni mayúsculas) en vez de con ilike en la
+  // base, que sí distingue «Ángel» de «angel».
   const { data, error } = await supabase
     .from('cotizaciones')
     .select('id, folio, empresa, estado, total, moneda')
-    .or(`folio.ilike.%${q}%,empresa.ilike.%${q}%`)
     .order('created_at', { ascending: false })
-    .limit(10);
+    .limit(300);
   if (error) throw error;
-  return ((data as any[]) || []).map((c) => ({
+  const filtradas = ((data as any[]) || []).filter((c) => coincideBusqueda(`${c.folio} ${c.empresa}`, q)).slice(0, 10);
+  return filtradas.map((c) => ({
     cotizacion_id: c.id,
     folio: c.folio,
     empresa: c.empresa,

@@ -1,5 +1,7 @@
 'use client';
 
+import { useAliasClientes } from '@/lib/useAliasClientes';
+import { coincideBusqueda } from '@/lib/busqueda';
 import { useEffect, useMemo, useState } from 'react';
 import { Levantamiento, listarLevantamientos } from '@/lib/levantamientos';
 import LevantamientoForm from './LevantamientoForm';
@@ -28,6 +30,7 @@ export default function LevantamientosSeccion({ soloPropios }: { soloPropios: bo
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const aliasClientes = useAliasClientes();
   const [rango, setRango] = useState<RangoSeleccionado | null>(null);
   const [abierto, setAbierto] = useState<string | null>(null);
   const fechasDeLevantamientos = useMemo(() => levantamientos.map((l) => l.fecha).filter(Boolean), [levantamientos]);
@@ -54,13 +57,12 @@ export default function LevantamientosSeccion({ soloPropios }: { soloPropios: bo
         if (l.fecha < rango.desde || l.fecha > rango.hasta) return false;
       }
       if (search) {
-        const q = search.toLowerCase();
-        const hay = `${l.empresa} ${l.folio} ${l.atencion || ''} ${nombreCreador(l.profiles)}`.toLowerCase();
-        if (!hay.includes(q)) return false;
+        const hay = `${l.empresa} ${aliasClientes[(l as any).cliente_id] || ''} ${l.folio} ${l.atencion || ''} ${nombreCreador(l.profiles)}`;
+        if (!coincideBusqueda(hay, search)) return false;
       }
       return true;
     });
-  }, [levantamientos, search, rango]);
+  }, [levantamientos, search, rango, aliasClientes]);
 
   if (seccion === 'nuevo') {
     return (

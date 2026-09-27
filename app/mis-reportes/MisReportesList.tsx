@@ -1,5 +1,7 @@
 'use client';
 
+import { useAliasClientes } from '@/lib/useAliasClientes';
+import { coincideBusqueda } from '@/lib/busqueda';
 import SubTabs from '@/components/SubTabs';
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -32,6 +34,7 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
   // esperar a recargar la página. Mismo patrón que ReportesList.
   const [reports, setReports] = useState<Report[]>(reportsIniciales);
   const [search, setSearch] = useState('');
+  const aliasClientes = useAliasClientes();
   const [showFilter, setShowFilter] = useState(false);
   const [filterType, setFilterType] = useState('');
   const [open, setOpen] = useState<Report | null>(null);
@@ -46,12 +49,12 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
     return reports.filter((r) => {
       if (filterType && r.tipo_servicio !== filterType) return false;
       if (search) {
-        const hay = `${r.empresa_cliente} ${r.data?.claveFormato || ''}`.toLowerCase();
-        if (!hay.includes(search.toLowerCase())) return false;
+        const hay = `${r.empresa_cliente} ${aliasClientes[(r as any).cliente_id] || ''} ${r.data?.claveFormato || ''}`;
+        if (!coincideBusqueda(hay, search)) return false;
       }
       return true;
     });
-  }, [reports, search, filterType]);
+  }, [reports, search, filterType, aliasClientes]);
 
   return (
     <div className="max-w-2xl lg:max-w-4xl mx-auto pb-10">

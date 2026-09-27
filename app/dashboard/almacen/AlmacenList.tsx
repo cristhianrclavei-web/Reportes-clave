@@ -1,5 +1,6 @@
 'use client';
 
+import { coincideBusqueda } from '@/lib/busqueda';
 import { BotonNuevo } from '@/components/AccionPrincipal';
 import SubTabs from '@/components/SubTabs';
 import { useEffect, useMemo, useState } from 'react';
@@ -78,7 +79,7 @@ export default function AlmacenList({ userName }: { userName?: string }) {
       const q = busqueda.trim().toLowerCase();
       return existencias.filter((e) => {
         if (filtro !== 'todos' && e.articulo.categoria !== filtro) return false;
-        if (q && !`${e.articulo.descripcion} ${e.proyecto || ''}`.toLowerCase().includes(q)) return false;
+        if (q && !coincideBusqueda(`${e.articulo.descripcion} ${e.proyecto || ''}`, q)) return false;
         return true;
       });
     },

@@ -1,5 +1,7 @@
 'use client';
 
+import { useAliasClientes } from '@/lib/useAliasClientes';
+import { coincideBusqueda } from '@/lib/busqueda';
 import SubTabs from '@/components/SubTabs';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -37,6 +39,7 @@ export default function ReportesList({
   // lista al instante, sin esperar una recarga del servidor.
   const [reports, setReports] = useState<Report[]>(reportsIniciales);
   const [search, setSearch] = useState('');
+  const aliasClientes = useAliasClientes();
   const [filterType, setFilterType] = useState('');
   const [rango, setRango] = useState<RangoSeleccionado | null>(null);
   const fechasDeReportes = useMemo(() => reports.map((r) => r.fecha).filter(Boolean), [reports]);
@@ -70,12 +73,12 @@ export default function ReportesList({
         if (r.fecha < rango.desde || r.fecha > rango.hasta) return false;
       }
       if (search) {
-        const hay = `${r.empresa_cliente} ${techName(r.profiles)} ${r.data?.claveFormato || ''} ${r.data?.contactoUsuario || ''}`.toLowerCase();
-        if (!hay.includes(search.toLowerCase())) return false;
+        const hay = `${r.empresa_cliente} ${aliasClientes[(r as any).cliente_id] || ''} ${techName(r.profiles)} ${r.data?.claveFormato || ''} ${r.data?.contactoUsuario || ''}`;
+        if (!coincideBusqueda(hay, search)) return false;
       }
       return true;
     });
-  }, [reports, search, filterType, rango]);
+  }, [reports, search, filterType, rango, aliasClientes]);
 
   const solicitudesPendientes = useMemo(
     () => reports.filter((r) => r.correccion_solicitada && !r.correccion_habilitada),

@@ -1,5 +1,6 @@
 'use client';
 
+import { coincideBusqueda } from '@/lib/busqueda';
 import { useEffect, useRef, useState, KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import ModalOverlay from './ModalOverlay';
@@ -19,7 +20,7 @@ export default function CommandPalette({ puedeAlmacen }: { puedeAlmacen?: boolea
   const router = useRouter();
 
   const items = puedeAlmacen ? [...TABS, TAB_ALMACEN] : TABS;
-  const filtrados = items.filter((it) => it.label.toLowerCase().includes(query.trim().toLowerCase()));
+  const filtrados = items.filter((it) => coincideBusqueda(it.label, query));
 
   useEffect(() => {
     function alPulsar(e: KeyboardEvent) {

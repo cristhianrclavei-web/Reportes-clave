@@ -1,5 +1,6 @@
 'use client';
 
+import { coincideBusqueda } from '@/lib/busqueda';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Articulo, Sistema, CategoriaInsumo, CATEGORIAS, UNIDADES,
@@ -393,7 +394,7 @@ function PasoArticulo({
     if (filtroSistema === 'sin-sistema') list = list.filter((a) => !a.sistema_id);
     else if (filtroSistema !== 'todos') list = list.filter((a) => a.sistema_id === filtroSistema);
     const q = busqueda.trim().toLowerCase();
-    if (q) list = list.filter((a) => `${a.descripcion} ${a.marca || ''} ${a.modelo || ''}`.toLowerCase().includes(q));
+    if (q) list = list.filter((a) => coincideBusqueda(`${a.descripcion} ${a.marca || ''} ${a.modelo || ''}`, q));
     return list;
   }, [articulos, filtroSistema, busqueda]);
 

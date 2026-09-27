@@ -1,5 +1,6 @@
 'use client';
 
+import { coincideBusqueda } from '@/lib/busqueda';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -55,7 +56,7 @@ export default function ClientesList({ userName }: { userName?: string }) {
     const q = search.toLowerCase();
     return clientes
       .filter((c) => !soloPorRevisar || c.pendiente_revision)
-      .filter((c) => !q || `${c.nombre} ${c.direccion || ''} ${c.sistemas.join(' ')}`.toLowerCase().includes(q));
+      .filter((c) => !q || coincideBusqueda(`${c.nombre} ${c.direccion || ''} ${c.sistemas.join(' ')}`, q));
   }, [clientes, search, soloPorRevisar]);
 
   const stats = useMemo(() => {

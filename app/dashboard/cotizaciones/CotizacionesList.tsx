@@ -1,5 +1,7 @@
 'use client';
 
+import { useAliasClientes } from '@/lib/useAliasClientes';
+import { coincideBusqueda } from '@/lib/busqueda';
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import SupervisorShell from '@/components/SupervisorShell';
@@ -65,6 +67,7 @@ export default function CotizacionesList({
   // la lista compitan por espacio en la misma pantalla.
   const [seccion, setSeccion] = useState<'nueva' | 'cotizaciones'>('cotizaciones');
   const [search, setSearch] = useState('');
+  const aliasClientes = useAliasClientes();
   const [rango, setRango] = useState<RangoSeleccionado | null>(null);
   const fechasDeCotizaciones = useMemo(() => cotizaciones.map((c) => c.fecha).filter(Boolean), [cotizaciones]);
 
@@ -76,13 +79,12 @@ export default function CotizacionesList({
         if (c.fecha < rango.desde || c.fecha > rango.hasta) return false;
       }
       if (search) {
-        const q = search.toLowerCase();
-        const hay = `${c.empresa} ${c.folio} ${c.atencion || ''} ${nombreCreador(c.profiles)}`.toLowerCase();
-        if (!hay.includes(q)) return false;
+        const hay = `${c.empresa} ${aliasClientes[(c as any).cliente_id] || ''} ${c.folio} ${c.atencion || ''} ${nombreCreador(c.profiles)}`;
+        if (!coincideBusqueda(hay, search)) return false;
       }
       return true;
     });
-  }, [cotizaciones, search, rango]);
+  }, [cotizaciones, search, rango, aliasClientes]);
 
   const columnas: ColumnaTabla<Cotizacion>[] = [
     { header: 'Cliente / Empresa', render: (c) => <span className="font-semibold">{c.empresa}</span> },
