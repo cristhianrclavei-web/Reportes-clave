@@ -42,6 +42,7 @@ const ACCION_CFG: Record<AccionGlobal, { Icono: any; label: string; tono: 'teal'
   justifico_dia: { Icono: MessageSquareWarning, label: 'Justificó un día sin reporte', tono: 'amber' },
   marco_festivo: { Icono: CalendarPlus, label: 'Marcó un día festivo', tono: 'teal' },
   quito_festivo: { Icono: CalendarX, label: 'Quitó un día festivo', tono: 'red' },
+  unio_clientes: { Icono: Users, label: 'Unió o dio de alta clientes', tono: 'teal' },
 };
 
 const TONO_CLS = {

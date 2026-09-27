@@ -11,7 +11,8 @@ import { ClienteConResumen, listarClientesConResumen, crearCliente } from '@/lib
 import { DatosCliente, datosClienteVacios, validarDatosCliente } from '@/lib/clienteDatos';
 import CamposCliente from '@/components/CamposCliente';
 import ClienteAvatar, { fondoAvatar } from '@/components/ClienteAvatar';
-import { Plus, Search, MapPin } from 'lucide-react';
+import { Plus, Search, MapPin, Merge } from 'lucide-react';
+import { createClient } from '@/lib/supabaseClient';
 
 export default function ClientesList({ userName }: { userName?: string }) {
   const router = useRouter();
@@ -37,6 +38,16 @@ export default function ClientesList({ userName }: { userName?: string }) {
   }
 
   useEffect(() => { cargar(); }, []);
+
+  // Reportes cuyo cliente no está vinculado: llevan a «Posibles duplicados».
+  const [sinCliente, setSinCliente] = useState(0);
+  useEffect(() => {
+    createClient()
+      .from('reports')
+      .select('id', { count: 'exact', head: true })
+      .is('cliente_id', null)
+      .then(({ count }) => setSinCliente(count || 0));
+  }, []);
 
   const [soloPorRevisar, setSoloPorRevisar] = useState(false);
   const porRevisar = clientes.filter((c) => c.pendiente_revision).length;
@@ -109,6 +120,22 @@ export default function ClientesList({ userName }: { userName?: string }) {
             )}
           </div>
         </div>
+      )}
+
+      {sinCliente > 0 && (
+        <Link
+          href="/dashboard/proyectos/duplicados"
+          className="w-full mb-3 p-3 rounded-xl border bg-teal/10 border-teal/30 text-[13px] flex items-center justify-between gap-2"
+        >
+          <span className="flex items-center gap-2">
+            <Merge size={16} strokeWidth={2.4} className="text-teal shrink-0" />
+            <span>
+              <b className="text-teal">{sinCliente} {sinCliente === 1 ? 'reporte sin cliente' : 'reportes sin cliente'}</b>
+              <span className="text-ink/75"> · revisa nombres duplicados</span>
+            </span>
+          </span>
+          <span className="text-teal font-semibold shrink-0">Revisar</span>
+        </Link>
       )}
 
       {porRevisar > 0 && (

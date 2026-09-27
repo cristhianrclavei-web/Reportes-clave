@@ -37,7 +37,8 @@ export type AccionGlobal =
   | 'elimino_proyecto'
   | 'justifico_dia'
   | 'marco_festivo'
-  | 'quito_festivo';
+  | 'quito_festivo'
+  | 'unio_clientes';
 
 export type EntradaAuditoria = {
   id: string;
