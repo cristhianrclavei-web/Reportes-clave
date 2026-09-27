@@ -100,8 +100,11 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
 
   return (
     <div className="max-w-2xl lg:max-w-4xl mx-auto pb-16">
-      <div className="sticky top-0 z-20 glass-strong">
-        <div className="px-5 pb-1.5 flex items-center justify-between gap-3">
+      <div className="sticky top-0 z-20">
+        <div
+          className="glass-strong border-x-0 border-t-0 px-5 pb-3 flex items-center justify-between gap-3"
+          style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}
+        >
         <Logo variante="completo" size={32} className="min-w-0" compactoEnMovil />
         <div className="flex items-center gap-1 shrink-0">
           <PerfilChip nombre={userName} respaldo="Técnico" />

@@ -5,8 +5,8 @@ import { useEffect, useRef } from 'react';
 
 type Item = { key: string; label: string; href: string; Icono: any };
 
-// Navegación entre secciones en el celular: una fila de pestañas fija bajo
-// el encabezado. Todas las secciones quedan visibles (se desliza de lado si
+// Navegación entre secciones en el celular: un bloque de pestañas aparte,
+// fijo y separado del encabezado por un margen. Todas las secciones quedan visibles (se desliza de lado si
 // no caben) y la activa se acomoda sola a la vista al abrir la pantalla.
 export default function NavPestanas({ items, active }: { items: readonly Item[]; active: string }) {
   const navRef = useRef<HTMLElement | null>(null);
@@ -17,7 +17,7 @@ export default function NavPestanas({ items, active }: { items: readonly Item[];
   }, [active]);
 
   return (
-    <nav ref={navRef} className="flex gap-2 mx-3 mt-2 mb-2.5 px-1.5 rounded-2xl bg-surface-2/80 border border-line overflow-x-auto no-scrollbar" aria-label="Secciones">
+    <nav ref={navRef} className="flex gap-2 mx-3 mt-2 px-1.5 rounded-2xl glass-strong shadow-glow overflow-x-auto no-scrollbar" aria-label="Secciones">
       {items.map((t) => {
         const on = t.key === active;
         return (
