@@ -17,7 +17,7 @@ export default function NavPestanas({ items, active }: { items: readonly Item[];
   }, [active]);
 
   return (
-    <nav ref={navRef} className="flex gap-1 px-3 overflow-x-auto no-scrollbar" aria-label="Secciones">
+    <nav ref={navRef} className="flex gap-3 px-3 pt-1.5 mt-2 border-t border-line overflow-x-auto no-scrollbar" aria-label="Secciones">
       {items.map((t) => {
         const on = t.key === active;
         return (
@@ -25,7 +25,7 @@ export default function NavPestanas({ items, active }: { items: readonly Item[];
             key={t.key}
             href={t.href}
             aria-current={on ? 'page' : undefined}
-            className={`relative shrink-0 flex items-center gap-1.5 px-3 pt-1.5 pb-2.5 text-[13.5px] font-semibold whitespace-nowrap transition-colors ${
+            className={`relative shrink-0 flex items-center gap-1.5 px-3.5 pt-2 pb-2.5 text-[13.5px] font-semibold whitespace-nowrap transition-colors ${
               on ? 'text-teal' : 'text-ink/60 hover:text-ink'
             }`}
           >

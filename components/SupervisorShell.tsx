@@ -151,7 +151,7 @@ export default function SupervisorShell({
       <div className={`${wrapperClassName} pb-10 lg:!max-w-none lg:!mx-0 lg:!px-0 lg:flex-1`}>
         {/* Celular: encabezado con las pestañas de secciones debajo del logo */}
         <div className="lg:hidden sticky top-0 z-20 glass-strong">
-          <div className="px-4 pb-1 flex items-center justify-between gap-3">
+          <div className="px-4 pb-1.5 flex items-center justify-between gap-3">
             <Logo variante="completo" size={32} className="min-w-0" compactoEnMovil />
             <div className="flex items-center gap-0.5 shrink-0">
               <CommandPalette puedeAlmacen={puedeAlmacen} />

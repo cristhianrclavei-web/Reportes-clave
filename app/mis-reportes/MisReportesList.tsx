@@ -57,7 +57,7 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
     <div className="max-w-2xl lg:max-w-4xl mx-auto pb-10">
       {/* Header */}
       <div className="sticky top-0 z-20 glass-strong">
-        <div className="px-5 pb-1 flex items-center justify-between gap-3">
+        <div className="px-5 pb-1.5 flex items-center justify-between gap-3">
         <Logo variante="completo" size={34} className="min-w-0" compactoEnMovil />
         <div className="flex items-center gap-1 shrink-0">
           <PerfilChip nombre={userName} respaldo="Técnico" />
