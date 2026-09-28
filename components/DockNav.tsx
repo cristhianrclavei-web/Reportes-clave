@@ -16,11 +16,11 @@ import { ClienteCatalogo, catalogoEnCache, listarCatalogoClientes } from '@/lib/
 import { navegarConTransicion } from '@/lib/nativeViewTransition';
 import { Search, X, LayoutGrid, Rows3, Building2 } from 'lucide-react';
 
-// Barra de secciones de la computadora, estilo dock: fija arriba, todas las
-// secciones a la vista, con
-//   · indicador de la sección activa que se desliza entre pestañas (layoutId),
-//   · tooltips animados al pasar el cursor,
-//   · buscador que se expande dentro de la misma barra (secciones y clientes).
+// Navegación de la computadora:
+//   · renglón del logo con buscador expandible (secciones y clientes), tema,
+//     vista y perfil (con tooltips animados);
+//   · debajo, barra de secciones fija a todo lo ancho, con ícono y nombre,
+//     y el indicador de la sección activa que se desliza (layoutId).
 // Vive en app/dashboard/layout.tsx para no volver a montarse al cambiar de
 // sección: así el indicador puede animarse de una pestaña a otra.
 
@@ -96,6 +96,49 @@ function BotonDock({
   );
 }
 
+// Sección de la barra: ícono y nombre. Al pasar el cursor se levantan
+// los dos; el fondo de la sección activa se desliza entre secciones.
+function SeccionDock({
+  href,
+  etiqueta,
+  Icono,
+  activo,
+}: {
+  href: string;
+  etiqueta: string;
+  Icono: React.ComponentType<{ size?: number; strokeWidth?: number }>;
+  activo: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-current={activo ? 'page' : undefined}
+      className={`group relative flex-1 min-w-0 rounded-[16px] transition-colors ${
+        activo ? 'text-teal' : 'text-ink/65 hover:text-ink hover:bg-surface-2'
+      }`}
+    >
+      {activo && (
+        <>
+          <motion.span
+            layoutId="dock-activo-fondo"
+            transition={RESORTE}
+            className="absolute inset-0 rounded-[16px] bg-teal/12 ring-1 ring-teal/35"
+          />
+          <motion.span
+            layoutId="dock-activo-punto"
+            transition={RESORTE}
+            className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-teal"
+          />
+        </>
+      )}
+      <span className="relative flex flex-col items-center justify-center gap-1 py-2.5 px-2 transition-transform duration-200 ease-out group-hover:-translate-y-[3px]">
+        <Icono size={21} strokeWidth={activo ? 2.5 : 2.1} />
+        <span className={`text-[12.5px] truncate max-w-full ${activo ? 'font-semibold' : 'font-medium'}`}>{etiqueta}</span>
+      </span>
+    </Link>
+  );
+}
+
 const claseIcono = (activo: boolean) =>
   `w-11 h-11 rounded-[14px] flex items-center justify-center transition-colors ${
     activo ? 'text-teal' : 'text-ink/65 hover:text-ink hover:bg-surface-2'
@@ -167,40 +210,19 @@ export default function DockNav({ userName }: { userName?: string }) {
   }
 
   return (
-    <div className="hidden lg:block sticky top-0 z-30 bg-bg/90 backdrop-blur-md">
-      <div className="max-w-[1440px] mx-auto px-6 py-3 flex items-center gap-6">
-        <Logo variante="completo" size={30} className="shrink-0" />
-
-        <LayoutGroup id="dock">
-          <nav
-            aria-label="Secciones"
-            className="mx-auto flex items-center gap-1.5 rounded-[22px] bg-surface border border-line p-1.5 shadow-diffuse"
-          >
-            {secciones.map((t) => (
-              <BotonDock key={t.key} etiqueta={t.label} activo={t.key === activa}>
-                <Link href={t.href} aria-label={t.label} aria-current={t.key === activa ? 'page' : undefined} className={claseIcono(t.key === activa)}>
-                  <t.Icono size={19} strokeWidth={t.key === activa ? 2.5 : 2.1} />
-                </Link>
-              </BotonDock>
-            ))}
-
-            <span className="w-px h-7 bg-line-strong mx-1.5" aria-hidden="true" />
-
-            {/* Buscador: el campo crece dentro de la barra sin cambiar su alto */}
+    <>
+      {/* Renglón del logo: se va con el scroll. Lleva el buscador, el tema,
+          la vista y el perfil para que la barra de abajo sea solo de
+          secciones. */}
+      <div className="hidden lg:block">
+        <div className="max-w-[1440px] mx-auto px-8 pt-4 pb-3 flex items-center gap-4">
+          <Logo variante="completo" size={30} className="shrink-0" />
+          <div className="ml-auto flex items-center gap-1.5">
+            {/* Buscador: el campo crece hacia la izquierda */}
             <div ref={cajaRef} className="relative flex items-center">
-              <BotonDock etiqueta={buscando ? 'Cerrar búsqueda' : 'Buscar (Ctrl+K)'}>
-                <button
-                  type="button"
-                  aria-label="Buscar"
-                  onClick={() => (buscando ? cerrar() : setBuscando(true))}
-                  className={claseIcono(buscando)}
-                >
-                  {buscando ? <X size={19} strokeWidth={2.2} /> : <Search size={19} strokeWidth={2.2} />}
-                </button>
-              </BotonDock>
               <div
                 className="overflow-hidden transition-[width,opacity] duration-300 ease-out"
-                style={{ width: buscando ? 240 : 0, opacity: buscando ? 1 : 0 }}
+                style={{ width: buscando ? 260 : 0, opacity: buscando ? 1 : 0 }}
               >
                 <input
                   ref={inputRef}
@@ -212,9 +234,19 @@ export default function DockNav({ userName }: { userName?: string }) {
                   }}
                   tabIndex={buscando ? 0 : -1}
                   placeholder="Sección o cliente…"
-                  className="w-[232px] ml-1 h-11 px-3 rounded-[14px] bg-surface-2 border border-line focus:border-teal focus:outline-none text-[14px]"
+                  className="w-[252px] mr-1 h-11 px-3 rounded-[14px] bg-surface-2 border border-line focus:border-teal focus:outline-none text-[14px]"
                 />
               </div>
+              <BotonDock etiqueta={buscando ? 'Cerrar búsqueda' : 'Buscar (Ctrl+K)'}>
+                <button
+                  type="button"
+                  aria-label="Buscar"
+                  onClick={() => (buscando ? cerrar() : setBuscando(true))}
+                  className={claseIcono(buscando)}
+                >
+                  {buscando ? <X size={19} strokeWidth={2.2} /> : <Search size={19} strokeWidth={2.2} />}
+                </button>
+              </BotonDock>
 
               <AnimatePresence>
                 {buscando && resultados.length > 0 && (
@@ -223,7 +255,7 @@ export default function DockNav({ userName }: { userName?: string }) {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -6 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute right-0 top-full mt-3 w-[280px] rounded-2xl bg-surface border border-line shadow-diffuse p-1.5 z-50"
+                    className="absolute left-0 top-full mt-3 w-[300px] rounded-2xl bg-surface border border-line shadow-diffuse p-1.5 z-50"
                   >
                     {resultados.map((r, i) => (
                       <li key={r.href}>
@@ -258,14 +290,29 @@ export default function DockNav({ userName }: { userName?: string }) {
                 {vista === 'nueva' ? <LayoutGrid size={19} strokeWidth={2.1} /> : <Rows3 size={19} strokeWidth={2.1} />}
               </button>
             </BotonDock>
-          </nav>
-        </LayoutGroup>
-
-        <div className="shrink-0 flex items-center gap-1">
-          <PerfilChip nombre={userName} respaldo="Supervisor" />
-          <LogoutButton compacto />
+            <span className="w-px h-7 bg-line-strong mx-2" aria-hidden="true" />
+            <PerfilChip nombre={userName} respaldo="Supervisor" />
+            <LogoutButton compacto />
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Barra de secciones: fija arriba al hacer scroll, a todo lo ancho,
+          con ícono y nombre de cada sección. */}
+      <div className="hidden lg:block sticky top-0 z-30 bg-bg/90 backdrop-blur-md pb-2 pt-1">
+        <div className="max-w-[1440px] mx-auto px-8">
+          <LayoutGroup id="dock">
+            <nav
+              aria-label="Secciones"
+              className="flex items-stretch gap-1 rounded-[22px] bg-surface border border-line p-1.5 shadow-diffuse"
+            >
+              {secciones.map((t) => (
+                <SeccionDock key={t.key} href={t.href} etiqueta={t.label} Icono={t.Icono} activo={t.key === activa} />
+              ))}
+            </nav>
+          </LayoutGroup>
+        </div>
+      </div>
+    </>
   );
 }
