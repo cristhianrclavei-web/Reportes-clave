@@ -6,9 +6,10 @@ import PerfilChip from './PerfilChip';
 import ThemeToggle from './ThemeToggle';
 import CommandPalette from './CommandPalette';
 import LogoutButton from './LogoutButton';
-import { DashboardTabKey, TABS, TAB_ALMACEN } from './DashboardTabs';
+import { DashboardTabKey, seccionesVisibles } from './DashboardTabs';
 import NavPestanas from './NavPestanas';
 import { usePuedeAlmacen } from '@/lib/usePuedeAlmacen';
+import { usePuedeFacturar } from '@/lib/usePuedeFacturar';
 import { ChevronLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -49,7 +50,8 @@ export default function SupervisorShell({
   }
 
   const puedeAlmacen = usePuedeAlmacen(mostrarAlmacen);
-  const todas = puedeAlmacen ? [...TABS, TAB_ALMACEN] : [...TABS];
+  const puedeFacturar = usePuedeFacturar();
+  const todas = seccionesVisibles(puedeAlmacen, puedeFacturar);
 
   return (
     <div className={`${wrapperClassName} pb-10`}>

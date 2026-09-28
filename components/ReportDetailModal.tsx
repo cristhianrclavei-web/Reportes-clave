@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabaseClient';
 import { vincularReporteAServicio, Servicio, listarServiciosVinculables } from '@/lib/serviciosProgramados';
 import { eliminarReporte } from '@/lib/eliminarReporte';
 import { registrarAccionGlobal } from '@/lib/auditoriaGlobal';
-import { Check, X, CircleX, FileText, FileSpreadsheet, Share2, Trash2, Unlock, LockKeyhole, MessageSquareWarning, Camera, FolderKanban, ClipboardCheck, Tag } from 'lucide-react';
+import { Check, X, CircleX, FileText, FileSpreadsheet, Share2, Trash2, Unlock, LockKeyhole, MessageSquareWarning, Camera, FolderKanban, ClipboardCheck, Tag, ReceiptText } from 'lucide-react';
 import { solicitarCorreccion, habilitarCorreccion, cancelarCorreccion, aplicarCorreccion } from '@/lib/correcciones';
 import { showToast } from '@/components/Toast';
 import FacturacionSection from '@/components/FacturacionSection';
@@ -694,6 +694,27 @@ export default function ReportDetailModal({
           onAprobada={handleRevisionAprobada}
         />
 
+        {/* Si el reporte ya va en una factura (Facturación), se liga a ella
+            en vez de facturarlo por separado. */}
+        {report.data?.facturaId ? (
+          <div className="mt-4 rounded-2xl bg-surface-2 border border-line p-4 flex items-center gap-3">
+            <span className="w-10 h-10 rounded-xl bg-teal/12 text-teal flex items-center justify-center shrink-0">
+              <ReceiptText size={19} strokeWidth={2.2} />
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] uppercase tracking-wider text-muted font-semibold">Facturación</p>
+              <p className="text-[14px] font-semibold">
+                Incluido en la factura <span className="font-mono text-teal">{report.data.facturaFolio}</span>
+                <span className="text-muted font-normal"> · {report.data.facturaEstado === 'facturado' ? 'timbrada' : 'prefactura'}</span>
+              </p>
+            </div>
+            {canManageBilling && (
+              <a href={`/dashboard/facturacion/${report.data.facturaId}`} className="shrink-0 text-[13px] font-semibold text-teal">
+                Ver factura
+              </a>
+            )}
+          </div>
+        ) : (
         <FacturacionSection
           reportId={report.id}
           empresaCliente={report.empresa_cliente}
@@ -714,6 +735,7 @@ export default function ReportDetailModal({
           onMarcarFinalizado={handleMarcarFinalizado}
           onGuardarDatos={updateReportData}
         />
+        )}
 
         </>)}
 

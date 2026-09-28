@@ -30,4 +30,15 @@ export const MARCA = {
   appUrl: valor(process.env.NEXT_PUBLIC_MARCA_APP_URL, 'https://reportes-clave.vercel.app'),
 };
 
+// Datos del emisor para la prefactura (los mismos del CFDI que timbra el PAC).
+export const EMISOR = {
+  razonSocial: valor(process.env.NEXT_PUBLIC_EMISOR_RAZON_SOCIAL, MARCA.nombre.toUpperCase()),
+  rfc: valor(process.env.NEXT_PUBLIC_EMISOR_RFC, 'CIN140820MB3'),
+  regimen: valor(process.env.NEXT_PUBLIC_EMISOR_REGIMEN, '(601) General de Ley Personas Morales'),
+  telefono: valor(process.env.NEXT_PUBLIC_EMISOR_TELEFONO, '3315781794'),
+  correo: valor(process.env.NEXT_PUBLIC_EMISOR_CORREO, 'facturas@clave-i.com'),
+  web: valor(process.env.NEXT_PUBLIC_EMISOR_WEB, 'www.clave-i.com'),
+  lugarExpedicion: valor(process.env.NEXT_PUBLIC_EMISOR_CP, '44860'),
+};
+
 export const MARCA_MAYUS = MARCA.nombre.toUpperCase();

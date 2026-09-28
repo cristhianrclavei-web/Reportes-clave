@@ -1,6 +1,6 @@
 'use client';
 
-import { FileText, FolderKanban, History, CalendarDays, LayoutDashboard, Warehouse, Receipt, Building2 } from 'lucide-react';
+import { FileText, FolderKanban, History, CalendarDays, LayoutDashboard, Warehouse, Receipt, Building2, ReceiptText } from 'lucide-react';
 
 // Secciones del panel del supervisor: una sola fuente de verdad para la
 // barra lateral, la barra inferior del celular y el buscador (Ctrl+K).
@@ -18,13 +18,29 @@ export const TABS = [
 // El almacén solo aparece para quien lo lleva, no para todo supervisor.
 export const TAB_ALMACEN = { key: 'almacen', label: 'Almacén', corto: 'Almacén', href: '/dashboard/almacen', Icono: Warehouse } as const;
 
-export type DashboardTabKey = (typeof TABS)[number]['key'] | 'almacen';
+// Facturación, solo para quien tiene el permiso de facturar.
+export const TAB_FACTURACION = { key: 'facturacion', label: 'Facturación', corto: 'Facturas', href: '/dashboard/facturacion', Icono: ReceiptText } as const;
+
+export type DashboardTabKey = (typeof TABS)[number]['key'] | 'almacen' | 'facturacion';
+
+type Tab = (typeof TABS)[number] | typeof TAB_ALMACEN | typeof TAB_FACTURACION;
+
+// Secciones que ve cada quien, en orden: Facturación va junto a Cotizaciones.
+export function seccionesVisibles(puedeAlmacen: boolean, puedeFacturar: boolean): Tab[] {
+  const lista: Tab[] = [];
+  for (const t of TABS) {
+    lista.push(t);
+    if (t.key === 'cotizaciones' && puedeFacturar) lista.push(TAB_FACTURACION);
+  }
+  if (puedeAlmacen) lista.push(TAB_ALMACEN);
+  return lista;
+}
 
 // Agrupación de la barra lateral: qué se opera a diario, qué se vende y qué
 // se controla.
 export const GRUPOS_NAV: { titulo: string; keys: DashboardTabKey[] }[] = [
   { titulo: 'Operación', keys: ['resumen', 'servicios', 'agenda', 'reportes'] },
-  { titulo: 'Ventas', keys: ['cotizaciones', 'proyectos'] },
+  { titulo: 'Ventas', keys: ['cotizaciones', 'facturacion', 'proyectos'] },
   { titulo: 'Control', keys: ['almacen', 'eventos'] },
 ];
 

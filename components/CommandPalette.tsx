@@ -4,7 +4,8 @@ import { coincideBusqueda } from '@/lib/busqueda';
 import { useEffect, useRef, useState, KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import ModalOverlay from './ModalOverlay';
-import { TABS, TAB_ALMACEN } from './DashboardTabs';
+import { seccionesVisibles } from './DashboardTabs';
+import { usePuedeFacturar } from '@/lib/usePuedeFacturar';
 import { navegarConTransicion } from '@/lib/nativeViewTransition';
 import { Search } from 'lucide-react';
 
@@ -19,7 +20,8 @@ export default function CommandPalette({ puedeAlmacen }: { puedeAlmacen?: boolea
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  const items = puedeAlmacen ? [...TABS, TAB_ALMACEN] : TABS;
+  const puedeFacturar = usePuedeFacturar();
+  const items = seccionesVisibles(!!puedeAlmacen, puedeFacturar);
   const filtrados = items.filter((it) => coincideBusqueda(it.label, query));
 
   useEffect(() => {

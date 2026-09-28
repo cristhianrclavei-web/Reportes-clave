@@ -8,8 +8,9 @@ import Logo from './Logo';
 import PerfilChip from './PerfilChip';
 import ThemeToggle from './ThemeToggle';
 import LogoutButton from './LogoutButton';
-import { TABS, TAB_ALMACEN, DashboardTabKey } from './DashboardTabs';
+import { DashboardTabKey, seccionesVisibles } from './DashboardTabs';
 import { usePuedeAlmacen } from '@/lib/usePuedeAlmacen';
+import { usePuedeFacturar } from '@/lib/usePuedeFacturar';
 import { useVistaSupervisor } from '@/lib/vistaSupervisor';
 import { coincideBusqueda } from '@/lib/busqueda';
 import { ClienteCatalogo, catalogoEnCache, listarCatalogoClientes } from '@/lib/clientesCatalogo';
@@ -31,7 +32,7 @@ function seccionActiva(pathname: string): DashboardTabKey {
   const [, , seg] = pathname.split('/');
   const mapa: Record<string, DashboardTabKey> = {
     servicios: 'servicios', agenda: 'agenda', reportes: 'reportes', cotizaciones: 'cotizaciones',
-    proyectos: 'proyectos', eventos: 'eventos', almacen: 'almacen',
+    proyectos: 'proyectos', eventos: 'eventos', almacen: 'almacen', facturacion: 'facturacion',
   };
   return mapa[seg] || 'resumen';
 }
@@ -150,7 +151,8 @@ export default function DockNav({ userName }: { userName?: string }) {
   const activa = seccionActiva(pathname);
   const puedeAlmacen = usePuedeAlmacen();
   const [vista, setVista] = useVistaSupervisor();
-  const secciones = puedeAlmacen ? [...TABS, TAB_ALMACEN] : [...TABS];
+  const puedeFacturar = usePuedeFacturar();
+  const secciones = seccionesVisibles(puedeAlmacen, puedeFacturar);
 
   // --- Buscador expandible ---
   const [buscando, setBuscando] = useState(false);

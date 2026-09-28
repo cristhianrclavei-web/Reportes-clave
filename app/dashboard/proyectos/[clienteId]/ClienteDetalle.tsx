@@ -1,6 +1,7 @@
 'use client';
 
 import ReportesDelCliente from '@/components/ReportesDelCliente';
+import FacturasDelCliente from '@/components/FacturasDelCliente';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -384,6 +385,7 @@ export default function ClienteDetalle({ clienteId, userName }: { clienteId: str
 
       {/* Reportes de servicio del cliente */}
       <ReportesDelCliente clienteId={cliente.id} clienteNombre={cliente.nombre} />
+      <FacturasDelCliente clienteId={cliente.id} />
 
       {/* Sistemas y proyectos */}
       <div className="flex items-center justify-between mb-3">
