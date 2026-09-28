@@ -210,6 +210,7 @@ export default function FacturaForm({
         <Titulo n={1}>Cliente</Titulo>
         <AutocompletarCliente
           value={clienteNombre}
+          className={inputCls}
           soloSugerir
           placeholder="Busca el cliente…"
           onChange={(nombre, id) => {
