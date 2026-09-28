@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 import { X, Share2, Download, Tag } from 'lucide-react';
 import ModalOverlay from './ModalOverlay';
 import { FormatoLlenado } from '@/lib/formatosMantenimiento';
-import { DatosEtiqueta, generarEtiqueta, sistemaCorto } from '@/lib/etiquetaMantenimiento';
+import { DatosEtiqueta, TAMANOS, TamanoEtiqueta, generarEtiqueta, sistemaCorto } from '@/lib/etiquetaMantenimiento';
+
+const KEY_TAMANO = 'etiqueta-mtto-tamano';
 
 type Generada = { titulo: string; url: string; archivo: File };
 
@@ -31,17 +33,37 @@ export default function EtiquetasMantenimiento({
   const [etiquetas, setEtiquetas] = useState<Generada[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [puedeCompartir, setPuedeCompartir] = useState(false);
+  // El tamaño se recuerda en el teléfono: cada técnico usa siempre la misma
+  // impresora. Se lee después de montar (no en el primer render).
+  const [tamano, setTamano] = useState<TamanoEtiqueta>('ancha62');
+  useEffect(() => {
+    try {
+      const t = localStorage.getItem(KEY_TAMANO);
+      if (t === 'ancha62' || t === 'cinta24') setTamano(t);
+    } catch {
+      // sin almacenamiento: se queda la ancha
+    }
+  }, []);
+  function elegirTamano(t: TamanoEtiqueta) {
+    setTamano(t);
+    try {
+      localStorage.setItem(KEY_TAMANO, t);
+    } catch {
+      // no pasa nada si no se puede guardar
+    }
+  }
 
   useEffect(() => {
     let vivo = true;
     const urls: string[] = [];
+    setEtiquetas(null);
     (async () => {
       try {
         const lista: Generada[] = [];
         for (const f of formatos) {
           const datos: DatosEtiqueta = { formato: f, token, cliente, fecha, tecnico, folio };
-          const blob = await generarEtiqueta(datos);
-          const nombre = `etiqueta-${f.plantillaId}-${fecha}.png`;
+          const blob = await generarEtiqueta(datos, tamano);
+          const nombre = `etiqueta-${f.plantillaId}-${fecha}-${tamano}.png`;
           const url = URL.createObjectURL(blob);
           urls.push(url);
           lista.push({ titulo: sistemaCorto(f), url, archivo: new File([blob], nombre, { type: 'image/png' }) });
@@ -62,7 +84,7 @@ export default function EtiquetasMantenimiento({
       vivo = false;
       urls.forEach((u) => URL.revokeObjectURL(u));
     };
-  }, [formatos, token, cliente, fecha, tecnico, folio]);
+  }, [formatos, token, cliente, fecha, tecnico, folio, tamano]);
 
   async function compartir(e: Generada) {
     try {
@@ -89,12 +111,28 @@ export default function EtiquetasMantenimiento({
             </span>
             <div>
               <h2 className="font-display font-semibold text-[17px] leading-tight">Etiquetas de mantenimiento</h2>
-              <p className="text-[12px] text-muted">Una por sistema · cinta de 24 mm</p>
+              <p className="text-[12px] text-muted">Una por sistema</p>
             </div>
           </div>
           <button type="button" onClick={onClose} aria-label="Cerrar" className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-surface-2">
             <X size={19} />
           </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          {TAMANOS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => elegirTamano(t.key)}
+              className={`rounded-xl border px-3 py-2 text-left transition-colors ${
+                tamano === t.key ? 'border-teal bg-teal/10' : 'border-line bg-surface-2/60'
+              }`}
+            >
+              <span className={`block text-[13.5px] font-semibold ${tamano === t.key ? 'text-teal' : ''}`}>{t.label}</span>
+              <span className="block text-[11.5px] text-muted">{t.detalle}</span>
+            </button>
+          ))}
         </div>
 
         {error && <p className="text-[13px] text-red">{error}</p>}
@@ -132,8 +170,9 @@ export default function EtiquetasMantenimiento({
 
         {etiquetas && etiquetas.length > 0 && (
           <p className="text-[12px] text-muted mt-4 leading-relaxed">
-            En «Imprimir / compartir» elige <b>Brother iPrint&amp;Label</b> (o la app de tu impresora) e imprime como imagen en cinta de
-            24 mm. El QR lleva a la página de verificación; funciona en cuanto el reporte se guarda y sube.
+            En «Imprimir / compartir» elige <b>Brother iPrint&amp;Label</b> (o la app de tu impresora) e imprime como imagen
+            {tamano === 'ancha62' ? ' en rollo de 62 mm' : ' en cinta de 24 mm'}. El QR lleva a la página de verificación; funciona en
+            cuanto el reporte se guarda y sube.
           </p>
         )}
       </div>
