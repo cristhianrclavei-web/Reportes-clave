@@ -299,7 +299,10 @@ export default function DockNav({ userName }: { userName?: string }) {
 
       {/* Barra de secciones: fija arriba al hacer scroll, a todo lo ancho,
           con ícono y nombre de cada sección. */}
-      <div className="hidden lg:block sticky top-0 z-30 bg-bg/90 backdrop-blur-md pb-2 pt-1">
+      <div className="hidden lg:block sticky top-0 z-30 bg-bg pb-2 pt-1">
+        {/* Desvanecido bajo la barra: el contenido se pierde suave al pasar
+            por debajo en vez de verse cortado en seco. */}
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-full h-5 bg-gradient-to-b from-bg to-transparent" />
         <div className="max-w-[1440px] mx-auto px-8">
           <LayoutGroup id="dock">
             <nav
