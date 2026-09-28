@@ -1,6 +1,6 @@
 'use client';
 
-import type { Dispatch, SetStateAction } from 'react';
+import { useState, type Dispatch, type SetStateAction } from 'react';
 import { ClipboardCheck, Check, X, Minus } from 'lucide-react';
 import {
   FormatoLlenado, Frecuencia, PLANTILLAS, Resultado, PuntoLlenado,
@@ -39,10 +39,14 @@ export function SelectorFormatos({
   sistemas: string[];
   onAgregarSistema: (s: string) => void;
 }) {
-  // Primero los formatos de los sistemas que ya se marcaron.
-  const plantillas = [...PLANTILLAS].sort(
-    (a, b) => Number(sistemas.includes(b.sistema)) - Number(sistemas.includes(a.sistema))
+  // Se muestran los formatos de los sistemas marcados (y los ya elegidos);
+  // el resto queda detrás de «Ver otros» para no hacer larga la lista.
+  const [verTodos, setVerTodos] = useState(false);
+  const relevantes = PLANTILLAS.filter(
+    (p) => sistemas.includes(p.sistema) || formatos.some((f) => f.plantillaId === p.id)
   );
+  const plantillas = verTodos || relevantes.length === 0 ? PLANTILLAS : relevantes;
+  const ocultos = PLANTILLAS.length - plantillas.length;
 
   function alternar(id: string) {
     const ya = formatos.find((f) => f.plantillaId === id);
@@ -96,6 +100,11 @@ export function SelectorFormatos({
               </div>
             );
           })}
+          {ocultos > 0 && (
+            <button type="button" onClick={() => setVerTodos(true)} className="self-start text-[13px] font-semibold text-teal py-1">
+              Ver otros formatos ({ocultos})
+            </button>
+          )}
           {formatos.length === 0 && <p className="text-[12.5px] text-amber">Elige al menos un formato, o marca «No, solo el reporte».</p>}
         </div>
       )}
