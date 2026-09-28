@@ -4,6 +4,7 @@ import { ContactoCatalogo, catalogoEnCache, normalizar as normalizarNombre } fro
 import AutocompletarCliente from '@/components/AutocompletarCliente';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabaseClient';
 import { listarVehiculos, listarPersonal, vehiculosEnCache, personalEnCache, Vehiculo, Persona } from '@/lib/catalogos';
 import AutocompletarPersona, { GrupoSugerencias } from '@/components/AutocompletarPersona';
@@ -188,6 +189,7 @@ function PointList({ items, onChange, placeholder }: { items: string[]; onChange
 }
 
 export default function NuevoReportePage() {
+  const router = useRouter();
   const supabase = createClient();
   const [userEmail, setUserEmail] = useState('');
   const [userName, setUserName] = useState('');
@@ -524,6 +526,7 @@ export default function NuevoReportePage() {
     setVehiculo(''); setPlacas(''); setManejadoPor('');
     setSubTipo(null); setTipoServicioOtroTexto('');
     setUsaFormato(false); setFormatos([]); tokenRef.current = null;
+    setShowEtiquetas(false); setShowPreview(false); setPaso(1);
     setSeguridad([]); setSeguridadOtraTexto(''); setObservaciones(''); setActividades(['']); setShowCaso(false);
     setCasoPuntos([{ ...EMPTY_PUNTO }]);
     setTuberia({
@@ -794,6 +797,10 @@ export default function NuevoReportePage() {
         tag: 'reporte-nuevo',
       });
       resetAll();
+      // Guardado completo: se cierra el formulario y se regresa a la lista.
+      // (Sin conexión se queda aquí: la lista necesita red para cargar.)
+      showToast('Reporte guardado', 'success');
+      router.push('/mis-reportes');
     } catch (e: any) {
       // Se perdió la conexión a media subida (u otro error de red): guardamos
       // el reporte localmente en vez de perder la información capturada.
