@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { ShieldCheck, AlertTriangle, SearchX, CalendarClock, User, Hash, ClipboardCheck } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, SearchX, CalendarClock, User, Hash } from 'lucide-react';
+import DetallePuntos, { PuntoVerificado } from './DetallePuntos';
 import Logo from '@/components/Logo';
 import { MARCA } from '@/lib/marca';
 import { ETIQUETA_FRECUENCIA, Frecuencia } from '@/lib/formatosMantenimiento';
@@ -25,6 +26,8 @@ type FormatoVerificado = {
   cumple: number;
   noCumple: number;
   na: number;
+  areas?: string | null;
+  puntos?: PuntoVerificado[];
 };
 
 type Verificacion = {
@@ -32,8 +35,6 @@ type Verificacion = {
   fecha: string;
   cliente: string;
   tecnico: string | null;
-  revisado: boolean;
-  revisadoFecha: string | null;
   formatos: FormatoVerificado[];
 };
 
@@ -82,12 +83,9 @@ export default async function VerificarPage(props: { params: Promise<{ token: st
             <div className="grid grid-cols-2 gap-3 mt-4 text-[13.5px]">
               <Dato Icono={CalendarClock} label="Fecha del servicio" valor={fechaDMA(v.fecha)} />
               <Dato Icono={Hash} label="Folio" valor={v.folio} />
-              <Dato Icono={User} label="Técnico responsable" valor={v.tecnico || '—'} />
-              <Dato
-                Icono={ClipboardCheck}
-                label="Revisión de supervisor"
-                valor={v.revisado ? `Aprobado${v.revisadoFecha ? ` · ${v.revisadoFecha}` : ''}` : 'Pendiente'}
-              />
+              <div className="col-span-2">
+                <Dato Icono={User} label="Ing. responsable" valor={v.tecnico || '—'} />
+              </div>
             </div>
           </div>
 
@@ -128,6 +126,7 @@ export default async function VerificarPage(props: { params: Promise<{ token: st
                       <b>{fechaDMA(proximo)}</b>
                     </p>
                   )}
+                  {Array.isArray(f.puntos) && f.puntos.length > 0 && <DetallePuntos puntos={f.puntos} areas={f.areas} />}
                 </div>
               );
             })}

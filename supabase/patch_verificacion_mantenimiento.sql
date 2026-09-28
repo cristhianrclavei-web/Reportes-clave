@@ -4,9 +4,9 @@
 -- La etiqueta que se pega en el equipo lleva un QR a
 -- /verificar/<token>. Quien lo escanea (p. ej. un auditor) no tiene cuenta,
 -- así que esta función es lo ÚNICO que puede consultar sin sesión, y solo
--- devuelve lo mínimo para comprobar el servicio: cliente, fecha, folio,
--- técnico, si ya se revisó y el resumen de cada formato (sin notas, fotos,
--- firmas ni datos de contacto).
+-- devuelve lo necesario para comprobar el servicio: cliente, fecha, folio,
+-- ingeniero responsable y, por formato, el resumen y cada punto revisado
+-- (con el hallazgo de los que no cumplen). Sin fotos, firmas ni contactos.
 --
 -- El token es un UUID aleatorio que el formulario guarda en
 -- reports.data->>'tokenVerificacion' (así funciona también sin conexión);
@@ -49,8 +49,6 @@ begin
     'fecha', r.fecha,
     'cliente', r.empresa_cliente,
     'tecnico', coalesce(nullif(r.data ->> 'ingACargo', ''), r.data ->> 'firmaIngNombre'),
-    'revisado', (r.data ->> 'firmaRevisionFecha') is not null,
-    'revisadoFecha', r.data ->> 'firmaRevisionFecha',
     'formatos', coalesce((
       select jsonb_agg(jsonb_build_object(
         'titulo', f ->> 'titulo',
@@ -60,7 +58,20 @@ begin
         'total', jsonb_array_length(coalesce(f -> 'puntos', '[]'::jsonb)),
         'cumple', (select count(*) from jsonb_array_elements(coalesce(f -> 'puntos', '[]'::jsonb)) p where p ->> 'resultado' = 'cumple'),
         'noCumple', (select count(*) from jsonb_array_elements(coalesce(f -> 'puntos', '[]'::jsonb)) p where p ->> 'resultado' = 'no_cumple'),
-        'na', (select count(*) from jsonb_array_elements(coalesce(f -> 'puntos', '[]'::jsonb)) p where p ->> 'resultado' = 'na')
+        'na', (select count(*) from jsonb_array_elements(coalesce(f -> 'puntos', '[]'::jsonb)) p where p ->> 'resultado' = 'na'),
+        'areas', f ->> 'areas',
+        -- Detalle de cada punto para «Ver detalles» (sin fotos ni firmas).
+        'puntos', (select coalesce(jsonb_agg(jsonb_build_object(
+            'componente', p ->> 'componente',
+            'actividad', p ->> 'actividad',
+            'criterio', p ->> 'criterio',
+            'ref', p ->> 'ref',
+            'frecuencia', p ->> 'frecuencia',
+            'resultado', p ->> 'resultado',
+            'valor', p ->> 'valor',
+            'nota', case when p ->> 'resultado' = 'no_cumple' then p ->> 'nota' end
+          ) order by o), '[]'::jsonb)
+          from jsonb_array_elements(coalesce(f -> 'puntos', '[]'::jsonb)) with ordinality as x(p, o))
       ))
       from jsonb_array_elements(coalesce(r.data -> 'formatosMtto', '[]'::jsonb)) f
     ), '[]'::jsonb)
