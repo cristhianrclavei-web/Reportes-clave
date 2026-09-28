@@ -1,5 +1,6 @@
 'use client';
 
+import CampoNumero from '@/components/CampoNumero';
 import { coincideBusqueda } from '@/lib/busqueda';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
 import { normalizar as normalizarCliente } from '@/lib/clientesCatalogo';
@@ -1056,12 +1057,10 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
 
                 <div className="flex items-center gap-2">
                   <span className="text-[13px] text-muted shrink-0">Cantidad</span>
-                  <input
-                    type="number"
-                    inputMode="decimal"
+                  <CampoNumero
                     min={0}
                     value={it.cantidad}
-                    onChange={(e) => setInsumos((prev) => prev.map((x, idx) => (idx === i ? { ...x, cantidad: parseFloat(e.target.value) || 0 } : x)))}
+                    onValor={(v) => setInsumos((prev) => prev.map((x, idx) => (idx === i ? { ...x, cantidad: v } : x)))}
                     className="w-[90px] shrink-0 px-2.5 min-h-[46px] rounded-xl bg-surface border border-line focus:border-teal focus:outline-none text-[14.5px]"
                   />
                   <span className="text-[14px] text-muted">{it.unidad || 'pza'}</span>
@@ -1325,12 +1324,10 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
             {itemsEdit.map((it, i) => (
               <div key={i} className="mb-2.5 p-3 rounded-xl bg-surface-2 border border-line">
                 <div className="flex items-center gap-2 mb-2">
-                  <input
-                    type="number"
-                    inputMode="decimal"
+                  <CampoNumero
                     min={0}
                     value={it.cantidad}
-                    onChange={(e) => setItemsEdit((prev) => prev.map((x, idx) => (idx === i ? { ...x, cantidad: parseFloat(e.target.value) || 0 } : x)))}
+                    onValor={(v) => setItemsEdit((prev) => prev.map((x, idx) => (idx === i ? { ...x, cantidad: v } : x)))}
                     className="w-[70px] shrink-0 px-2.5 min-h-[46px] rounded-xl bg-surface border border-line text-[14.5px]"
                   />
                   <select
@@ -1445,12 +1442,10 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-[13px] text-muted shrink-0">Cantidad</span>
-                  <input
-                    type="number"
-                    inputMode="decimal"
+                  <CampoNumero
                     min={0}
                     value={it.cantidad}
-                    onChange={(e) => setInsumosNuevaLista((prev) => prev.map((x, idx) => (idx === i ? { ...x, cantidad: parseFloat(e.target.value) || 0 } : x)))}
+                    onValor={(v) => setInsumosNuevaLista((prev) => prev.map((x, idx) => (idx === i ? { ...x, cantidad: v } : x)))}
                     className="w-[90px] shrink-0 px-2.5 min-h-[46px] rounded-xl bg-surface border border-line focus:border-teal focus:outline-none text-[14.5px]"
                   />
                   <span className="text-[14px] text-muted">{it.unidad || 'pza'}</span>

@@ -3,6 +3,7 @@ import { Barlow_Condensed, Inter, IBM_Plex_Mono } from 'next/font/google';
 import './globals.css';
 import ToastContainer from '@/components/Toast';
 import OfflineSyncManager from '@/components/OfflineSyncManager';
+import SeleccionarNumeros from '@/components/SeleccionarNumeros';
 import { MARCA, MARCA_MAYUS } from '@/lib/marca';
 
 const display = Barlow_Condensed({
@@ -70,6 +71,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {children}
         <ToastContainer />
         <OfflineSyncManager />
+        <SeleccionarNumeros />
         <script
           dangerouslySetInnerHTML={{
             __html: `

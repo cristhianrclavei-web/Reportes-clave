@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
+import CampoNumero from '@/components/CampoNumero';
 import { showToast } from '@/components/Toast';
 import { hoyLocal } from '@/lib/fechaHoy';
 import { catalogoEnCache } from '@/lib/clientesCatalogo';
@@ -364,11 +365,11 @@ export default function FacturaForm({
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2 pl-7">
                   <div>
                     <label className={labelCls}>Cantidad</label>
-                    <input className={inputCls} type="number" min={0} step="any" value={c.cantidad} onChange={(e) => cambiarConcepto(i, { cantidad: Number(e.target.value) || 0 })} />
+                    <CampoNumero className={inputCls} min={0} step="any" value={c.cantidad} onValor={(n) => cambiarConcepto(i, { cantidad: n })} />
                   </div>
                   <div>
                     <label className={labelCls}>Valor unitario</label>
-                    <input className={inputCls} type="number" min={0} step="any" value={c.valor_unitario} onChange={(e) => cambiarConcepto(i, { valor_unitario: Number(e.target.value) || 0 })} />
+                    <CampoNumero className={inputCls} min={0} step="any" value={c.valor_unitario} onValor={(n) => cambiarConcepto(i, { valor_unitario: n })} />
                   </div>
                   <div>
                     <label className={labelCls}>Unidad SAT</label>
