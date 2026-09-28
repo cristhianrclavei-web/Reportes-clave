@@ -445,8 +445,8 @@ export default function ReportDetailModal({
           </div>
         )}
 
-        <div className="flex justify-between items-center mb-5 flex-wrap gap-2 pr-8">
-          <div className="flex items-center gap-2.5 flex-wrap">
+        <div className="flex flex-col gap-3.5 mb-5">
+          <div className="flex items-center gap-2.5 flex-wrap pr-8">
             <h2 className="font-display font-semibold text-xl tracking-wide">{report.empresa_cliente}</h2>
             {revision.data ? (
               <span className="text-[12.5px] font-semibold px-2.5 py-1 rounded-full bg-teal/15 text-teal border border-teal/30 flex items-center gap-1.5"><Check size={13} strokeWidth={3} />Completado</span>
@@ -454,54 +454,56 @@ export default function ReportDetailModal({
               <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-amber/15 text-amber border border-amber/30">Pendiente de revisión</span>
             )}
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => window.open(`/api/reports/${report.id}/pdf?t=${Date.now()}`, '_blank', 'noopener,noreferrer')}
-              className="min-h-[38px] flex items-center gap-1.5 text-[12.5px] bg-teal text-inkOnAccent rounded-full px-3.5 py-2 font-semibold active:scale-95 transition-transform shadow-glow-teal"
-            >
-              <FileText size={15} strokeWidth={2.4} />
-              Ver PDF
-            </button>
-            {(report.data?.formatosMtto || []).length > 0 && report.data?.tokenVerificacion && (
-              <button
-                onClick={() => setShowEtiquetas(true)}
-                className="min-h-[38px] flex items-center gap-1.5 text-[12.5px] border border-teal/50 text-teal rounded-full px-3.5 py-2 font-semibold active:scale-95 transition-transform"
-              >
-                <Tag size={15} strokeWidth={2.4} />
-                Etiqueta
-              </button>
-            )}
-            <button
-              onClick={() => { window.location.href = `/api/reports/${report.id}/xlsx?t=${Date.now()}`; }}
-              className="min-h-[38px] flex items-center gap-1.5 text-[12.5px] bg-teal-dark text-white rounded-full px-3.5 py-2 font-semibold active:scale-95 transition-transform"
-            >
-              <FileSpreadsheet size={15} strokeWidth={2.4} />
-              Descargar Excel
-            </button>
-            <div className="relative">
-              <button
-                onClick={() => setShareMenuOpen((v) => !v)}
-                disabled={sharing}
-                className="min-h-[38px] flex items-center gap-1.5 text-[12.5px] text-white rounded-full px-3.5 py-2 font-semibold active:scale-95 transition-transform disabled:opacity-60"
-                style={{ backgroundColor: '#25D366' }}
-              >
-                <Share2 size={15} strokeWidth={2.4} />
-                {sharing ? 'Preparando...' : 'Compartir'}
-              </button>
-              {shareMenuOpen && (
-                <div className="absolute right-0 top-full mt-2 glass-strong rounded-2xl p-1.5 flex flex-col gap-1 z-10 min-w-[150px] shadow-glow">
-                  <button onClick={() => handleShare('pdf')} className="flex items-center gap-2 text-left text-[12.5px] font-medium px-3 py-2 rounded-xl hover:bg-white/10 active:scale-95 transition-transform">
-                    <FileText size={14} strokeWidth={2.4} className="text-teal" />
-                    Como PDF
+          {/* Acciones del reporte: botones iguales en una fila, ícono arriba y
+              nombre corto. «Ver PDF» es la principal. */}
+          {(() => {
+            const conEtiqueta = (report.data?.formatosMtto || []).length > 0 && report.data?.tokenVerificacion;
+            const base =
+              'min-h-[62px] w-full rounded-2xl flex flex-col items-center justify-center gap-1 text-[12px] font-semibold active:scale-95 transition-transform disabled:opacity-60';
+            const secundario = `${base} bg-surface-2 border border-line text-ink/85 hover:border-teal/40`;
+            return (
+              <div className={`w-full grid gap-2 ${conEtiqueta ? 'grid-cols-4' : 'grid-cols-3'}`}>
+                <button
+                  onClick={() => window.open(`/api/reports/${report.id}/pdf?t=${Date.now()}`, '_blank', 'noopener,noreferrer')}
+                  className={`${base} bg-teal text-inkOnAccent shadow-glow-teal`}
+                >
+                  <FileText size={19} strokeWidth={2.3} />
+                  Ver PDF
+                </button>
+                {conEtiqueta && (
+                  <button onClick={() => setShowEtiquetas(true)} className={secundario}>
+                    <Tag size={19} strokeWidth={2.3} className="text-teal" />
+                    Etiqueta
                   </button>
-                  <button onClick={() => handleShare('xlsx')} className="flex items-center gap-2 text-left text-[12.5px] font-medium px-3 py-2 rounded-xl hover:bg-white/10 active:scale-95 transition-transform">
-                    <FileSpreadsheet size={14} strokeWidth={2.4} className="text-teal" />
-                    Como Excel
+                )}
+                <button
+                  onClick={() => { window.location.href = `/api/reports/${report.id}/xlsx?t=${Date.now()}`; }}
+                  className={secundario}
+                >
+                  <FileSpreadsheet size={19} strokeWidth={2.3} className="text-teal" />
+                  Excel
+                </button>
+                <div className="relative">
+                  <button onClick={() => setShareMenuOpen((v) => !v)} disabled={sharing} className={secundario}>
+                    <Share2 size={19} strokeWidth={2.3} className="text-teal" />
+                    {sharing ? 'Preparando…' : 'Compartir'}
                   </button>
+                  {shareMenuOpen && (
+                    <div className="absolute right-0 top-full mt-2 glass-strong rounded-2xl p-1.5 flex flex-col gap-1 z-10 min-w-[160px] shadow-glow">
+                      <button onClick={() => handleShare('pdf')} className="flex items-center gap-2 text-left text-[13px] font-medium px-3 py-2.5 rounded-xl hover:bg-white/10 active:scale-95 transition-transform">
+                        <FileText size={15} strokeWidth={2.4} className="text-teal" />
+                        Como PDF
+                      </button>
+                      <button onClick={() => handleShare('xlsx')} className="flex items-center gap-2 text-left text-[13px] font-medium px-3 py-2.5 rounded-xl hover:bg-white/10 active:scale-95 transition-transform">
+                        <FileSpreadsheet size={15} strokeWidth={2.4} className="text-teal" />
+                        Como Excel
+                      </button>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Tres pestañas: lo que se hizo, la evidencia y la gestión
