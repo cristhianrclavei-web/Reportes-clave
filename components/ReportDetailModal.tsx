@@ -12,6 +12,7 @@ import { showToast } from '@/components/Toast';
 import FacturacionSection from '@/components/FacturacionSection';
 import RevisionFinalSection, { Revision } from '@/components/RevisionFinalSection';
 import { hoyLocal } from '@/lib/fechaHoy';
+import { ResumenFormatos } from './FormatoMantenimiento';
 
 export type ReportDetail = {
   id: string;
@@ -544,6 +545,12 @@ export default function ReportDetailModal({
                 </div>
               </div>
             ))}
+          </Section>
+        )}
+
+        {(report.data?.formatosMtto || []).length > 0 && (
+          <Section title="Formato de mantenimiento preventivo">
+            <ResumenFormatos formatos={report.data.formatosMtto} />
           </Section>
         )}
 

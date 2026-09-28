@@ -22,6 +22,8 @@ import { evaluarVentanaServicio } from '@/lib/ventanaServicio';
 import Logo from '@/components/Logo';
 import { hoyLocal } from '@/lib/fechaHoy';
 import { MARCA, MARCA_MAYUS } from '@/lib/marca';
+import { SelectorFormatos, PasoFormato, pendientesFormatos } from '@/components/FormatoMantenimiento';
+import { FormatoLlenado } from '@/lib/formatosMantenimiento';
 
 // Hora "HH:mm" del reloj del dispositivo — igual al formato que ya entrega
 // el <input type="time">, así que sirve tal cual como valor de respaldo.
@@ -38,7 +40,12 @@ const inputCls =
   'w-full px-3.5 py-2.5 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal-glow text-[15px] transition-colors placeholder:text-faint';
 const labelCls = 'block text-[11px] font-semibold uppercase tracking-wider text-muted mb-1.5';
 const cardCls = 'glass rounded-2xl p-4';
-const PASOS = ['Datos', 'Trabajo', 'Evidencia', 'Firmas'];
+// El paso «Formato» solo aparece cuando un mantenimiento preventivo lleva
+// formato de mantenimiento.
+type PasoKey = 'datos' | 'trabajo' | 'formato' | 'evidencia' | 'firmas';
+const ETIQUETA_PASO: Record<PasoKey, string> = {
+  datos: 'Datos', trabajo: 'Trabajo', formato: 'Formato', evidencia: 'Evidencia', firmas: 'Firmas',
+};
 
 // Secciones que muchos servicios no llevan (tubería, cable, montaje): un
 // renglón compacto que se abre al tocarlo. Si ya tiene algo capturado se
@@ -244,10 +251,19 @@ export default function NuevoReportePage() {
   const [servicioConcluido, setServicioConcluido] = useState<'si' | 'no' | null>(null);
   // Formulario por pasos. Todo sigue en un solo componente (el estado no se
   // pierde al ir y venir); solo se muestra un paso a la vez. Las firmas se
-  // montan la primera vez que se llega al paso 4 y después solo se ocultan:
+  // montan la primera vez que se llega a ese paso y después solo se ocultan:
   // el lienzo toma su tamaño al montarse y oculto mediría 0.
   const [paso, setPaso] = useState(1);
   const [firmasMontadas, setFirmasMontadas] = useState(false);
+  // Formato de mantenimiento preventivo (se anexa al PDF).
+  const [usaFormato, setUsaFormato] = useState(false);
+  const [formatos, setFormatos] = useState<FormatoLlenado[]>([]);
+  const esPreventivo = tipoServicio === 'Mantenimiento' && subTipo === 'Preventivo';
+  const conFormato = esPreventivo && usaFormato && formatos.length > 0;
+  const PASOS: PasoKey[] = conFormato
+    ? ['datos', 'trabajo', 'formato', 'evidencia', 'firmas']
+    : ['datos', 'trabajo', 'evidencia', 'firmas'];
+  const pasoKey = PASOS[Math.min(paso, PASOS.length) - 1];
   const [avisoPaso, setAvisoPaso] = useState<string | null>(null);
   const sigIngRef = useRef<SignaturePadHandle>(null);
   const sigClienteRef = useRef<SignaturePadHandle>(null);
@@ -497,6 +513,7 @@ export default function NuevoReportePage() {
     setListaConceptos(''); setContactoUsuario(''); setPuestoArea(''); setTipoServicio(null);
     setVehiculo(''); setPlacas(''); setManejadoPor('');
     setSubTipo(null); setTipoServicioOtroTexto('');
+    setUsaFormato(false); setFormatos([]);
     setSeguridad([]); setSeguridadOtraTexto(''); setObservaciones(''); setActividades(['']); setShowCaso(false);
     setCasoPuntos([{ ...EMPTY_PUNTO }]);
     setTuberia({
@@ -547,6 +564,7 @@ export default function NuevoReportePage() {
         .filter((p) => p.definicion || p.descripcion || p.analisis || p.plan || p.resultados || p.pasosFuturos),
       equipos: equipos.filter((e) => e.cant || e.desc || e.modelo || e.marca || e.serie),
       servicioProgramadoId: servicioSeleccionadoId || null,
+      formatosMtto: conFormato ? formatos : [],
     };
   }
 
@@ -568,7 +586,7 @@ export default function NuevoReportePage() {
 
   function irAPaso(n: number) {
     setAvisoPaso(null);
-    if (n === 4) setFirmasMontadas(true);
+    if (PASOS[n - 1] === 'firmas') setFirmasMontadas(true);
     setPaso(n);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -576,12 +594,25 @@ export default function NuevoReportePage() {
   function siguientePaso() {
     // Lo obligatorio está todo en el paso 1: se avisa ahí mismo en vez de
     // descubrirlo al final.
-    if (paso === 1 && faltantes.length > 0) {
+    if (pasoKey === 'datos' && faltantes.length > 0) {
       setAvisoPaso('Falta por llenar: ' + faltantes.join(', '));
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
-    irAPaso(Math.min(4, paso + 1));
+    if (pasoKey === 'trabajo' && esPreventivo && usaFormato && formatos.length === 0) {
+      setAvisoPaso('Elige un formato de mantenimiento o marca «No, solo el reporte».');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    if (pasoKey === 'formato') {
+      const falta = pendientesFormatos(formatos);
+      if (falta) {
+        setAvisoPaso(falta);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+    }
+    irAPaso(Math.min(PASOS.length, paso + 1));
   }
 
   async function handleSave() {
@@ -800,8 +831,9 @@ export default function NuevoReportePage() {
 
         {/* Pasos del reporte */}
         <div className="flex gap-1.5" role="tablist" aria-label="Pasos del reporte">
-          {PASOS.map((nombre, i) => {
+          {PASOS.map((key, i) => {
             const n = i + 1;
+            const nombre = ETIQUETA_PASO[key];
             const activo = paso === n;
             const hecho = paso > n;
             return (
@@ -829,7 +861,7 @@ export default function NuevoReportePage() {
           </div>
         )}
 
-        <div className={paso === 1 ? 'flex flex-col gap-4' : 'hidden'}>
+        <div className={pasoKey === 'datos' ? 'flex flex-col gap-4' : 'hidden'}>
         {/* Datos del servicio — va primero: elegir el servicio asignado
             autocompleta cliente y personal del resto del formulario */}
         <div className={cardCls}>
@@ -1046,7 +1078,7 @@ export default function NuevoReportePage() {
 
         </div>
 
-        <div className={paso === 2 ? 'flex flex-col gap-4' : 'hidden'}>
+        <div className={pasoKey === 'trabajo' ? 'flex flex-col gap-4' : 'hidden'}>
         {/* Tipo de servicio */}
         <div className={cardCls}>
           <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Tipo de servicio</p>
@@ -1081,6 +1113,17 @@ export default function NuevoReportePage() {
             </div>
           )}
         </div>
+
+        {esPreventivo && (
+          <SelectorFormatos
+            usaFormato={usaFormato}
+            setUsaFormato={setUsaFormato}
+            formatos={formatos}
+            setFormatos={setFormatos}
+            sistemas={seguridad}
+            onAgregarSistema={(s) => setSeguridad((prev) => (prev.includes(s) ? prev : [...prev, s]))}
+          />
+        )}
 
         {/* Tubería */}
         <Plegable titulo="Tubería" cuenta={Object.values(tuberia).filter((t) => t.active).length}>
@@ -1230,7 +1273,13 @@ export default function NuevoReportePage() {
 
         </div>
 
-        <div className={paso === 3 ? 'flex flex-col gap-4' : 'hidden'}>
+        {conFormato && (
+          <div className={pasoKey === 'formato' ? 'flex flex-col gap-4' : 'hidden'}>
+            <PasoFormato formatos={formatos} setFormatos={setFormatos} />
+          </div>
+        )}
+
+        <div className={pasoKey === 'evidencia' ? 'flex flex-col gap-4' : 'hidden'}>
         {/* Fotos de evidencia */}
         <div className={cardCls}>
           <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Fotos de evidencia</p>
@@ -1345,7 +1394,7 @@ export default function NuevoReportePage() {
         </div>
 
         {firmasMontadas && (
-        <div className={paso === 4 ? 'flex flex-col gap-4' : 'hidden'}>
+        <div className={pasoKey === 'firmas' ? 'flex flex-col gap-4' : 'hidden'}>
         {/* Firmas */}
         <div className={cardCls}>
           <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Firmas</p>
@@ -1415,13 +1464,13 @@ export default function NuevoReportePage() {
               Atrás
             </button>
           )}
-          {paso < 4 ? (
+          {paso < PASOS.length ? (
             <button
               type="button"
               onClick={siguientePaso}
               className="flex-1 min-h-[50px] rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15px] tracking-wide shadow-glow-teal active:scale-95 transition-transform"
             >
-              Siguiente: {PASOS[paso]}
+              Siguiente: {ETIQUETA_PASO[PASOS[paso]]}
             </button>
           ) : (
             <button

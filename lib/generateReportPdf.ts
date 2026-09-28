@@ -1,4 +1,4 @@
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, rgb } from 'pdf-lib';
 import { comprimirFoto } from './pdfFotos';
 import {
   NAVY, TEAL_DARK, GRAY_LINE, GRAY_TEXT, WHITE, VERDE, ROJO,
@@ -6,6 +6,7 @@ import {
   embedBrandFonts, drawBadge, drawIconStrip, drawWatermark,
 } from './pdfBranding';
 import { MARCA, MARCA_MAYUS } from './marca';
+import { FormatoLlenado, ETIQUETA_FRECUENCIA, ETIQUETA_RESULTADO, resumenFormato } from './formatosMantenimiento';
 
 type ReportRow = {
   id: string;
@@ -513,6 +514,176 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
   page.drawText(`Generado el ${new Date().toLocaleString('es-MX')} · ${MARCA.nombre} · Folio ${report.id.slice(0, 8).toUpperCase()}`, {
     x: MARGIN, y: MARGIN / 2, size: 6.5, font, color: GRAY_TEXT,
   });
+
+  // ================= ANEXO: FORMATOS DE MANTENIMIENTO =================
+  // Cada formato empieza en hoja nueva, después del reporte y sus firmas.
+  const formatosMtto: FormatoLlenado[] = Array.isArray(data.formatosMtto) ? data.formatosMtto : [];
+  const folio = report.id.slice(0, 8).toUpperCase();
+  for (const f of formatosMtto) {
+    await drawAnexo(f);
+  }
+
+  async function drawAnexo(f: FormatoLlenado) {
+    const BOTTOM = MARGIN + 24;
+    let hoja = 1;
+    function pie() {
+      page.drawText(`Anexo al reporte de servicio · Folio ${folio} · ${f.titulo} · Hoja ${hoja}`, {
+        x: MARGIN, y: MARGIN / 2, size: 6.5, font, color: GRAY_TEXT,
+      });
+    }
+    function hojaNueva() {
+      pie();
+      hoja++;
+      newPage();
+    }
+    function espacio(needed: number): boolean {
+      if (y - needed < BOTTOM) {
+        hojaNueva();
+        return true;
+      }
+      return false;
+    }
+
+    newPage();
+    // Encabezado del anexo
+    const top = y;
+    drawBadge(page, display, MARGIN, top, 34);
+    page.drawText(MARCA_MAYUS, { x: MARGIN + 44, y: top - 13, size: 12, font: display, color: NAVY });
+    page.drawText('FORMATO DE MANTENIMIENTO PREVENTIVO', { x: PAGE_W - MARGIN - 250, y: top - 10, size: 12.5, font: display, color: NAVY });
+    page.drawText(`Anexo al reporte · Folio ${folio}`, { x: PAGE_W - MARGIN - 250, y: top - 23, size: 7.5, font, color: GRAY_TEXT });
+    y = top - 48;
+    page.drawText(f.titulo, { x: MARGIN, y, size: 15, font: display, color: NAVY, maxWidth: contentW });
+    y -= 14;
+    page.drawText(`${report.empresa_cliente || '—'}  ·  Servicio del ${report.fecha || '—'}  ·  Visita ${ETIQUETA_FRECUENCIA[f.visita] || f.visita}`, {
+      x: MARGIN, y, size: 8.5, font, color: GRAY_TEXT, maxWidth: contentW,
+    });
+    y -= 10;
+    page.drawLine({ start: { x: MARGIN, y }, end: { x: PAGE_W - MARGIN, y }, thickness: 1.5, color: NAVY });
+    y -= 12;
+
+    // Normas de referencia + resumen
+    const r = resumenFormato(f);
+    const normasLines = f.normas.flatMap((n) => wrapText(`${n.clave}: ${n.nombre}`, font, 8, contentW * 0.62 - 16));
+    const nH = 18 + normasLines.length * 11 + 8;
+    const resH = 18 + 4 * 12 + 8;
+    const boxH = Math.max(nH, resH);
+    const nW = contentW * 0.62;
+    const rX = MARGIN + nW + 10;
+    const rW = contentW - nW - 10;
+    boxBorder(MARGIN, y, nW, boxH);
+    boxTitle(MARGIN, nW, y, 18, 'Normas de referencia');
+    let ny = y - 18 - 11;
+    normasLines.forEach((l) => {
+      page.drawText(l, { x: MARGIN + 8, y: ny, size: 8, font, color: NAVY });
+      ny -= 11;
+    });
+    boxBorder(rX, y, rW, boxH);
+    boxTitle(rX, rW, y, 18, 'Resultado');
+    const filasRes: [string, number, typeof VERDE][] = [
+      ['Cumple', r.cumple, VERDE],
+      ['No cumple', r.noCumple, ROJO],
+      ['No aplica', r.na, GRAY_TEXT],
+      ['Puntos revisados', r.total, NAVY],
+    ];
+    let ry2 = y - 18 - 12;
+    filasRes.forEach(([label, n, color]) => {
+      page.drawText(label, { x: rX + 8, y: ry2, size: 8.5, font, color: NAVY });
+      page.drawText(String(n), { x: rX + rW - 8 - bold.widthOfTextAtSize(String(n), 9), y: ry2, size: 9, font: bold, color: n === 0 ? GRAY_TEXT : color });
+      ry2 -= 12;
+    });
+    y -= boxH + 16;
+
+    if (f.areas) {
+      const aL = wrapText(`Áreas revisadas: ${f.areas}`, font, 8.5, contentW);
+      aL.forEach((l) => {
+        page.drawText(l, { x: MARGIN, y, size: 8.5, font, color: NAVY });
+        y -= 12;
+      });
+      y -= 4;
+    }
+
+    // Lista de cotejo
+    const cols = [
+      { label: '#', w: 0.05 },
+      { label: 'COMPONENTE / ACTIVIDAD / CRITERIO', w: 0.6 },
+      { label: 'FREC.', w: 0.1 },
+      { label: 'MEDICIÓN', w: 0.12 },
+      { label: 'RESULTADO', w: 0.13 },
+    ];
+    function encabezadoTabla() {
+      const h = 16;
+      page.drawRectangle({ x: MARGIN, y: y - h, width: contentW, height: h, color: NAVY });
+      let cx = MARGIN;
+      cols.forEach((c) => {
+        page.drawText(c.label, { x: cx + 5, y: y - 11, size: 6.8, font: bold, color: WHITE });
+        cx += contentW * c.w;
+      });
+      y -= h;
+    }
+    espacio(40);
+    encabezadoTabla();
+    const textW = contentW * cols[1].w - 10;
+    f.puntos.forEach((p, i) => {
+      const compL = wrapText(p.componente.toUpperCase(), bold, 7, textW);
+      const actL = wrapText(p.actividad, font, 8, textW);
+      const critL = wrapText(`Criterio: ${p.criterio}${p.ref ? ` (${p.ref})` : ''}`, font, 7, textW);
+      const notaL = p.resultado === 'no_cumple' && p.nota ? wrapText(`Hallazgo: ${p.nota}`, bold, 7.5, textW) : [];
+      const valL = wrapText(p.valor || '—', font, 8, contentW * cols[3].w - 10);
+      const h = 6 + compL.length * 9 + actL.length * 10 + critL.length * 9 + notaL.length * 10 + 5;
+      if (espacio(h)) encabezadoTabla();
+      const rowTop = y;
+      if (i % 2 === 1) page.drawRectangle({ x: MARGIN, y: rowTop - h, width: contentW, height: h, color: rgb(0.96, 0.97, 0.97) });
+      let tx = MARGIN;
+      page.drawText(String(i + 1), { x: tx + 5, y: rowTop - 13, size: 8, font: bold, color: NAVY });
+      tx += contentW * cols[0].w;
+      let ty = rowTop - 12;
+      compL.forEach((l) => { page.drawText(l, { x: tx + 5, y: ty, size: 7, font: bold, color: TEAL_DARK }); ty -= 9; });
+      ty -= 1;
+      actL.forEach((l) => { page.drawText(l, { x: tx + 5, y: ty, size: 8, font, color: NAVY }); ty -= 10; });
+      critL.forEach((l) => { page.drawText(l, { x: tx + 5, y: ty, size: 7, font, color: GRAY_TEXT }); ty -= 9; });
+      notaL.forEach((l) => { page.drawText(l, { x: tx + 5, y: ty - 1, size: 7.5, font: bold, color: ROJO }); ty -= 10; });
+      tx += contentW * cols[1].w;
+      page.drawText(ETIQUETA_FRECUENCIA[p.frecuencia] || p.frecuencia, { x: tx + 5, y: rowTop - 13, size: 7.5, font, color: NAVY });
+      tx += contentW * cols[2].w;
+      let vy = rowTop - 13;
+      valL.forEach((l) => { page.drawText(l, { x: tx + 5, y: vy, size: 8, font, color: NAVY }); vy -= 10; });
+      tx += contentW * cols[3].w;
+      const res = p.resultado ? ETIQUETA_RESULTADO[p.resultado] : 'Sin marcar';
+      const color = p.resultado === 'cumple' ? VERDE : p.resultado === 'no_cumple' ? ROJO : GRAY_TEXT;
+      const bw = bold.widthOfTextAtSize(res, 7.5) + 10;
+      page.drawRectangle({ x: tx + 4, y: rowTop - 17, width: bw, height: 13, color, opacity: p.resultado ? 1 : 0.15 });
+      page.drawText(res, { x: tx + 9, y: rowTop - 13, size: 7.5, font: bold, color: p.resultado ? WHITE : GRAY_TEXT });
+      page.drawLine({ start: { x: MARGIN, y: rowTop - h }, end: { x: MARGIN + contentW, y: rowTop - h }, thickness: 0.4, color: GRAY_LINE });
+      y = rowTop - h;
+    });
+    y -= 12;
+
+    // Recomendaciones
+    if (f.recomendaciones) {
+      const recL = wrapText(f.recomendaciones, font, 9, contentW - 16);
+      const h = 18 + recL.length * 13 + 8;
+      espacio(h + 6);
+      boxBorder(MARGIN, y, contentW, h);
+      boxTitle(MARGIN, contentW, y, 18, 'Acciones correctivas recomendadas');
+      let ry = y - 18 - 11;
+      recL.forEach((l) => { page.drawText(l, { x: MARGIN + 8, y: ry, size: 9, font, color: NAVY }); ry -= 13; });
+      y -= h + 10;
+    }
+
+    // Nota de alcance y firmas
+    const notaL = wrapText(
+      `${f.nota} Este formato registra la inspección y pruebas realizadas en la fecha indicada; no constituye un dictamen ni una certificación de cumplimiento normativo.`,
+      font, 7, contentW,
+    );
+    const firmasH = 14 + 10 + 60 + 8;
+    espacio(notaL.length * 9 + 8 + firmasH);
+    notaL.forEach((l) => { page.drawText(l, { x: MARGIN, y, size: 7, font, color: GRAY_TEXT }); y -= 9; });
+    y -= 14;
+    await drawSignature(MARGIN, 'Técnico responsable', data.firmaIngNombre, data.firmaIngData);
+    await drawSignature(MARGIN + sigW + 16, 'Cliente / responsable del sitio', `${data.firmaClienteNombre || '—'}${data.firmaClienteFecha ? ' · ' + data.firmaClienteFecha : ''}`, data.firmaClienteData);
+    y -= 18 + 60;
+    pie();
+  }
 
   return pdfDoc.save();
 }

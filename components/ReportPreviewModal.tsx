@@ -1,5 +1,6 @@
 'use client';
 import { X } from 'lucide-react';
+import { ResumenFormatos } from './FormatoMantenimiento';
 
 function Detail({ label, value }: { label: string; value?: string | null }) {
   if (!value) return null;
@@ -83,6 +84,13 @@ export default function ReportPreviewModal({ preview, onClose }: { preview: Prev
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {(data.formatosMtto || []).length > 0 && (
+          <div className="mt-4">
+            <div className="text-[11px] uppercase tracking-wider font-bold text-teal mb-2">Formato de mantenimiento preventivo</div>
+            <ResumenFormatos formatos={data.formatosMtto} />
           </div>
         )}
 
