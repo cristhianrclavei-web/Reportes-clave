@@ -6,6 +6,8 @@ import {
   embedBrandFonts, drawBadge, drawIconStrip, drawWatermark,
 } from './pdfBranding';
 import { MARCA, MARCA_MAYUS } from './marca';
+import QRCode from 'qrcode';
+import { urlVerificacion } from './etiquetaMantenimiento';
 import { FormatoLlenado, ETIQUETA_FRECUENCIA, ETIQUETA_RESULTADO, resumenFormato } from './formatosMantenimiento';
 
 type ReportRow = {
@@ -519,6 +521,15 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
   // Cada formato empieza en hoja nueva, después del reporte y sus firmas.
   const formatosMtto: FormatoLlenado[] = Array.isArray(data.formatosMtto) ? data.formatosMtto : [];
   const folio = report.id.slice(0, 8).toUpperCase();
+  let qrImg: Awaited<ReturnType<typeof pdfDoc.embedPng>> | null = null;
+  if (formatosMtto.length > 0 && typeof data.tokenVerificacion === 'string') {
+    try {
+      const url = await QRCode.toDataURL(urlVerificacion(data.tokenVerificacion), { margin: 0, width: 240, errorCorrectionLevel: 'M' });
+      qrImg = await pdfDoc.embedPng(url);
+    } catch {
+      // sin QR si falla; el anexo sigue igual
+    }
+  }
   for (const f of formatosMtto) {
     await drawAnexo(f);
   }
@@ -545,12 +556,19 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
     }
 
     newPage();
-    // Encabezado del anexo
+    // Encabezado del anexo. Con token, QR a la página de verificación (el
+    // mismo de la etiqueta) en la esquina.
     const top = y;
     drawBadge(page, display, MARGIN, top, 34);
     page.drawText(MARCA_MAYUS, { x: MARGIN + 44, y: top - 13, size: 12, font: display, color: NAVY });
-    page.drawText('FORMATO DE MANTENIMIENTO PREVENTIVO', { x: PAGE_W - MARGIN - 250, y: top - 10, size: 12.5, font: display, color: NAVY });
-    page.drawText(`Anexo al reporte · Folio ${folio}`, { x: PAGE_W - MARGIN - 250, y: top - 23, size: 7.5, font, color: GRAY_TEXT });
+    const qrW = qrImg ? 40 : 0;
+    const tituloX = PAGE_W - MARGIN - 250 - (qrImg ? qrW + 8 : 0);
+    page.drawText('FORMATO DE MANTENIMIENTO PREVENTIVO', { x: tituloX, y: top - 10, size: 12.5, font: display, color: NAVY });
+    page.drawText(`Anexo al reporte · Folio ${folio}`, { x: tituloX, y: top - 23, size: 7.5, font, color: GRAY_TEXT });
+    if (qrImg) {
+      page.drawImage(qrImg, { x: PAGE_W - MARGIN - qrW, y: top - qrW + 4, width: qrW, height: qrW });
+      page.drawText('Verificar', { x: PAGE_W - MARGIN - qrW + 6, y: top - qrW - 4, size: 6, font, color: GRAY_TEXT });
+    }
     y = top - 48;
     page.drawText(f.titulo, { x: MARGIN, y, size: 15, font: display, color: NAVY, maxWidth: contentW });
     y -= 14;

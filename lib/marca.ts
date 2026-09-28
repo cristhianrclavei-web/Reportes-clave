@@ -24,6 +24,10 @@ export const MARCA = {
   claveFormato: valor(process.env.NEXT_PUBLIC_MARCA_CLAVE_FORMATO, 'CRM0851'),
   // Quien firma la revisión final de los reportes.
   revisor: valor(process.env.NEXT_PUBLIC_MARCA_REVISOR, 'Ing. Everardo Sánchez'),
+  // Dirección pública de la app: va dentro del QR de las etiquetas de
+  // mantenimiento, así que debe seguir funcionando mientras las etiquetas
+  // estén pegadas (si se cambia de dominio, el anterior debe redirigir).
+  appUrl: valor(process.env.NEXT_PUBLIC_MARCA_APP_URL, 'https://reportes-clave.vercel.app'),
 };
 
 export const MARCA_MAYUS = MARCA.nombre.toUpperCase();

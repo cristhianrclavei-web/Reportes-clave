@@ -15,7 +15,7 @@ import { showToast } from '@/components/Toast';
 import SavingOverlay from '@/components/SavingOverlay';
 import ReportPreviewModal, { PreviewData } from '@/components/ReportPreviewModal';
 import { listarMisServicios, vincularReporteAServicio, Servicio, filtrarSiguienteDiaPorGrupo, listarTecnicosDeServicio, listarFotosDelDia, FotoDelDia } from '@/lib/serviciosProgramados';
-import { X, Camera, Images, Plus, AlertTriangle, Eye, ChevronDown } from 'lucide-react';
+import { X, Camera, Images, Plus, AlertTriangle, Eye, ChevronDown, Tag } from 'lucide-react';
 import { generarUUID } from '@/lib/uuid';
 import { notificar } from '@/lib/push';
 import { evaluarVentanaServicio } from '@/lib/ventanaServicio';
@@ -24,6 +24,7 @@ import { hoyLocal } from '@/lib/fechaHoy';
 import { MARCA, MARCA_MAYUS } from '@/lib/marca';
 import { SelectorFormatos, PasoFormato, pendientesFormatos } from '@/components/FormatoMantenimiento';
 import { FormatoLlenado } from '@/lib/formatosMantenimiento';
+import EtiquetasMantenimiento from '@/components/EtiquetasMantenimiento';
 
 // Hora "HH:mm" del reloj del dispositivo — igual al formato que ya entrega
 // el <input type="time">, así que sirve tal cual como valor de respaldo.
@@ -260,6 +261,15 @@ export default function NuevoReportePage() {
   const [formatos, setFormatos] = useState<FormatoLlenado[]>([]);
   const esPreventivo = tipoServicio === 'Mantenimiento' && subTipo === 'Preventivo';
   const conFormato = esPreventivo && usaFormato && formatos.length > 0;
+  // Token del QR de la etiqueta. Se crea en el teléfono (no en la base) para
+  // que la etiqueta se pueda imprimir aunque no haya señal; el QR funciona
+  // en cuanto el reporte se sube.
+  const tokenRef = useRef<string | null>(null);
+  function tokenVerificacion(): string {
+    if (!tokenRef.current) tokenRef.current = generarUUID();
+    return tokenRef.current;
+  }
+  const [showEtiquetas, setShowEtiquetas] = useState(false);
   const PASOS: PasoKey[] = conFormato
     ? ['datos', 'trabajo', 'formato', 'evidencia', 'firmas']
     : ['datos', 'trabajo', 'evidencia', 'firmas'];
@@ -513,7 +523,7 @@ export default function NuevoReportePage() {
     setListaConceptos(''); setContactoUsuario(''); setPuestoArea(''); setTipoServicio(null);
     setVehiculo(''); setPlacas(''); setManejadoPor('');
     setSubTipo(null); setTipoServicioOtroTexto('');
-    setUsaFormato(false); setFormatos([]);
+    setUsaFormato(false); setFormatos([]); tokenRef.current = null;
     setSeguridad([]); setSeguridadOtraTexto(''); setObservaciones(''); setActividades(['']); setShowCaso(false);
     setCasoPuntos([{ ...EMPTY_PUNTO }]);
     setTuberia({
@@ -565,6 +575,7 @@ export default function NuevoReportePage() {
       equipos: equipos.filter((e) => e.cant || e.desc || e.modelo || e.marca || e.serie),
       servicioProgramadoId: servicioSeleccionadoId || null,
       formatosMtto: conFormato ? formatos : [],
+      ...(conFormato ? { tokenVerificacion: tokenVerificacion() } : {}),
     };
   }
 
@@ -1420,6 +1431,24 @@ export default function NuevoReportePage() {
           </div>
         )}
 
+        {conFormato && (
+          <button
+            type="button"
+            onClick={() => {
+              const falta = pendientesFormatos(formatos);
+              if (falta) {
+                setMsg(falta);
+                return;
+              }
+              setShowEtiquetas(true);
+            }}
+            className="w-full min-h-[52px] rounded-2xl border border-teal/50 text-teal font-display font-semibold text-[15px] tracking-wide flex items-center justify-center gap-2 active:scale-95 transition-transform mb-3"
+          >
+            <Tag size={17} strokeWidth={2.3} />
+            Etiqueta{formatos.length > 1 ? 's' : ''} de mantenimiento
+          </button>
+        )}
+
         <button
           onClick={() => setShowPreview(true)}
           className="w-full min-h-[52px] rounded-2xl border border-teal/50 text-teal font-display font-semibold text-[15px] tracking-wide flex items-center justify-center gap-2 active:scale-95 transition-transform mb-3"
@@ -1446,6 +1475,17 @@ export default function NuevoReportePage() {
         </div>
         )}
       </div>
+
+      {showEtiquetas && (
+        <EtiquetasMantenimiento
+          formatos={formatos}
+          token={tokenVerificacion()}
+          cliente={empresaCliente}
+          fecha={fecha}
+          tecnico={ingACargo || firmaIngNombre}
+          onClose={() => setShowEtiquetas(false)}
+        />
+      )}
 
       {showPreview && <ReportPreviewModal preview={getPreviewData()} onClose={() => setShowPreview(false)} />}
 

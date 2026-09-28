@@ -20,6 +20,7 @@
     "motion": "^13.4.4",
     "next": "16.3.5",
     "pdf-lib": "^1.17.1",
+    "qrcode": "^1.5.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "sharp": "^0.35.4",
@@ -27,6 +28,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.14.10",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@types/web-push": "^3.6.4",

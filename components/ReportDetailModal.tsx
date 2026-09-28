@@ -6,13 +6,14 @@ import { createClient } from '@/lib/supabaseClient';
 import { vincularReporteAServicio, Servicio, listarServiciosVinculables } from '@/lib/serviciosProgramados';
 import { eliminarReporte } from '@/lib/eliminarReporte';
 import { registrarAccionGlobal } from '@/lib/auditoriaGlobal';
-import { Check, X, CircleX, FileText, FileSpreadsheet, Share2, Trash2, Unlock, LockKeyhole, MessageSquareWarning, Camera, FolderKanban, ClipboardCheck } from 'lucide-react';
+import { Check, X, CircleX, FileText, FileSpreadsheet, Share2, Trash2, Unlock, LockKeyhole, MessageSquareWarning, Camera, FolderKanban, ClipboardCheck, Tag } from 'lucide-react';
 import { solicitarCorreccion, habilitarCorreccion, cancelarCorreccion, aplicarCorreccion } from '@/lib/correcciones';
 import { showToast } from '@/components/Toast';
 import FacturacionSection from '@/components/FacturacionSection';
 import RevisionFinalSection, { Revision } from '@/components/RevisionFinalSection';
 import { hoyLocal } from '@/lib/fechaHoy';
 import { ResumenFormatos } from './FormatoMantenimiento';
+import EtiquetasMantenimiento from './EtiquetasMantenimiento';
 
 export type ReportDetail = {
   id: string;
@@ -59,6 +60,7 @@ export default function ReportDetailModal({
   esSupervisor?: boolean;
 }) {
   const [eliminando, setEliminando] = useState(false);
+  const [showEtiquetas, setShowEtiquetas] = useState(false);
   const [pestana, setPestana] = useState<'reporte' | 'fotos' | 'gestion'>('reporte');
   const [fotoUrls, setFotoUrls] = useState<{ url: string; caption: string }[] | null>(null);
   const [loadingFotos, setLoadingFotos] = useState(false);
@@ -383,6 +385,19 @@ export default function ReportDetailModal({
   return (
     <div onClick={onClose} className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex justify-center items-start overflow-y-auto p-4">
       <div onClick={(e) => e.stopPropagation()} className="relative glass-strong rounded-3xl max-w-xl lg:max-w-2xl w-full p-6 lg:p-8 mt-4 mb-8 shadow-glow">
+        {/* Dentro del contenido: los clics del modal de etiquetas (portal)
+            suben por aquí y el stopPropagation evita que cierren el detalle. */}
+        {showEtiquetas && (
+          <EtiquetasMantenimiento
+            formatos={report.data.formatosMtto}
+            token={report.data.tokenVerificacion}
+            cliente={report.empresa_cliente}
+            fecha={report.fecha}
+            tecnico={report.data?.ingACargo || report.data?.firmaIngNombre || ''}
+            folio={report.id.slice(0, 8).toUpperCase()}
+            onClose={() => setShowEtiquetas(false)}
+          />
+        )}
         <button
           onClick={onClose}
           aria-label="Cerrar"
@@ -447,6 +462,15 @@ export default function ReportDetailModal({
               <FileText size={15} strokeWidth={2.4} />
               Ver PDF
             </button>
+            {(report.data?.formatosMtto || []).length > 0 && report.data?.tokenVerificacion && (
+              <button
+                onClick={() => setShowEtiquetas(true)}
+                className="min-h-[38px] flex items-center gap-1.5 text-[12.5px] border border-teal/50 text-teal rounded-full px-3.5 py-2 font-semibold active:scale-95 transition-transform"
+              >
+                <Tag size={15} strokeWidth={2.4} />
+                Etiqueta
+              </button>
+            )}
             <button
               onClick={() => { window.location.href = `/api/reports/${report.id}/xlsx?t=${Date.now()}`; }}
               className="min-h-[38px] flex items-center gap-1.5 text-[12.5px] bg-teal-dark text-white rounded-full px-3.5 py-2 font-semibold active:scale-95 transition-transform"
