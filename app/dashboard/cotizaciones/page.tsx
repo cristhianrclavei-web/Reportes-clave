@@ -12,6 +12,9 @@ export default async function CotizacionesPage() {
 
   const { data: role } = await supabase.rpc('get_my_role');
   if (role !== 'supervisor') redirect('/nuevo');
+  // Sección fuera del plan de la empresa (lib/planes.ts).
+  const { data: moduloActivo } = await supabase.rpc('modulo_activo', { p_modulo: 'cotizaciones' });
+  if (moduloActivo === false) redirect('/dashboard');
 
   const { data: myProfile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single();
 

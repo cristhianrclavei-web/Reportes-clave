@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import ModalOverlay from './ModalOverlay';
 import { seccionesVisibles } from './DashboardTabs';
 import { usePuedeFacturar } from '@/lib/usePuedeFacturar';
+import { usePlan } from '@/lib/planes';
 import { navegarConTransicion } from '@/lib/nativeViewTransition';
 import { Search } from 'lucide-react';
 
@@ -21,7 +22,8 @@ export default function CommandPalette({ puedeAlmacen }: { puedeAlmacen?: boolea
   const router = useRouter();
 
   const puedeFacturar = usePuedeFacturar();
-  const items = seccionesVisibles(!!puedeAlmacen, puedeFacturar);
+  const plan = usePlan();
+  const items = seccionesVisibles(!!puedeAlmacen, puedeFacturar, plan.modulos);
   const filtrados = items.filter((it) => coincideBusqueda(it.label, query));
 
   useEffect(() => {

@@ -26,13 +26,16 @@ export type DashboardTabKey = (typeof TABS)[number]['key'] | 'almacen' | 'factur
 type Tab = (typeof TABS)[number] | typeof TAB_ALMACEN | typeof TAB_FACTURACION;
 
 // Secciones que ve cada quien, en orden: Facturación va junto a Cotizaciones.
-export function seccionesVisibles(puedeAlmacen: boolean, puedeFacturar: boolean): Tab[] {
+// `modulos` = los del plan de la empresa (lib/planes.ts); sin él, todo.
+export function seccionesVisibles(puedeAlmacen: boolean, puedeFacturar: boolean, modulos?: readonly string[]): Tab[] {
+  const incluye = (m: string) => !modulos || modulos.includes(m);
   const lista: Tab[] = [];
   for (const t of TABS) {
+    if (t.key === 'cotizaciones' && !incluye('cotizaciones')) continue;
     lista.push(t);
-    if (t.key === 'cotizaciones' && puedeFacturar) lista.push(TAB_FACTURACION);
+    if (t.key === 'cotizaciones' && puedeFacturar && incluye('facturacion')) lista.push(TAB_FACTURACION);
   }
-  if (puedeAlmacen) lista.push(TAB_ALMACEN);
+  if (puedeAlmacen && incluye('almacen')) lista.push(TAB_ALMACEN);
   return lista;
 }
 

@@ -11,6 +11,7 @@ import LogoutButton from './LogoutButton';
 import { DashboardTabKey, seccionesVisibles } from './DashboardTabs';
 import { usePuedeAlmacen } from '@/lib/usePuedeAlmacen';
 import { usePuedeFacturar } from '@/lib/usePuedeFacturar';
+import { usePlan } from '@/lib/planes';
 import { useVistaSupervisor } from '@/lib/vistaSupervisor';
 import { coincideBusqueda } from '@/lib/busqueda';
 import { ClienteCatalogo, catalogoEnCache, listarCatalogoClientes } from '@/lib/clientesCatalogo';
@@ -152,7 +153,8 @@ export default function DockNav({ userName }: { userName?: string }) {
   const puedeAlmacen = usePuedeAlmacen();
   const [vista, setVista] = useVistaSupervisor();
   const puedeFacturar = usePuedeFacturar();
-  const secciones = seccionesVisibles(puedeAlmacen, puedeFacturar);
+  const plan = usePlan();
+  const secciones = seccionesVisibles(puedeAlmacen, puedeFacturar, plan.modulos);
 
   // --- Buscador expandible ---
   const [buscando, setBuscando] = useState(false);

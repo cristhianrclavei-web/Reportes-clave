@@ -10,6 +10,7 @@ import { DashboardTabKey, seccionesVisibles } from './DashboardTabs';
 import NavPestanas from './NavPestanas';
 import { usePuedeAlmacen } from '@/lib/usePuedeAlmacen';
 import { usePuedeFacturar } from '@/lib/usePuedeFacturar';
+import { usePlan } from '@/lib/planes';
 import { ChevronLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -51,7 +52,8 @@ export default function SupervisorShell({
 
   const puedeAlmacen = usePuedeAlmacen(mostrarAlmacen);
   const puedeFacturar = usePuedeFacturar();
-  const todas = seccionesVisibles(puedeAlmacen, puedeFacturar);
+  const plan = usePlan();
+  const todas = seccionesVisibles(puedeAlmacen, puedeFacturar, plan.modulos);
 
   return (
     <div className={`${wrapperClassName} pb-10`}>

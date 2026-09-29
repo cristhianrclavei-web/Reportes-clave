@@ -25,6 +25,7 @@ import { hoyLocal } from '@/lib/fechaHoy';
 import { MARCA, MARCA_MAYUS } from '@/lib/marca';
 import { SelectorFormatos, PasoFormato, pendientesFormatos } from '@/components/FormatoMantenimiento';
 import { FormatoLlenado } from '@/lib/formatosMantenimiento';
+import { usePlan, tieneModulo } from '@/lib/planes';
 import EtiquetasMantenimiento from '@/components/EtiquetasMantenimiento';
 
 // Hora "HH:mm" del reloj del dispositivo — igual al formato que ya entrega
@@ -261,7 +262,10 @@ export default function NuevoReportePage() {
   // Formato de mantenimiento preventivo (se anexa al PDF).
   const [usaFormato, setUsaFormato] = useState(false);
   const [formatos, setFormatos] = useState<FormatoLlenado[]>([]);
-  const esPreventivo = tipoServicio === 'Mantenimiento' && subTipo === 'Preventivo';
+  // Los formatos de mantenimiento son parte de los planes Profesional y
+  // Empresa (lib/planes.ts).
+  const plan = usePlan();
+  const esPreventivo = tipoServicio === 'Mantenimiento' && subTipo === 'Preventivo' && tieneModulo(plan, 'formatos');
   const conFormato = esPreventivo && usaFormato && formatos.length > 0;
   // Token del QR de la etiqueta. Se crea en el teléfono (no en la base) para
   // que la etiqueta se pueda imprimir aunque no haya señal; el QR funciona

@@ -13,6 +13,9 @@ export default async function FacturaDetallePage(props: { params: Promise<{ id: 
 
   const { data: role } = await supabase.rpc('get_my_role');
   if (role !== 'supervisor') redirect('/nuevo');
+  // Sección fuera del plan de la empresa (lib/planes.ts).
+  const { data: moduloActivo } = await supabase.rpc('modulo_activo', { p_modulo: 'facturacion' });
+  if (moduloActivo === false) redirect('/dashboard');
   const { data: puede } = await supabase.rpc('puedo_gestionar_facturacion');
   if (!puede) redirect('/dashboard');
 

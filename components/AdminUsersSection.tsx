@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useUsersAdmin } from '@/lib/useProfileMutation';
+import { usePlan, PLANES } from '@/lib/planes';
 import { showToast } from '@/components/Toast';
 import { Edit2, Save, X, ChevronDown, UserMinus, UserCheck, Users } from 'lucide-react';
 
@@ -26,6 +27,7 @@ export default function AdminUsersSection({ initialUsers = [] }: { initialUsers?
   const [abiertoId, setAbiertoId] = useState<string | null>(null);
 
   const { updateUserName, setUsuarioActivo, setUsuarioPermiso, loading: guardando } = useUsersAdmin();
+  const plan = usePlan();
 
   const iniciarEdicion = (u: User) => {
     setAbiertoId(u.id);
@@ -99,9 +101,20 @@ export default function AdminUsersSection({ initialUsers = [] }: { initialUsers?
         <Users size={19} strokeWidth={2.4} className="text-teal shrink-0" />
         <h2 className="font-display font-bold text-[19px] tracking-wide">Usuarios</h2>
       </div>
-      <p className="text-[13px] text-muted mb-5">
+      <p className="text-[13px] text-muted mb-3">
         El nombre que se ponga aquí es el que queda en los reportes firmados.
       </p>
+      {/* Plan de la empresa: cuántos usuarios activos permite. Se cuenta
+          aquí (no del plan guardado) para que refleje altas y bajas al momento. */}
+      <div className="mb-5 flex items-center justify-between gap-3 rounded-xl bg-surface-2 border border-line px-3.5 py-2.5 text-[13px]">
+        <span>
+          Plan <b className="text-teal">{PLANES[plan.plan]?.nombre || plan.plan}</b>
+        </span>
+        <span className="text-muted tabular-nums">
+          {usuarios.filter((u) => u.activo !== false).length}
+          {plan.limite_usuarios ? ` de ${plan.limite_usuarios}` : ''} usuarios activos
+        </span>
+      </div>
 
       {usuarios.length === 0 ? (
         <p className="text-[15px] text-muted py-6 text-center">No hay usuarios registrados.</p>
