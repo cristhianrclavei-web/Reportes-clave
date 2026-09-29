@@ -39,13 +39,13 @@ const KEY = 'miPlan';
 export function usePlan(): MiPlan {
   const [plan, setPlan] = useState<MiPlan>(PLAN_COMPLETO);
 
+  // Se muestra al instante el último plan conocido y siempre se vuelve a
+  // consultar: si el plan cambia, se aplica en la siguiente carga sin tener
+  // que cerrar la app.
   useEffect(() => {
     try {
       const guardado = sessionStorage.getItem(KEY);
-      if (guardado) {
-        setPlan(JSON.parse(guardado));
-        return;
-      }
+      if (guardado) setPlan(JSON.parse(guardado));
     } catch {
       // sin almacenamiento: se consulta
     }
