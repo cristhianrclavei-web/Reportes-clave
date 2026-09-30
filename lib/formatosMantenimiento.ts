@@ -991,7 +991,7 @@ const FOTOVOLTAICO: PlantillaFormato = {
 // pruebas). Los puntos «desdeDispositivos» se calculan con esa tabla.
 const PRUEBAS_DETECTORES: PlantillaFormato = {
   id: 'pruebas-detectores',
-  version: 1,
+  version: 2,
   sistema: 'Alarma&Det',
   titulo: 'Pruebas de dispositivos iniciadores de alarma de incendio',
   normas: [
@@ -999,7 +999,7 @@ const PRUEBAS_DETECTORES: PlantillaFormato = {
     { clave: 'NOM-002-STPS-2010', nombre: 'Prevención y protección contra incendios en los centros de trabajo (7.4 programa anual de revisión y pruebas; 7.7 registros)' },
   ],
   nota:
-    'Pruebas funcionales en sitio del 100% de los dispositivos listados, con los métodos y equipos indicados por el fabricante de cada uno (NFPA 72 Tabla 14.4.3.2). Los detectores de humo se prueban con humo o aerosol listado que entre a la cámara; la prueba con imán no sustituye la prueba funcional. Los dispositivos sin probar se registran con su motivo.',
+    'NFPA 72 pide inspección visual semestral y prueba funcional anual del 100% de los dispositivos; el programa del cliente es trimestral (más frecuente, también cumple): en cada visita se prueban los dispositivos programados de modo que cada uno se pruebe al menos una vez en 12 meses. Pruebas funcionales en sitio de los dispositivos listados, con los métodos y equipos indicados por el fabricante de cada uno (NFPA 72 Tabla 14.4.3.2). Los detectores de humo se prueban con humo o aerosol listado que entre a la cámara; la prueba con imán no sustituye la prueba funcional. Los dispositivos sin probar se registran con su motivo.',
   campos: [
     { key: 'panel', label: 'Panel (marca y modelo)', placeholder: 'Ej. Notifier NFS2-3030' },
     { key: 'tipoSistema', label: 'Tipo de sistema', placeholder: 'Direccionable / convencional; número de lazos o zonas' },
@@ -1013,50 +1013,62 @@ const PRUEBAS_DETECTORES: PlantillaFormato = {
   puntos: [
     // Antes de probar
     {
-      id: 'pd-aviso', frecuencia: 'semestral', componente: 'Aviso previo',
+      id: 'pd-aviso', frecuencia: 'trimestral', componente: 'Aviso previo',
       actividad: 'Avisar al responsable del inmueble, a los ocupantes y a la central de monitoreo antes de iniciar las pruebas.',
       criterio: 'Todos avisados y autorización registrada; la central pone la cuenta en prueba.',
       ref: 'NFPA 72 14.2',
     },
     {
-      id: 'pd-estado-inicial', frecuencia: 'semestral', componente: 'Panel de control (estado inicial)',
+      id: 'pd-estado-inicial', frecuencia: 'trimestral', componente: 'Panel de control (estado inicial)',
       actividad: 'Registrar el estado del panel antes de probar y descargar o revisar el historial de eventos.',
       criterio: 'Panel en normal, o fallas preexistentes anotadas antes de iniciar.',
       ref: 'NFPA 72 T.14.3.1',
     },
     {
-      id: 'pd-aislar', frecuencia: 'semestral', componente: 'Funciones de control',
+      id: 'pd-aislar', frecuencia: 'trimestral', componente: 'Funciones de control',
       actividad: 'Aislar según procedimiento las funciones que no deben operar durante la prueba (liberación de agentes, paro de equipos, elevadores, voceo).',
       criterio: 'Funciones aisladas y anotadas; ninguna operación o descarga no deseada durante las pruebas.',
       ref: 'NFPA 72 14.2',
     },
+    {
+      id: 'pd-seguimiento', frecuencia: 'trimestral', componente: 'Seguimiento de la visita anterior',
+      actividad: 'Revisar que los dispositivos con falla o sin probar en la visita anterior se hayan corregido o probado.',
+      criterio: 'Pendientes anteriores corregidos y probados; los que siguen pendientes se anotan de nuevo con su motivo.',
+      ref: 'NFPA 72 14.2 / 14.6',
+    },
+    {
+      id: 'pd-avance-anual', frecuencia: 'trimestral', componente: 'Programa anual de pruebas',
+      actividad: 'Registrar el avance acumulado del año: dispositivos probados en las visitas de los últimos 12 meses contra el total del sistema.',
+      criterio: 'Avance acorde al programa para llegar al 100% de los dispositivos probados en 12 meses.',
+      medicion: '% del año', ref: 'NFPA 72 T.14.4.3.2 / NOM-002 7.4',
+    },
     // Inspección visual
     {
-      id: 'pd-vis-detectores', frecuencia: 'semestral', componente: 'Detectores de humo y calor',
+      id: 'pd-vis-detectores', frecuencia: 'trimestral', componente: 'Detectores de humo y calor',
       actividad: 'Inspección visual de cada detector: base, fijación, LED, limpieza y ubicación.',
       criterio: 'Sin daño, pintura, polvo ni cubiertas de obra; no están en flujo directo de aire ni a menos de 0.9 m de difusores o rejillas de retorno.',
       ref: 'NFPA 72 T.14.3.1 / 17.7.4.1',
     },
     {
-      id: 'pd-vis-cambios', frecuencia: 'semestral', componente: 'Cobertura',
+      id: 'pd-vis-cambios', frecuencia: 'trimestral', componente: 'Cobertura',
       actividad: 'Revisar cambios en el inmueble que afecten la cobertura: muros o plafones nuevos, cambio de uso, estantería alta.',
       criterio: 'Sin áreas sin cobertura; los cambios encontrados se reportan para evaluar el diseño.',
       ref: 'NFPA 72 Cap. 17',
     },
     {
-      id: 'pd-vis-estaciones', frecuencia: 'semestral', componente: 'Estaciones manuales',
+      id: 'pd-vis-estaciones', frecuencia: 'trimestral', componente: 'Estaciones manuales',
       actividad: 'Inspección visual: acceso libre, señalización, tapa protectora y altura de montaje.',
       criterio: 'Visibles y sin obstrucción; parte operable entre 1.07 y 1.22 m del piso; a no más de 1.5 m de cada salida.',
       ref: 'NFPA 72 17.15',
     },
     {
-      id: 'pd-vis-photobeam', frecuencia: 'semestral', componente: 'Photobeams',
+      id: 'pd-vis-photobeam', frecuencia: 'trimestral', componente: 'Photobeams',
       actividad: 'Inspección de emisor, receptor o reflector: trayectoria del haz, soportería y lentes.',
       criterio: 'Trayectoria libre (sin anuncios, estantería ni luminarias); soportes firmes sin vibración; lentes limpias.',
       ref: 'NFPA 72 T.14.3.1',
     },
     {
-      id: 'pd-vis-ducto', frecuencia: 'semestral', componente: 'Detectores de ducto',
+      id: 'pd-vis-ducto', frecuencia: 'trimestral', componente: 'Detectores de ducto',
       actividad: 'Inspección de carcasa, tubos de muestreo y sellos; acceso para prueba.',
       criterio: 'Carcasa cerrada y sellada; tubo de muestreo orientado contra el flujo; acceso disponible.',
       ref: 'NFPA 72 T.14.3.1',
@@ -1064,7 +1076,7 @@ const PRUEBAS_DETECTORES: PlantillaFormato = {
     // Pruebas por dispositivo (se calculan con la tabla)
     {
       id: 'pd-prueba-humo', frecuencia: 'anual', componente: 'Detectores de humo',
-      actividad: 'Prueba funcional en sitio del 100% con aerosol listado o humo aprobado por el fabricante (no con imán ni flama).',
+      actividad: 'Prueba funcional en sitio con aerosol listado o humo aprobado por el fabricante (no con imán ni flama); el 100% al menos una vez al año.',
       criterio: 'Cada detector entra en alarma y el panel muestra su dirección y descripción correctas en 10 s o menos; se restablece.',
       medicion: 'pasan / total', ref: 'NFPA 72 T.14.4.3.2 / 10.11.1', desdeDispositivos: 'humo',
     },
@@ -1088,7 +1100,7 @@ const PRUEBAS_DETECTORES: PlantillaFormato = {
     },
     {
       id: 'pd-prueba-estaciones', frecuencia: 'anual', componente: 'Estaciones manuales',
-      actividad: 'Accionar el 100% de las estaciones manuales.',
+      actividad: 'Accionar las estaciones manuales programadas; el 100% al menos una vez al año.',
       criterio: 'Alarma en el panel con la ubicación correcta; mecanismo y tapa operan; se restablecen con llave o herramienta.',
       medicion: 'pasan / total', ref: 'NFPA 72 T.14.4.3.2', desdeDispositivos: 'estacion',
     },
@@ -1112,7 +1124,7 @@ const PRUEBAS_DETECTORES: PlantillaFormato = {
     },
     // Al terminar
     {
-      id: 'pd-restablecer', frecuencia: 'semestral', componente: 'Regreso a servicio',
+      id: 'pd-restablecer', frecuencia: 'trimestral', componente: 'Regreso a servicio',
       actividad: 'Restablecer funciones aisladas y verificar el panel; avisar el fin de las pruebas a monitoreo y ocupantes.',
       criterio: 'Panel en normal, sin dispositivos deshabilitados ni en modo prueba; la central confirma que recibió las señales y sale de prueba.',
       ref: 'NFPA 72 14.2',
