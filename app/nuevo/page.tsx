@@ -1297,7 +1297,7 @@ export default function NuevoReportePage() {
 
         {conFormato && (
           <div className={pasoKey === 'formato' ? 'flex flex-col gap-4' : 'hidden'}>
-            <PasoFormato formatos={formatos} setFormatos={setFormatos} />
+            <PasoFormato formatos={formatos} setFormatos={setFormatos} clienteId={clienteId} />
           </div>
         )}
 

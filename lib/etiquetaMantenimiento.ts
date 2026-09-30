@@ -18,6 +18,7 @@ const MESES: Record<Frecuencia, number> = { trimestral: 3, semestral: 6, anual: 
 const CORTO: Record<string, string> = {
   cctv: 'Videovigilancia (CCTV)',
   'deteccion-incendio': 'Detección y alarma de incendio',
+  'pruebas-detectores': 'Pruebas de detección de incendio',
   'agente-limpio': 'Supresión por agente limpio',
   'control-acceso': 'Control de acceso',
   intrusion: 'Alarma de intrusión',

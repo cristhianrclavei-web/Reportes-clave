@@ -8,7 +8,10 @@ import {
 import { MARCA, MARCA_MAYUS } from './marca';
 import QRCode from 'qrcode';
 import { urlVerificacion } from './etiquetaMantenimiento';
-import { FormatoLlenado, ETIQUETA_FRECUENCIA, ETIQUETA_RESULTADO, resumenFormato } from './formatosMantenimiento';
+import {
+  FormatoLlenado, ETIQUETA_FRECUENCIA, ETIQUETA_RESULTADO, ETIQUETA_RESULTADO_DISP, resumenFormato,
+  resumenDispositivos, resumenPorTipo, tipoDispositivo,
+} from './formatosMantenimiento';
 
 type ReportRow = {
   id: string;
@@ -579,11 +582,35 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
     page.drawLine({ start: { x: MARGIN, y }, end: { x: PAGE_W - MARGIN, y }, thickness: 1.5, color: NAVY });
     y -= 12;
 
+    // Datos generales del sistema (panel, equipo de prueba…), en dos columnas.
+    const camposLlenos = (f.campos || []).filter((c) => (f.datos?.[c.key] || '').trim());
+    if (camposLlenos.length > 0) {
+      const colW = (contentW - 16 - 12) / 2;
+      const celdas = camposLlenos.map((c) => ({ label: c.label.toUpperCase(), lines: wrapText(f.datos![c.key].trim(), font, 8.5, colW) }));
+      const filas: (typeof celdas)[] = [];
+      for (let k = 0; k < celdas.length; k += 2) filas.push(celdas.slice(k, k + 2));
+      const altoFila = (fila: typeof celdas) => 9 + Math.max(...fila.map((c) => c.lines.length)) * 11 + 5;
+      const h = 18 + 6 + filas.reduce((a, fila) => a + altoFila(fila), 0) + 2;
+      boxBorder(MARGIN, y, contentW, h);
+      boxTitle(MARGIN, contentW, y, 18, 'Datos del sistema');
+      let dy = y - 18 - 6;
+      filas.forEach((fila) => {
+        fila.forEach((c, k) => {
+          const cx = MARGIN + 8 + k * (colW + 12);
+          page.drawText(c.label, { x: cx, y: dy - 7, size: 6.3, font: bold, color: GRAY_TEXT });
+          c.lines.forEach((l, m) => page.drawText(l, { x: cx, y: dy - 18 - m * 11, size: 8.5, font, color: NAVY }));
+        });
+        dy -= altoFila(fila);
+      });
+      y -= h + 10;
+    }
+
     // Normas de referencia + resumen
     const r = resumenFormato(f);
+    const rd = f.dispositivos ? resumenDispositivos(f.dispositivos) : null;
     const normasLines = f.normas.flatMap((n) => wrapText(`${n.clave}: ${n.nombre}`, font, 8, contentW * 0.62 - 16));
     const nH = 18 + normasLines.length * 11 + 8;
-    const resH = 18 + 4 * 12 + 8;
+    const resH = 18 + (rd ? 7 : 4) * 12 + 8;
     const boxH = Math.max(nH, resH);
     const nW = contentW * 0.62;
     const rX = MARGIN + nW + 10;
@@ -602,6 +629,13 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
       ['No cumple', r.noCumple, ROJO],
       ['No aplica', r.na, GRAY_TEXT],
       ['Puntos revisados', r.total, NAVY],
+      ...(rd
+        ? ([
+            ['Dispositivos probados', rd.pasa + rd.falla, NAVY],
+            ['Dispositivos con falla', rd.falla, ROJO],
+            ['Dispositivos sin probar', rd.noProbado, ROJO],
+          ] as [string, number, typeof VERDE][])
+        : []),
     ];
     let ry2 = y - 18 - 12;
     filasRes.forEach(([label, n, color]) => {
@@ -676,6 +710,8 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
     });
     y -= 12;
 
+    if (f.dispositivos && f.dispositivos.length > 0) drawDispositivos(f);
+
     // Recomendaciones
     if (f.recomendaciones) {
       const recL = wrapText(f.recomendaciones, font, 9, contentW - 16);
@@ -701,6 +737,109 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
     await drawSignature(MARGIN + sigW + 16, 'Cliente / responsable del sitio', `${data.firmaClienteNombre || '—'}${data.firmaClienteFecha ? ' · ' + data.firmaClienteFecha : ''}`, data.firmaClienteData);
     y -= 18 + 60;
     pie();
+
+    // Resumen por tipo y registro de pruebas por dispositivo (NFPA 72 14.6).
+    function drawDispositivos(fm: FormatoLlenado) {
+      const lista = fm.dispositivos || [];
+      function tituloSeccion(t: string) {
+        page.drawText(t, { x: MARGIN, y: y - 10, size: 10, font: display, color: NAVY });
+        y -= 16;
+      }
+
+      // --- Resumen por tipo
+      const porTipo = resumenPorTipo(lista);
+      const tot = resumenDispositivos(lista);
+      const colsR = [
+        { label: 'TIPO DE DISPOSITIVO', w: 0.4 },
+        { label: 'TOTAL', w: 0.12 },
+        { label: 'PASAN', w: 0.12 },
+        { label: 'FALLAN', w: 0.12 },
+        { label: 'SIN PROBAR', w: 0.12 },
+        { label: '% PROBADO', w: 0.12 },
+      ];
+      espacio(16 + 16 + (porTipo.length + 1) * 14 + 10);
+      tituloSeccion('Resumen de pruebas por tipo de dispositivo');
+      const encR = () => {
+        page.drawRectangle({ x: MARGIN, y: y - 16, width: contentW, height: 16, color: NAVY });
+        let cx = MARGIN;
+        colsR.forEach((c) => { page.drawText(c.label, { x: cx + 5, y: y - 11, size: 6.8, font: bold, color: WHITE }); cx += contentW * c.w; });
+        y -= 16;
+      };
+      encR();
+      const filaR = (label: string, x: { total: number; pasa: number; falla: number; noProbado: number }, negrita: boolean, k: number) => {
+        const h = 14;
+        if (k % 2 === 1) page.drawRectangle({ x: MARGIN, y: y - h, width: contentW, height: h, color: rgb(0.96, 0.97, 0.97) });
+        const pct = x.total ? Math.round(((x.pasa + x.falla) / x.total) * 100) : 0;
+        const vals = [label, String(x.total), String(x.pasa), String(x.falla), String(x.noProbado), `${pct}%`];
+        let cx = MARGIN;
+        vals.forEach((v, m) => {
+          const color = m === 3 && x.falla ? ROJO : m === 4 && x.noProbado ? ROJO : m === 2 ? VERDE : NAVY;
+          page.drawText(v, { x: cx + 5, y: y - 10, size: 8, font: negrita || (m > 0 && m < 5 && v !== '0') ? bold : font, color, maxWidth: contentW * colsR[m].w - 8 });
+          cx += contentW * colsR[m].w;
+        });
+        page.drawLine({ start: { x: MARGIN, y: y - h }, end: { x: MARGIN + contentW, y: y - h }, thickness: 0.4, color: GRAY_LINE });
+        y -= h;
+      };
+      porTipo.forEach((x, k) => filaR(x.tipo.label, x, false, k));
+      filaR('TOTAL', tot, true, porTipo.length);
+      y -= 14;
+
+      // --- Registro por dispositivo
+      const cols = [
+        { label: '#', w: 0.05 },
+        { label: 'TIPO', w: 0.15 },
+        { label: 'DIRECCIÓN', w: 0.1 },
+        { label: 'UBICACIÓN', w: 0.24 },
+        { label: 'MÉTODO DE PRUEBA', w: 0.25 },
+        { label: 'MEDICIÓN', w: 0.09 },
+        { label: 'RESULTADO', w: 0.12 },
+      ];
+      const enc = () => {
+        page.drawRectangle({ x: MARGIN, y: y - 16, width: contentW, height: 16, color: NAVY });
+        let cx = MARGIN;
+        cols.forEach((c) => { page.drawText(c.label, { x: cx + 4, y: y - 11, size: 6.5, font: bold, color: WHITE }); cx += contentW * c.w; });
+        y -= 16;
+      };
+      espacio(16 + 16 + 30);
+      tituloSeccion('Registro de pruebas por dispositivo');
+      enc();
+      const w = (k: number) => contentW * cols[k].w - 8;
+      lista.forEach((d, i) => {
+        const t = tipoDispositivo(d.tipo);
+        const celdas = [
+          [String(i + 1)],
+          wrapText(t?.label || d.tipo, font, 7.2, w(1)),
+          wrapText(d.direccion || '—', bold, 7.5, w(2)),
+          wrapText(d.ubicacion || '—', font, 7.5, w(3)),
+          wrapText(d.metodo || '—', font, 6.8, w(4)),
+          wrapText(d.valor || '—', font, 7.2, w(5)),
+        ];
+        const obs = d.resultado && d.resultado !== 'pasa' && d.nota
+          ? wrapText(`${d.resultado === 'falla' ? 'Falla' : 'Sin probar'}: ${d.nota}`, bold, 7, contentW - contentW * cols[0].w - 8)
+          : [];
+        const h = 6 + Math.max(...celdas.map((c) => c.length)) * 9 + obs.length * 9 + 5;
+        if (espacio(h)) enc();
+        const top = y;
+        if (i % 2 === 1) page.drawRectangle({ x: MARGIN, y: top - h, width: contentW, height: h, color: rgb(0.96, 0.97, 0.97) });
+        let cx = MARGIN;
+        celdas.forEach((lines, k) => {
+          const size = k === 4 ? 6.8 : k === 1 || k === 5 ? 7.2 : 7.5;
+          const fnt = k === 0 || k === 2 ? bold : font;
+          lines.forEach((l, m) => page.drawText(l, { x: cx + 4, y: top - 11 - m * 9, size, font: fnt, color: k === 4 ? GRAY_TEXT : NAVY }));
+          cx += contentW * cols[k].w;
+        });
+        const res = d.resultado ? ETIQUETA_RESULTADO_DISP[d.resultado] : 'Sin marcar';
+        const color = d.resultado === 'pasa' ? VERDE : d.resultado ? ROJO : GRAY_TEXT;
+        const bw = bold.widthOfTextAtSize(res, 7) + 10;
+        page.drawRectangle({ x: cx + 3, y: top - 15, width: bw, height: 12, color, opacity: d.resultado === 'no_probado' ? 0.75 : d.resultado ? 1 : 0.15 });
+        page.drawText(res, { x: cx + 8, y: top - 11.5, size: 7, font: bold, color: d.resultado ? WHITE : GRAY_TEXT });
+        const obsY = top - 6 - Math.max(...celdas.map((c) => c.length)) * 9 - 5;
+        obs.forEach((l, m) => page.drawText(l, { x: MARGIN + contentW * cols[0].w + 4, y: obsY - m * 9, size: 7, font: bold, color: ROJO }));
+        page.drawLine({ start: { x: MARGIN, y: top - h }, end: { x: MARGIN + contentW, y: top - h }, thickness: 0.4, color: GRAY_LINE });
+        y = top - h;
+      });
+      y -= 12;
+    }
   }
 
   return pdfDoc.save();

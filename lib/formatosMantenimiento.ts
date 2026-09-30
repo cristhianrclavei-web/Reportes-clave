@@ -28,6 +28,9 @@ export type PuntoFormato = {
   // Si el punto pide un dato medido, qué se anota (p. ej. «V», «días»).
   medicion?: string;
   ref?: string;
+  // Punto que no se marca a mano: su resultado sale de la tabla de pruebas
+  // por dispositivo (formatos con `dispositivos`), según esta categoría.
+  desdeDispositivos?: CategoriaDispositivo;
 };
 
 export type Norma = { clave: string; nombre: string };
@@ -41,7 +44,14 @@ export type PlantillaFormato = {
   normas: Norma[];
   nota: string;
   puntos: PuntoFormato[];
+  // Datos generales del sistema que se capturan una vez (panel, equipo de
+  // prueba…). Se imprimen al inicio del anexo.
+  campos?: CampoFormato[];
+  // Lleva tabla de pruebas dispositivo por dispositivo.
+  dispositivos?: boolean;
 };
+
+export type CampoFormato = { key: string; label: string; placeholder?: string };
 
 export type Resultado = 'cumple' | 'no_cumple' | 'na';
 
@@ -58,7 +68,168 @@ export type FormatoLlenado = {
   areas: string;
   recomendaciones: string;
   puntos: PuntoLlenado[];
+  campos?: CampoFormato[];
+  datos?: Record<string, string>;
+  dispositivos?: DispositivoPrueba[];
 };
+
+// ------------------------------------------------------------------
+// Pruebas por dispositivo (detectores, estaciones manuales, photobeams…)
+// ------------------------------------------------------------------
+export type CategoriaDispositivo = 'humo' | 'calor' | 'photobeam' | 'estacion' | 'ducto' | 'asd';
+
+export type TipoDispositivo = {
+  key: string;
+  label: string;
+  corto: string;
+  categoria: CategoriaDispositivo;
+  metodos: string[];
+  // Qué se anota como medición (opcional) y ejemplo para el campo.
+  medicion?: string;
+};
+
+// Métodos según NFPA 72 Tabla 14.4.3.2: el humo debe entrar a la cámara
+// (el imán solo prueba la electrónica y no cuenta como prueba funcional).
+export const TIPOS_DISPOSITIVO: TipoDispositivo[] = [
+  { key: 'humo-foto', label: 'Humo fotoeléctrico', corto: 'Humo fotoel.', categoria: 'humo', medicion: 'Sensibilidad %/m',
+    metodos: ['Aerosol de humo listado', 'Humo aprobado por el fabricante'] },
+  { key: 'humo-ion', label: 'Humo iónico', corto: 'Humo iónico', categoria: 'humo', medicion: 'Sensibilidad %/m',
+    metodos: ['Aerosol de humo listado', 'Humo aprobado por el fabricante'] },
+  { key: 'multi', label: 'Multicriterio (humo / calor)', corto: 'Multicriterio', categoria: 'humo', medicion: 'Sensibilidad %/m',
+    metodos: ['Aerosol de humo listado', 'Aerosol + fuente de calor', 'Aerosol multicriterio'] },
+  { key: 'calor-fijo-r', label: 'Calor temp. fija (restaurable)', corto: 'Calor fijo', categoria: 'calor', medicion: 'Temp. °C',
+    metodos: ['Fuente de calor listada'] },
+  { key: 'calor-rr', label: 'Calor termovelocimétrico', corto: 'Calor termovel.', categoria: 'calor', medicion: 'Temp. °C',
+    metodos: ['Calor (elemento de incremento)', 'Calor (ambos elementos)'] },
+  { key: 'calor-fijo-nr', label: 'Calor temp. fija (no restaurable)', corto: 'Calor no rest.', categoria: 'calor', medicion: 'Años en servicio',
+    metodos: ['Prueba eléctrica sin activarlo'] },
+  { key: 'calor-lineal', label: 'Calor lineal (cable)', corto: 'Calor lineal', categoria: 'calor',
+    metodos: ['Continuidad del lazo', 'Fuente de calor (restaurable)'] },
+  { key: 'photobeam', label: 'Photobeam (haz proyectado)', corto: 'Photobeam', categoria: 'photobeam', medicion: 'Señal / % oscurecimiento',
+    metodos: ['Filtro calibrado', 'Obstrucción parcial', 'Filtro + bloqueo total'] },
+  { key: 'estacion-1', label: 'Estación manual (simple acción)', corto: 'Est. manual', categoria: 'estacion',
+    metodos: ['Accionamiento manual'] },
+  { key: 'estacion-2', label: 'Estación manual (doble acción)', corto: 'Est. manual doble', categoria: 'estacion',
+    metodos: ['Accionamiento manual'] },
+  { key: 'ducto', label: 'Detector de ducto', corto: 'Ducto', categoria: 'ducto', medicion: 'Presión dif. inH2O',
+    metodos: ['Aerosol + presión diferencial', 'Aerosol con manejadora operando'] },
+  { key: 'asd', label: 'Aspiración (ASD / VESDA)', corto: 'Aspiración', categoria: 'asd', medicion: 'Tiempo de transporte s',
+    metodos: ['Humo en el puerto más lejano'] },
+];
+
+export const CATEGORIAS: { key: CategoriaDispositivo; label: string }[] = [
+  { key: 'humo', label: 'Detectores de humo' },
+  { key: 'calor', label: 'Detectores de calor' },
+  { key: 'photobeam', label: 'Photobeams' },
+  { key: 'estacion', label: 'Estaciones manuales' },
+  { key: 'ducto', label: 'Detectores de ducto' },
+  { key: 'asd', label: 'Detección por aspiración' },
+];
+
+export type ResultadoDispositivo = 'pasa' | 'falla' | 'no_probado';
+
+export const ETIQUETA_RESULTADO_DISP: Record<ResultadoDispositivo, string> = {
+  pasa: 'Pasa', falla: 'Falla', no_probado: 'No probado',
+};
+
+// Motivos frecuentes para capturar rápido en el celular (se pueden editar).
+export const MOTIVOS_FALLA = [
+  'No entró en alarma', 'Dirección o descripción incorrecta en panel', 'Respuesta mayor a 10 s',
+  'Sensibilidad fuera de rango', 'Sucio / contaminado', 'Daño físico', 'No se restablece', 'Falla de comunicación en lazo',
+];
+export const MOTIVOS_NO_PROBADO = [
+  'No accesible (altura / obstrucción)', 'Área restringida', 'Proceso del cliente en operación', 'Dispositivo retirado / no localizado',
+];
+
+export type DispositivoPrueba = {
+  id: string;
+  tipo: string;
+  // Lazo-dirección (p. ej. «L1-045») o zona en paneles convencionales.
+  direccion: string;
+  ubicacion: string;
+  metodo: string;
+  valor: string;
+  resultado: ResultadoDispositivo | null;
+  nota: string;
+};
+
+export function tipoDispositivo(key: string): TipoDispositivo | undefined {
+  return TIPOS_DISPOSITIVO.find((t) => t.key === key);
+}
+
+export function nuevoDispositivo(tipo: string, direccion = '', ubicacion = ''): DispositivoPrueba {
+  return {
+    id: Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4),
+    tipo,
+    direccion,
+    ubicacion,
+    metodo: tipoDispositivo(tipo)?.metodos[0] || '',
+    valor: '',
+    resultado: null,
+    nota: '',
+  };
+}
+
+// «L1-045» → «L1-046»: incrementa el último número conservando los ceros.
+export function siguienteDireccion(dir: string): string {
+  const m = dir.match(/^(.*?)(\d+)(\D*)$/);
+  if (!m) return dir;
+  const n = String(Number(m[2]) + 1).padStart(m[2].length, '0');
+  return `${m[1]}${n}${m[3]}`;
+}
+
+export function resumenDispositivos(lista: DispositivoPrueba[] = []) {
+  let pasa = 0, falla = 0, noProbado = 0, pendientes = 0;
+  for (const d of lista) {
+    if (d.resultado === 'pasa') pasa++;
+    else if (d.resultado === 'falla') falla++;
+    else if (d.resultado === 'no_probado') noProbado++;
+    else pendientes++;
+  }
+  return { pasa, falla, noProbado, pendientes, total: lista.length };
+}
+
+export function resumenPorTipo(lista: DispositivoPrueba[] = []) {
+  return TIPOS_DISPOSITIVO.map((t) => ({ tipo: t, ...resumenDispositivos(lista.filter((d) => d.tipo === t.key)) }))
+    .filter((x) => x.total > 0);
+}
+
+function etiquetaDisp(d: DispositivoPrueba): string {
+  const t = tipoDispositivo(d.tipo);
+  return [d.direccion, d.ubicacion].filter(Boolean).join(' ') || t?.corto || 'Sin dirección';
+}
+
+// Recalcula los puntos que dependen de la tabla: N/A si no hay dispositivos
+// de esa categoría; «No cumple» si alguno falló o quedó sin probar (NFPA 72
+// pide probar el 100%); «Cumple» si todos pasaron. Así la etiqueta y la
+// página de verificación reflejan las fallas sin lógica aparte.
+export function sincronizarDispositivos(f: FormatoLlenado): FormatoLlenado {
+  if (!f.dispositivos) return f;
+  const lista = f.dispositivos;
+  return {
+    ...f,
+    puntos: f.puntos.map((p) => {
+      if (!p.desdeDispositivos) return p;
+      const deCat = lista.filter((d) => tipoDispositivo(d.tipo)?.categoria === p.desdeDispositivos);
+      const r = resumenDispositivos(deCat);
+      if (r.total === 0) return { ...p, resultado: 'na', valor: '', nota: '' };
+      const probados = r.pasa + r.falla;
+      const valor = `${r.pasa} pasan / ${r.total}`;
+      if (r.pendientes > 0) return { ...p, resultado: null, valor, nota: '' };
+      const partes: string[] = [];
+      const fallas = deCat.filter((d) => d.resultado === 'falla');
+      const sinProbar = deCat.filter((d) => d.resultado === 'no_probado');
+      if (fallas.length) partes.push(`Fallan ${fallas.length}: ${fallas.map((d) => `${etiquetaDisp(d)}${d.nota ? ` (${d.nota})` : ''}`).join('; ')}`);
+      if (sinProbar.length) partes.push(`Sin probar ${sinProbar.length}: ${sinProbar.map((d) => `${etiquetaDisp(d)}${d.nota ? ` (${d.nota})` : ''}`).join('; ')}`);
+      return {
+        ...p,
+        resultado: partes.length ? 'no_cumple' : 'cumple',
+        valor: probados === r.total ? valor : `${valor} (${probados} probados)`,
+        nota: partes.join('. '),
+      };
+    }),
+  };
+}
 
 // ------------------------------------------------------------------
 // CCTV
@@ -811,25 +982,165 @@ const FOTOVOLTAICO: PlantillaFormato = {
   ],
 };
 
+// ------------------------------------------------------------------
+// Pruebas de dispositivos iniciadores (detección de incendio)
+// ------------------------------------------------------------------
+// Formato especial para las visitas en que se prueba cada detector,
+// estación manual y photobeam: además de la lista de cotejo lleva la tabla
+// de pruebas por dispositivo (NFPA 72 14.6, registro de inspección y
+// pruebas). Los puntos «desdeDispositivos» se calculan con esa tabla.
+const PRUEBAS_DETECTORES: PlantillaFormato = {
+  id: 'pruebas-detectores',
+  version: 1,
+  sistema: 'Alarma&Det',
+  titulo: 'Pruebas de dispositivos iniciadores de alarma de incendio',
+  normas: [
+    { clave: 'NFPA 72', nombre: 'National Fire Alarm and Signaling Code (ed. 2022): Cap. 14 inspección, prueba y mantenimiento (Tablas 14.3.1 y 14.4.3.2; 14.4.4.3 sensibilidad; 14.6 registros); Cap. 17 dispositivos iniciadores' },
+    { clave: 'NOM-002-STPS-2010', nombre: 'Prevención y protección contra incendios en los centros de trabajo (7.4 programa anual de revisión y pruebas; 7.7 registros)' },
+  ],
+  nota:
+    'Pruebas funcionales en sitio del 100% de los dispositivos listados, con los métodos y equipos indicados por el fabricante de cada uno (NFPA 72 Tabla 14.4.3.2). Los detectores de humo se prueban con humo o aerosol listado que entre a la cámara; la prueba con imán no sustituye la prueba funcional. Los dispositivos sin probar se registran con su motivo.',
+  campos: [
+    { key: 'panel', label: 'Panel (marca y modelo)', placeholder: 'Ej. Notifier NFS2-3030' },
+    { key: 'tipoSistema', label: 'Tipo de sistema', placeholder: 'Direccionable / convencional; número de lazos o zonas' },
+    { key: 'ubicacionPanel', label: 'Ubicación del panel', placeholder: 'Ej. Caseta de vigilancia, planta baja' },
+    { key: 'monitoreo', label: 'Central de monitoreo', placeholder: 'Nombre y teléfono, o «Sin monitoreo»' },
+    { key: 'equipoPrueba', label: 'Equipo de prueba utilizado', placeholder: 'Ej. Aerosol Solo A3 lote 2412, calor Solo 461, filtros de photobeam, pértiga' },
+    { key: 'autorizo', label: 'Persona del cliente que autorizó las pruebas', placeholder: 'Nombre y puesto' },
+    { key: 'calificacion', label: 'Calificación del técnico', placeholder: 'Ej. Certificación del fabricante / NICET nivel II' },
+  ],
+  dispositivos: true,
+  puntos: [
+    // Antes de probar
+    {
+      id: 'pd-aviso', frecuencia: 'semestral', componente: 'Aviso previo',
+      actividad: 'Avisar al responsable del inmueble, a los ocupantes y a la central de monitoreo antes de iniciar las pruebas.',
+      criterio: 'Todos avisados y autorización registrada; la central pone la cuenta en prueba.',
+      ref: 'NFPA 72 14.2',
+    },
+    {
+      id: 'pd-estado-inicial', frecuencia: 'semestral', componente: 'Panel de control (estado inicial)',
+      actividad: 'Registrar el estado del panel antes de probar y descargar o revisar el historial de eventos.',
+      criterio: 'Panel en normal, o fallas preexistentes anotadas antes de iniciar.',
+      ref: 'NFPA 72 T.14.3.1',
+    },
+    {
+      id: 'pd-aislar', frecuencia: 'semestral', componente: 'Funciones de control',
+      actividad: 'Aislar según procedimiento las funciones que no deben operar durante la prueba (liberación de agentes, paro de equipos, elevadores, voceo).',
+      criterio: 'Funciones aisladas y anotadas; ninguna operación o descarga no deseada durante las pruebas.',
+      ref: 'NFPA 72 14.2',
+    },
+    // Inspección visual
+    {
+      id: 'pd-vis-detectores', frecuencia: 'semestral', componente: 'Detectores de humo y calor',
+      actividad: 'Inspección visual de cada detector: base, fijación, LED, limpieza y ubicación.',
+      criterio: 'Sin daño, pintura, polvo ni cubiertas de obra; no están en flujo directo de aire ni a menos de 0.9 m de difusores o rejillas de retorno.',
+      ref: 'NFPA 72 T.14.3.1 / 17.7.4.1',
+    },
+    {
+      id: 'pd-vis-cambios', frecuencia: 'semestral', componente: 'Cobertura',
+      actividad: 'Revisar cambios en el inmueble que afecten la cobertura: muros o plafones nuevos, cambio de uso, estantería alta.',
+      criterio: 'Sin áreas sin cobertura; los cambios encontrados se reportan para evaluar el diseño.',
+      ref: 'NFPA 72 Cap. 17',
+    },
+    {
+      id: 'pd-vis-estaciones', frecuencia: 'semestral', componente: 'Estaciones manuales',
+      actividad: 'Inspección visual: acceso libre, señalización, tapa protectora y altura de montaje.',
+      criterio: 'Visibles y sin obstrucción; parte operable entre 1.07 y 1.22 m del piso; a no más de 1.5 m de cada salida.',
+      ref: 'NFPA 72 17.15',
+    },
+    {
+      id: 'pd-vis-photobeam', frecuencia: 'semestral', componente: 'Photobeams',
+      actividad: 'Inspección de emisor, receptor o reflector: trayectoria del haz, soportería y lentes.',
+      criterio: 'Trayectoria libre (sin anuncios, estantería ni luminarias); soportes firmes sin vibración; lentes limpias.',
+      ref: 'NFPA 72 T.14.3.1',
+    },
+    {
+      id: 'pd-vis-ducto', frecuencia: 'semestral', componente: 'Detectores de ducto',
+      actividad: 'Inspección de carcasa, tubos de muestreo y sellos; acceso para prueba.',
+      criterio: 'Carcasa cerrada y sellada; tubo de muestreo orientado contra el flujo; acceso disponible.',
+      ref: 'NFPA 72 T.14.3.1',
+    },
+    // Pruebas por dispositivo (se calculan con la tabla)
+    {
+      id: 'pd-prueba-humo', frecuencia: 'anual', componente: 'Detectores de humo',
+      actividad: 'Prueba funcional en sitio del 100% con aerosol listado o humo aprobado por el fabricante (no con imán ni flama).',
+      criterio: 'Cada detector entra en alarma y el panel muestra su dirección y descripción correctas en 10 s o menos; se restablece.',
+      medicion: 'pasan / total', ref: 'NFPA 72 T.14.4.3.2 / 10.11.1', desdeDispositivos: 'humo',
+    },
+    {
+      id: 'pd-sensibilidad', frecuencia: 'anual', componente: 'Sensibilidad de detectores de humo',
+      actividad: 'Verificar sensibilidad con el reporte del panel direccionable o con equipo calibrado, según su ciclo.',
+      criterio: 'Dentro del rango listado. Al año de instalados y luego cada 2 años (hasta 5 años si dos pruebas seguidas salen en rango); fuera de rango: limpiar, recalibrar o reemplazar.',
+      medicion: 'fecha de la última prueba', ref: 'NFPA 72 14.4.4.3',
+    },
+    {
+      id: 'pd-prueba-calor', frecuencia: 'anual', componente: 'Detectores de calor',
+      actividad: 'Restaurables y termovelocimétricos: fuente de calor listada. No restaurables: prueba mecánica o eléctrica sin activarlos.',
+      criterio: 'Alarma en el panel con dirección correcta. No restaurables de 15 años o más: reemplazar o enviar 2 de cada 100 a laboratorio.',
+      medicion: 'pasan / total', ref: 'NFPA 72 T.14.4.3.2 / 14.4.4.5', desdeDispositivos: 'calor',
+    },
+    {
+      id: 'pd-prueba-photobeam', frecuencia: 'anual', componente: 'Photobeams',
+      actividad: 'Prueba con filtro calibrado u obstrucción según el fabricante; verificar alineación y nivel de señal.',
+      criterio: 'Alarma con el filtro de valor de alarma; señal dentro del rango del fabricante; bloqueo total indica falla (no alarma) cuando el equipo lo contempla.',
+      medicion: 'pasan / total', ref: 'NFPA 72 T.14.4.3.2', desdeDispositivos: 'photobeam',
+    },
+    {
+      id: 'pd-prueba-estaciones', frecuencia: 'anual', componente: 'Estaciones manuales',
+      actividad: 'Accionar el 100% de las estaciones manuales.',
+      criterio: 'Alarma en el panel con la ubicación correcta; mecanismo y tapa operan; se restablecen con llave o herramienta.',
+      medicion: 'pasan / total', ref: 'NFPA 72 T.14.4.3.2', desdeDispositivos: 'estacion',
+    },
+    {
+      id: 'pd-prueba-ducto', frecuencia: 'anual', componente: 'Detectores de ducto',
+      actividad: 'Prueba funcional con aerosol y medición de la presión diferencial del tubo de muestreo.',
+      criterio: 'Alarma o supervisión según el diseño y paro de la manejadora si aplica; presión dentro del rango del fabricante.',
+      medicion: 'pasan / total', ref: 'NFPA 72 T.14.4.3.2', desdeDispositivos: 'ducto',
+    },
+    {
+      id: 'pd-prueba-asd', frecuencia: 'anual', componente: 'Detección por aspiración',
+      actividad: 'Introducir humo en el puerto de muestreo más lejano y medir el tiempo de transporte; revisar flujo.',
+      criterio: 'Alarma dentro del tiempo de diseño (máximo 120 s); flujo dentro del rango del fabricante.',
+      medicion: 'pasan / total', ref: 'NFPA 72 T.14.4.3.2 / 17.7.3.6', desdeDispositivos: 'asd',
+    },
+    {
+      id: 'pd-notificacion', frecuencia: 'anual', componente: 'Respuesta del sistema',
+      actividad: 'En al menos una prueba por zona o lazo, dejar operar la notificación y las funciones de control programadas.',
+      criterio: 'Sirenas y estrobos operan; las funciones de control responden según la matriz causa-efecto.',
+      ref: 'NFPA 72 T.14.4.3.2',
+    },
+    // Al terminar
+    {
+      id: 'pd-restablecer', frecuencia: 'semestral', componente: 'Regreso a servicio',
+      actividad: 'Restablecer funciones aisladas y verificar el panel; avisar el fin de las pruebas a monitoreo y ocupantes.',
+      criterio: 'Panel en normal, sin dispositivos deshabilitados ni en modo prueba; la central confirma que recibió las señales y sale de prueba.',
+      ref: 'NFPA 72 14.2',
+    },
+  ],
+};
+
 export const PLANTILLAS: PlantillaFormato[] = [
-  CCTV, DETECCION, AGENTE_LIMPIO, CONTROL_ACCESO, INTRUSION, BMS, RED_CONTRA_INCENDIO, ELECTRICAS, FOTOVOLTAICO,
+  CCTV, DETECCION, PRUEBAS_DETECTORES, AGENTE_LIMPIO, CONTROL_ACCESO, INTRUSION, BMS, RED_CONTRA_INCENDIO, ELECTRICAS, FOTOVOLTAICO,
 ];
 
 // Puntos que tocan en una visita: los de esa frecuencia y los más frecuentes.
+// Los que salen de la tabla de dispositivos van siempre: si en la visita se
+// prueban dispositivos, quedan registrados.
 export function puntosDeVisita(p: PlantillaFormato, visita: Frecuencia): PuntoFormato[] {
-  return p.puntos.filter((x) => ORDEN[x.frecuencia] <= ORDEN[visita]);
+  return p.puntos.filter((x) => x.desdeDispositivos || ORDEN[x.frecuencia] <= ORDEN[visita]);
 }
 
 // Frecuencias que ofrece una plantilla (solo las que tienen puntos propios
 // o anteriores, empezando por la más corta que tenga algo).
 export function frecuenciasDe(p: PlantillaFormato): Frecuencia[] {
-  const min = Math.min(...p.puntos.map((x) => ORDEN[x.frecuencia]));
+  const min = Math.min(...p.puntos.filter((x) => !x.desdeDispositivos).map((x) => ORDEN[x.frecuencia]));
   return FRECUENCIAS.map((f) => f.key).filter((k) => ORDEN[k] >= min);
 }
 
 export function nuevoFormato(p: PlantillaFormato, visita?: Frecuencia): FormatoLlenado {
   const v = visita || frecuenciasDe(p)[0];
-  return {
+  const f: FormatoLlenado = {
     plantillaId: p.id,
     version: p.version,
     sistema: p.sistema,
@@ -840,7 +1151,10 @@ export function nuevoFormato(p: PlantillaFormato, visita?: Frecuencia): FormatoL
     areas: '',
     recomendaciones: '',
     puntos: puntosDeVisita(p, v).map((x) => ({ ...x, resultado: null, valor: '', nota: '' })),
+    ...(p.campos ? { campos: p.campos, datos: {} } : {}),
+    ...(p.dispositivos ? { dispositivos: [] } : {}),
   };
+  return sincronizarDispositivos(f);
 }
 
 // Cambiar el tipo de visita conserva lo ya marcado en los puntos que siguen.
@@ -848,14 +1162,14 @@ export function cambiarVisita(f: FormatoLlenado, visita: Frecuencia): FormatoLle
   const p = PLANTILLAS.find((x) => x.id === f.plantillaId);
   if (!p) return f;
   const previos = new Map(f.puntos.map((x) => [x.id, x]));
-  return {
+  return sincronizarDispositivos({
     ...f,
     visita,
     puntos: puntosDeVisita(p, visita).map((x) => {
       const prev = previos.get(x.id);
       return { ...x, resultado: prev?.resultado ?? null, valor: prev?.valor ?? '', nota: prev?.nota ?? '' };
     }),
-  };
+  });
 }
 
 export function resumenFormato(f: FormatoLlenado) {
