@@ -503,7 +503,30 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
   }
 
   await drawSignature(MARGIN, 'Ing. responsable de ejecución', data.firmaIngNombre, data.firmaIngData);
-  await drawSignature(MARGIN + sigW + 16, 'Nombre, fecha y firma cliente', `${data.firmaClienteNombre || '—'}${data.firmaClienteFecha ? ' · ' + data.firmaClienteFecha : ''}`, data.firmaClienteData);
+  await drawFirmaCliente(MARGIN + sigW + 16, 'Nombre, fecha y firma cliente');
+
+  // Firma del cliente: en sitio, a distancia (enlace) o pendiente porque no
+  // estaba — en ese caso se muestra quién recibió y su firma, si la dio.
+  async function drawFirmaCliente(x: number, label: string) {
+    const ausente = data.clienteAusente;
+    if (data.firmaClienteData || !ausente) {
+      await drawSignature(x, label, `${data.firmaClienteNombre || '—'}${data.firmaClienteFecha ? ' · ' + data.firmaClienteFecha : ''}`, data.firmaClienteData);
+      if (data.firmaClienteData && data.firmaRemota?.firmadoEn) {
+        page.drawText('Firmado a distancia mediante enlace', { x: x + 4, y: y - 18 - sigBoxH - 8, size: 6.5, font, color: GRAY_TEXT });
+      }
+      return;
+    }
+    const recibio = [ausente.recibioNombre, ausente.recibioPuesto ? `(${ausente.recibioPuesto})` : ''].filter(Boolean).join(' ');
+    await drawSignature(x, 'Cliente ausente — firma pendiente', recibio ? `Recibió: ${recibio}` : 'Sin persona que recibiera', ausente.recibioFirma);
+    if (!ausente.recibioFirma) {
+      // Tapa el «Sin firma» genérico con el motivo.
+      page.drawRectangle({ x: x + 4, y: y - 18 - sigBoxH / 2 - 8, width: sigW - 8, height: 14, color: WHITE });
+    }
+    const motivoL = wrapText(`Pendiente de firma del cliente${ausente.motivo ? `: ${ausente.motivo}` : ''}.`, font, 7, sigW - 12);
+    motivoL.slice(0, 2).forEach((l, i) => {
+      page.drawText(l, { x: x + 6, y: ausente.recibioFirma ? y - 18 - sigBoxH - 8 - i * 8 : y - 18 - sigBoxH / 2 - 3 - i * 9, size: 7, font: ausente.recibioFirma ? font : bold, color: ausente.recibioFirma ? GRAY_TEXT : ROJO });
+    });
+  }
 
   // La revisión interna solo se muestra cuando ya está aprobada — es un
   // paso de control de calidad propio, no algo que el cliente necesite ver
@@ -734,7 +757,7 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
     notaL.forEach((l) => { page.drawText(l, { x: MARGIN, y, size: 7, font, color: GRAY_TEXT }); y -= 9; });
     y -= 14;
     await drawSignature(MARGIN, 'Técnico responsable', data.firmaIngNombre, data.firmaIngData);
-    await drawSignature(MARGIN + sigW + 16, 'Cliente / responsable del sitio', `${data.firmaClienteNombre || '—'}${data.firmaClienteFecha ? ' · ' + data.firmaClienteFecha : ''}`, data.firmaClienteData);
+    await drawFirmaCliente(MARGIN + sigW + 16, 'Cliente / responsable del sitio');
     y -= 18 + 60;
     pie();
 

@@ -14,6 +14,7 @@ import RevisionFinalSection, { Revision } from '@/components/RevisionFinalSectio
 import { hoyLocal } from '@/lib/fechaHoy';
 import { ResumenFormatos } from './FormatoMantenimiento';
 import EtiquetasMantenimiento from './EtiquetasMantenimiento';
+import FirmaPendiente from './FirmaPendiente';
 
 export type ReportDetail = {
   id: string;
@@ -605,6 +606,10 @@ export default function ReportDetailModal({
             })()}
           </div>
         </Section>
+
+        {!report.data?.firmaClienteData && (
+          <div className="mt-4"><FirmaPendiente report={report} /></div>
+        )}
 
         {(report.data?.firmaIngData || report.data?.firmaIngNombre || report.data?.firmaClienteData || report.data?.firmaClienteNombre) && (
           <Section title="Firmas">

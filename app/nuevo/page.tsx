@@ -253,6 +253,13 @@ export default function NuevoReportePage() {
   const [equipos, setEquipos] = useState([{ cant: '', desc: '', modelo: '', marca: '', serie: '' }]);
   const [firmaIngNombre, setFirmaIngNombre] = useState('');
   const [firmaClienteNombre, setFirmaClienteNombre] = useState('');
+  // Cliente que no estaba para firmar: queda registrado quién recibió y el
+  // reporte se marca «firma pendiente» para mandarle el enlace después.
+  const [clienteAusente, setClienteAusente] = useState(false);
+  const [motivoAusente, setMotivoAusente] = useState('');
+  const [recibioNombre, setRecibioNombre] = useState('');
+  const [recibioPuesto, setRecibioPuesto] = useState('');
+  const [recibioFirma, setRecibioFirma] = useState<string | null>(null);
   const [servicioConcluido, setServicioConcluido] = useState<'si' | 'no' | null>(null);
   // Formulario por pasos. Todo sigue en un solo componente (el estado no se
   // pierde al ir y venir); solo se muestra un paso a la vez. Las firmas se
@@ -312,10 +319,11 @@ export default function NuevoReportePage() {
     seguridadOtraTexto, tuberia, cables, observaciones, actividades, showCaso, casoPuntos, equipos,
     firmaIngNombre, firmaClienteNombre, servicioConcluido, paso, usaFormato, formatos, fotosServicio,
     firmaIngData, firmaClienteData,
+    clienteAusente, motivoAusente, recibioNombre, recibioPuesto, recibioFirma,
   };
   const hayDatos = Boolean(
     empresaCliente.trim() || tipoServicio || ordCompra.trim() || observaciones.trim() || horaLlegada ||
-    actividades.some((a) => a.trim()) || fotos.length || formatos.length || firmaIngData || firmaClienteData
+    actividades.some((a) => a.trim()) || fotos.length || formatos.length || firmaIngData || firmaClienteData || recibioFirma
   );
 
   useEffect(() => {
@@ -342,9 +350,11 @@ export default function NuevoReportePage() {
         set(setObservaciones, c.observaciones); set(setActividades, c.actividades); set(setShowCaso, c.showCaso);
         set(setCasoPuntos, c.casoPuntos); set(setEquipos, c.equipos); set(setFirmaIngNombre, c.firmaIngNombre);
         set(setFirmaClienteNombre, c.firmaClienteNombre); set(setServicioConcluido, c.servicioConcluido);
+        set(setClienteAusente, c.clienteAusente); set(setMotivoAusente, c.motivoAusente);
+        set(setRecibioNombre, c.recibioNombre); set(setRecibioPuesto, c.recibioPuesto); set(setRecibioFirma, c.recibioFirma);
         set(setUsaFormato, c.usaFormato); set(setFormatos, c.formatos); set(setFotosServicio, c.fotosServicio);
         if (typeof c.tokenVerificacion === 'string') tokenRef.current = c.tokenVerificacion;
-        if (c.firmaIngData || c.firmaClienteData) {
+        if (c.firmaIngData || c.firmaClienteData || c.recibioFirma) {
           setFirmaIngData(c.firmaIngData || null);
           setFirmaClienteData(c.firmaClienteData || null);
           setFirmasMontadas(true);
@@ -469,8 +479,9 @@ export default function NuevoReportePage() {
     // Hora de salida ya no bloquea guardar: si se deja en blanco, se toma la
     // hora actual sola al momento de guardar (ver handleSave).
     if (!ingACargo.trim() && !personalAdicional.some((p) => p.trim())) f.push('al menos una persona en el servicio');
+    if (clienteAusente && !motivoAusente.trim()) f.push('el motivo de que el cliente no firmara');
     return f;
-  }, [empresaCliente, horaLlegada, horaSalida, ingACargo, personalAdicional]);
+  }, [empresaCliente, horaLlegada, horaSalida, ingACargo, personalAdicional, clienteAusente, motivoAusente]);
 
   // Duración entre llegada y salida, para que un 7:30 puesto en lugar de 19:30
   // salte a la vista antes de firmar.
@@ -665,6 +676,7 @@ export default function NuevoReportePage() {
     setCables([{ tipo: '', calibre: '', metros: '' }]);
     setEquipos([{ cant: '', desc: '', modelo: '', marca: '', serie: '' }]);
     setFirmaIngNombre(''); setFirmaClienteNombre('');
+    setClienteAusente(false); setMotivoAusente(''); setRecibioNombre(''); setRecibioPuesto(''); setRecibioFirma(null);
     sigIngRef.current?.clear();
     sigClienteRef.current?.clear();
     fotos.forEach((f) => URL.revokeObjectURL(f.previewUrl));
@@ -706,6 +718,17 @@ export default function NuevoReportePage() {
       servicioProgramadoId: servicioSeleccionadoId || null,
       formatosMtto: conFormato ? formatos : [],
       ...(conFormato ? { tokenVerificacion: tokenVerificacion() } : {}),
+      ...(clienteAusente
+        ? {
+            firmaPendiente: true,
+            clienteAusente: {
+              motivo: motivoAusente.trim(),
+              recibioNombre: recibioNombre.trim(),
+              recibioPuesto: recibioPuesto.trim(),
+              recibioFirma: recibioFirma || null,
+            },
+          }
+        : {}),
     };
   }
 
@@ -721,7 +744,7 @@ export default function NuevoReportePage() {
         ...fotos.map((f) => ({ previewUrl: f.previewUrl, caption: f.caption })),
       ],
       firmaIngListo: Boolean(sigIngRef.current && !sigIngRef.current.isEmpty()),
-      firmaClienteListo: Boolean(sigClienteRef.current && !sigClienteRef.current.isEmpty()),
+      firmaClienteListo: !clienteAusente && Boolean(sigClienteRef.current && !sigClienteRef.current.isEmpty()),
     };
   }
 
@@ -784,7 +807,8 @@ export default function NuevoReportePage() {
       facturaEstado: servicioConcluido === 'si' ? 'pendiente' : null,
       fechaConcluido: servicioConcluido === 'si' ? fecha : null,
       firmaIngData: sigIngRef.current && !sigIngRef.current.isEmpty() ? sigIngRef.current.getDataURL() : null,
-      firmaClienteData: sigClienteRef.current && !sigClienteRef.current.isEmpty() ? sigClienteRef.current.getDataURL() : null,
+      firmaClienteData: !clienteAusente && sigClienteRef.current && !sigClienteRef.current.isEmpty() ? sigClienteRef.current.getDataURL() : null,
+      ...(clienteAusente ? { firmaClienteNombre: '' } : {}),
     };
 
     async function saveOffline(): Promise<boolean> {
@@ -1562,10 +1586,41 @@ export default function NuevoReportePage() {
           </div>
           <div className="mb-4" />
 
-          <div className="mb-2.5"><label className={labelCls}>Nombre del cliente</label><input type="text" className={inputCls} value={firmaClienteNombre} onChange={(e) => setFirmaClienteNombre(e.target.value)} /></div>
-          <div className="rounded-xl overflow-hidden border border-line">
-            <SignaturePad ref={sigClienteRef} titulo="Firma del cliente" inicial={firmaClienteData} onCambio={setFirmaClienteData} />
-          </div>
+          <label className={labelCls}>Firma del cliente</label>
+          <span className={chipCls(!clienteAusente)} onClick={() => setClienteAusente(false)}>Firma aquí</span>
+          <span className={chipCls(clienteAusente)} onClick={() => setClienteAusente(true)}>El cliente no está</span>
+
+          {!clienteAusente ? (
+            <>
+              <div className="mb-2.5"><label className={labelCls}>Nombre del cliente</label><input type="text" className={inputCls} value={firmaClienteNombre} onChange={(e) => setFirmaClienteNombre(e.target.value)} /></div>
+              <div className="rounded-xl overflow-hidden border border-line">
+                <SignaturePad ref={sigClienteRef} titulo="Firma del cliente" inicial={firmaClienteData} onCambio={setFirmaClienteData} />
+              </div>
+            </>
+          ) : (
+            <div className="rounded-xl border border-amber/40 bg-amber/5 p-3 flex flex-col gap-2.5">
+              <p className="text-[12.5px] text-ink/80 leading-snug">
+                El reporte se guarda con <b>firma pendiente</b>. Después, desde el detalle del reporte, le mandas al cliente un enlace por WhatsApp para que firme desde su celular.
+              </p>
+              <div>
+                <label className={labelCls}>Motivo</label>
+                {['Salió del sitio', 'No estaba en la bodega', 'No contestó', 'Fuera de horario'].map((m) => (
+                  <span key={m} className={chipCls(motivoAusente === m)} onClick={() => setMotivoAusente(motivoAusente === m ? '' : m)}>{m}</span>
+                ))}
+                <input type="text" className={inputCls} value={motivoAusente} onChange={(e) => setMotivoAusente(e.target.value)} placeholder="Otro motivo" />
+              </div>
+              <div className="grid grid-cols-[1.3fr_1fr] gap-2">
+                <div><label className={labelCls}>Quién recibió</label><input type="text" className={inputCls} value={recibioNombre} onChange={(e) => setRecibioNombre(e.target.value)} placeholder="Nombre" /></div>
+                <div><label className={labelCls}>Puesto</label><input type="text" className={inputCls} value={recibioPuesto} onChange={(e) => setRecibioPuesto(e.target.value)} placeholder="Vigilante" /></div>
+              </div>
+              <div>
+                <label className={labelCls}>Firma de quien recibió (opcional)</label>
+                <div className="rounded-xl overflow-hidden border border-line">
+                  <SignaturePad titulo="Firma de quien recibió" inicial={recibioFirma} onCambio={setRecibioFirma} />
+                </div>
+              </div>
+            </div>
+          )}
 
           <p className="text-[11px] text-muted mt-3 leading-relaxed">
             El reporte quedará como <b>pendiente de revisión</b> hasta que {MARCA.revisor} lo firme desde el panel.

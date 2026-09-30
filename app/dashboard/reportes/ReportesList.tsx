@@ -115,6 +115,9 @@ export default function ReportesList({
           {r.correccion_solicitada && !r.correccion_habilitada && (
             <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber/20 text-amber whitespace-nowrap">Corrección</span>
           )}
+          {r.data?.firmaPendiente && !r.data?.firmaClienteData && (
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red/12 text-red whitespace-nowrap">Firma cliente pend.</span>
+          )}
         </div>
       ),
     },
@@ -246,6 +249,9 @@ export default function ReportesList({
                             <span className="text-[12px] font-semibold px-2.5 py-1 rounded-full bg-teal/15 text-teal flex items-center gap-1.5"><Check size={12} strokeWidth={3} />Completado</span>
                           ) : (
                             <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber/15 text-amber">Pend. revisión</span>
+                          )}
+                          {r.data?.firmaPendiente && !r.data?.firmaClienteData && (
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red/12 text-red">Firma cliente pend.</span>
                           )}
                           {r.correccion_solicitada && !r.correccion_habilitada && (
                             <span className="text-[12px] font-semibold px-2.5 py-1 rounded-full bg-amber/20 text-amber flex items-center gap-1.5">

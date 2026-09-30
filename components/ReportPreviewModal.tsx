@@ -165,9 +165,15 @@ export default function ReportPreviewModal({ preview, onClose }: { preview: Prev
             <div className={`rounded-xl px-3 py-2.5 text-[13px] font-medium ${preview.firmaIngListo ? 'bg-teal/15 text-teal' : 'bg-surface-2 text-muted'}`}>
               {preview.firmaIngListo ? 'Ing. responsable firmado' : 'Ing. responsable — sin firmar'}
             </div>
-            <div className={`rounded-xl px-3 py-2.5 text-[13px] font-medium ${preview.firmaClienteListo ? 'bg-teal/15 text-teal' : 'bg-surface-2 text-muted'}`}>
-              {preview.firmaClienteListo ? 'Cliente firmado' : 'Cliente — sin firmar'}
-            </div>
+            {data.clienteAusente ? (
+              <div className="rounded-xl px-3 py-2.5 text-[13px] font-medium bg-amber/15 text-amber">
+                Cliente ausente — firma pendiente{data.clienteAusente.recibioNombre ? ` · recibió ${data.clienteAusente.recibioNombre}` : ''}
+              </div>
+            ) : (
+              <div className={`rounded-xl px-3 py-2.5 text-[13px] font-medium ${preview.firmaClienteListo ? 'bg-teal/15 text-teal' : 'bg-surface-2 text-muted'}`}>
+                {preview.firmaClienteListo ? 'Cliente firmado' : 'Cliente — sin firmar'}
+              </div>
+            )}
           </div>
         </div>
       </div>

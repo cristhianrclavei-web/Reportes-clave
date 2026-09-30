@@ -173,6 +173,9 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
                         ) : (
                           <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber/15 text-amber shrink-0">Pend. revisión</span>
                         )}
+                        {r.data?.firmaPendiente && !r.data?.firmaClienteData && (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red/12 text-red shrink-0">Firma cliente pend.</span>
+                        )}
                       </div>
                     </div>
                     <div className="text-right shrink-0">
