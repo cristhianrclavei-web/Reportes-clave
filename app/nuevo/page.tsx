@@ -16,7 +16,7 @@ import { showToast } from '@/components/Toast';
 import SavingOverlay from '@/components/SavingOverlay';
 import ReportPreviewModal, { PreviewData } from '@/components/ReportPreviewModal';
 import { listarMisServicios, vincularReporteAServicio, Servicio, filtrarSiguienteDiaPorGrupo, listarTecnicosDeServicio, listarFotosDelDia, FotoDelDia } from '@/lib/serviciosProgramados';
-import { X, Camera, Images, Plus, AlertTriangle, Eye, ChevronDown, Tag } from 'lucide-react';
+import { X, Camera, Images, Plus, AlertTriangle, Eye, ChevronDown, Tag, History } from 'lucide-react';
 import { generarUUID } from '@/lib/uuid';
 import { notificar } from '@/lib/push';
 import { evaluarVentanaServicio } from '@/lib/ventanaServicio';
@@ -27,6 +27,7 @@ import { SelectorFormatos, PasoFormato, pendientesFormatos } from '@/components/
 import { FormatoLlenado } from '@/lib/formatosMantenimiento';
 import { usePlan, tieneModulo } from '@/lib/planes';
 import EtiquetasMantenimiento from '@/components/EtiquetasMantenimiento';
+import { guardarCamposBorrador, guardarFotosBorrador, leerBorrador, borrarBorrador } from '@/lib/borradorReporte';
 
 // Hora "HH:mm" del reloj del dispositivo — igual al formato que ya entrega
 // el <input type="time">, así que sirve tal cual como valor de respaldo.
@@ -293,6 +294,123 @@ export default function NuevoReportePage() {
   const [fotosServicio, setFotosServicio] = useState<FotoDelDia[]>([]);
   const [cargandoFotosServicio, setCargandoFotosServicio] = useState(false);
 
+  // ---------------- Borrador en el dispositivo ----------------
+  // Todo lo capturado se guarda solo en el celular mientras se llena; si la
+  // página se recarga por accidente (p. ej. jalar hacia abajo estando hasta
+  // arriba), al volver se recupera. Se borra al guardar o al empezar otro.
+  const [firmaIngData, setFirmaIngData] = useState<string | null>(null);
+  const [firmaClienteData, setFirmaClienteData] = useState<string | null>(null);
+  const [borradorUid, setBorradorUid] = useState<string | null>(null);
+  // Hasta revisar si hay borrador no se guarda nada (se borraría el anterior).
+  const [borradorListo, setBorradorListo] = useState(false);
+  const [recuperadoEn, setRecuperadoEn] = useState<number | null>(null);
+
+  const camposBorrador = {
+    empresaCliente, clienteId, contactosCliente, servicioSeleccionadoId, personalAsignado, fecha, ordCompra,
+    horaLlegada, horaSalida, listaConceptos, contactoUsuario, puestoArea, vehiculo, placas, vehiculoOtro,
+    manejadoPor, ingACargo, personalAdicional, tipoServicio, subTipo, tipoServicioOtroTexto, seguridad,
+    seguridadOtraTexto, tuberia, cables, observaciones, actividades, showCaso, casoPuntos, equipos,
+    firmaIngNombre, firmaClienteNombre, servicioConcluido, paso, usaFormato, formatos, fotosServicio,
+    firmaIngData, firmaClienteData,
+  };
+  const hayDatos = Boolean(
+    empresaCliente.trim() || tipoServicio || ordCompra.trim() || observaciones.trim() || horaLlegada ||
+    actividades.some((a) => a.trim()) || fotos.length || formatos.length || firmaIngData || firmaClienteData
+  );
+
+  useEffect(() => {
+    let cancelado = false;
+    (async () => {
+      try {
+        // getSession es local (sirve sin señal); getUser iría a la red.
+        const { data } = await supabase.auth.getSession();
+        const uid = data.session?.user.id;
+        if (!uid || cancelado) return;
+        setBorradorUid(uid);
+        const r = await leerBorrador(uid);
+        if (!r || cancelado) return;
+        const c = r.borrador.campos as any;
+        const set = <T,>(fn: (v: T) => void, v: unknown) => { if (v !== undefined) fn(v as T); };
+        set(setEmpresaCliente, c.empresaCliente); set(setClienteId, c.clienteId); set(setContactosCliente, c.contactosCliente);
+        set(setServicioSeleccionadoId, c.servicioSeleccionadoId); set(setPersonalAsignado, c.personalAsignado);
+        set(setFecha, c.fecha); set(setOrdCompra, c.ordCompra); set(setHoraLlegada, c.horaLlegada); set(setHoraSalida, c.horaSalida);
+        set(setListaConceptos, c.listaConceptos); set(setContactoUsuario, c.contactoUsuario); set(setPuestoArea, c.puestoArea);
+        set(setVehiculo, c.vehiculo); set(setPlacas, c.placas); set(setVehiculoOtro, c.vehiculoOtro); set(setManejadoPor, c.manejadoPor);
+        set(setIngACargo, c.ingACargo); set(setPersonalAdicional, c.personalAdicional); set(setTipoServicio, c.tipoServicio);
+        set(setSubTipo, c.subTipo); set(setTipoServicioOtroTexto, c.tipoServicioOtroTexto); set(setSeguridad, c.seguridad);
+        set(setSeguridadOtraTexto, c.seguridadOtraTexto); set(setTuberia, c.tuberia); set(setCables, c.cables);
+        set(setObservaciones, c.observaciones); set(setActividades, c.actividades); set(setShowCaso, c.showCaso);
+        set(setCasoPuntos, c.casoPuntos); set(setEquipos, c.equipos); set(setFirmaIngNombre, c.firmaIngNombre);
+        set(setFirmaClienteNombre, c.firmaClienteNombre); set(setServicioConcluido, c.servicioConcluido);
+        set(setUsaFormato, c.usaFormato); set(setFormatos, c.formatos); set(setFotosServicio, c.fotosServicio);
+        if (typeof c.tokenVerificacion === 'string') tokenRef.current = c.tokenVerificacion;
+        if (c.firmaIngData || c.firmaClienteData) {
+          setFirmaIngData(c.firmaIngData || null);
+          setFirmaClienteData(c.firmaClienteData || null);
+          setFirmasMontadas(true);
+        }
+        set(setPaso, c.paso);
+        if (r.fotos.length) {
+          setFotos(r.fotos.map((f) => {
+            const file = new File([f.blob], f.name, { type: f.type });
+            return { file, previewUrl: URL.createObjectURL(file), caption: f.caption };
+          }));
+        }
+        setRecuperadoEn(r.borrador.guardadoEn);
+      } catch {
+        // sin IndexedDB (modo privado, etc.): el formulario funciona igual
+      } finally {
+        if (!cancelado) setBorradorListo(true);
+      }
+    })();
+    return () => { cancelado = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Campos: se guardan medio segundo después del último cambio.
+  const camposJson = JSON.stringify(camposBorrador);
+  useEffect(() => {
+    if (!borradorListo || !borradorUid) return;
+    const t = setTimeout(() => {
+      const accion = hayDatos
+        ? guardarCamposBorrador(borradorUid, { ...JSON.parse(camposJson), tokenVerificacion: tokenRef.current })
+        : borrarBorrador(borradorUid);
+      accion.catch(() => {});
+    }, 500);
+    return () => clearTimeout(t);
+  }, [camposJson, hayDatos, borradorListo, borradorUid]);
+
+  // Fotos: solo cuando cambian (son pesadas).
+  useEffect(() => {
+    if (!borradorListo || !borradorUid) return;
+    const t = setTimeout(() => {
+      guardarFotosBorrador(
+        borradorUid,
+        fotos.map((f) => ({ name: f.file.name, type: f.file.type, blob: f.file, caption: f.caption }))
+      ).catch(() => {});
+    }, 500);
+    return () => clearTimeout(t);
+  }, [fotos, borradorListo, borradorUid]);
+
+  // Bloquea el «jalar para recargar» del celular mientras está esta
+  // pantalla, y si aun así se intenta salir con datos, el navegador avisa.
+  useEffect(() => {
+    const html = document.documentElement;
+    const antes = [html.style.overscrollBehaviorY, document.body.style.overscrollBehaviorY];
+    html.style.overscrollBehaviorY = 'none';
+    document.body.style.overscrollBehaviorY = 'none';
+    return () => {
+      html.style.overscrollBehaviorY = antes[0];
+      document.body.style.overscrollBehaviorY = antes[1];
+    };
+  }, []);
+  useEffect(() => {
+    if (!hayDatos || saving) return;
+    const avisar = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', avisar);
+    return () => window.removeEventListener('beforeunload', avisar);
+  }, [hayDatos, saving]);
+
   // Al elegir un servicio asignado: se llena el cliente, se traen los
   // técnicos que el supervisor le asignó (para ofrecerlos como sugerencia) y
   // las fotos que ya se capturaron ese día en el servicio.
@@ -509,11 +627,16 @@ export default function NuevoReportePage() {
     setActividades((acts) => (acts.length > 1 ? acts.filter((_, idx) => idx !== i) : ['']));
   }
 
-  function resetAll() {
+  // `descartar`: el técnico deja el borrador para empezar otro; el servicio
+  // elegido NO se quita de sus pendientes (no se reportó).
+  function resetAll(descartar = false) {
+    if (borradorUid) borrarBorrador(borradorUid).catch(() => {});
+    setRecuperadoEn(null);
+    if (descartar) setFecha(hoyLocal());
     setIngACargo(''); setPersonalAdicional(['']);
     setPersonalAsignado([]);
     setServicioConcluido(null);
-    if (servicioSeleccionadoId) {
+    if (servicioSeleccionadoId && !descartar) {
       setServiciosAsignados((prev) => {
         const actualizada = prev.filter((s) => s.id !== servicioSeleccionadoId);
         try {
@@ -848,6 +971,19 @@ export default function NuevoReportePage() {
             {!isOnline
               ? 'Sin conexión — los reportes se guardarán en este dispositivo y se subirán solos al recuperar internet.'
               : `${pendingCount} reporte${pendingCount > 1 ? 's' : ''} pendiente${pendingCount > 1 ? 's' : ''} por sincronizar…`}
+          </div>
+        )}
+
+        {recuperadoEn && (
+          <div className="rounded-2xl px-4 py-3 bg-teal/10 border border-teal/30 flex items-start gap-2.5">
+            <History size={18} className="text-teal shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0 text-[13px]">
+              <p className="font-semibold text-teal">Recuperamos el reporte que estabas llenando</p>
+              <p className="text-muted">Guardado en este dispositivo el {new Date(recuperadoEn).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}.</p>
+            </div>
+            <button type="button" onClick={() => { resetAll(true); window.scrollTo({ top: 0 }); }} className="shrink-0 text-[12.5px] font-semibold text-muted underline py-0.5">
+              Empezar otro
+            </button>
           </div>
         )}
 
@@ -1422,13 +1558,13 @@ export default function NuevoReportePage() {
           <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Firmas</p>
           <div className="mb-2.5"><label className={labelCls}>Ing. responsable de ejecución</label><input type="text" className={inputCls} value={firmaIngNombre} onChange={(e) => setFirmaIngNombre(e.target.value)} /></div>
           <div className="rounded-xl overflow-hidden border border-line">
-            <SignaturePad ref={sigIngRef} titulo="Firma del ingeniero responsable" />
+            <SignaturePad ref={sigIngRef} titulo="Firma del ingeniero responsable" inicial={firmaIngData} onCambio={setFirmaIngData} />
           </div>
           <div className="mb-4" />
 
           <div className="mb-2.5"><label className={labelCls}>Nombre del cliente</label><input type="text" className={inputCls} value={firmaClienteNombre} onChange={(e) => setFirmaClienteNombre(e.target.value)} /></div>
           <div className="rounded-xl overflow-hidden border border-line">
-            <SignaturePad ref={sigClienteRef} titulo="Firma del cliente" />
+            <SignaturePad ref={sigClienteRef} titulo="Firma del cliente" inicial={firmaClienteData} onCambio={setFirmaClienteData} />
           </div>
 
           <p className="text-[11px] text-muted mt-3 leading-relaxed">

@@ -24,17 +24,20 @@ const PAD = 14; // margen alrededor del trazo al recortar
 const MAX_W = 600;
 const MAX_H = 240;
 
-const SignaturePad = forwardRef<SignaturePadHandle, { height?: number; titulo?: string }>(function SignaturePad(
-  { height = 140, titulo = 'Firma' },
-  ref
-) {
-  const [dataUrl, setDataUrl] = useState<string | null>(null);
-  const dataUrlRef = useRef<string | null>(null);
+// `inicial` y `onCambio` son opcionales: sirven para recuperar la firma de un
+// borrador guardado en el dispositivo.
+const SignaturePad = forwardRef<
+  SignaturePadHandle,
+  { height?: number; titulo?: string; inicial?: string | null; onCambio?: (v: string | null) => void }
+>(function SignaturePad({ height = 140, titulo = 'Firma', inicial = null, onCambio }, ref) {
+  const [dataUrl, setDataUrl] = useState<string | null>(inicial);
+  const dataUrlRef = useRef<string | null>(inicial);
   const [abierto, setAbierto] = useState(false);
 
   function fijar(v: string | null) {
     dataUrlRef.current = v;
     setDataUrl(v);
+    onCambio?.(v);
   }
 
   useImperativeHandle(ref, () => ({
