@@ -4,10 +4,11 @@ import {
 } from './serviciosProgramados';
 import { registrarAccionGlobal } from './auditoriaGlobal';
 
-// Tablero del día para el supervisor: quién va a qué servicio, en qué va
-// cada uno y si ya hay reporte. Reemplaza la hoja de Excel de la mañana.
-// Junta datos que ya existen (servicios_programados, servicio_tecnicos,
-// servicio_eventos y cobertura_dias); no agrega tablas.
+// Tablero del día para el supervisor: quién va a qué servicio y en qué va
+// cada uno. Reemplaza la hoja de Excel de la mañana.
+// Solo operación (quién va a dónde y en qué va); el control de reportes vive
+// en Reportes → Control. Junta datos que ya existen (servicios_programados,
+// servicio_tecnicos, servicio_eventos, servicio_avisos); no agrega tablas.
 
 export type AsignacionDia = {
   tecnico_id: string;
@@ -24,28 +25,20 @@ export type ServicioDia = Servicio & {
   avisosPendientes: { id: string; causa: string; comentario: string | null; tecnico_id: string }[];
 };
 
-export type CoberturaTecnico = {
-  estado: 'reporte' | 'justificado' | 'sin_reporte' | 'no_exigible';
-  motivo: string | null;
-  reportes: string[];
-};
-
 export type TableroDia = {
   tecnicos: { id: string; nombre: string }[];
   servicios: ServicioDia[];
-  cobertura: Record<string, CoberturaTecnico>;
 };
 
 export async function cargarTableroDia(fecha: string): Promise<TableroDia> {
   const supabase = createClient();
-  const [tec, sv, cob] = await Promise.all([
+  const [tec, sv] = await Promise.all([
     supabase.from('profiles').select('id, full_name, activo').eq('role', 'tecnico').order('full_name'),
     supabase
       .from('servicios_programados')
       .select('*, servicio_tecnicos(tecnico_id, visto_en, enterado_en, profiles(full_name))')
       .eq('fecha', fecha)
       .order('hora_programada', { ascending: true, nullsFirst: false }),
-    supabase.rpc('cobertura_dias', { p_desde: fecha, p_hasta: fecha }),
   ]);
   if (tec.error) throw tec.error;
   if (sv.error) throw sv.error;
@@ -83,15 +76,9 @@ export async function cargarTableroDia(fecha: string): Promise<TableroDia> {
     }
   }
 
-  const cobertura: Record<string, CoberturaTecnico> = {};
-  for (const c of (cob.data as any[]) || []) {
-    cobertura[c.tecnico_id] = { estado: c.estado, motivo: c.motivo, reportes: c.reportes || [] };
-  }
-
   return {
     tecnicos: ((tec.data as any[]) || []).filter((t) => t.activo !== false).map((t) => ({ id: t.id, nombre: t.full_name || 'Técnico' })),
     servicios,
-    cobertura,
   };
 }
 

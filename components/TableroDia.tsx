@@ -9,7 +9,6 @@ import ModalOverlay from '@/components/ModalOverlay';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
 import { showToast } from '@/components/Toast';
 import { hoyLocal, sumarDias, fechaLocal } from '@/lib/fechaHoy';
-import { HORA_CORTE_MIN, MOTIVOS } from '@/lib/coberturaReportes';
 import { etiquetaCausa } from '@/lib/avisos';
 import { calcularEstadoTiempo, motivoNoEditable } from '@/lib/serviciosProgramados';
 import {
@@ -132,7 +131,6 @@ export default function TableroDia() {
       .map((t) => ({
         ...t,
         servicios: datos.servicios.filter((s) => s.asignados.some((a) => a.tecnico_id === t.id)),
-        cobertura: datos.cobertura[t.id],
       }))
       .sort((a, b) => (a.servicios.length === 0 ? 1 : 0) - (b.servicios.length === 0 ? 1 : 0));
   }, [datos]);
@@ -147,8 +145,6 @@ export default function TableroDia() {
     return { conServicio, total: filas.length, enCampo, concluidos, sinReporte, avisos, servicios: servicios.length };
   }, [datos, filas]);
 
-  // El reporte del día ya se puede exigir: fecha pasada, o hoy después de las 18:00.
-  const exigible = fecha < hoy || (fecha === hoy && minutos >= HORA_CORTE_MIN);
 
   // Algo que el supervisor debe atender en este servicio.
   function alertaDe(sv: ServicioDia, tecnicoId: string): boolean {
@@ -164,7 +160,7 @@ export default function TableroDia() {
   const visibles = filas.filter((f) => {
     if (filtro === 'sin') return f.servicios.length === 0;
     if (filtro === 'campo') return f.servicios.some((sv) => sv.estado === 'en_sitio' || sv.estado === 'en_curso');
-    if (filtro === 'alertas') return f.servicios.some((sv) => alertaDe(sv, f.id)) || (f.cobertura?.estado === 'sin_reporte' && exigible && f.servicios.length > 0);
+    if (filtro === 'alertas') return f.servicios.some((sv) => alertaDe(sv, f.id))
     return true;
   });
 
@@ -187,12 +183,7 @@ export default function TableroDia() {
     hoja.getRow(1).font = { bold: true };
     for (const f of filas) {
       if (f.servicios.length === 0) {
-        const c = f.cobertura;
-        hoja.addRow({
-          tecnico: f.nombre,
-          servicio: 'Sin servicio asignado',
-          estado: c?.estado === 'justificado' ? `Justificado: ${MOTIVOS.find((m) => m.valor === c.motivo)?.label || c.motivo}` : c?.estado === 'reporte' ? 'Con reporte' : '',
-        });
+        hoja.addRow({ tecnico: f.nombre, servicio: 'Disponible (sin servicio asignado)' });
         continue;
       }
       for (const s of f.servicios) {
@@ -239,21 +230,17 @@ export default function TableroDia() {
   }
   // Punto de la tira: rojo si hay algo que atender, verde si ya acabó todo.
   function puntoTecnico(f: (typeof filas)[number]): string | null {
-    if (f.servicios.some((sv) => alertaDe(sv, f.id)) || (f.cobertura?.estado === 'sin_reporte' && exigible && f.servicios.length > 0)) return 'bg-red';
+    if (f.servicios.some((sv) => alertaDe(sv, f.id))) return 'bg-red';
     if (f.servicios.length > 0 && f.servicios.every((sv) => sv.estado === 'concluido')) return 'bg-teal';
     if (f.servicios.some((sv) => sv.estado === 'en_sitio' || sv.estado === 'en_curso')) return 'bg-amber';
     return null;
   }
 
   function tarjeta(f: (typeof filas)[number]) {
-    const c = f.cobertura;
     return (
       <div key={f.id} className="rounded-2xl bg-surface border border-line px-3.5 py-3">
           <div className="flex items-center justify-between gap-2 mb-1">
             <p className="text-[14.5px] font-semibold leading-tight truncate">{f.nombre}</p>
-            {c?.estado === 'reporte' && <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-teal/15 text-teal shrink-0 flex items-center gap-1"><FileText size={10} />Reporte</span>}
-            {c?.estado === 'justificado' && <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-amber/15 text-amber shrink-0">Justificado</span>}
-            {c?.estado === 'sin_reporte' && exigible && <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-red/12 text-red shrink-0">Falta reporte</span>}
           </div>
           <div className="flex flex-col">
             {f.servicios.map((sv) => {
@@ -280,13 +267,10 @@ export default function TableroDia() {
   }
 
   function sinServicio(f: (typeof filas)[number]) {
-    const c = f.cobertura;
     return (
       <div className="rounded-2xl bg-surface border border-dashed border-line-strong px-3.5 py-4">
         <p className="text-[14.5px] font-semibold">{f.nombre}</p>
-        <p className="text-[13px] text-muted mt-1 flex items-center gap-1.5"><UserX size={15} /> Sin servicio asignado</p>
-        {c?.estado === 'justificado' && <p className="text-[12.5px] text-amber mt-1">Justificado: {MOTIVOS.find((m) => m.valor === c.motivo)?.label || c.motivo}</p>}
-        {c?.estado === 'reporte' && <p className="text-[12.5px] text-teal mt-1">Tiene reporte del día</p>}
+        <p className="text-[13px] text-muted mt-1 flex items-center gap-1.5"><UserX size={15} /> Disponible: sin servicio asignado</p>
         <button type="button" onClick={() => setAsignar({ tecnicoIds: [f.id] })}
           className="mt-3 w-full min-h-[44px] rounded-xl bg-teal/12 text-teal text-[13.5px] font-semibold flex items-center justify-center gap-1.5 active:scale-[0.98]">
           <Plus size={16} /> Asignarle un servicio
@@ -348,9 +332,9 @@ export default function TableroDia() {
       <div className="flex flex-wrap items-center gap-x-1 mb-2">
         {([
           ['todos', `Todos (${filas.length})`],
-          ['alertas', `Con alertas (${filas.filter((f) => f.servicios.some((sv) => alertaDe(sv, f.id)) || (f.cobertura?.estado === 'sin_reporte' && exigible && f.servicios.length > 0)).length})`],
+          ['alertas', `Con alertas (${filas.filter((f) => f.servicios.some((sv) => alertaDe(sv, f.id))).length})`],
           ['campo', `En campo (${filas.filter((f) => f.servicios.some((sv) => sv.estado === 'en_sitio' || sv.estado === 'en_curso')).length})`],
-          ['sin', `Sin servicio (${filas.filter((f) => f.servicios.length === 0).length})`],
+          ['sin', `Disponibles (${filas.filter((f) => f.servicios.length === 0).length})`],
         ] as [Filtro, string][]).map(([k, l]) => (
           <span key={k} className={chip(filtro === k)} onClick={() => setFiltro(k)}>{l}</span>
         ))}
@@ -399,16 +383,13 @@ export default function TableroDia() {
         </div>
         {(filtro === 'todos' || filtro === 'sin') && visibles.some((f) => f.servicios.length === 0) && (
           <div className="mt-2.5 rounded-2xl border border-dashed border-line-strong px-3.5 py-3">
-            <p className="text-[12px] font-semibold uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><UserX size={14} /> Sin servicio asignado</p>
+            <p className="text-[12px] font-semibold uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><UserX size={14} /> Disponibles (sin servicio)</p>
             <div className="flex flex-wrap gap-1.5">
               {visibles.filter((f) => f.servicios.length === 0).map((f) => {
-                const c = f.cobertura;
                 return (
                   <button key={f.id} type="button" onClick={() => setAsignar({ tecnicoIds: [f.id] })}
                     className="px-2.5 py-1.5 rounded-full bg-surface-2 border border-line text-[12.5px] font-medium flex items-center gap-1.5 active:scale-95">
                     {f.nombre}
-                    {c?.estado === 'justificado' && <span className="text-amber text-[11px]">· {MOTIVOS.find((m) => m.valor === c.motivo)?.label || 'Justificado'}</span>}
-                    {c?.estado === 'reporte' && <span className="text-teal text-[11px]">· con reporte</span>}
                     <Plus size={13} className="text-teal" />
                   </button>
                 );
