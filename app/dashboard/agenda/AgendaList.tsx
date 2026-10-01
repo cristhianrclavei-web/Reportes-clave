@@ -13,15 +13,18 @@ import {
 import ConfirmacionTecnicos from '@/components/ConfirmacionTecnicos';
 import { construirAgenda, formatFechaAgenda, diasDeDiferencia } from '@/lib/agenda';
 import { showToast } from '@/components/Toast';
-import { MapPin, Play, Clock, Users, CalendarClock, AlertTriangle } from 'lucide-react';
+import { MapPin, Play, Clock, Users, CalendarClock, AlertTriangle, CalendarRange, List } from 'lucide-react';
 import { hoyLocal } from '@/lib/fechaHoy';
 import DiasFestivosSection from '@/components/DiasFestivosSection';
+import SubTabs from '@/components/SubTabs';
+import PlanSemana from '@/components/PlanSemana';
 
 const ESTADO_CFG: Record<Servicio['estado'], { label: string; cls: string; Icono: any }> = {
   programado: { label: 'Programado', cls: 'bg-surface-2 text-muted', Icono: Clock },
   en_sitio: { label: 'En sitio', cls: 'bg-amber/15 text-amber', Icono: MapPin },
   en_curso: { label: 'En curso', cls: 'bg-teal/15 text-teal', Icono: Play },
   concluido: { label: 'Concluido', cls: 'bg-teal/15 text-teal', Icono: Clock },
+  cancelado: { label: 'Cancelado', cls: 'bg-surface-2 text-faint line-through', Icono: Clock },
 };
 
 export default function AgendaList({ userName }: { userName?: string }) {
@@ -33,6 +36,7 @@ export default function AgendaList({ userName }: { userName?: string }) {
   const [error, setError] = useState<string | null>(null);
   const [filtroTecnico, setFiltroTecnico] = useState('');
   const [search, setSearch] = useState('');
+  const [vista, setVista] = useState<'semana' | 'lista'>('semana');
 
   // Reprogramación rápida desde la propia agenda: es la acción que se necesita
   // justo cuando se está viendo un día vencido.
@@ -99,6 +103,18 @@ export default function AgendaList({ userName }: { userName?: string }) {
       userName={userName}
       wrapperClassName="max-w-2xl lg:max-w-6xl mx-auto pb-28 lg:pb-16 lg:px-6"
     >
+        <SubTabs
+          activa={vista}
+          onCambiar={setVista}
+          opciones={[
+            { k: 'semana', label: 'Semana', Icono: CalendarRange },
+            { k: 'lista', label: 'Lista', Icono: List },
+          ]}
+        />
+
+        {vista === 'semana' && <PlanSemana />}
+
+        {vista === 'lista' && (<>
         <DiasFestivosSection />
 
         <input
@@ -261,6 +277,7 @@ export default function AgendaList({ userName }: { userName?: string }) {
             </div>
           </div>
         ))}
+        </>)}
     </SupervisorShell>
   );
 }

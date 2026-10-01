@@ -38,6 +38,7 @@ export async function cargarControl(desde: string, hasta: string): Promise<{
       .gte('fecha', desde)
       .lte('fecha', hasta)
       .is('report_id', null)
+      .neq('estado', 'cancelado')
       .order('fecha', { ascending: true }),
   ]);
   if (tec.error) throw tec.error;
@@ -51,4 +52,29 @@ export async function cargarControl(desde: string, hasta: string): Promise<{
       tecnicoIds: (servicio_tecnicos || []).map((x: any) => x.tecnico_id),
     })),
   };
+}
+
+// El supervisor registra la justificación de un día por el técnico (p. ej.
+// estuvo en oficina). La base guarda quién la registró y la manda a Eventos.
+export async function justificarPorTecnico(input: {
+  tecnicoId: string;
+  fecha: string;
+  motivo: 'no_asisti' | 'sin_servicio' | 'festivo' | 'vacaciones' | 'otro';
+  detalle: string;
+}): Promise<void> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No hay sesión activa');
+  if (input.motivo === 'otro' && input.detalle.trim().length < 3) throw new Error('Escribe el motivo.');
+  const { error } = await supabase.from('justificaciones_dia').insert({
+    tecnico_id: input.tecnicoId,
+    fecha: input.fecha,
+    motivo: input.motivo,
+    detalle: input.detalle.trim() || null,
+    registrado_por: user.id,
+  });
+  if (error) {
+    if (error.code === '23505') throw new Error('Ese día ya tiene una justificación.');
+    throw error;
+  }
 }

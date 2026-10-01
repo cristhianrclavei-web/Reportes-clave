@@ -37,6 +37,7 @@ const ESTADO_CFG: Record<Servicio['estado'], { label: string; cls: string; Icono
   en_sitio: { label: 'En sitio', cls: 'bg-amber/15 text-amber', Icono: MapPin },
   en_curso: { label: 'En curso', cls: 'bg-teal/15 text-teal', Icono: Play },
   concluido: { label: 'Concluido', cls: 'bg-teal/15 text-teal', Icono: Check },
+  cancelado: { label: 'Cancelado', cls: 'bg-surface-2 text-faint', Icono: X },
 };
 
 function formatFecha(fecha: string): string {

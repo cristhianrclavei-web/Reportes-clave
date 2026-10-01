@@ -29,6 +29,7 @@ const ESTADO_CFG: Record<Servicio['estado'], { label: string; cls: string; borde
   en_sitio: { label: 'En sitio', cls: 'bg-amber/15 text-amber', borde: 'border-l-amber', Icono: MapPin },
   en_curso: { label: 'En curso', cls: 'bg-teal/15 text-teal', borde: 'border-l-teal', Icono: Play },
   concluido: { label: 'Concluido', cls: 'bg-surface-2 text-muted', borde: 'border-l-line-strong', Icono: Check },
+  cancelado: { label: 'Cancelado', cls: 'bg-surface-2 text-faint', borde: 'border-l-line', Icono: Check },
 };
 
 function formatFecha(fecha: string): string {

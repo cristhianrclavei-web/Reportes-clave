@@ -10,7 +10,7 @@ import Logo from '@/components/Logo';
 import {
   Servicio, Tarea, Evento, Auditoria,
   obtenerServicioCompleto, editarServicio, reasignarTecnicos, listarTecnicos, calcularEstadoTiempo, agregarDiasAGrupo, motivoNoEditable,
-  calcularProgresoTareas, eliminarProyecto, eliminarDiaDeProyecto, reprogramarDia, cerrarDiaManualmente,
+  calcularProgresoTareas, eliminarProyecto, eliminarDiaDeProyecto, reprogramarDia, cerrarDiaManualmente, cancelarServicio, reactivarServicio,
 } from '@/lib/serviciosProgramados';
 import ProgressBar from '@/components/ProgressBar';
 import { ChevronLeft, MapPin, Play, Check, Clock, Trash2, AlertTriangle, Timer, Flag, Camera, Plus, Users, Pencil, CalendarClock, PackageCheck, Bookmark, ChevronRight, X, TrendingUp, CalendarX, Lock, PauseCircle, PlayCircle, CheckCircle2 } from 'lucide-react';
@@ -29,6 +29,7 @@ const ESTADO_CFG: Record<Servicio['estado'], { label: string; cls: string }> = {
   en_sitio: { label: 'En sitio', cls: 'bg-amber/15 text-amber' },
   en_curso: { label: 'En curso', cls: 'bg-teal/15 text-teal' },
   concluido: { label: 'Concluido', cls: 'bg-teal/15 text-teal' },
+  cancelado: { label: 'Cancelado', cls: 'bg-surface-2 text-faint' },
 };
 
 function nombre(profiles: any): string {
@@ -72,6 +73,9 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
   const [cerrandoManual, setCerrandoManual] = useState(false);
   const [nuevaFecha, setNuevaFecha] = useState('');
   const [reprogramando, setReprogramando] = useState(false);
+  const [showCancelar, setShowCancelar] = useState(false);
+  const [motivoCancelar, setMotivoCancelar] = useState('');
+  const [cancelando, setCancelando] = useState(false);
   const [plantillas, setPlantillas] = useState<PlantillaInsumos[]>([]);
   const [showInsumos, setShowInsumos] = useState(false);
   const [resumenInsumos, setResumenInsumos] = useState<ResumenChecklist | null>(null);
@@ -226,6 +230,35 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
       alert(e?.message || 'No se pudo cerrar el día');
     } finally {
       setCerrandoManual(false);
+    }
+  }
+
+  async function handleCancelar() {
+    if (!servicio) return;
+    setCancelando(true);
+    try {
+      await cancelarServicio(servicio.id, motivoCancelar);
+      showToast('Servicio cancelado', 'success');
+      setShowCancelar(false);
+      await cargar();
+    } catch (e: any) {
+      showToast(e?.message || 'No se pudo cancelar', 'error');
+    } finally {
+      setCancelando(false);
+    }
+  }
+
+  async function handleReactivar() {
+    if (!servicio) return;
+    setCancelando(true);
+    try {
+      await reactivarServicio(servicio.id);
+      showToast('Servicio reactivado', 'success');
+      await cargar();
+    } catch (e: any) {
+      showToast(e?.message || 'No se pudo reactivar', 'error');
+    } finally {
+      setCancelando(false);
     }
   }
 
@@ -423,8 +456,18 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
             </div>
           )}
 
+          {servicio.estado === 'cancelado' && (
+            <div className="mt-3 p-3.5 rounded-xl bg-surface-2 border border-line">
+              <p className="text-[14px] font-semibold">Servicio cancelado</p>
+              <p className="text-[13px] text-muted mt-0.5">{servicio.cancelado_motivo || 'Sin motivo'}{servicio.cancelado_en ? ` · ${new Date(servicio.cancelado_en).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}` : ''}</p>
+              <button onClick={handleReactivar} disabled={cancelando} className="mt-2 text-teal text-[14px] font-semibold min-h-[40px] disabled:opacity-60">
+                {cancelando ? 'Reactivando…' : 'Reactivar servicio'}
+              </button>
+            </div>
+          )}
+
           {/* Reprogramar la fecha de este día */}
-          {servicio.estado !== 'concluido' && (
+          {servicio.estado !== 'concluido' && servicio.estado !== 'cancelado' && (
             !showReprogramar ? (
               <button
                 onClick={() => { setShowReprogramar(true); setNuevaFecha(servicio.fecha); }}
@@ -449,6 +492,35 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
                   <button onClick={() => setShowReprogramar(false)} className="flex-1 min-h-[46px] border border-line-strong text-ink/80 rounded-xl text-[14px]">Cancelar</button>
                   <button onClick={handleReprogramar} disabled={reprogramando || !nuevaFecha} className="flex-1 min-h-[46px] bg-amber text-inkOnAccent rounded-xl text-[14px] font-semibold disabled:opacity-60">
                     {reprogramando ? 'Guardando...' : 'Reprogramar'}
+                  </button>
+                </div>
+              </div>
+            )
+          )}
+
+          {/* Cancelar: no se va a hacer. Queda en el historial con el motivo. */}
+          {servicio.estado === 'programado' && (
+            !showCancelar ? (
+              <button onClick={() => { setShowCancelar(true); setMotivoCancelar(''); }}
+                className="text-red text-[14px] font-medium mt-1 min-h-[44px] flex items-center gap-1.5">
+                <X size={16} strokeWidth={2.4} /> Cancelar este servicio
+              </button>
+            ) : (
+              <div className="mt-3 p-3.5 rounded-xl bg-red/5 border border-red/30">
+                <label className="text-[13px] text-ink/75 block mb-1.5">¿Por qué se cancela?</label>
+                <div className="mb-2">
+                  {['El cliente canceló', 'El cliente no estaba', 'No llegó el equipo o material', 'Cambio de prioridad'].map((m) => (
+                    <button key={m} type="button" onClick={() => setMotivoCancelar(m)}
+                      className={`px-3 py-1.5 rounded-full text-[12.5px] font-medium mr-1.5 mb-1.5 border ${motivoCancelar === m ? 'bg-red text-white border-red' : 'bg-surface-2 border-line'}`}>{m}</button>
+                  ))}
+                </div>
+                <input value={motivoCancelar} onChange={(e) => setMotivoCancelar(e.target.value)} placeholder="Otro motivo"
+                  className="w-full px-3 min-h-[44px] mb-2.5 rounded-lg bg-surface border border-line text-[14.5px]" />
+                <p className="text-[12.5px] text-muted mb-2.5">Queda en el historial, deja de exigir reporte y a los técnicos les llega el aviso.</p>
+                <div className="flex gap-2">
+                  <button onClick={() => setShowCancelar(false)} className="flex-1 min-h-[46px] border border-line-strong text-ink/80 rounded-xl text-[14px]">Volver</button>
+                  <button onClick={handleCancelar} disabled={cancelando || !motivoCancelar.trim()} className="flex-1 min-h-[46px] bg-red text-white rounded-xl text-[14px] font-semibold disabled:opacity-60">
+                    {cancelando ? 'Cancelando…' : 'Cancelar servicio'}
                   </button>
                 </div>
               </div>

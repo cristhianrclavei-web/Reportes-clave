@@ -19,7 +19,11 @@ export type Servicio = {
   hora_llegada: string | null;
   hora_inicio: string | null;
   hora_fin: string | null;
-  estado: 'programado' | 'en_sitio' | 'en_curso' | 'concluido';
+  estado: 'programado' | 'en_sitio' | 'en_curso' | 'concluido' | 'cancelado';
+  // Cancelado por un supervisor (patch_fase2_servicios.sql): no se hizo y ya
+  // no exige reporte; queda en el historial con su motivo.
+  cancelado_motivo?: string | null;
+  cancelado_en?: string | null;
   // Pausa en curso (ej. hora de comida) — null si no está pausado ahora
   // mismo. minutos_pausados acumula el total ya cerrado de pausas previas;
   // la pausa abierta se suma aparte con minutosPausadosTotales().
@@ -279,6 +283,61 @@ export async function reprogramarDia(servicioId: string, nuevaFecha: string): Pr
   await avisarCambioATecnicos(servicioId, actual.proyecto, `ahora es el ${d}/${m}/${y}`);
 }
 
+// Cancelar un día que no se va a hacer (el cliente canceló, no llegó el
+// equipo…). A diferencia de eliminarlo, queda en el historial con su motivo
+// y ya no exige reporte. La base valida que sea supervisor y que no se haya
+// empezado (patch_fase2_servicios.sql).
+export async function cancelarServicio(servicioId: string, motivo: string): Promise<void> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No hay sesión activa');
+  if (!motivo.trim()) throw new Error('Indica el motivo de la cancelación.');
+  const { data: sv, error: eSv } = await supabase
+    .from('servicios_programados').select('proyecto, fecha, estado, numero_dia, dias_totales').eq('id', servicioId).single();
+  if (eSv) throw eSv;
+  if (sv.estado !== 'programado') throw new Error('Solo se puede cancelar un servicio que no se ha empezado.');
+  const { error } = await supabase
+    .from('servicios_programados')
+    .update({ estado: 'cancelado', cancelado_motivo: motivo.trim() })
+    .eq('id', servicioId);
+  if (error) throw error;
+  const etiqueta = `«${sv.proyecto}»${sv.dias_totales > 1 ? ` (día ${sv.numero_dia}/${sv.dias_totales})` : ''}`;
+  const cambio = `Canceló ${etiqueta} del ${fechaDMA(sv.fecha)}: ${motivo.trim()}`;
+  await supabase.from('servicio_auditoria').insert({ servicio_id: servicioId, supervisor_id: user.id, cambio });
+  await registrarAccionGlobal('cambio_en_dia', 'servicio', servicioId, cambio);
+  const { data: asig } = await supabase.from('servicio_tecnicos').select('tecnico_id').eq('servicio_id', servicioId);
+  const ids = (asig || []).map((r: any) => r.tecnico_id as string);
+  if (ids.length > 0) {
+    await notificar({
+      usuarios: ids,
+      tipo: 'servicio_asignado',
+      titulo: 'Se canceló un servicio',
+      mensaje: `${etiqueta} del ${fechaDMA(sv.fecha)}: ${motivo.trim()}`,
+      url: '/servicios',
+      tag: `servicio-cancelado-${servicioId}`,
+    });
+  }
+}
+
+export async function reactivarServicio(servicioId: string): Promise<void> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No hay sesión activa');
+  const { data: sv, error: eSv } = await supabase.from('servicios_programados').select('proyecto, fecha').eq('id', servicioId).single();
+  if (eSv) throw eSv;
+  const { error } = await supabase.from('servicios_programados').update({ estado: 'programado' }).eq('id', servicioId);
+  if (error) throw error;
+  const cambio = `Reactivó «${sv.proyecto}» del ${fechaDMA(sv.fecha)}`;
+  await supabase.from('servicio_auditoria').insert({ servicio_id: servicioId, supervisor_id: user.id, cambio });
+  await registrarAccionGlobal('cambio_en_dia', 'servicio', servicioId, cambio);
+  await avisarCambioATecnicos(servicioId, sv.proyecto, 'se reactivó');
+}
+
+function fechaDMA(f: string): string {
+  const [y, m, d] = f.split('-');
+  return `${d}/${m}/${y}`;
+}
+
 // Amplía un proyecto ya existente agregando más días — copia los técnicos
 // del último día del grupo para los días nuevos y actualiza el "de cuántos"
 // (dias_totales) en TODAS las filas del grupo. El checklist NO se copia:
@@ -489,6 +548,8 @@ export async function listarMisServicios(): Promise<Servicio[]> {
     .from('servicios_programados')
     .select('*')
     .in('id', ids)
+    // Un servicio cancelado ya no es trabajo del técnico (le llegó el aviso).
+    .neq('estado', 'cancelado')
     .order('fecha', { ascending: false });
   if (error) throw error;
   return (data as Servicio[]) || [];
@@ -559,6 +620,7 @@ export async function listarServiciosVinculables(): Promise<Servicio[]> {
     .from('servicios_programados')
     .select('*')
     .is('report_id', null)
+    .neq('estado', 'cancelado')
     .lte('fecha', hoyStr)
     .order('fecha', { ascending: false });
 

@@ -6,10 +6,10 @@ import { BellRing, ChevronDown, Link2, CheckCircle2, X } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
 import { hoyLocal, sumarDias, fechaLocal } from '@/lib/fechaHoy';
-import { HORA_CORTE_MIN, inicioVentana, mensajePendiente, fechaCorta } from '@/lib/coberturaReportes';
+import { HORA_CORTE_MIN, inicioVentana, mensajePendiente, fechaCorta, MOTIVOS, MotivoJustificacion } from '@/lib/coberturaReportes';
 import { notificar } from '@/lib/push';
-import { cargarControl, ServicioPendiente } from '@/lib/controlReportes';
-import { buscarReportesParaVincular, vincularReporteAServicio, ReporteParaVincular } from '@/lib/serviciosProgramados';
+import { cargarControl, ServicioPendiente, justificarPorTecnico } from '@/lib/controlReportes';
+import { buscarReportesParaVincular, vincularReporteAServicio, ReporteParaVincular, cancelarServicio } from '@/lib/serviciosProgramados';
 
 // Control de reportes: por técnico, lo que debe entregar y qué tan puntual
 // es. Lo que debe sale de dos fuentes: servicios ya pasados sin reporte
@@ -39,6 +39,8 @@ export default function ControlReportes({ reportes, onAbrirReporte }: { reportes
   const [abiertos, setAbiertos] = useState<Set<string>>(new Set());
   const [avisados, setAvisados] = useState<Set<string>>(new Set());
   const [ligando, setLigando] = useState<ServicioPendiente | null>(null);
+  const [justificando, setJustificando] = useState<{ tecnicoId: string; nombre: string; fecha: string } | null>(null);
+  const [cancelando, setCancelando] = useState<ServicioPendiente | null>(null);
 
   useEffect(() => {
     const ahora = new Date();
@@ -191,6 +193,9 @@ export default function ControlReportes({ reportes, onAbrirReporte }: { reportes
                                 {p.servicio.estado !== 'programado' && (
                                   <button type="button" onClick={() => setLigando(p.servicio)} className="text-teal flex items-center gap-1"><Link2 size={13} /> Ligar reporte</button>
                                 )}
+                                {p.servicio.estado === 'programado' && (
+                                  <button type="button" onClick={() => setCancelando(p.servicio)} className="text-red">Cancelar servicio</button>
+                                )}
                                 <Link href={`/dashboard/servicios/${p.servicio.id}`} className="text-teal">Ver servicio</Link>
                               </div>
                             </>
@@ -198,6 +203,8 @@ export default function ControlReportes({ reportes, onAbrirReporte }: { reportes
                             <>
                               <p className="text-[13px] font-medium">Día sin reporte ni justificación</p>
                               <p className="text-[11.5px] text-muted">Sin servicio programado ese día</p>
+                              <button type="button" onClick={() => setJustificando({ tecnicoId: f.id, nombre: f.nombre, fecha: p.fecha })}
+                                className="text-[12px] font-semibold text-teal mt-1">Dar por justificado</button>
                             </>
                           )}
                         </div>
@@ -239,6 +246,12 @@ export default function ControlReportes({ reportes, onAbrirReporte }: { reportes
         </div>
       )}
 
+      {justificando && (
+        <Justificar dato={justificando} onClose={() => setJustificando(null)} onListo={() => { setJustificando(null); cargar(); }} />
+      )}
+      {cancelando && (
+        <CancelarServicio servicio={cancelando} onClose={() => setCancelando(null)} onListo={() => { setCancelando(null); cargar(); }} />
+      )}
       {ligando && (
         <LigarReporte servicio={ligando} onClose={() => setLigando(null)} onAbrir={onAbrirReporte}
           onListo={() => { setLigando(null); cargar(); }} />
@@ -309,5 +322,89 @@ function LigarReporte({ servicio, onClose, onListo, onAbrir }: {
         </div>
       </div>
     </ModalOverlay>
+  );
+}
+
+function Modal({ titulo, subtitulo, onClose, children }: { titulo: string; subtitulo: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <ModalOverlay onClose={onClose}>
+      <div className="glass-strong rounded-3xl w-full max-w-md p-5 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-start justify-between gap-3 mb-1">
+          <h2 className="font-display font-bold text-[19px] tracking-wide">{titulo}</h2>
+          <button onClick={onClose} aria-label="Cerrar" className="w-10 h-10 -mr-1 -mt-1 flex items-center justify-center text-muted"><X size={19} /></button>
+        </div>
+        <p className="text-[13px] text-muted mb-4">{subtitulo}</p>
+        {children}
+      </div>
+    </ModalOverlay>
+  );
+}
+
+const chipCls = (sel: boolean) =>
+  `px-3 py-1.5 rounded-full text-[12.5px] font-medium mr-1.5 mb-1.5 inline-block cursor-pointer border ${sel ? 'bg-teal text-inkOnAccent border-teal' : 'bg-surface-2 text-ink/80 border-line'}`;
+const inputCls = 'w-full px-3.5 py-2.5 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px] placeholder:text-faint';
+
+function Justificar({ dato, onClose, onListo }: { dato: { tecnicoId: string; nombre: string; fecha: string }; onClose: () => void; onListo: () => void }) {
+  const [motivo, setMotivo] = useState<MotivoJustificacion>('sin_servicio');
+  const [detalle, setDetalle] = useState('');
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function guardar() {
+    setGuardando(true);
+    setError(null);
+    try {
+      await justificarPorTecnico({ tecnicoId: dato.tecnicoId, fecha: dato.fecha, motivo, detalle });
+      showToast('Día justificado', 'success');
+      onListo();
+    } catch (e: any) {
+      setError(e?.message || 'No se pudo guardar.');
+      setGuardando(false);
+    }
+  }
+  return (
+    <Modal titulo="Dar por justificado" subtitulo={`${dato.nombre} · ${fechaCorta(dato.fecha)}. Queda registrado que tú lo justificaste.`} onClose={() => !guardando && onClose()}>
+      {MOTIVOS.map((m) => (
+        <span key={m.valor} className={chipCls(motivo === m.valor)} onClick={() => setMotivo(m.valor)}>{m.label}</span>
+      ))}
+      <input className={`${inputCls} mt-1`} value={detalle} onChange={(e) => setDetalle(e.target.value)} placeholder={motivo === 'otro' ? 'Escribe el motivo' : 'Detalle (opcional)'} />
+      {error && <p className="text-[13px] text-red font-semibold mt-2">{error}</p>}
+      <button type="button" onClick={guardar} disabled={guardando}
+        className="w-full mt-4 min-h-[48px] rounded-2xl bg-teal text-inkOnAccent font-semibold text-[15px] disabled:opacity-50">
+        {guardando ? 'Guardando…' : 'Justificar día'}
+      </button>
+    </Modal>
+  );
+}
+
+const MOTIVOS_CANCELACION = ['El cliente canceló', 'El cliente no estaba', 'No llegó el equipo o material', 'Se reprogramó por fuera de la app', 'No se hizo'];
+
+function CancelarServicio({ servicio, onClose, onListo }: { servicio: ServicioPendiente; onClose: () => void; onListo: () => void }) {
+  const [motivo, setMotivo] = useState('');
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function guardar() {
+    setGuardando(true);
+    setError(null);
+    try {
+      await cancelarServicio(servicio.id, motivo);
+      showToast('Servicio cancelado', 'success');
+      onListo();
+    } catch (e: any) {
+      setError(e?.message || 'No se pudo cancelar.');
+      setGuardando(false);
+    }
+  }
+  return (
+    <Modal titulo="Cancelar servicio" subtitulo={`${servicio.proyecto} · ${fechaCorta(servicio.fecha)}. Queda en el historial con el motivo y ya no exige reporte.`} onClose={() => !guardando && onClose()}>
+      {MOTIVOS_CANCELACION.map((m) => (
+        <span key={m} className={chipCls(motivo === m)} onClick={() => setMotivo(m)}>{m}</span>
+      ))}
+      <input className={`${inputCls} mt-1`} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Otro motivo" />
+      {error && <p className="text-[13px] text-red font-semibold mt-2">{error}</p>}
+      <button type="button" onClick={guardar} disabled={guardando || !motivo.trim()}
+        className="w-full mt-4 min-h-[48px] rounded-2xl bg-red text-white font-semibold text-[15px] disabled:opacity-50">
+        {guardando ? 'Cancelando…' : 'Cancelar servicio'}
+      </button>
+    </Modal>
   );
 }

@@ -484,7 +484,7 @@ function Kpi({ n, label, tono }: { n: number | string; label: string; tono?: 'te
   );
 }
 
-function SelectorTecnicos({
+export function SelectorTecnicos({
   tecnicos, seleccion, onCambiar, ocupados,
 }: {
   tecnicos: { id: string; nombre: string }[];
@@ -520,7 +520,7 @@ function Encabezado({ titulo, subtitulo, onClose, deshabilitado }: { titulo: str
   );
 }
 
-function AsignarRapido({
+export function AsignarRapido({
   fecha, tecnicos, ocupados, inicial, onClose, onListo,
 }: {
   fecha: string;
@@ -577,7 +577,7 @@ function AsignarRapido({
   );
 }
 
-function CambioDia({
+export function CambioDia({
   servicio: s, hoy, otros, onClose, onListo,
 }: {
   servicio: ServicioDia;
@@ -596,7 +596,7 @@ function CambioDia({
   const [motivo, setMotivo] = useState(
     avisoInicial ? `${etiquetaCausa(avisoInicial.causa)}${avisoInicial.comentario ? ` — ${avisoInicial.comentario}` : ''}` : ''
   );
-  const [accion, setAccion] = useState<'reprogramar' | 'continuar' | 'nada'>(empezado ? 'continuar' : 'reprogramar');
+  const [accion, setAccion] = useState<'reprogramar' | 'continuar' | 'cancelar' | 'nada'>(empezado ? 'continuar' : 'reprogramar');
   const [nuevaFecha, setNuevaFecha] = useState(manana);
   const [destino, setDestino] = useState<'ninguno' | 'existente' | 'nuevo'>('ninguno');
   const [destinoId, setDestinoId] = useState(otros[0]?.id || '');
@@ -616,7 +616,7 @@ function CambioDia({
         servicio: s,
         motivo,
         accion,
-        nuevaFecha: accion === 'nada' ? undefined : nuevaFecha,
+        nuevaFecha: accion === 'reprogramar' || accion === 'continuar' ? nuevaFecha : undefined,
         destino:
           destino === 'existente' && destinoId ? { tipo: 'existente', servicioId: destinoId }
           : destino === 'nuevo' ? { tipo: 'nuevo', proyecto, clienteId, descripcion, hora: horaP || null }
@@ -645,12 +645,18 @@ function CambioDia({
 
         <label className={labelCls}>¿Qué pasa con este servicio?</label>
         {!empezado ? (
-          <span className={chip(accion === 'reprogramar')} onClick={() => setAccion('reprogramar')}>Reprogramar</span>
+          <>
+            <span className={chip(accion === 'reprogramar')} onClick={() => setAccion('reprogramar')}>Reprogramar</span>
+            <span className={chip(accion === 'cancelar')} onClick={() => setAccion('cancelar')}>Cancelar</span>
+          </>
         ) : (
           <span className={chip(accion === 'continuar')} onClick={() => setAccion('continuar')}>Continuar otro día</span>
         )}
         <span className={chip(accion === 'nada')} onClick={() => setAccion('nada')}>Dejarlo como está</span>
-        {accion !== 'nada' && (
+        {accion === 'cancelar' && (
+          <p className="text-[12px] text-muted mt-1">Ya no se hará: queda en el historial con el motivo, deja de exigir reporte y a los técnicos les llega el aviso.</p>
+        )}
+        {(accion === 'reprogramar' || accion === 'continuar') && (
           <input type="date" className={`${inputCls} mt-1`} value={nuevaFecha} min={hoy} onChange={(e) => setNuevaFecha(e.target.value)} />
         )}
         {empezado && (
@@ -659,7 +665,7 @@ function CambioDia({
 
         <label className={`${labelCls} mt-4`}>¿A dónde van los técnicos?</label>
         <span className={chip(destino === 'ninguno')} onClick={() => setDestino('ninguno')}>No se mueven</span>
-        {otros.length > 0 && <span className={chip(destino === 'existente')} onClick={() => setDestino('existente')}>A otro servicio de hoy</span>}
+        {otros.length > 0 && <span className={chip(destino === 'existente')} onClick={() => setDestino('existente')}>A otro servicio del mismo día</span>}
         <span className={chip(destino === 'nuevo')} onClick={() => setDestino('nuevo')}>A un servicio nuevo</span>
 
         {destino !== 'ninguno' && (

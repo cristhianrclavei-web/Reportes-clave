@@ -1,6 +1,6 @@
 import { createClient } from './supabaseClient';
 import {
-  Servicio, crearServicio, reprogramarDia, agregarDiasAGrupo, reasignarTecnicos, motivoNoEditable,
+  Servicio, crearServicio, reprogramarDia, agregarDiasAGrupo, reasignarTecnicos, motivoNoEditable, cancelarServicio,
 } from './serviciosProgramados';
 import { registrarAccionGlobal } from './auditoriaGlobal';
 
@@ -38,6 +38,7 @@ export async function cargarTableroDia(fecha: string): Promise<TableroDia> {
       .from('servicios_programados')
       .select('*, servicio_tecnicos(tecnico_id, visto_en, enterado_en, profiles(full_name))')
       .eq('fecha', fecha)
+      .neq('estado', 'cancelado')
       .order('hora_programada', { ascending: true, nullsFirst: false }),
   ]);
   if (tec.error) throw tec.error;
@@ -82,6 +83,37 @@ export async function cargarTableroDia(fecha: string): Promise<TableroDia> {
   };
 }
 
+// Semana para planear: todos los servicios del lunes al domingo (incluidos
+// los cancelados, que se ven tachados) con sus técnicos.
+export async function cargarSemana(lunes: string, domingo: string): Promise<{ tecnicos: { id: string; nombre: string }[]; servicios: ServicioDia[] }> {
+  const supabase = createClient();
+  const [tec, sv] = await Promise.all([
+    supabase.from('profiles').select('id, full_name, activo').eq('role', 'tecnico').order('full_name'),
+    supabase
+      .from('servicios_programados')
+      .select('*, servicio_tecnicos(tecnico_id, visto_en, enterado_en, profiles(full_name))')
+      .gte('fecha', lunes)
+      .lte('fecha', domingo)
+      .order('hora_programada', { ascending: true, nullsFirst: false }),
+  ]);
+  if (tec.error) throw tec.error;
+  if (sv.error) throw sv.error;
+  return {
+    tecnicos: ((tec.data as any[]) || []).filter((t) => t.activo !== false).map((t) => ({ id: t.id, nombre: t.full_name || 'Técnico' })),
+    servicios: ((sv.data as any[]) || []).map(({ servicio_tecnicos, ...resto }) => ({
+      ...(resto as Servicio),
+      asignados: (servicio_tecnicos || []).map((st: any) => ({
+        tecnico_id: st.tecnico_id,
+        nombre: (Array.isArray(st.profiles) ? st.profiles[0]?.full_name : st.profiles?.full_name) || 'Técnico',
+        visto_en: st.visto_en,
+        enterado_en: st.enterado_en,
+      })),
+      ultimoAviso: null,
+      avisosPendientes: [],
+    })),
+  };
+}
+
 // Asignación rápida desde el tablero: un servicio de un día, sin tareas ni
 // lista de carga (se pueden agregar después desde el detalle).
 export async function asignarRapido(input: {
@@ -105,6 +137,23 @@ export async function asignarRapido(input: {
   return s;
 }
 
+// Copia un servicio a otra fecha (mismo cliente, descripción, hora y
+// técnicos): para lo que se repite, p. ej. el mismo cliente el jueves.
+export async function copiarServicio(s: Servicio & { asignados?: { tecnico_id: string }[] }, fecha: string, tecnicoIds?: string[]): Promise<void> {
+  await crearServicio({
+    proyecto: s.proyecto,
+    clienteId: s.cliente_id || null,
+    descripcion: s.descripcion || '',
+    fechas: [fecha],
+    horaProgramada: s.hora_programada,
+    horaSalidaProgramada: s.hora_salida_programada,
+    ubicacionProgramada: s.ubicacion_programada,
+    duracionMin: s.duracion_estimada_min || 120,
+    tecnicoIds: tecnicoIds || (s.asignados || []).map((a) => a.tecnico_id),
+    tareas: [],
+  });
+}
+
 export const MOTIVOS_CAMBIO = [
   'El cliente no estaba',
   'No llegó el equipo o material',
@@ -122,8 +171,9 @@ export async function registrarCambioDia(input: {
   // Qué pasa con este servicio:
   //   'reprogramar' → no se empezó: se mueve a otra fecha;
   //   'continuar'   → ya se empezó: se agrega un día más al proyecto;
+  //   'cancelar'    → no se empezó y ya no se hará: queda cancelado;
   //   'nada'        → se deja como está (el técnico cierra o reporta).
-  accion: 'reprogramar' | 'continuar' | 'nada';
+  accion: 'reprogramar' | 'continuar' | 'cancelar' | 'nada';
   nuevaFecha?: string;
   // A dónde van los técnicos (opcional):
   destino?:
@@ -146,6 +196,9 @@ export async function registrarCambioDia(input: {
     if (motivoNoEditable(s.estado)) throw new Error('Este servicio ya se empezó; usa «Continuar otro día».');
     await reprogramarDia(s.id, input.nuevaFecha);
     partes.push(`se reprogramó al ${fechaDMA(input.nuevaFecha)}`);
+  } else if (input.accion === 'cancelar') {
+    await cancelarServicio(s.id, motivo);
+    partes.push('se canceló');
   } else if (input.accion === 'continuar') {
     if (!input.nuevaFecha) throw new Error('Elige la fecha para continuar.');
     await agregarDiasAGrupo(s.grupo_id, [input.nuevaFecha]);
