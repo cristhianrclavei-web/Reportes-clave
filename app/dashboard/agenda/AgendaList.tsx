@@ -13,11 +13,12 @@ import {
 import ConfirmacionTecnicos from '@/components/ConfirmacionTecnicos';
 import { construirAgenda, formatFechaAgenda, diasDeDiferencia } from '@/lib/agenda';
 import { showToast } from '@/components/Toast';
-import { MapPin, Play, Clock, Users, CalendarClock, AlertTriangle, CalendarRange, List } from 'lucide-react';
+import { MapPin, Play, Clock, Users, CalendarClock, AlertTriangle, CalendarRange, List, Repeat } from 'lucide-react';
 import { hoyLocal } from '@/lib/fechaHoy';
 import DiasFestivosSection from '@/components/DiasFestivosSection';
 import SubTabs from '@/components/SubTabs';
 import PlanSemana from '@/components/PlanSemana';
+import MantenimientosRecurrentes from '@/components/MantenimientosRecurrentes';
 
 const ESTADO_CFG: Record<Servicio['estado'], { label: string; cls: string; Icono: any }> = {
   programado: { label: 'Programado', cls: 'bg-surface-2 text-muted', Icono: Clock },
@@ -36,7 +37,7 @@ export default function AgendaList({ userName }: { userName?: string }) {
   const [error, setError] = useState<string | null>(null);
   const [filtroTecnico, setFiltroTecnico] = useState('');
   const [search, setSearch] = useState('');
-  const [vista, setVista] = useState<'semana' | 'lista'>('semana');
+  const [vista, setVista] = useState<'semana' | 'lista' | 'recurrentes'>('semana');
 
   // Reprogramación rápida desde la propia agenda: es la acción que se necesita
   // justo cuando se está viendo un día vencido.
@@ -109,10 +110,12 @@ export default function AgendaList({ userName }: { userName?: string }) {
           opciones={[
             { k: 'semana', label: 'Semana', Icono: CalendarRange },
             { k: 'lista', label: 'Lista', Icono: List },
+            { k: 'recurrentes', label: 'Recurrentes', Icono: Repeat },
           ]}
         />
 
         {vista === 'semana' && <PlanSemana />}
+        {vista === 'recurrentes' && <MantenimientosRecurrentes />}
 
         {vista === 'lista' && (<>
         <DiasFestivosSection />

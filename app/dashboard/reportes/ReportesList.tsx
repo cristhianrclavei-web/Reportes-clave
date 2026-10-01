@@ -54,9 +54,12 @@ export default function ReportesList({
   useEffect(() => setAhora(Date.now()), []);
 
   // Enlaces desde otras pantallas (p. ej. el detalle de un cliente):
-  //   ?reporte=<id>  abre ese reporte;  ?q=<texto>  llena la búsqueda.
+  //   ?reporte=<id>  abre ese reporte;  ?q=<texto>  llena la búsqueda;
+  //   ?sub=control|cobertura  abre esa subpestaña (aviso de reportes atrasados).
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const sub = params.get('sub');
+    if (sub === 'control' || sub === 'cobertura' || sub === 'levantamientos') setSubseccion(sub);
     const q = params.get('q');
     if (q) setSearch(q);
     const id = params.get('reporte');

@@ -9,6 +9,9 @@ import { MARCA, MARCA_MAYUS } from '@/lib/marca';
 
 export const dynamic = 'force-dynamic';
 
+// Días acumulados sin reporte a partir de los cuales se avisa al supervisor.
+const UMBRAL_ESCALAMIENTO = 2;
+
 // Recordatorio de reporte de servicio pendiente, por técnico. Dos horarios,
 // un mismo endpoint. Mismo secreto compartido que /api/cron/recordatorios:
 // esto lo llama pg_cron, no una persona con sesión.
@@ -79,9 +82,37 @@ export async function POST(request: NextRequest) {
     caducadas.push(...r.caducadas);
   }
 
+  // Escalamiento (solo en la mañana): si un técnico acumula 2 días o más sin
+  // reporte ni justificación, el supervisor recibe un resumen. El técnico ya
+  // tuvo sus avisos; a partir de aquí lo resuelve quien coordina.
+  let escalados = 0;
+  if (momento === 'manana') {
+    const atrasados = [...porTecnico].filter(([, fechas]) => fechas.length >= UMBRAL_ESCALAMIENTO);
+    if (atrasados.length > 0) {
+      const { data: perfiles } = await admin.from('profiles').select('id, full_name').in('id', atrasados.map(([id]) => id));
+      const nombre = (id: string) => ((perfiles as any[]) || []).find((p) => p.id === id)?.full_name?.split(' ')[0] || 'Técnico';
+      const lista = atrasados
+        .sort((a, b) => b[1].length - a[1].length)
+        .map(([id, f]) => `${nombre(id)} (${f.length} días)`);
+      const { data: sup } = await admin.rpc('destinatarios_notificacion_tipo', { p_destino: 'supervisores', p_tipo: 'reportes_atrasados' });
+      const supIds = ((sup as any[]) || []).map((r) => (typeof r === 'string' ? r : r.destinatarios_notificacion_tipo));
+      const carga = JSON.stringify({
+        titulo: atrasados.length === 1 ? `Reportes atrasados: ${lista[0]}` : `${atrasados.length} técnicos con reportes atrasados`,
+        cuerpo: atrasados.length === 1 ? 'Ya recibió sus avisos y sigue sin entregar.' : lista.join(', '),
+        url: '/dashboard/reportes?sub=control',
+        tag: 'reportes-atrasados',
+      });
+      // destinatarios_notificacion_tipo ya aplicó la preferencia; avisarUsuarios
+      // la vuelve a filtrar con el mismo tipo, sin efecto adicional.
+      const r = await avisarUsuarios(admin, supIds, 'reportes_atrasados', carga);
+      escalados = r.enviadas;
+      caducadas.push(...r.caducadas);
+    }
+  }
+
   if (caducadas.length > 0) {
     await admin.from('push_suscripciones').delete().in('endpoint', caducadas);
   }
 
-  return NextResponse.json({ enviadas, tecnicos: porTecnico.size, limpiadas: caducadas.length });
+  return NextResponse.json({ enviadas, tecnicos: porTecnico.size, escalados, limpiadas: caducadas.length });
 }

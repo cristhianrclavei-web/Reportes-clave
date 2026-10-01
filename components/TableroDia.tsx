@@ -10,7 +10,7 @@ import AutocompletarCliente from '@/components/AutocompletarCliente';
 import { showToast } from '@/components/Toast';
 import { hoyLocal, sumarDias, fechaLocal } from '@/lib/fechaHoy';
 import { etiquetaCausa } from '@/lib/avisos';
-import { calcularEstadoTiempo, motivoNoEditable } from '@/lib/serviciosProgramados';
+import { calcularEstadoTiempo, motivoNoEditable, Servicio } from '@/lib/serviciosProgramados';
 import {
   TableroDia as Datos, ServicioDia, cargarTableroDia, asignarRapido, registrarCambioDia, MOTIVOS_CAMBIO,
 } from '@/lib/tableroDia';
@@ -521,19 +521,24 @@ function Encabezado({ titulo, subtitulo, onClose, deshabilitado }: { titulo: str
 }
 
 export function AsignarRapido({
-  fecha, tecnicos, ocupados, inicial, onClose, onListo,
+  fecha: fechaInicial, tecnicos, ocupados, inicial, onClose, onListo, prefill, titulo = 'Asignar servicio', editarFecha = false,
 }: {
   fecha: string;
   tecnicos: { id: string; nombre: string }[];
   ocupados: Set<string>;
   inicial: string[];
   onClose: () => void;
-  onListo: () => void;
+  onListo: (servicio: Servicio) => void;
+  // Datos ya llenos (p. ej. un mantenimiento recurrente).
+  prefill?: { proyecto: string; clienteId: string | null; descripcion: string; hora: string | null; nota?: string };
+  titulo?: string;
+  editarFecha?: boolean;
 }) {
-  const [proyecto, setProyecto] = useState('');
-  const [clienteId, setClienteId] = useState<string | null>(null);
-  const [descripcion, setDescripcion] = useState('');
-  const [horaP, setHoraP] = useState('');
+  const [fecha, setFecha] = useState(fechaInicial);
+  const [proyecto, setProyecto] = useState(prefill?.proyecto || '');
+  const [clienteId, setClienteId] = useState<string | null>(prefill?.clienteId || null);
+  const [descripcion, setDescripcion] = useState(prefill?.descripcion || '');
+  const [horaP, setHoraP] = useState(prefill?.hora ? prefill.hora.slice(0, 5) : '');
   const [ids, setIds] = useState<string[]>(inicial);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -544,9 +549,9 @@ export function AsignarRapido({
     setGuardando(true);
     setError(null);
     try {
-      await asignarRapido({ proyecto: proyecto.trim(), clienteId, descripcion, fecha, hora: horaP || null, tecnicoIds: ids });
+      const creado = await asignarRapido({ proyecto: proyecto.trim(), clienteId, descripcion, fecha, hora: horaP || null, tecnicoIds: ids });
       showToast('Servicio asignado; ya les llegó el aviso', 'success');
-      onListo();
+      onListo(creado);
     } catch (e: any) {
       setError(e?.message || 'No se pudo asignar.');
       setGuardando(false);
@@ -556,7 +561,13 @@ export function AsignarRapido({
   return (
     <ModalOverlay onClose={() => !guardando && onClose()}>
       <div className="glass-strong rounded-3xl w-full max-w-md p-5 max-h-[90vh] overflow-y-auto">
-        <Encabezado titulo="Asignar servicio" subtitulo={`Para el ${etiquetaFecha(fecha)}. Para varios días, tareas o lista de carga usa «Programar servicio o proyecto».`} onClose={onClose} deshabilitado={guardando} />
+        <Encabezado titulo={titulo} subtitulo={prefill?.nota || `Para el ${etiquetaFecha(fecha)}. Para varios días, tareas o lista de carga usa «Programar servicio o proyecto».`} onClose={onClose} deshabilitado={guardando} />
+        {editarFecha && (
+          <>
+            <label className={labelCls}>Fecha</label>
+            <input type="date" className={`${inputCls} mb-3`} value={fecha} onChange={(e) => setFecha(e.target.value)} />
+          </>
+        )}
         <label className={labelCls}>Cliente / proyecto</label>
         <div className="mb-3">
           <AutocompletarCliente soloSugerir value={proyecto} onChange={(n, id) => { setProyecto(n); setClienteId(id); }} className={inputCls} placeholder="Ej. Pinturas Casther" />

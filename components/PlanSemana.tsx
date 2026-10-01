@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, Plus, Copy, ArrowRightLeft, X, ExternalLink 
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
 import { AsignarRapido, CambioDia, SelectorTecnicos } from '@/components/TableroDia';
+import { PorProgramar } from '@/components/MantenimientosRecurrentes';
 import { hoyLocal, sumarDias, fechaLocal } from '@/lib/fechaHoy';
 import { listarFestivos, festivosEnCache, Festivo } from '@/lib/avisos';
 import { motivoNoEditable } from '@/lib/serviciosProgramados';
@@ -153,6 +154,8 @@ export default function PlanSemana() {
           <ChevronRight size={18} />
         </button>
       </div>
+
+      <PorProgramar onProgramado={cargar} />
 
       <p className="text-[12.5px] text-muted mb-3">
         Toca «+» para asignar un servicio a ese técnico y día; toca un servicio para copiarlo a otro día, cambiarlo o cancelarlo.
