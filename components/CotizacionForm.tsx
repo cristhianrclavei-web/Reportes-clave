@@ -3,7 +3,9 @@
 import AutocompletarCliente from '@/components/AutocompletarCliente';
 import AutocompletarPersona from '@/components/AutocompletarPersona';
 import { useContactosCliente } from '@/lib/useContactosCliente';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { useBorradorFormulario } from '@/lib/useBorradorFormulario';
+import AvisoBorrador from '@/components/AvisoBorrador';
 import { useRouter } from 'next/navigation';
 import {
   Cotizacion, LineaCotizacion, convertirMonto, LineaInput, CotizacionInput, MonedaCotizacion, PresentacionPrecios,
@@ -227,6 +229,31 @@ export default function CotizacionForm({
   if (moneda === 'USD' && tipoCambioNum <= 0) faltantes.push({ texto: 'tipo de cambio', campo: 'moneda' });
   if (conversionPendiente) faltantes.push({ texto: 'decidir si se convierten los precios a la nueva moneda', campo: 'moneda' });
 
+  // Borrador en el dispositivo: si la página se recarga o se cierra, lo
+  // capturado se recupera al volver. En «editar» solo cuenta si hubo cambios.
+  const datosForm = {
+    presentacionPrecios, fecha, empresa, atencion, telefono, correo, direccion, formaPago, tiempoEntrega,
+    garantia, vigenciaDias, ivaPct, moneda, tipoCambio, notas, firmanteNombre, firmanteCorreo, grupos,
+  };
+  const huellaInicial = useRef(JSON.stringify(datosForm));
+  const datosIniciales = useRef(datosForm);
+  function aplicarDatos(d: typeof datosForm) {
+    setPresentacionPrecios(d.presentacionPrecios); setFecha(d.fecha); setEmpresa(d.empresa); setAtencion(d.atencion);
+    setTelefono(d.telefono); setCorreo(d.correo); setDireccion(d.direccion); setFormaPago(d.formaPago);
+    setTiempoEntrega(d.tiempoEntrega); setGarantia(d.garantia); setVigenciaDias(d.vigenciaDias); setIvaPct(d.ivaPct);
+    setMoneda(d.moneda); setTipoCambio(d.tipoCambio); setNotas(d.notas); setFirmanteNombre(d.firmanteNombre);
+    setFirmanteCorreo(d.firmanteCorreo); setGrupos(d.grupos);
+  }
+  const hayCambios = modo === 'crear'
+    ? Boolean(empresa.trim() || grupos.some((g) => g.items.some((it) => it.descripcion.trim())))
+    : JSON.stringify(datosForm) !== huellaInicial.current;
+  const borrador = useBorradorFormulario({
+    clave: modo === 'editar' && cotizacionId ? `cotizacion:${cotizacionId}` : 'cotizacion:nueva',
+    datos: datosForm,
+    hayDatos: hayCambios,
+    aplicar: aplicarDatos,
+  });
+
   async function handleGuardar() {
     if (faltantes.length > 0) {
       setMsg('Falta por llenar: ' + faltantes.map((f) => f.texto).join(', '));
@@ -263,6 +290,7 @@ export default function CotizacionForm({
     try {
       if (modo === 'editar' && cotizacionId) {
         await actualizarCotizacion(cotizacionId, input);
+        await borrador.limpiar();
         showToast('Cotización actualizada', 'success');
         if (onGuardado) {
           onGuardado();
@@ -271,6 +299,7 @@ export default function CotizacionForm({
         }
       } else {
         const id = await crearCotizacion(input);
+        await borrador.limpiar();
         showToast('Cotización guardada', 'success');
         router.push(`/dashboard/cotizaciones/${id}`);
       }
@@ -282,6 +311,13 @@ export default function CotizacionForm({
 
   return (
     <div className="flex flex-col gap-4 pb-10">
+      {borrador.recuperadoEn && (
+        <AvisoBorrador
+          que="la cotización"
+          guardadoEn={borrador.recuperadoEn}
+          onDescartar={async () => { aplicarDatos(datosIniciales.current); await borrador.limpiar(); }}
+        />
+      )}
       <div className={cardCls}>
         <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-teal inline-block" /> Presentación de precios</p>
         <label className={labelCls}>Cómo se muestra el precio en el PDF</label>

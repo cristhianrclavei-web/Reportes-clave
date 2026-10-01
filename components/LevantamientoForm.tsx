@@ -4,6 +4,8 @@ import AutocompletarCliente from '@/components/AutocompletarCliente';
 import AutocompletarPersona from '@/components/AutocompletarPersona';
 import { useContactosCliente } from '@/lib/useContactosCliente';
 import { useMemo, useRef, useState } from 'react';
+import { useBorradorFormulario } from '@/lib/useBorradorFormulario';
+import AvisoBorrador from '@/components/AvisoBorrador';
 import {
   Levantamiento, SistemaLevantamiento, LevantamientoInput, SistemaInput, FotoGuardada,
   SISTEMAS_SUGERIDOS, crearLevantamiento, actualizarLevantamiento, urlsDeFotos,
@@ -143,6 +145,26 @@ export default function LevantamientoForm({
     setSistemas((prev) => prev.filter((s) => s.id !== id));
   }
 
+  // Borrador en el dispositivo (incluye las fotos nuevas): si la página se
+  // recarga o se cierra, lo capturado se recupera al volver.
+  const datosForm = { fecha, empresa, atencion, telefono, correo, direccion, notas, fotosExistentes, fotosNuevas, sistemas };
+  const datosIniciales = useRef(datosForm);
+  const huellaInicial = useRef(JSON.stringify(datosForm));
+  function aplicarDatos(d: typeof datosForm) {
+    setFecha(d.fecha); setEmpresa(d.empresa); setAtencion(d.atencion); setTelefono(d.telefono); setCorreo(d.correo);
+    setDireccion(d.direccion); setNotas(d.notas); setFotosExistentes(d.fotosExistentes); setFotosNuevas(d.fotosNuevas);
+    setSistemas(d.sistemas);
+  }
+  const hayCambios = modo === 'crear'
+    ? Boolean(empresa.trim() || notas.trim() || fotosNuevas.length || sistemas.some((x) => x.sistema.trim() || x.observaciones.trim() || x.fotosNuevas.length))
+    : fotosNuevas.length > 0 || sistemas.some((x) => x.fotosNuevas.length > 0) || JSON.stringify(datosForm) !== huellaInicial.current;
+  const borrador = useBorradorFormulario({
+    clave: modo === 'editar' && levantamientoId ? `levantamiento:${levantamientoId}` : 'levantamiento:nuevo',
+    datos: datosForm,
+    hayDatos: hayCambios,
+    aplicar: aplicarDatos,
+  });
+
   const faltantes: string[] = [];
   if (!empresa.trim()) faltantes.push('empresa / cliente');
   if (!sistemas.some((s) => s.sistema.trim())) faltantes.push('al menos un sistema');
@@ -171,10 +193,12 @@ export default function LevantamientoForm({
     try {
       if (modo === 'editar' && levantamientoId) {
         await actualizarLevantamiento(levantamientoId, input);
+        await borrador.limpiar();
         showToast('Levantamiento actualizado', 'success');
         onGuardado(levantamientoId);
       } else {
         const id = await crearLevantamiento(input);
+        await borrador.limpiar();
         showToast('Levantamiento guardado', 'success');
         onGuardado(id);
       }
@@ -186,6 +210,13 @@ export default function LevantamientoForm({
 
   return (
     <div className="flex flex-col gap-4 pb-6">
+      {borrador.recuperadoEn && (
+        <AvisoBorrador
+          que="el levantamiento"
+          guardadoEn={borrador.recuperadoEn}
+          onDescartar={async () => { aplicarDatos(datosIniciales.current); await borrador.limpiar(); }}
+        />
+      )}
       <div className={cardCls}>
         <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Datos del sitio</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -318,7 +349,7 @@ export default function LevantamientoForm({
 
       <div className="flex gap-2">
         <button
-          onClick={onCancelar}
+          onClick={() => { borrador.limpiar(); onCancelar(); }}
           className="flex-1 min-h-[54px] rounded-2xl border border-line-strong text-ink/80 font-semibold text-[15px] active:scale-95 transition-transform"
         >
           Cancelar

@@ -33,7 +33,7 @@ function abrir(): Promise<IDBDatabase> {
   });
 }
 
-async function operar<T>(modo: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest | void): Promise<T | undefined> {
+export async function operar<T>(modo: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest | void): Promise<T | undefined> {
   const db = await abrir();
   try {
     return await new Promise<T | undefined>((resolve, reject) => {
