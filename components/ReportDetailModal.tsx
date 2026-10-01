@@ -1,12 +1,13 @@
 'use client';
 
 import SubTabs from '@/components/SubTabs';
+import Link from 'next/link';
 import { useEffect, useState, useRef } from 'react';
 import { createClient } from '@/lib/supabaseClient';
 import { vincularReporteAServicio, Servicio, listarServiciosVinculables } from '@/lib/serviciosProgramados';
 import { eliminarReporte } from '@/lib/eliminarReporte';
 import { registrarAccionGlobal } from '@/lib/auditoriaGlobal';
-import { Check, X, CircleX, FileText, FileSpreadsheet, Share2, Trash2, Unlock, LockKeyhole, MessageSquareWarning, Camera, FolderKanban, ClipboardCheck, Tag, ReceiptText } from 'lucide-react';
+import { Check, X, CircleX, FileText, FileSpreadsheet, Share2, Trash2, Unlock, LockKeyhole, MessageSquareWarning, Camera, FolderKanban, ClipboardCheck, Tag, ReceiptText, Pencil } from 'lucide-react';
 import { solicitarCorreccion, habilitarCorreccion, cancelarCorreccion, aplicarCorreccion } from '@/lib/correcciones';
 import { showToast } from '@/components/Toast';
 import FacturacionSection from '@/components/FacturacionSection';
@@ -881,9 +882,22 @@ export default function ReportDetailModal({
               <Unlock size={16} strokeWidth={2.5} />
               Corrección autorizada
             </p>
-            <p className="text-[13px] text-muted leading-relaxed mb-3.5">
-              Al guardar, el reporte vuelve a quedar fijo.
-            </p>
+            {!report.data?.firmaClienteData ? (
+              <>
+                <p className="text-[13px] text-muted leading-relaxed mb-3">
+                  El cliente todavía no firma: puedes corregir todo el reporte (fecha, datos, formato, fotos y firmas).
+                </p>
+                <Link href={`/nuevo?editar=${report.id}`}
+                  className="w-full min-h-[48px] mb-4 rounded-xl bg-amber text-inkOnAccent text-[14.5px] font-semibold flex items-center justify-center gap-2 active:scale-[0.98]">
+                  <Pencil size={16} strokeWidth={2.5} /> Editar el reporte completo
+                </Link>
+                <p className="text-[12.5px] text-muted mb-3">O, si solo te faltó algo, agrega fotos o cambia el servicio aquí abajo:</p>
+              </>
+            ) : (
+              <p className="text-[13px] text-muted leading-relaxed mb-3.5">
+                El cliente ya firmó: solo puedes agregar fotos y cambiar el servicio. Al guardar, el reporte vuelve a quedar fijo.
+              </p>
+            )}
 
             <label className="text-[13px] text-ink/80 block mb-1.5">Servicio vinculado</label>
             <select

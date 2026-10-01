@@ -62,7 +62,11 @@ export async function habilitarCorreccion(
     'habilito_correccion',
     'reporte',
     report.id,
-    `Autorizó corregir el reporte de «${report.empresa_cliente}»${folio} — el técnico puede agregar fotos y cambiar el servicio vinculado`
+    `Autorizó corregir el reporte de «${report.empresa_cliente}»${folio} — ${
+      report.data?.firmaClienteData
+        ? 'el cliente ya firmó: el técnico puede agregar fotos y cambiar el servicio vinculado'
+        : 'sin firma del cliente: el técnico puede editar el reporte completo'
+    }`
   );
 
   // El técnico pidió la corrección y hasta ahora no se enteraba de la

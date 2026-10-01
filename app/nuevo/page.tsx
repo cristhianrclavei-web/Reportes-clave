@@ -18,6 +18,7 @@ import ReportPreviewModal, { PreviewData } from '@/components/ReportPreviewModal
 import { listarMisServicios, vincularReporteAServicio, Servicio, filtrarSiguienteDiaPorGrupo, listarTecnicosDeServicio, listarFotosDelDia, FotoDelDia } from '@/lib/serviciosProgramados';
 import { X, Camera, Images, Plus, AlertTriangle, Eye, ChevronDown, Tag, History } from 'lucide-react';
 import { generarUUID } from '@/lib/uuid';
+import { registrarAccionGlobal } from '@/lib/auditoriaGlobal';
 import { notificar } from '@/lib/push';
 import { evaluarVentanaServicio } from '@/lib/ventanaServicio';
 import Logo from '@/components/Logo';
@@ -326,6 +327,92 @@ export default function NuevoReportePage() {
     actividades.some((a) => a.trim()) || fotos.length || formatos.length || firmaIngData || firmaClienteData || recibioFirma
   );
 
+  // Llena el formulario desde campos guardados (borrador o reporte a corregir).
+  function aplicarCampos(c: any) {
+    const set = <T,>(fn: (v: T) => void, v: unknown) => { if (v !== undefined) fn(v as T); };
+    set(setEmpresaCliente, c.empresaCliente); set(setClienteId, c.clienteId); set(setContactosCliente, c.contactosCliente);
+    set(setServicioSeleccionadoId, c.servicioSeleccionadoId); set(setPersonalAsignado, c.personalAsignado);
+    set(setFecha, c.fecha); set(setOrdCompra, c.ordCompra); set(setHoraLlegada, c.horaLlegada); set(setHoraSalida, c.horaSalida);
+    set(setListaConceptos, c.listaConceptos); set(setContactoUsuario, c.contactoUsuario); set(setPuestoArea, c.puestoArea);
+    set(setVehiculo, c.vehiculo); set(setPlacas, c.placas); set(setVehiculoOtro, c.vehiculoOtro); set(setManejadoPor, c.manejadoPor);
+    set(setIngACargo, c.ingACargo); set(setPersonalAdicional, c.personalAdicional); set(setTipoServicio, c.tipoServicio);
+    set(setSubTipo, c.subTipo); set(setTipoServicioOtroTexto, c.tipoServicioOtroTexto); set(setSeguridad, c.seguridad);
+    set(setSeguridadOtraTexto, c.seguridadOtraTexto); set(setTuberia, c.tuberia); set(setCables, c.cables);
+    set(setObservaciones, c.observaciones); set(setActividades, c.actividades); set(setShowCaso, c.showCaso);
+    set(setCasoPuntos, c.casoPuntos); set(setEquipos, c.equipos); set(setFirmaIngNombre, c.firmaIngNombre);
+    set(setFirmaClienteNombre, c.firmaClienteNombre); set(setServicioConcluido, c.servicioConcluido);
+    set(setClienteAusente, c.clienteAusente); set(setMotivoAusente, c.motivoAusente);
+    set(setRecibioNombre, c.recibioNombre); set(setRecibioPuesto, c.recibioPuesto); set(setRecibioFirma, c.recibioFirma);
+    set(setUsaFormato, c.usaFormato); set(setFormatos, c.formatos); set(setFotosServicio, c.fotosServicio);
+    if (typeof c.tokenVerificacion === 'string') tokenRef.current = c.tokenVerificacion;
+    if (c.firmaIngData || c.firmaClienteData || c.recibioFirma) {
+      setFirmaIngData(c.firmaIngData || null);
+      setFirmaClienteData(c.firmaClienteData || null);
+      setFirmasMontadas(true);
+    }
+    set(setPaso, c.paso);
+  }
+
+  // ---------------- Corregir un reporte (?editar=<id>) ----------------
+  // Con corrección autorizada por el supervisor y sin firma del cliente, el
+  // técnico edita el reporte completo en este mismo formulario. Al guardar se
+  // actualiza el reporte (no se crea otro) y la corrección se cierra.
+  const [editarId, setEditarId] = useState<string | null>(null);
+  const reporteOriginal = useRef<any>(null);
+  const [errorEdicion, setErrorEdicion] = useState<string | null>(null);
+
+  async function cargarParaEditar(id: string, uid: string) {
+    const { data: r, error } = await supabase.from('reports').select('*').eq('id', id).single();
+    if (error || !r) { setErrorEdicion('No se encontró el reporte.'); return; }
+    if (r.created_by !== uid) { setErrorEdicion('Solo quien hizo el reporte puede corregirlo.'); return; }
+    if (!r.correccion_habilitada) { setErrorEdicion('Este reporte no tiene una corrección autorizada.'); return; }
+    if (r.data?.firmaClienteData) { setErrorEdicion('El cliente ya firmó este reporte: solo se pueden agregar fotos y cambiar el servicio desde su detalle.'); return; }
+    reporteOriginal.current = r;
+    const d = r.data || {};
+    const personal: string[] = Array.isArray(d.personal) ? d.personal : [];
+    const adicional = d.ingACargo && personal[0] === d.ingACargo ? personal.slice(1) : personal.filter((x) => x !== d.ingACargo);
+    const tub: Record<string, any> = {};
+    for (const t of TUBERIA_TYPES) {
+      const v = d.tuberia?.[t];
+      tub[t] = { active: Boolean(v), medida: v?.medida || '', metros: v?.metros || '', especifica: v?.especifica || '' };
+    }
+    const casos = Array.isArray(d.casoPuntos) && d.casoPuntos.length ? d.casoPuntos : null;
+    // Fotos ya subidas: se muestran como existentes (se pueden quitar o
+    // cambiar su comentario) y se pueden agregar nuevas.
+    const fotosPrevias: { path: string; caption: string }[] = Array.isArray(d.fotos) ? d.fotos : [];
+    let conUrl: FotoDelDia[] = [];
+    if (fotosPrevias.length) {
+      const { data: urls } = await supabase.storage.from('evidencias').createSignedUrls(fotosPrevias.map((f) => f.path), 3600);
+      conUrl = fotosPrevias.map((f, i) => ({ path: f.path, caption: f.caption || '', previewUrl: urls?.[i]?.signedUrl || '' }));
+    }
+    aplicarCampos({
+      empresaCliente: r.empresa_cliente || '', clienteId: r.cliente_id || null,
+      servicioSeleccionadoId: d.servicioProgramadoId || null,
+      fecha: r.fecha, ordCompra: d.ordCompra || '', horaLlegada: d.horaLlegada || '', horaSalida: d.horaSalida || '',
+      listaConceptos: d.listaConceptos || '', contactoUsuario: d.contactoUsuario || '', puestoArea: d.puestoArea || '',
+      vehiculo: d.vehiculo || '', placas: d.placas || '', manejadoPor: d.manejadoPor || '',
+      ingACargo: d.ingACargo || '', personalAdicional: adicional.length ? adicional : [''],
+      tipoServicio: r.tipo_servicio, subTipo: r.sub_tipo_servicio, tipoServicioOtroTexto: d.tipoServicioOtroTexto || '',
+      seguridad: Array.isArray(d.sistemaSeguridad) ? d.sistemaSeguridad : [], seguridadOtraTexto: d.seguridadOtraTexto || '',
+      tuberia: tub, cables: Array.isArray(d.cables) && d.cables.length ? d.cables : [{ tipo: '', calibre: '', metros: '' }],
+      observaciones: d.observaciones || '',
+      actividades: Array.isArray(d.actividades) && d.actividades.length ? d.actividades : [''],
+      showCaso: Boolean(casos), casoPuntos: casos || [{ ...EMPTY_PUNTO }],
+      equipos: Array.isArray(d.equipos) && d.equipos.length ? d.equipos : [{ cant: '', desc: '', modelo: '', marca: '', serie: '' }],
+      firmaIngNombre: d.firmaIngNombre || '', firmaClienteNombre: d.firmaClienteNombre || '',
+      servicioConcluido: d.servicioConcluido === true ? 'si' : d.servicioConcluido === false ? 'no' : null,
+      clienteAusente: Boolean(d.clienteAusente), motivoAusente: d.clienteAusente?.motivo || '',
+      recibioNombre: d.clienteAusente?.recibioNombre || '', recibioPuesto: d.clienteAusente?.recibioPuesto || '',
+      recibioFirma: d.clienteAusente?.recibioFirma || null,
+      usaFormato: Array.isArray(d.formatosMtto) && d.formatosMtto.length > 0, formatos: Array.isArray(d.formatosMtto) ? d.formatosMtto : [],
+      fotosServicio: conUrl,
+      tokenVerificacion: d.tokenVerificacion,
+      firmaIngData: d.firmaIngData || null, firmaClienteData: null,
+      paso: 1,
+    });
+    setEditarId(id);
+  }
+
   useEffect(() => {
     let cancelado = false;
     (async () => {
@@ -334,32 +421,17 @@ export default function NuevoReportePage() {
         const { data } = await supabase.auth.getSession();
         const uid = data.session?.user.id;
         if (!uid || cancelado) return;
+        // Modo corregir: carga el reporte y no usa el borrador (el borrador
+        // es del reporte nuevo que el técnico pudiera tener a medias).
+        const editar = new URLSearchParams(window.location.search).get('editar');
+        if (editar) {
+          await cargarParaEditar(editar, uid);
+          return;
+        }
         setBorradorUid(uid);
         const r = await leerBorrador(uid);
         if (!r || cancelado) return;
-        const c = r.borrador.campos as any;
-        const set = <T,>(fn: (v: T) => void, v: unknown) => { if (v !== undefined) fn(v as T); };
-        set(setEmpresaCliente, c.empresaCliente); set(setClienteId, c.clienteId); set(setContactosCliente, c.contactosCliente);
-        set(setServicioSeleccionadoId, c.servicioSeleccionadoId); set(setPersonalAsignado, c.personalAsignado);
-        set(setFecha, c.fecha); set(setOrdCompra, c.ordCompra); set(setHoraLlegada, c.horaLlegada); set(setHoraSalida, c.horaSalida);
-        set(setListaConceptos, c.listaConceptos); set(setContactoUsuario, c.contactoUsuario); set(setPuestoArea, c.puestoArea);
-        set(setVehiculo, c.vehiculo); set(setPlacas, c.placas); set(setVehiculoOtro, c.vehiculoOtro); set(setManejadoPor, c.manejadoPor);
-        set(setIngACargo, c.ingACargo); set(setPersonalAdicional, c.personalAdicional); set(setTipoServicio, c.tipoServicio);
-        set(setSubTipo, c.subTipo); set(setTipoServicioOtroTexto, c.tipoServicioOtroTexto); set(setSeguridad, c.seguridad);
-        set(setSeguridadOtraTexto, c.seguridadOtraTexto); set(setTuberia, c.tuberia); set(setCables, c.cables);
-        set(setObservaciones, c.observaciones); set(setActividades, c.actividades); set(setShowCaso, c.showCaso);
-        set(setCasoPuntos, c.casoPuntos); set(setEquipos, c.equipos); set(setFirmaIngNombre, c.firmaIngNombre);
-        set(setFirmaClienteNombre, c.firmaClienteNombre); set(setServicioConcluido, c.servicioConcluido);
-        set(setClienteAusente, c.clienteAusente); set(setMotivoAusente, c.motivoAusente);
-        set(setRecibioNombre, c.recibioNombre); set(setRecibioPuesto, c.recibioPuesto); set(setRecibioFirma, c.recibioFirma);
-        set(setUsaFormato, c.usaFormato); set(setFormatos, c.formatos); set(setFotosServicio, c.fotosServicio);
-        if (typeof c.tokenVerificacion === 'string') tokenRef.current = c.tokenVerificacion;
-        if (c.firmaIngData || c.firmaClienteData || c.recibioFirma) {
-          setFirmaIngData(c.firmaIngData || null);
-          setFirmaClienteData(c.firmaClienteData || null);
-          setFirmasMontadas(true);
-        }
-        set(setPaso, c.paso);
+        aplicarCampos(r.borrador.campos as any);
         if (r.fotos.length) {
           setFotos(r.fotos.map((f) => {
             const file = new File([f.blob], f.name, { type: f.type });
@@ -448,7 +520,8 @@ export default function NuevoReportePage() {
       // sin conexión no se puede consultar: los campos siguen siendo manuales
       setPersonalAsignado([]);
     }
-    if (s) {
+    // Al corregir, las fotos son las del reporte: no se reemplazan por las del servicio.
+    if (s && !editarId) {
       setCargandoFotosServicio(true);
       try {
         setFotosServicio(await listarFotosDelDia(s));
@@ -641,7 +714,7 @@ export default function NuevoReportePage() {
   // `descartar`: el técnico deja el borrador para empezar otro; el servicio
   // elegido NO se quita de sus pendientes (no se reportó).
   function resetAll(descartar = false) {
-    if (borradorUid) borrarBorrador(borradorUid).catch(() => {});
+    if (borradorUid && !editarId) borrarBorrador(borradorUid).catch(() => {});
     setRecuperadoEn(null);
     if (descartar) setFecha(hoyLocal());
     setIngACargo(''); setPersonalAdicional(['']);
@@ -779,7 +852,84 @@ export default function NuevoReportePage() {
     irAPaso(Math.min(PASOS.length, paso + 1));
   }
 
+  // Guarda la corrección completa sobre el mismo reporte. Se conservan los
+  // datos que no son del formulario (folio, QR, facturación, firma a
+  // distancia) y la revisión final se borra: el contenido cambió y el
+  // supervisor debe volver a firmarla.
+  async function guardarCorreccion(sharedData: Record<string, any>) {
+    const orig = reporteOriginal.current;
+    if (!orig || !editarId) return;
+    if (!navigator.onLine) {
+      setSaving(false);
+      setMsg('Para guardar la corrección necesitas conexión.');
+      return;
+    }
+    try {
+      const { revisionEstado, facturaEstado, fechaConcluido, ...formulario } = sharedData;
+      const fotoData: { path: string; caption: string }[] = fotosServicio.map((f) => ({ path: f.path, caption: f.caption.trim() }));
+      for (let i = 0; i < fotos.length; i++) {
+        const f = fotos[i].file;
+        const ext = f.name.split('.').pop() || 'jpg';
+        const path = `${editarId}/${Date.now()}-${i}.${ext}`;
+        const { error: eUp } = await supabase.storage.from('evidencias').upload(path, f, { contentType: f.type || 'image/jpeg' });
+        if (!eUp) fotoData.push({ path, caption: fotos[i].caption.trim() });
+      }
+      const anterior = orig.data || {};
+      const concluyoAhora = sharedData.servicioConcluido && !anterior.servicioConcluido;
+      const data = {
+        ...anterior,
+        ...formulario,
+        fotos: fotoData,
+        ...(clienteAusente ? {} : { clienteAusente: null, firmaPendiente: false }),
+        revisionEstado: 'pendiente',
+        firmaRevisionData: null, firmaRevisionNombre: null, firmaRevisionFecha: null,
+        ...(concluyoAhora ? { facturaEstado: anterior.facturaEstado || 'pendiente', fechaConcluido: fecha } : {}),
+        ...(!sharedData.servicioConcluido && !anterior.facturaEstado ? { facturaEstado: null, fechaConcluido: null } : {}),
+      };
+      const { error } = await supabase.from('reports').update({
+        empresa_cliente: empresaCliente,
+        cliente_id: clienteId,
+        fecha,
+        tipo_servicio: tipoServicio,
+        sub_tipo_servicio: subTipo,
+        data,
+        correccion_habilitada: false,
+        correccion_solicitada: false,
+        correccion_motivo: null,
+        correccion_solicitada_en: null,
+      }).eq('id', editarId);
+      if (error) throw error;
+
+      // Servicio ligado: si cambió, se libera el anterior y se liga el nuevo.
+      const antes = anterior.servicioProgramadoId || null;
+      const ahora = servicioSeleccionadoId || null;
+      if (antes !== ahora) {
+        if (antes) await supabase.from('servicios_programados').update({ report_id: null }).eq('id', antes);
+        if (ahora) { try { await vincularReporteAServicio(ahora, editarId); } catch { /* no crítico */ } }
+      }
+
+      const folio = anterior.claveFormato ? ` (folio ${anterior.claveFormato})` : '';
+      await registrarAccionGlobal('aplico_correccion', 'reporte', editarId, `Corrigió el reporte completo de «${empresaCliente.trim()}»${folio}`);
+      await notificar({
+        destino: 'supervisores',
+        tipo: 'correccion_solicitada',
+        titulo: 'Reporte corregido',
+        mensaje: `${empresaCliente.trim()}${folio}: ya está corregido y pendiente de revisión`,
+        url: '/dashboard/reportes',
+        tag: `correccion-${editarId}`,
+      });
+      setSaving(false);
+      showToast('Corrección guardada', 'success');
+      resetAll();
+      router.push('/mis-reportes');
+    } catch (e: any) {
+      setSaving(false);
+      setMsg('No se pudo guardar la corrección: ' + (e?.message || 'error de conexión'));
+    }
+  }
+
   async function handleSave() {
+    if (errorEdicion) { setMsg(errorEdicion); return; }
     if (faltantes.length > 0) {
       setMsg('Falta por llenar: ' + faltantes.join(', '));
       // El primer campo pendiente suele estar arriba, fuera de vista.
@@ -810,6 +960,11 @@ export default function NuevoReportePage() {
       firmaClienteData: !clienteAusente && sigClienteRef.current && !sigClienteRef.current.isEmpty() ? sigClienteRef.current.getDataURL() : null,
       ...(clienteAusente ? { firmaClienteNombre: '' } : {}),
     };
+
+    if (editarId) {
+      await guardarCorreccion(sharedData);
+      return;
+    }
 
     async function saveOffline(): Promise<boolean> {
       try {
@@ -977,7 +1132,7 @@ export default function NuevoReportePage() {
           </Link>
           <Logo variante="completo" size={30} className="min-w-0" compactoEnMovil />
           <div className="min-w-0">
-            <h1 className="font-display font-semibold text-base tracking-wide leading-tight truncate">Nuevo reporte</h1>
+            <h1 className="font-display font-semibold text-base tracking-wide leading-tight truncate">{editarId ? 'Corregir reporte' : 'Nuevo reporte'}</h1>
             <p className="text-[11px] text-muted truncate">{userName || userEmail}</p>
           </div>
         </div>
@@ -995,6 +1150,18 @@ export default function NuevoReportePage() {
             {!isOnline
               ? 'Sin conexión — los reportes se guardarán en este dispositivo y se subirán solos al recuperar internet.'
               : `${pendingCount} reporte${pendingCount > 1 ? 's' : ''} pendiente${pendingCount > 1 ? 's' : ''} por sincronizar…`}
+          </div>
+        )}
+
+        {editarId && (
+          <div className="rounded-2xl px-4 py-3 bg-amber/10 border border-amber/30 text-[13px]">
+            <p className="font-semibold text-amber">Corrigiendo el reporte</p>
+            <p className="text-muted">Puedes cambiar cualquier dato, el formato y las fotos. Al guardar se actualiza el mismo reporte (mismo folio), vuelve a quedar pendiente de revisión y la corrección se cierra.</p>
+          </div>
+        )}
+        {errorEdicion && (
+          <div className="rounded-2xl px-4 py-3 bg-red/10 border border-red/30 text-[13px] text-red font-semibold">
+            {errorEdicion} <Link href="/mis-reportes" className="underline">Volver a mis reportes</Link>
           </div>
         )}
 
@@ -1466,10 +1633,10 @@ export default function NuevoReportePage() {
         <div className={cardCls}>
           <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Fotos de evidencia</p>
 
-          {servicioSeleccionadoId && (cargandoFotosServicio || fotosServicio.length > 0) && (
+          {(servicioSeleccionadoId || editarId) && (cargandoFotosServicio || fotosServicio.length > 0) && (
             <div className="mb-4">
               <p className="text-[11px] font-semibold text-teal uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <Camera size={12} strokeWidth={2.6} /> Capturadas en este servicio
+                <Camera size={12} strokeWidth={2.6} /> {editarId ? 'Fotos del reporte' : 'Capturadas en este servicio'}
               </p>
               {cargandoFotosServicio ? (
                 <p className="text-[12px] text-muted">Buscando fotos que ya tomaste en campo hoy…</p>
@@ -1497,7 +1664,7 @@ export default function NuevoReportePage() {
                       </div>
                     ))}
                   </div>
-                  <p className="text-[11px] text-muted mt-2.5">Se agregaron solas porque ya las tomaste en el servicio de hoy — quita las que no apliquen.</p>
+                  <p className="text-[11px] text-muted mt-2.5">{editarId ? 'Son las fotos que ya tenía el reporte: quita las que sobren o agrega nuevas abajo.' : 'Se agregaron solas porque ya las tomaste en el servicio de hoy — quita las que no apliquen.'}</p>
                 </>
               )}
             </div>
@@ -1721,7 +1888,7 @@ export default function NuevoReportePage() {
               disabled={saving || faltantes.length > 0}
               className="flex-1 min-h-[50px] rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15px] tracking-wide shadow-glow-teal active:scale-95 transition-transform disabled:opacity-50"
             >
-              {saving ? 'Guardando...' : 'Guardar reporte'}
+              {saving ? 'Guardando...' : editarId ? 'Guardar corrección' : 'Guardar reporte'}
             </button>
           )}
         </div>
