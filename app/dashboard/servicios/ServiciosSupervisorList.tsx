@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import SupervisorShell from '@/components/SupervisorShell';
 import SubTabs from '@/components/SubTabs';
+import TableroDia from '@/components/TableroDia';
 import EmptyIllustration from '@/components/EmptyIllustration';
 import SelectorSemana, { RangoSeleccionado } from '@/components/SelectorSemana';
 import { useTheme } from '@/lib/useTheme';
@@ -105,7 +106,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   const [showNuevo, setShowNuevo] = useState(false);
   // La pantalla hace dos cosas distintas: programar algo nuevo y consultar lo
   // ya programado. Separarlas evita que el formulario y la lista compitan.
-  const [seccion, setSeccion] = useState<'agendar' | 'agendados' | 'concluidos' | 'checklists' | 'plantillas'>('agendados');
+  const [seccion, setSeccion] = useState<'hoy' | 'agendar' | 'agendados' | 'concluidos' | 'checklists' | 'plantillas'>('hoy');
   const [checklists, setChecklists] = useState<ResumenChecklist[]>([]);
   const [rango, setRango] = useState<RangoSeleccionado | null>(null);
   // Agendados abre en «Próximos» (todo lo pendiente, lo más cercano primero)
@@ -635,6 +636,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
             activa={seccion}
             onCambiar={(k) => { setSeccion(k); setShowNuevo(false); }}
             opciones={[
+              { k: 'hoy', label: 'Hoy', Icono: CalendarDays },
               { k: 'agendados', label: 'Agendados', Icono: FolderKanban },
               { k: 'concluidos', label: 'Concluidos', Icono: Check },
               { k: 'checklists', label: 'Listas de carga', Icono: PackageCheck },
@@ -642,6 +644,8 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
             ]}
           />
         )}
+
+        {seccion === 'hoy' && <TableroDia />}
 
         {/* Listas de herramienta creadas: un renglón por proyecto */}
         {seccion === 'checklists' && (

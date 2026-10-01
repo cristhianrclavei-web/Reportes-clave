@@ -38,7 +38,8 @@ export type AccionGlobal =
   | 'justifico_dia'
   | 'marco_festivo'
   | 'quito_festivo'
-  | 'unio_clientes';
+  | 'unio_clientes'
+  | 'cambio_en_dia';
 
 export type EntradaAuditoria = {
   id: string;

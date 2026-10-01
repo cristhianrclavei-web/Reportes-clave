@@ -17,6 +17,7 @@ const ACCION_CFG: Record<AccionGlobal, { Icono: any; label: string; tono: 'teal'
   reasigno_tecnicos: { Icono: Users, label: 'Reasignó técnicos', tono: 'amber' },
   amplio_proyecto: { Icono: Plus, label: 'Amplió proyecto', tono: 'teal' },
   reprogramo_dia: { Icono: CalendarClock, label: 'Reprogramó una fecha', tono: 'amber' },
+  cambio_en_dia: { Icono: CalendarClock, label: 'Cambio en el día', tono: 'amber' },
   agrego_insumo: { Icono: PackagePlus, label: 'Agregó a la lista de carga', tono: 'amber' },
   solicito_insumo: { Icono: PackagePlus, label: 'Solicitó herramienta o material', tono: 'amber' },
   aprobo_insumo: { Icono: PackageCheck, label: 'Autorizó herramienta o material', tono: 'teal' },
