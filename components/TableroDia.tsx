@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   ChevronLeft, ChevronRight, ChevronDown, RefreshCw, Plus, X, Download, AlertTriangle, ArrowRightLeft, FileText, Clock, UserX,
@@ -57,6 +57,12 @@ function estadoServicio(s: ServicioDia, tecnicoId: string): { texto: string; cor
   if (a?.enterado_en) return { texto: 'Enterado', corto: 'Enterado', cls: 'bg-surface-2 text-ink/80' };
   if (a?.visto_en) return { texto: 'Visto, sin confirmar', corto: 'Visto', cls: 'bg-amber/12 text-amber' };
   return { texto: 'No lo ha visto', corto: 'Sin ver', cls: 'bg-red/12 text-red' };
+}
+
+// «Hector Cardenas» → «Hector C.» (el primer nombre solo puede repetirse).
+function nombreCorto(n: string): string {
+  const p = n.trim().split(/\s+/);
+  return p.length > 1 ? `${p[0]} ${p[1][0]}.` : p[0];
 }
 
 function duracion(min: number): string {
@@ -215,6 +221,80 @@ export default function TableroDia() {
     URL.revokeObjectURL(url);
   }
 
+  // Técnico que se muestra en el celular.
+  const [selId, setSelId] = useState<string | null>(null);
+  const toqueX = useRef(0);
+  const tira = useRef<HTMLDivElement>(null);
+  // Centra en la tira el técnico elegido (solo la tira, no la página).
+  useEffect(() => {
+    const cont = tira.current;
+    const el = cont?.querySelector<HTMLElement>(`[data-tec="${selId}"]`);
+    if (cont && el) cont.scrollTo({ left: el.offsetLeft - cont.clientWidth / 2 + el.clientWidth / 2, behavior: 'smooth' });
+  }, [selId]);
+  const indiceSel = Math.max(0, visibles.findIndex((f) => f.id === selId));
+  const seleccionado = visibles[indiceSel];
+  function mover(paso: number) {
+    const n = visibles[indiceSel + paso];
+    if (n) setSelId(n.id);
+  }
+  // Punto de la tira: rojo si hay algo que atender, verde si ya acabó todo.
+  function puntoTecnico(f: (typeof filas)[number]): string | null {
+    if (f.servicios.some((sv) => alertaDe(sv, f.id)) || (f.cobertura?.estado === 'sin_reporte' && exigible && f.servicios.length > 0)) return 'bg-red';
+    if (f.servicios.length > 0 && f.servicios.every((sv) => sv.estado === 'concluido')) return 'bg-teal';
+    if (f.servicios.some((sv) => sv.estado === 'en_sitio' || sv.estado === 'en_curso')) return 'bg-amber';
+    return null;
+  }
+
+  function tarjeta(f: (typeof filas)[number]) {
+    const c = f.cobertura;
+    return (
+      <div key={f.id} className="rounded-2xl bg-surface border border-line px-3.5 py-3">
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <p className="text-[14.5px] font-semibold leading-tight truncate">{f.nombre}</p>
+            {c?.estado === 'reporte' && <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-teal/15 text-teal shrink-0 flex items-center gap-1"><FileText size={10} />Reporte</span>}
+            {c?.estado === 'justificado' && <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-amber/15 text-amber shrink-0">Justificado</span>}
+            {c?.estado === 'sin_reporte' && exigible && <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-red/12 text-red shrink-0">Falta reporte</span>}
+          </div>
+          <div className="flex flex-col">
+            {f.servicios.map((sv) => {
+              const e = estadoServicio(sv, f.id);
+              const clave = `${f.id}|${sv.id}`;
+              const abierto = abiertos.has(clave);
+              const alerta = alertaDe(sv, f.id);
+              return (
+                <div key={sv.id} className="border-t border-line first:border-t-0">
+                  <button type="button" onClick={() => alternar(clave)} className="w-full flex items-center gap-2 py-2 text-left">
+                    <span className="text-[12px] tabular-nums text-muted w-10 shrink-0">{horaCorta(sv.hora_programada) || '—'}</span>
+                    <span className="flex-1 min-w-0 text-[13.5px] font-medium truncate">{sv.proyecto}</span>
+                    {alerta && <span className="w-2 h-2 rounded-full bg-red shrink-0" aria-label="Con alerta" />}
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${e.cls}`}>{e.corto}</span>
+                    <ChevronDown size={15} className={`text-faint shrink-0 transition-transform ${abierto ? 'rotate-180' : ''}`} />
+                  </button>
+                  {abierto && <DetalleServicio s={sv} tecnicoId={f.id} hoy={hoy} minutos={minutos} fecha={fecha} onCambio={() => setCambio(sv)} />}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+    );
+  }
+
+  function sinServicio(f: (typeof filas)[number]) {
+    const c = f.cobertura;
+    return (
+      <div className="rounded-2xl bg-surface border border-dashed border-line-strong px-3.5 py-4">
+        <p className="text-[14.5px] font-semibold">{f.nombre}</p>
+        <p className="text-[13px] text-muted mt-1 flex items-center gap-1.5"><UserX size={15} /> Sin servicio asignado</p>
+        {c?.estado === 'justificado' && <p className="text-[12.5px] text-amber mt-1">Justificado: {MOTIVOS.find((m) => m.valor === c.motivo)?.label || c.motivo}</p>}
+        {c?.estado === 'reporte' && <p className="text-[12.5px] text-teal mt-1">Tiene reporte del día</p>}
+        <button type="button" onClick={() => setAsignar({ tecnicoIds: [f.id] })}
+          className="mt-3 w-full min-h-[44px] rounded-xl bg-teal/12 text-teal text-[13.5px] font-semibold flex items-center justify-center gap-1.5 active:scale-[0.98]">
+          <Plus size={16} /> Asignarle un servicio
+        </button>
+      </div>
+    );
+  }
+
   if (!fecha) return null;
 
   return (
@@ -276,62 +356,68 @@ export default function TableroDia() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 items-start">
-        {visibles.filter((f) => f.servicios.length > 0).map((f) => {
-          const c = f.cobertura;
-          return (
-            <div key={f.id} className="rounded-2xl bg-surface border border-line px-3.5 py-3">
-              <div className="flex items-center justify-between gap-2 mb-1">
-                <p className="text-[14.5px] font-semibold leading-tight truncate">{f.nombre}</p>
-                {c?.estado === 'reporte' && <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-teal/15 text-teal shrink-0 flex items-center gap-1"><FileText size={10} />Reporte</span>}
-                {c?.estado === 'justificado' && <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-amber/15 text-amber shrink-0">Justificado</span>}
-                {c?.estado === 'sin_reporte' && exigible && <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-red/12 text-red shrink-0">Falta reporte</span>}
-              </div>
-              <div className="flex flex-col">
-                {f.servicios.map((sv) => {
-                  const e = estadoServicio(sv, f.id);
-                  const clave = `${f.id}|${sv.id}`;
-                  const abierto = abiertos.has(clave);
-                  const alerta = alertaDe(sv, f.id);
-                  return (
-                    <div key={sv.id} className="border-t border-line first:border-t-0">
-                      <button type="button" onClick={() => alternar(clave)} className="w-full flex items-center gap-2 py-2 text-left">
-                        <span className="text-[12px] tabular-nums text-muted w-10 shrink-0">{horaCorta(sv.hora_programada) || '—'}</span>
-                        <span className="flex-1 min-w-0 text-[13.5px] font-medium truncate">{sv.proyecto}</span>
-                        {alerta && <span className="w-2 h-2 rounded-full bg-red shrink-0" aria-label="Con alerta" />}
-                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${e.cls}`}>{e.corto}</span>
-                        <ChevronDown size={15} className={`text-faint shrink-0 transition-transform ${abierto ? 'rotate-180' : ''}`} />
-                      </button>
-                      {abierto && <DetalleServicio s={sv} tecnicoId={f.id} hoy={hoy} minutos={minutos} fecha={fecha} onCambio={() => setCambio(sv)} />}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {(filtro === 'todos' || filtro === 'sin') && visibles.some((f) => f.servicios.length === 0) && (
-        <div className="mt-2.5 rounded-2xl border border-dashed border-line-strong px-3.5 py-3">
-          <p className="text-[12px] font-semibold uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><UserX size={14} /> Sin servicio asignado</p>
-          <div className="flex flex-wrap gap-1.5">
-            {visibles.filter((f) => f.servicios.length === 0).map((f) => {
-              const c = f.cobertura;
+      {/* Celular: un técnico a la vez, con tira para cambiar entre ellos. */}
+      {visibles.length > 0 && (
+        <div className="lg:hidden">
+          <div ref={tira} className="flex gap-1.5 overflow-x-auto pb-2 -mx-1 px-1 snap-x" style={{ scrollbarWidth: 'none' }}>
+            {visibles.map((f) => {
+              const sel = f.id === seleccionado?.id;
+              const punto = puntoTecnico(f);
               return (
-                <button key={f.id} type="button" onClick={() => setAsignar({ tecnicoIds: [f.id] })}
-                  className="px-2.5 py-1.5 rounded-full bg-surface-2 border border-line text-[12.5px] font-medium flex items-center gap-1.5 active:scale-95">
-                  {f.nombre}
-                  {c?.estado === 'justificado' && <span className="text-amber text-[11px]">· {MOTIVOS.find((m) => m.valor === c.motivo)?.label || 'Justificado'}</span>}
-                  {c?.estado === 'reporte' && <span className="text-teal text-[11px]">· con reporte</span>}
-                  <Plus size={13} className="text-teal" />
+                <button key={f.id} type="button" onClick={() => setSelId(f.id)} data-tec={f.id}
+                  className={`snap-start shrink-0 px-3 py-2 rounded-xl border text-[13px] font-semibold flex items-center gap-1.5 transition-colors ${sel ? 'bg-teal text-inkOnAccent border-teal' : 'bg-surface-2 border-line text-ink/85'}`}>
+                  {punto && <span className={`w-2 h-2 rounded-full ${punto}`} />}
+                  {nombreCorto(f.nombre)}
+                  <span className={`text-[11px] font-medium ${sel ? 'text-inkOnAccent/80' : 'text-muted'}`}>{f.servicios.length}</span>
                 </button>
               );
             })}
           </div>
-          <p className="text-[11.5px] text-faint mt-2">Toca un nombre para asignarle un servicio.</p>
+          {seleccionado && (
+            <div
+              onTouchStart={(e) => { toqueX.current = e.touches[0].clientX; }}
+              onTouchEnd={(e) => {
+                const dx = e.changedTouches[0].clientX - toqueX.current;
+                if (Math.abs(dx) > 60) mover(dx < 0 ? 1 : -1);
+              }}
+            >
+              <div className="flex items-center justify-between text-[12px] text-muted mb-1.5 px-1">
+                <button type="button" onClick={() => mover(-1)} disabled={indiceSel <= 0} className="w-9 h-9 -ml-2 flex items-center justify-center disabled:opacity-30" aria-label="Técnico anterior"><ChevronLeft size={18} /></button>
+                <span>{indiceSel + 1} de {visibles.length}</span>
+                <button type="button" onClick={() => mover(1)} disabled={indiceSel >= visibles.length - 1} className="w-9 h-9 -mr-2 flex items-center justify-center disabled:opacity-30" aria-label="Técnico siguiente"><ChevronRight size={18} /></button>
+              </div>
+              {seleccionado.servicios.length > 0 ? tarjeta(seleccionado) : sinServicio(seleccionado)}
+            </div>
+          )}
         </div>
       )}
+
+      {/* Computadora: todos a la vista. */}
+      <div className="hidden lg:block">
+        <div className="grid grid-cols-2 gap-2.5 items-start">
+          {visibles.filter((f) => f.servicios.length > 0).map((f) => tarjeta(f))}
+        </div>
+        {(filtro === 'todos' || filtro === 'sin') && visibles.some((f) => f.servicios.length === 0) && (
+          <div className="mt-2.5 rounded-2xl border border-dashed border-line-strong px-3.5 py-3">
+            <p className="text-[12px] font-semibold uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><UserX size={14} /> Sin servicio asignado</p>
+            <div className="flex flex-wrap gap-1.5">
+              {visibles.filter((f) => f.servicios.length === 0).map((f) => {
+                const c = f.cobertura;
+                return (
+                  <button key={f.id} type="button" onClick={() => setAsignar({ tecnicoIds: [f.id] })}
+                    className="px-2.5 py-1.5 rounded-full bg-surface-2 border border-line text-[12.5px] font-medium flex items-center gap-1.5 active:scale-95">
+                    {f.nombre}
+                    {c?.estado === 'justificado' && <span className="text-amber text-[11px]">· {MOTIVOS.find((m) => m.valor === c.motivo)?.label || 'Justificado'}</span>}
+                    {c?.estado === 'reporte' && <span className="text-teal text-[11px]">· con reporte</span>}
+                    <Plus size={13} className="text-teal" />
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[11.5px] text-faint mt-2">Toca un nombre para asignarle un servicio.</p>
+          </div>
+        )}
+      </div>
 
       {datos && visibles.length === 0 && filas.length > 0 && <p className="text-[13px] text-muted text-center py-6">Nada con este filtro.</p>}
       {datos && filas.length === 0 && <p className="text-[13px] text-muted text-center py-8">No hay técnicos activos.</p>}
