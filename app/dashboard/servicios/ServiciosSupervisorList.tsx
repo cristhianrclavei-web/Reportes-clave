@@ -10,6 +10,8 @@ import Link from 'next/link';
 import SupervisorShell from '@/components/SupervisorShell';
 import SubTabs from '@/components/SubTabs';
 import TableroDia from '@/components/TableroDia';
+import { useRouter } from 'next/navigation';
+import { listarRecurrentes, avanzarRecurrente } from '@/lib/mantenimientosRecurrentes';
 import EmptyIllustration from '@/components/EmptyIllustration';
 import SelectorSemana, { RangoSeleccionado } from '@/components/SelectorSemana';
 import { useTheme } from '@/lib/useTheme';
@@ -99,6 +101,7 @@ function generarFechasSeguidas(inicio: string, cantidad: number, omitirFinde: bo
 
 export default function ServiciosSupervisorList({ userName }: { userName?: string }) {
   const theme = useTheme();
+  const router = useRouter();
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [progresoPorGrupo, setProgresoPorGrupo] = useState<Record<string, ProgresoTareas>>({});
   const [confirmaciones, setConfirmaciones] = useState<Record<string, ConfirmacionTecnico[]>>({});
@@ -212,6 +215,44 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   useEffect(() => {
     cargar();
     listarFestivos().then(setFestivos).catch(() => {});
+  }, []);
+
+  // Abrir el formulario completo de agendar (ubicación, tareas, lista de
+  // carga, varios días) con datos ya puestos: desde el tablero «Hoy», el «+»
+  // de la Semana o un mantenimiento recurrente.
+  const recurrenteRef = useRef<string | null>(null);
+  const volverRef = useRef<string | null>(null);
+  function abrirAgendar(p: { fecha?: string; tecnicoIds?: string[]; proyecto?: string; clienteId?: string | null; descripcion?: string; hora?: string | null } = {}) {
+    if (p.fecha) { setFecha(p.fecha); setDiasTotales(1); }
+    if (p.tecnicoIds) setTecnicoIds(p.tecnicoIds);
+    if (p.proyecto) {
+      setProyecto(p.proyecto);
+      setProyectoCliente(p.clienteId ? { id: p.clienteId, nombre: p.proyecto } : null);
+    }
+    if (p.descripcion) setDescripcion(p.descripcion);
+    if (p.hora) setHoraProgramada(p.hora.slice(0, 5));
+    setSeccion('agendar');
+    setShowNuevo(true);
+    window.scrollTo({ top: 0 });
+  }
+
+  // Enlace: /dashboard/servicios?agendar=1&fecha=…&tecnicos=a,b&proyecto=…
+  //   &cliente=…&descripcion=…&hora=…&recurrente=<id>&volver=agenda
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get('agendar') !== '1') return;
+    recurrenteRef.current = q.get('recurrente');
+    volverRef.current = q.get('volver');
+    abrirAgendar({
+      fecha: q.get('fecha') || undefined,
+      tecnicoIds: q.get('tecnicos')?.split(',').filter(Boolean),
+      proyecto: q.get('proyecto') || undefined,
+      clienteId: q.get('cliente'),
+      descripcion: q.get('descripcion') || undefined,
+      hora: q.get('hora'),
+    });
+    window.history.replaceState(null, '', window.location.pathname);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Fechas resultantes según el modo elegido — se usan para la vista previa
@@ -585,7 +626,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
     setGuardando(true);
     setError(null);
     try {
-      await crearServicio({
+      const creados = await crearServicio({
         proyecto: proyecto.trim(),
         clienteId:
           proyectoCliente && normalizarCliente(proyecto).startsWith(normalizarCliente(proyectoCliente.nombre))
@@ -602,8 +643,26 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
         insumos: insumosLimpios,
       });
       showToast(fechasFinales.length > 1 ? `Proyecto programado (${fechasFinales.length} días)` : 'Servicio programado', 'success');
+      // Si vino de un mantenimiento recurrente, su próxima fecha avanza.
+      if (recurrenteRef.current && creados[0]) {
+        const id = recurrenteRef.current;
+        recurrenteRef.current = null;
+        try {
+          const r = (await listarRecurrentes()).find((x) => x.id === id);
+          if (r) await avanzarRecurrente(r, creados[0].id);
+        } catch {
+          // el servicio ya quedó creado; la fecha se puede ajustar en Recurrentes
+        }
+      }
+      if (volverRef.current === 'agenda') {
+        volverRef.current = null;
+        router.push('/dashboard/agenda');
+        return;
+      }
+      const aHoy = volverRef.current === 'hoy';
+      volverRef.current = null;
       setShowNuevo(false);
-      setSeccion('agendados');
+      setSeccion(aHoy ? 'hoy' : 'agendados');
       setProyecto(''); setProyectoCliente(null); setDescripcion(''); setTecnicoIds([]); setTareas(['']); setDuracionMin(120);
       setHoraProgramada(''); setHoraSalidaProgramada(''); setUltimoCampoEditado(null);
       setUbicLat(''); setUbicLng(''); setUbicDireccion(''); setUbicSugerencias([]); setUbicEnlace(''); setUbicError(null);
@@ -627,7 +686,10 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
     >
         {seccion === 'agendar' ? (
           <button
-            onClick={() => { setSeccion('agendados'); setShowNuevo(false); }}
+            onClick={() => {
+              if (volverRef.current === 'agenda') { volverRef.current = null; router.push('/dashboard/agenda'); return; }
+              setSeccion(volverRef.current === 'hoy' ? 'hoy' : 'agendados'); volverRef.current = null; recurrenteRef.current = null; setShowNuevo(false);
+            }}
             className="mb-4 text-[13.5px] font-semibold text-teal flex items-center gap-1"
           >
             ← Volver a los servicios
@@ -646,7 +708,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
           />
         )}
 
-        {seccion === 'hoy' && <TableroDia />}
+        {seccion === 'hoy' && <TableroDia onAgendar={(p) => { volverRef.current = 'hoy'; abrirAgendar(p); }} />}
 
         {/* Listas de herramienta creadas: un renglón por proyecto */}
         {seccion === 'checklists' && (

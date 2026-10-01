@@ -1,11 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Plus, X, Repeat, Pencil, CalendarPlus, SkipForward } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
 import { showToast } from '@/components/Toast';
-import { AsignarRapido, SelectorTecnicos } from '@/components/TableroDia';
+import { SelectorTecnicos } from '@/components/TableroDia';
 import { hoyLocal, fechaLocal } from '@/lib/fechaHoy';
 import { listarTecnicos } from '@/lib/serviciosProgramados';
 import {
@@ -40,11 +41,10 @@ function useTecnicos() {
 // ------------------------------------------------------------------
 // Aviso en la Agenda
 // ------------------------------------------------------------------
-export function PorProgramar({ onProgramado }: { onProgramado: () => void }) {
+export function PorProgramar() {
   const [hoy, setHoy] = useState('');
   const [lista, setLista] = useState<Recurrente[]>([]);
-  const [programando, setProgramando] = useState<Recurrente | null>(null);
-  const tecnicos = useTecnicos();
+  const router = useRouter();
 
   const cargar = useCallback(() => {
     listarRecurrentes().then(setLista).catch(() => setLista([]));
@@ -58,6 +58,23 @@ export function PorProgramar({ onProgramado }: { onProgramado: () => void }) {
   if (!hoy) return null;
   const pendientes = porProgramar(lista, hoy);
   if (pendientes.length === 0) return null;
+
+  // Abre el formulario completo de Servicios ya lleno; al guardar, la próxima
+  // fecha avanza y regresa a la Agenda.
+  function programar(r: Recurrente) {
+    const q = new URLSearchParams({
+      agendar: '1',
+      fecha: r.proxima_fecha < hoy ? hoy : r.proxima_fecha,
+      proyecto: r.proyecto,
+      recurrente: r.id,
+      volver: 'agenda',
+    });
+    if (r.cliente_id) q.set('cliente', r.cliente_id);
+    if (r.descripcion) q.set('descripcion', r.descripcion);
+    if (r.hora) q.set('hora', r.hora.slice(0, 5));
+    if (r.tecnico_ids.length) q.set('tecnicos', r.tecnico_ids.join(','));
+    router.push(`/dashboard/servicios?${q.toString()}`);
+  }
 
   async function saltar(r: Recurrente) {
     try {
@@ -88,7 +105,7 @@ export function PorProgramar({ onProgramado }: { onProgramado: () => void }) {
                 </div>
               </div>
               <div className="flex gap-4 mt-1.5 text-[12.5px] font-semibold">
-                <button type="button" onClick={() => setProgramando(r)} className="text-teal flex items-center gap-1"><CalendarPlus size={14} /> Programar</button>
+                <button type="button" onClick={() => programar(r)} className="text-teal flex items-center gap-1"><CalendarPlus size={14} /> Programar</button>
                 <button type="button" onClick={() => saltar(r)} className="text-muted flex items-center gap-1"><SkipForward size={14} /> Saltar este periodo</button>
               </div>
             </div>
@@ -96,30 +113,6 @@ export function PorProgramar({ onProgramado }: { onProgramado: () => void }) {
         })}
       </div>
 
-      {programando && (
-        <AsignarRapido
-          titulo="Programar mantenimiento"
-          editarFecha
-          fecha={programando.proxima_fecha < hoy ? hoy : programando.proxima_fecha}
-          tecnicos={tecnicos}
-          ocupados={new Set()}
-          inicial={programando.tecnico_ids}
-          prefill={{
-            proyecto: programando.proyecto,
-            clienteId: programando.cliente_id,
-            descripcion: programando.descripcion || '',
-            hora: programando.hora,
-            nota: `Mantenimiento ${FRECUENCIAS.find((f) => f.valor === programando.frecuencia)?.label.toLowerCase()}. Al programarlo, el siguiente queda para el ${fechaBonita(siguienteFecha(programando))}.${programando.notas ? ` Nota: ${programando.notas}` : ''}`,
-          }}
-          onClose={() => setProgramando(null)}
-          onListo={async (s) => {
-            try { await avanzarRecurrente(programando, s.id); } catch { /* el servicio ya quedó creado */ }
-            setProgramando(null);
-            cargar();
-            onProgramado();
-          }}
-        />
-      )}
     </div>
   );
 }

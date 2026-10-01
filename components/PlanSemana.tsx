@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Plus, Copy, ArrowRightLeft, X, ExternalLink } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
-import { AsignarRapido, CambioDia, SelectorTecnicos } from '@/components/TableroDia';
+import { CambioDia, SelectorTecnicos } from '@/components/TableroDia';
 import { PorProgramar } from '@/components/MantenimientosRecurrentes';
 import { hoyLocal, sumarDias, fechaLocal } from '@/lib/fechaHoy';
 import { listarFestivos, festivosEnCache, Festivo } from '@/lib/avisos';
@@ -56,11 +57,11 @@ export default function PlanSemana() {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selId, setSelId] = useState<string | null>(null);
-  const [asignar, setAsignar] = useState<{ fecha: string; tecnicoIds: string[] } | null>(null);
   const [acciones, setAcciones] = useState<ServicioDia | null>(null);
   const [cambio, setCambio] = useState<ServicioDia | null>(null);
   const [copiar, setCopiar] = useState<ServicioDia | null>(null);
   const tira = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   useEffect(() => {
     const h = hoyLocal();
@@ -110,6 +111,14 @@ export default function PlanSemana() {
     if (cont && el) cont.scrollTo({ left: el.offsetLeft - cont.clientWidth / 2 + el.clientWidth / 2, behavior: 'smooth' });
   }, [seleccionado?.id]);
 
+  // «+» abre el formulario completo de Servicios (ubicación, tareas, lista de
+  // carga, varios días) con la fecha y el técnico puestos; al guardar regresa.
+  function agendarCompleto(fecha: string, tecnicoIds: string[]) {
+    const q = new URLSearchParams({ agendar: '1', fecha, volver: 'agenda' });
+    if (tecnicoIds.length) q.set('tecnicos', tecnicoIds.join(','));
+    router.push(`/dashboard/servicios?${q.toString()}`);
+  }
+
   const festivo = (f: string) => festivos.find((x) => x.fecha === f && x.tipo !== 'costumbre');
 
   if (!lunes) return null;
@@ -131,7 +140,7 @@ export default function PlanSemana() {
   function BotonMas({ fecha, tecnicoId }: { fecha: string; tecnicoId: string }) {
     if (fecha < hoy) return null;
     return (
-      <button type="button" onClick={() => setAsignar({ fecha, tecnicoIds: tecnicoId === SIN_TECNICO ? [] : [tecnicoId] })} aria-label="Asignar servicio"
+      <button type="button" onClick={() => agendarCompleto(fecha, tecnicoId === SIN_TECNICO ? [] : [tecnicoId])} aria-label="Asignar servicio"
         className="w-full min-h-[30px] rounded-lg border border-dashed border-line text-faint hover:text-teal hover:border-teal/50 flex items-center justify-center">
         <Plus size={14} />
       </button>
@@ -155,7 +164,7 @@ export default function PlanSemana() {
         </button>
       </div>
 
-      <PorProgramar onProgramado={cargar} />
+      <PorProgramar />
 
       <p className="text-[12.5px] text-muted mb-3">
         Toca «+» para asignar un servicio a ese técnico y día; toca un servicio para copiarlo a otro día, cambiarlo o cancelarlo.
@@ -276,16 +285,6 @@ export default function PlanSemana() {
         </ModalOverlay>
       )}
 
-      {asignar && datos && (
-        <AsignarRapido
-          fecha={asignar.fecha}
-          tecnicos={datos.tecnicos}
-          ocupados={new Set(datos.servicios.filter((s) => s.fecha === asignar.fecha && s.estado !== 'cancelado' && s.estado !== 'concluido').flatMap((s) => s.asignados.map((a) => a.tecnico_id)))}
-          inicial={asignar.tecnicoIds}
-          onClose={() => setAsignar(null)}
-          onListo={() => { setAsignar(null); cargar(); }}
-        />
-      )}
       {cambio && datos && (
         <CambioDia
           servicio={cambio}

@@ -81,7 +81,11 @@ function llegadaAtrasada(s: ServicioDia, hoy: string, minutos: number, fecha: st
   return diff > 15 ? diff : 0;
 }
 
-export default function TableroDia() {
+export default function TableroDia({ onAgendar }: {
+  // Abre el formulario completo de agendar (ubicación, tareas, lista de
+  // carga) con la fecha y los técnicos puestos. Sin él, se usa el rápido.
+  onAgendar?: (p: { fecha: string; tecnicoIds: string[] }) => void;
+} = {}) {
   const [hoy, setHoy] = useState('');
   const [minutos, setMinutos] = useState(0);
   const [fecha, setFecha] = useState('');
@@ -92,6 +96,8 @@ export default function TableroDia() {
   const [cambio, setCambio] = useState<ServicioDia | null>(null);
   const [filtro, setFiltro] = useState<Filtro>('todos');
   const [abiertos, setAbiertos] = useState<Set<string>>(new Set());
+  const pedirAsignar = (tecnicoIds: string[]) =>
+    onAgendar ? onAgendar({ fecha: fecha || hoy, tecnicoIds }) : setAsignar({ tecnicoIds });
   const alternar = (k: string) => setAbiertos((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
 
   useEffect(() => {
@@ -271,7 +277,7 @@ export default function TableroDia() {
       <div className="rounded-2xl bg-surface border border-dashed border-line-strong px-3.5 py-4">
         <p className="text-[14.5px] font-semibold">{f.nombre}</p>
         <p className="text-[13px] text-muted mt-1 flex items-center gap-1.5"><UserX size={15} /> Disponible: sin servicio asignado</p>
-        <button type="button" onClick={() => setAsignar({ tecnicoIds: [f.id] })}
+        <button type="button" onClick={() => pedirAsignar([f.id])}
           className="mt-3 w-full min-h-[44px] rounded-xl bg-teal/12 text-teal text-[13.5px] font-semibold flex items-center justify-center gap-1.5 active:scale-[0.98]">
           <Plus size={16} /> Asignarle un servicio
         </button>
@@ -313,7 +319,7 @@ export default function TableroDia() {
       )}
 
       <div className="flex gap-2 mb-4">
-        <button type="button" onClick={() => setAsignar({ tecnicoIds: [] })}
+        <button type="button" onClick={() => pedirAsignar([])}
           className="flex-1 min-h-[46px] rounded-xl bg-teal text-inkOnAccent text-[14px] font-semibold flex items-center justify-center gap-2 active:scale-[0.98]">
           <Plus size={18} strokeWidth={2.6} /> Asignar servicio
         </button>
@@ -387,7 +393,7 @@ export default function TableroDia() {
             <div className="flex flex-wrap gap-1.5">
               {visibles.filter((f) => f.servicios.length === 0).map((f) => {
                 return (
-                  <button key={f.id} type="button" onClick={() => setAsignar({ tecnicoIds: [f.id] })}
+                  <button key={f.id} type="button" onClick={() => pedirAsignar([f.id])}
                     className="px-2.5 py-1.5 rounded-full bg-surface-2 border border-line text-[12.5px] font-medium flex items-center gap-1.5 active:scale-95">
                     {f.nombre}
                     <Plus size={13} className="text-teal" />
