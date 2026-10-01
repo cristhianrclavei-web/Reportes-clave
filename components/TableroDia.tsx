@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
-  ChevronLeft, ChevronRight, RefreshCw, Plus, X, Download, AlertTriangle, ArrowRightLeft, FileText, Clock, UserX,
+  ChevronLeft, ChevronRight, ChevronDown, RefreshCw, Plus, X, Download, AlertTriangle, ArrowRightLeft, FileText, Clock, UserX,
 } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
@@ -48,16 +48,25 @@ function etiquetaFecha(f: string): string {
 }
 
 // Estado de un técnico en un servicio, del más avanzado al menos.
-function estadoServicio(s: ServicioDia, tecnicoId: string): { texto: string; cls: string } {
-  if (s.estado === 'concluido') return { texto: `Concluyó ${hora(s.hora_fin)}`, cls: 'bg-teal/15 text-teal' };
-  if (s.pausado_desde) return { texto: `Pausado ${hora(s.pausado_desde)}`, cls: 'bg-amber/15 text-amber' };
-  if (s.estado === 'en_curso') return { texto: `En curso ${hora(s.hora_inicio)}`, cls: 'bg-teal/15 text-teal' };
-  if (s.estado === 'en_sitio') return { texto: `Llegó ${hora(s.hora_llegada)}`, cls: 'bg-teal/10 text-teal' };
+function estadoServicio(s: ServicioDia, tecnicoId: string): { texto: string; corto: string; cls: string } {
+  if (s.estado === 'concluido') return { texto: `Concluyó ${hora(s.hora_fin)}`, corto: `✓ ${hora(s.hora_fin)}`, cls: 'bg-teal/15 text-teal' };
+  if (s.pausado_desde) return { texto: `Pausado ${hora(s.pausado_desde)}`, corto: 'Pausado', cls: 'bg-amber/15 text-amber' };
+  if (s.estado === 'en_curso') return { texto: `En curso ${hora(s.hora_inicio)}`, corto: 'En curso', cls: 'bg-teal/15 text-teal' };
+  if (s.estado === 'en_sitio') return { texto: `Llegó ${hora(s.hora_llegada)}`, corto: 'En sitio', cls: 'bg-teal/10 text-teal' };
   const a = s.asignados.find((x) => x.tecnico_id === tecnicoId);
-  if (a?.enterado_en) return { texto: 'Enterado', cls: 'bg-surface-2 text-ink/80' };
-  if (a?.visto_en) return { texto: 'Visto, sin confirmar', cls: 'bg-amber/12 text-amber' };
-  return { texto: 'No lo ha visto', cls: 'bg-red/12 text-red' };
+  if (a?.enterado_en) return { texto: 'Enterado', corto: 'Enterado', cls: 'bg-surface-2 text-ink/80' };
+  if (a?.visto_en) return { texto: 'Visto, sin confirmar', corto: 'Visto', cls: 'bg-amber/12 text-amber' };
+  return { texto: 'No lo ha visto', corto: 'Sin ver', cls: 'bg-red/12 text-red' };
 }
+
+function duracion(min: number): string {
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m ? `${h} h ${m} min` : `${h} h`;
+}
+
+type Filtro = 'todos' | 'alertas' | 'campo' | 'sin';
 
 // ¿Ya pasó la hora acordada y nadie ha llegado?
 function llegadaAtrasada(s: ServicioDia, hoy: string, minutos: number, fecha: string): number {
@@ -76,6 +85,9 @@ export default function TableroDia() {
   const [error, setError] = useState<string | null>(null);
   const [asignar, setAsignar] = useState<{ tecnicoIds: string[] } | null>(null);
   const [cambio, setCambio] = useState<ServicioDia | null>(null);
+  const [filtro, setFiltro] = useState<Filtro>('todos');
+  const [abiertos, setAbiertos] = useState<Set<string>>(new Set());
+  const alternar = (k: string) => setAbiertos((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
 
   useEffect(() => {
     const h = hoyLocal();
@@ -131,6 +143,24 @@ export default function TableroDia() {
 
   // El reporte del día ya se puede exigir: fecha pasada, o hoy después de las 18:00.
   const exigible = fecha < hoy || (fecha === hoy && minutos >= HORA_CORTE_MIN);
+
+  // Algo que el supervisor debe atender en este servicio.
+  function alertaDe(sv: ServicioDia, tecnicoId: string): boolean {
+    const t = calcularEstadoTiempo(sv);
+    const e = estadoServicio(sv, tecnicoId);
+    return sv.avisosPendientes.length > 0
+      || llegadaAtrasada(sv, hoy, minutos, fecha) > 0
+      || t.tipo === 'excedido'
+      || (sv.estado === 'concluido' && !sv.report_id)
+      || (e.corto === 'Sin ver' && fecha <= hoy);
+  }
+
+  const visibles = filas.filter((f) => {
+    if (filtro === 'sin') return f.servicios.length === 0;
+    if (filtro === 'campo') return f.servicios.some((sv) => sv.estado === 'en_sitio' || sv.estado === 'en_curso');
+    if (filtro === 'alertas') return f.servicios.some((sv) => alertaDe(sv, f.id)) || (f.cobertura?.estado === 'sin_reporte' && exigible && f.servicios.length > 0);
+    return true;
+  });
 
   async function descargarExcel() {
     if (!datos) return;
@@ -205,11 +235,11 @@ export default function TableroDia() {
         </button>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-        <Kpi n={`${resumen.conServicio}/${resumen.total}`} label="Técnicos con servicio" />
-        <Kpi n={resumen.enCampo} label="En sitio ahora" tono="teal" />
-        <Kpi n={`${resumen.concluidos}/${resumen.servicios}`} label="Servicios concluidos" />
-        <Kpi n={resumen.sinReporte} label="Concluidos sin reporte" tono={resumen.sinReporte ? 'red' : undefined} />
+      <div className="grid grid-cols-4 gap-1.5 mb-3">
+        <Kpi n={`${resumen.conServicio}/${resumen.total}`} label="Con servicio" />
+        <Kpi n={resumen.enCampo} label="En sitio" tono="teal" />
+        <Kpi n={`${resumen.concluidos}/${resumen.servicios}`} label="Concluidos" />
+        <Kpi n={resumen.sinReporte} label="Sin reporte" tono={resumen.sinReporte ? 'red' : undefined} />
       </div>
 
       {resumen.avisos > 0 && (
@@ -235,88 +265,75 @@ export default function TableroDia() {
 
       {error && <p className="text-[13px] text-red font-semibold mb-3">{error}</p>}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        {filas.map((f) => {
+      <div className="flex flex-wrap items-center gap-x-1 mb-2">
+        {([
+          ['todos', `Todos (${filas.length})`],
+          ['alertas', `Con alertas (${filas.filter((f) => f.servicios.some((sv) => alertaDe(sv, f.id)) || (f.cobertura?.estado === 'sin_reporte' && exigible && f.servicios.length > 0)).length})`],
+          ['campo', `En campo (${filas.filter((f) => f.servicios.some((sv) => sv.estado === 'en_sitio' || sv.estado === 'en_curso')).length})`],
+          ['sin', `Sin servicio (${filas.filter((f) => f.servicios.length === 0).length})`],
+        ] as [Filtro, string][]).map(([k, l]) => (
+          <span key={k} className={chip(filtro === k)} onClick={() => setFiltro(k)}>{l}</span>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 items-start">
+        {visibles.filter((f) => f.servicios.length > 0).map((f) => {
           const c = f.cobertura;
           return (
-            <div key={f.id} className={`rounded-2xl bg-surface border p-4 ${f.servicios.length ? 'border-line' : 'border-dashed border-line-strong'}`}>
-              <div className="flex items-start justify-between gap-2">
-                <p className="text-[15px] font-semibold leading-tight">{f.nombre}</p>
-                {c?.estado === 'reporte' && <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-teal/15 text-teal shrink-0 flex items-center gap-1"><FileText size={11} />Reporte del día</span>}
-                {c?.estado === 'justificado' && <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber/15 text-amber shrink-0">Justificado</span>}
-                {c?.estado === 'sin_reporte' && exigible && <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red/12 text-red shrink-0">Falta reporte</span>}
+            <div key={f.id} className="rounded-2xl bg-surface border border-line px-3.5 py-3">
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <p className="text-[14.5px] font-semibold leading-tight truncate">{f.nombre}</p>
+                {c?.estado === 'reporte' && <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-teal/15 text-teal shrink-0 flex items-center gap-1"><FileText size={10} />Reporte</span>}
+                {c?.estado === 'justificado' && <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-amber/15 text-amber shrink-0">Justificado</span>}
+                {c?.estado === 'sin_reporte' && exigible && <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-red/12 text-red shrink-0">Falta reporte</span>}
               </div>
-              {c?.estado === 'justificado' && (
-                <p className="text-[12px] text-muted mt-0.5">{MOTIVOS.find((m) => m.valor === c.motivo)?.label || c.motivo}</p>
-              )}
-
-              {f.servicios.length === 0 ? (
-                <div className="flex items-center justify-between gap-2 mt-2">
-                  <p className="text-[13px] text-muted flex items-center gap-1.5"><UserX size={15} /> Sin servicio asignado</p>
-                  <button type="button" onClick={() => setAsignar({ tecnicoIds: [f.id] })} className="text-[13px] font-semibold text-teal flex items-center gap-1">
-                    <Plus size={15} /> Asignar
-                  </button>
-                </div>
-              ) : (
-                <div className="mt-2 flex flex-col gap-2">
-                  {f.servicios.map((s) => {
-                    const e = estadoServicio(s, f.id);
-                    const tiempo = calcularEstadoTiempo(s);
-                    const atraso = llegadaAtrasada(s, hoy, minutos, fecha);
-                    const companeros = s.asignados.filter((a) => a.tecnico_id !== f.id).map((a) => a.nombre.split(' ')[0]);
-                    return (
-                      <div key={s.id} className={`rounded-xl border p-3 ${s.avisosPendientes.length ? 'border-red/40 bg-red/5' : 'border-line bg-surface-2/60'}`}>
-                        <div className="flex items-start justify-between gap-2">
-                          <Link href={`/dashboard/servicios/${s.id}`} className="min-w-0">
-                            <span className="block text-[14px] font-semibold leading-tight truncate">{s.proyecto}</span>
-                            <span className="block text-[12px] text-muted">
-                              {s.hora_programada ? `${horaCorta(s.hora_programada)} · ` : ''}
-                              {s.dias_totales > 1 ? `Día ${s.numero_dia}/${s.dias_totales}` : 'Un día'}
-                              {companeros.length > 0 ? ` · con ${companeros.join(', ')}` : ''}
-                            </span>
-                          </Link>
-                          <span className={`text-[11.5px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${e.cls}`}>{e.texto}</span>
-                        </div>
-
-                        <div className="flex flex-wrap gap-1.5 mt-2 text-[11.5px] font-semibold">
-                          {atraso > 0 && <span className="px-2 py-0.5 rounded-full bg-red/12 text-red flex items-center gap-1"><Clock size={11} />Sin llegar ({atraso} min tarde)</span>}
-                          {tiempo.tipo === 'excedido' && <span className="px-2 py-0.5 rounded-full bg-amber/15 text-amber">Excedido {tiempo.minutos} min</span>}
-                          {tiempo.tipo === 'retraso' && <span className="px-2 py-0.5 rounded-full bg-amber/15 text-amber">Tardó {tiempo.minutos} min de más</span>}
-                          {s.report_id ? (
-                            <span className="px-2 py-0.5 rounded-full bg-teal/15 text-teal">Con reporte</span>
-                          ) : s.estado === 'concluido' ? (
-                            <span className="px-2 py-0.5 rounded-full bg-red/12 text-red">Sin reporte</span>
-                          ) : null}
-                        </div>
-
-                        {s.avisosPendientes.map((a) => (
-                          <p key={a.id} className="text-[12.5px] text-red mt-2 flex items-start gap-1.5">
-                            <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-                            <span><b>Aviso:</b> {etiquetaCausa(a.causa)}{a.comentario ? ` — ${a.comentario}` : ''}</span>
-                          </p>
-                        ))}
-                        {s.ultimoAviso?.nota && (
-                          <p className="text-[12px] text-muted mt-1.5">
-                            {s.ultimoAviso.tipo === 'pausa' ? 'Pausa' : 'Retraso'} {hora(s.ultimoAviso.created_at)}: {s.ultimoAviso.nota}
-                          </p>
-                        )}
-
-                        {s.estado !== 'concluido' && (
-                          <button type="button" onClick={() => setCambio(s)}
-                            className="mt-2 text-[12.5px] font-semibold text-teal flex items-center gap-1.5 py-0.5">
-                            <ArrowRightLeft size={14} /> Cambio en el día
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+              <div className="flex flex-col">
+                {f.servicios.map((sv) => {
+                  const e = estadoServicio(sv, f.id);
+                  const clave = `${f.id}|${sv.id}`;
+                  const abierto = abiertos.has(clave);
+                  const alerta = alertaDe(sv, f.id);
+                  return (
+                    <div key={sv.id} className="border-t border-line first:border-t-0">
+                      <button type="button" onClick={() => alternar(clave)} className="w-full flex items-center gap-2 py-2 text-left">
+                        <span className="text-[12px] tabular-nums text-muted w-10 shrink-0">{horaCorta(sv.hora_programada) || '—'}</span>
+                        <span className="flex-1 min-w-0 text-[13.5px] font-medium truncate">{sv.proyecto}</span>
+                        {alerta && <span className="w-2 h-2 rounded-full bg-red shrink-0" aria-label="Con alerta" />}
+                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${e.cls}`}>{e.corto}</span>
+                        <ChevronDown size={15} className={`text-faint shrink-0 transition-transform ${abierto ? 'rotate-180' : ''}`} />
+                      </button>
+                      {abierto && <DetalleServicio s={sv} tecnicoId={f.id} hoy={hoy} minutos={minutos} fecha={fecha} onCambio={() => setCambio(sv)} />}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           );
         })}
       </div>
 
+      {(filtro === 'todos' || filtro === 'sin') && visibles.some((f) => f.servicios.length === 0) && (
+        <div className="mt-2.5 rounded-2xl border border-dashed border-line-strong px-3.5 py-3">
+          <p className="text-[12px] font-semibold uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><UserX size={14} /> Sin servicio asignado</p>
+          <div className="flex flex-wrap gap-1.5">
+            {visibles.filter((f) => f.servicios.length === 0).map((f) => {
+              const c = f.cobertura;
+              return (
+                <button key={f.id} type="button" onClick={() => setAsignar({ tecnicoIds: [f.id] })}
+                  className="px-2.5 py-1.5 rounded-full bg-surface-2 border border-line text-[12.5px] font-medium flex items-center gap-1.5 active:scale-95">
+                  {f.nombre}
+                  {c?.estado === 'justificado' && <span className="text-amber text-[11px]">· {MOTIVOS.find((m) => m.valor === c.motivo)?.label || 'Justificado'}</span>}
+                  {c?.estado === 'reporte' && <span className="text-teal text-[11px]">· con reporte</span>}
+                  <Plus size={13} className="text-teal" />
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[11.5px] text-faint mt-2">Toca un nombre para asignarle un servicio.</p>
+        </div>
+      )}
+
+      {datos && visibles.length === 0 && filas.length > 0 && <p className="text-[13px] text-muted text-center py-6">Nada con este filtro.</p>}
       {datos && filas.length === 0 && <p className="text-[13px] text-muted text-center py-8">No hay técnicos activos.</p>}
 
       {asignar && datos && (
@@ -342,12 +359,60 @@ export default function TableroDia() {
   );
 }
 
+function DetalleServicio({
+  s, tecnicoId, hoy, minutos, fecha, onCambio,
+}: {
+  s: ServicioDia; tecnicoId: string; hoy: string; minutos: number; fecha: string; onCambio: () => void;
+}) {
+  const e = estadoServicio(s, tecnicoId);
+  const tiempo = calcularEstadoTiempo(s);
+  const atraso = llegadaAtrasada(s, hoy, minutos, fecha);
+  const companeros = s.asignados.filter((a) => a.tecnico_id !== tecnicoId).map((a) => a.nombre.split(' ')[0]);
+  return (
+    <div className="pb-2.5 pl-12 pr-1 text-[12.5px]">
+      <p className="text-muted">
+        {e.texto} · {s.dias_totales > 1 ? `Día ${s.numero_dia}/${s.dias_totales}` : 'Un día'}
+        {companeros.length > 0 ? ` · con ${companeros.join(', ')}` : ''}
+      </p>
+      <div className="flex flex-wrap gap-1.5 mt-1.5 text-[11.5px] font-semibold">
+        {atraso > 0 && <span className="px-2 py-0.5 rounded-full bg-red/12 text-red flex items-center gap-1"><Clock size={11} />Sin llegar ({duracion(atraso)} tarde)</span>}
+        {tiempo.tipo === 'excedido' && <span className="px-2 py-0.5 rounded-full bg-amber/15 text-amber">Excedido {duracion(tiempo.minutos || 0)}</span>}
+        {tiempo.tipo === 'retraso' && <span className="px-2 py-0.5 rounded-full bg-amber/15 text-amber">Tardó {duracion(tiempo.minutos || 0)} de más</span>}
+        {s.report_id ? (
+          <span className="px-2 py-0.5 rounded-full bg-teal/15 text-teal">Con reporte</span>
+        ) : s.estado === 'concluido' ? (
+          <span className="px-2 py-0.5 rounded-full bg-red/12 text-red">Sin reporte</span>
+        ) : null}
+      </div>
+      {s.avisosPendientes.map((a) => (
+        <p key={a.id} className="text-red mt-1.5 flex items-start gap-1.5">
+          <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+          <span><b>Aviso:</b> {etiquetaCausa(a.causa)}{a.comentario ? ` — ${a.comentario}` : ''}</span>
+        </p>
+      ))}
+      {s.ultimoAviso?.nota && (
+        <p className="text-muted mt-1.5 line-clamp-3">
+          {s.ultimoAviso.tipo === 'pausa' ? 'Pausa' : 'Retraso'} {hora(s.ultimoAviso.created_at)}: {s.ultimoAviso.nota}
+        </p>
+      )}
+      <div className="flex items-center gap-4 mt-2">
+        <Link href={`/dashboard/servicios/${s.id}`} className="font-semibold text-teal">Ver servicio</Link>
+        {s.estado !== 'concluido' && (
+          <button type="button" onClick={onCambio} className="font-semibold text-teal flex items-center gap-1.5">
+            <ArrowRightLeft size={13} /> Cambio en el día
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Kpi({ n, label, tono }: { n: number | string; label: string; tono?: 'teal' | 'red' }) {
   const color = tono === 'red' ? 'text-red' : tono === 'teal' ? 'text-teal' : 'text-ink';
   return (
-    <div className="rounded-2xl bg-surface border border-line px-3 py-2.5">
-      <p className={`text-[21px] font-bold tabular-nums leading-none ${color}`}>{n}</p>
-      <p className="text-[11.5px] text-muted font-semibold mt-1 leading-tight">{label}</p>
+    <div className="rounded-xl bg-surface border border-line px-2 py-2 text-center">
+      <p className={`text-[17px] font-bold tabular-nums leading-none ${color}`}>{n}</p>
+      <p className="text-[10.5px] text-muted font-semibold mt-1 leading-tight">{label}</p>
     </div>
   );
 }
