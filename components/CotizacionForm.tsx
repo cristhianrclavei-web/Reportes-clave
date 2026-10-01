@@ -12,7 +12,7 @@ import {
 import { generarUUID } from '@/lib/uuid';
 import { hoyLocal } from '@/lib/fechaHoy';
 import { showToast } from '@/components/Toast';
-import { Plus, Trash2, Search } from 'lucide-react';
+import { Plus, Trash2, Search, Link2 } from 'lucide-react';
 import SelectorProductoSyscom from '@/components/SelectorProductoSyscom';
 import type { ProductoSyscom } from '@/lib/syscom';
 
@@ -28,7 +28,7 @@ const labelCls = 'block text-[11px] font-semibold uppercase tracking-wider text-
 const cardCls = 'glass rounded-2xl p-4';
 const cardTitleCls = 'font-display font-semibold text-[13px] uppercase tracking-wider text-teal mb-3.5 flex items-center gap-2';
 
-type ItemForm = { id: string; descripcion: string; unidad: string; cantidad: string; costo: string; margenPct: string };
+type ItemForm = { id: string; descripcion: string; unidad: string; cantidad: string; costo: string; margenPct: string; enlace?: string };
 type GrupoForm = { id: string; sistema: string; items: ItemForm[] };
 
 function nuevoItem(): ItemForm {
@@ -119,6 +119,7 @@ export default function CotizacionForm({
         cantidad: String(l.cantidad),
         costo: String(tieneMargenGuardado ? l.costo : l.precio_unitario),
         margenPct: String(tieneMargenGuardado ? l.margen_pct : 0),
+        enlace: l.enlace || '',
       });
     }
     return orden.map((s) => porSistema.get(s)!);
@@ -206,6 +207,7 @@ export default function CotizacionForm({
               costo,
               margen_pct,
               precio_unitario: precioUnitarioDesdeCosto(costo, margen_pct),
+              enlace: it.enlace?.trim() || null,
             };
           })
       ),
@@ -453,6 +455,19 @@ export default function CotizacionForm({
                         onChange={(e) => actualizarItem(g.id, it.id, { margenPct: e.target.value })}
                       />
                     </div>
+                  </div>
+                  <div className="mt-2.5">
+                    <label className={`${labelCls} flex items-center gap-1.5`}>
+                      <Link2 size={12} /> Enlace del equipo <span className="normal-case tracking-normal font-normal text-faint">· solo interno, no sale en el PDF</span>
+                    </label>
+                    <input
+                      type="url"
+                      inputMode="url"
+                      placeholder="https://… (proveedor o ficha técnica)"
+                      className={inputCls}
+                      value={it.enlace || ''}
+                      onChange={(e) => actualizarItem(g.id, it.id, { enlace: e.target.value })}
+                    />
                   </div>
                   <p className="text-right text-[13px] text-muted mt-2">
                     P. Unitario: <span className="font-medium text-ink">{money(precioUnitarioDesdeCosto(parseFloat(it.costo) || 0, parseFloat(it.margenPct) || 0))}</span>

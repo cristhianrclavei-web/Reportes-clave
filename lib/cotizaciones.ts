@@ -27,6 +27,9 @@ export type LineaCotizacion = {
   margen_pct: number;
   precio_unitario: number;
   importe: number;
+  // De dónde salió el precio o las características (proveedor, ficha
+  // técnica). Solo interno: no sale en el PDF ni en el enlace público.
+  enlace?: string | null;
 };
 
 export type Cotizacion = {
@@ -80,6 +83,7 @@ export type LineaInput = {
   costo: number;
   margen_pct: number;
   precio_unitario: number;
+  enlace?: string | null;
 };
 
 export type CotizacionInput = {
@@ -148,7 +152,15 @@ function filasDeLineas(cotizacionId: string, lineas: LineaInput[]) {
     margen_pct: l.margen_pct,
     precio_unitario: l.precio_unitario,
     importe: redondear(l.cantidad * l.precio_unitario),
+    enlace: normalizarEnlace(l.enlace),
   }));
+}
+
+// «syscom.mx/producto/…» → «https://syscom.mx/producto/…»; vacío → null.
+export function normalizarEnlace(e: string | null | undefined): string | null {
+  const t = (e || '').trim();
+  if (!t) return null;
+  return /^https?:\/\//i.test(t) ? t : `https://${t}`;
 }
 
 function datosCotizacion(input: CotizacionInput) {

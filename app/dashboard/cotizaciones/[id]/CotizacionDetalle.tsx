@@ -12,7 +12,7 @@ import {
   eliminarCotizacion, agruparPorSistema, obtenerCotizacion,
 } from '@/lib/cotizaciones';
 import { showToast } from '@/components/Toast';
-import { FileText, Pencil, Trash2, ChevronLeft, X, Check, Send, Ban, MessageCircle } from 'lucide-react';
+import { FileText, Pencil, Trash2, ChevronLeft, X, Check, Send, Ban, MessageCircle, ExternalLink } from 'lucide-react';
 import { MARCA, MARCA_MAYUS } from '@/lib/marca';
 
 // WhatsApp necesita el código de país adelante — los teléfonos se capturan
@@ -271,6 +271,12 @@ export default function CotizacionDetalle({
                     <p className="text-muted text-[12px] mt-1">{l.unidad} · Cant. {l.cantidad} · {money(l.precio_unitario)} c/u</p>
                     {l.costo > 0 && (
                       <p className="text-amber/80 text-[11.5px] mt-0.5">Costo {money(l.costo)} · {l.margen_pct}% ganancia</p>
+                    )}
+                    {l.enlace && (
+                      <a href={l.enlace} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 mt-1.5 text-[12px] font-semibold text-teal hover:underline break-all">
+                        <ExternalLink size={12} /> Ver equipo{(() => { try { return ` · ${new URL(l.enlace).hostname.replace(/^www\./, '')}`; } catch { return ''; } })()}
+                      </a>
                     )}
                   </div>
                   <span className="shrink-0 font-semibold">{money(l.importe)}</span>
