@@ -143,18 +143,18 @@ as $$
 $$;
 
 create or replace function public.catalogo_clientes()
-returns table (id uuid, nombre text, alias text[])
+returns table (id uuid, nombre text, alias text[], contactos jsonb)
 language sql
 stable
 security definer
 set search_path = public
 as $$
   select c.id, c.nombre,
-         coalesce(array_agg(a.alias order by a.alias) filter (where a.alias is not null), '{}')
+         coalesce((select array_agg(a.alias order by a.alias) from public.cliente_alias a where a.cliente_id = c.id), '{}'),
+         coalesce((select jsonb_agg(jsonb_build_object('nombre', k.nombre, 'puesto', k.puesto) order by k.nombre)
+                   from public.cliente_contactos k where k.cliente_id = c.id), '[]'::jsonb)
   from public.clientes c
-  left join public.cliente_alias a on a.cliente_id = c.id
   where public.mi_cuenta_activa()
-  group by c.id, c.nombre
   order by c.nombre;
 $$;
 
