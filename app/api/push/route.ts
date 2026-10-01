@@ -24,6 +24,7 @@ const TIPOS_VALIDOS = new Set([
   'devolucion_herramienta',
   'confirmacion_devolucion',
   'servicio_confirmado',
+  'reporte_pendiente',
   'general',
 ]);
 

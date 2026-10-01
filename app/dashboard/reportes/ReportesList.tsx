@@ -14,7 +14,8 @@ import LevantamientosSeccion from '@/components/LevantamientosSeccion';
 import { VistaCondicional } from '@/lib/vistaSupervisor';
 import { facturaChip } from '@/lib/reportStatus';
 import { showToast } from '@/components/Toast';
-import { Check, MessageSquareWarning, FileText, ClipboardList } from 'lucide-react';
+import { Check, MessageSquareWarning, FileText, ClipboardList, CalendarCheck } from 'lucide-react';
+import CoberturaReportes from '@/components/CoberturaReportes';
 import SelectorSemana, { RangoSeleccionado } from '@/components/SelectorSemana';
 
 type Report = ReportDetail;
@@ -44,7 +45,7 @@ export default function ReportesList({
   const [rango, setRango] = useState<RangoSeleccionado | null>(null);
   const fechasDeReportes = useMemo(() => reports.map((r) => r.fecha).filter(Boolean), [reports]);
   const [open, setOpen] = useState<Report | null>(null);
-  const [subseccion, setSubseccion] = useState<'reportes' | 'levantamientos'>('reportes');
+  const [subseccion, setSubseccion] = useState<'reportes' | 'cobertura' | 'levantamientos'>('reportes');
   // Ver el comentario en lib/reportStatus.ts: "ahora" solo se conoce ya
   // montado en el cliente, para que el chip de facturación no dispare un
   // error de hidratación.
@@ -136,11 +137,22 @@ export default function ReportesList({
           onCambiar={setSubseccion}
           opciones={[
             { k: 'reportes', label: 'Reportes', Icono: FileText },
+            { k: 'cobertura', label: 'Cobertura', Icono: CalendarCheck },
             { k: 'levantamientos', label: 'Levantamientos', Icono: ClipboardList },
           ]}
         />
 
         {subseccion === 'levantamientos' && <LevantamientosSeccion soloPropios={false} />}
+
+        {subseccion === 'cobertura' && (
+          <CoberturaReportes
+            reportes={reports}
+            onAbrirReporte={(id) => {
+              const r = reports.find((x) => x.id === id);
+              if (r) setOpen(r);
+            }}
+          />
+        )}
 
         {subseccion === 'reportes' && (
           <>
