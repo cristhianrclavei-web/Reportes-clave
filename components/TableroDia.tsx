@@ -6,6 +6,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown, RefreshCw, Plus, X, Download, AlertTriangle, ArrowRightLeft, FileText, Clock, UserX,
 } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
+import { AvatarTecnico, TiraTecnicos, EstadoAvatar } from '@/components/AvatarTecnico';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
 import { showToast } from '@/components/Toast';
 import { hoyLocal, sumarDias, fechaLocal } from '@/lib/fechaHoy';
@@ -221,10 +222,9 @@ export default function TableroDia({ onAgendar }: {
   // Técnico que se muestra en el celular.
   const [selId, setSelId] = useState<string | null>(null);
   const toqueX = useRef(0);
-  const tira = useRef<HTMLDivElement>(null);
   // Centra en la tira el técnico elegido (solo la tira, no la página).
   useEffect(() => {
-    const cont = tira.current;
+    const cont = document.querySelector<HTMLElement>('[data-tira="hoy"]');
     const el = cont?.querySelector<HTMLElement>(`[data-tec="${selId}"]`);
     if (cont && el) cont.scrollTo({ left: el.offsetLeft - cont.clientWidth / 2 + el.clientWidth / 2, behavior: 'smooth' });
   }, [selId]);
@@ -234,20 +234,23 @@ export default function TableroDia({ onAgendar }: {
     const n = visibles[indiceSel + paso];
     if (n) setSelId(n.id);
   }
-  // Punto de la tira: rojo si hay algo que atender, verde si ya acabó todo.
-  function puntoTecnico(f: (typeof filas)[number]): string | null {
-    if (f.servicios.some((sv) => alertaDe(sv, f.id))) return 'bg-red';
-    if (f.servicios.length > 0 && f.servicios.every((sv) => sv.estado === 'concluido')) return 'bg-teal';
-    if (f.servicios.some((sv) => sv.estado === 'en_sitio' || sv.estado === 'en_curso')) return 'bg-amber';
+  // Punto del avatar: rojo si hay algo que atender, ámbar en campo, verde si ya acabó.
+  function estadoTecnico(f: (typeof filas)[number]): EstadoAvatar {
+    if (f.servicios.some((sv) => alertaDe(sv, f.id))) return 'alerta';
+    if (f.servicios.some((sv) => sv.estado === 'en_sitio' || sv.estado === 'en_curso')) return 'campo';
+    if (f.servicios.length > 0 && f.servicios.every((sv) => sv.estado === 'concluido')) return 'listo';
     return null;
   }
 
-  function tarjeta(f: (typeof filas)[number]) {
+  function tarjeta(f: (typeof filas)[number], conNombre = true) {
     return (
       <div key={f.id} className="rounded-2xl bg-surface border border-line px-3.5 py-3">
-          <div className="flex items-center justify-between gap-2 mb-1">
-            <p className="text-[14.5px] font-semibold leading-tight truncate">{f.nombre}</p>
-          </div>
+          {conNombre && (
+            <div className="flex items-center gap-2.5 mb-1.5">
+              <AvatarTecnico nombre={f.nombre} size={30} estado={estadoTecnico(f)} />
+              <p className="text-[14.5px] font-semibold leading-tight truncate">{f.nombre}</p>
+            </div>
+          )}
           <div className="flex flex-col">
             {f.servicios.map((sv) => {
               const e = estadoServicio(sv, f.id);
@@ -275,8 +278,7 @@ export default function TableroDia({ onAgendar }: {
   function sinServicio(f: (typeof filas)[number]) {
     return (
       <div className="rounded-2xl bg-surface border border-dashed border-line-strong px-3.5 py-4">
-        <p className="text-[14.5px] font-semibold">{f.nombre}</p>
-        <p className="text-[13px] text-muted mt-1 flex items-center gap-1.5"><UserX size={15} /> Disponible: sin servicio asignado</p>
+        <p className="text-[13px] text-muted flex items-center justify-center gap-1.5"><UserX size={15} /> Disponible: sin servicio asignado</p>
         <button type="button" onClick={() => pedirAsignar([f.id])}
           className="mt-3 w-full min-h-[44px] rounded-xl bg-teal/12 text-teal text-[13.5px] font-semibold flex items-center justify-center gap-1.5 active:scale-[0.98]">
           <Plus size={16} /> Asignarle un servicio
@@ -290,22 +292,22 @@ export default function TableroDia({ onAgendar }: {
   return (
     <div>
       {/* Día */}
-      <div className="flex items-center justify-between gap-2 mb-4">
+      <div className="flex items-center justify-between gap-2 mb-3">
         <button type="button" onClick={() => setFecha(sumarDias(fecha, -1))} aria-label="Día anterior"
-          className="w-10 h-10 rounded-xl bg-surface-2 border border-line flex items-center justify-center active:scale-95">
+          className="w-9 h-9 rounded-full bg-surface-2 border border-line flex items-center justify-center active:scale-95">
           <ChevronLeft size={18} />
         </button>
         <div className="text-center min-w-0">
-          <p className="font-display font-semibold text-[17px] capitalize">{fecha === hoy ? 'Hoy, ' : ''}{etiquetaFecha(fecha)}</p>
+          <p className="font-display font-semibold text-[16px] capitalize">{fecha === hoy ? 'Hoy, ' : ''}{etiquetaFecha(fecha)}</p>
           {fecha !== hoy && <button type="button" onClick={() => setFecha(hoy)} className="text-[12px] font-semibold text-teal">Ir a hoy</button>}
         </div>
         <button type="button" onClick={() => setFecha(sumarDias(fecha, 1))} aria-label="Día siguiente"
-          className="w-10 h-10 rounded-xl bg-surface-2 border border-line flex items-center justify-center active:scale-95">
+          className="w-9 h-9 rounded-full bg-surface-2 border border-line flex items-center justify-center active:scale-95">
           <ChevronRight size={18} />
         </button>
       </div>
 
-      <div className="grid grid-cols-4 gap-1.5 mb-3">
+      <div className="grid grid-cols-4 mb-3 rounded-2xl bg-surface border border-line divide-x divide-line">
         <Kpi n={`${resumen.conServicio}/${resumen.total}`} label="Con servicio" />
         <Kpi n={resumen.enCampo} label="En sitio" tono="teal" />
         <Kpi n={`${resumen.concluidos}/${resumen.servicios}`} label="Concluidos" />
@@ -318,29 +320,29 @@ export default function TableroDia({ onAgendar }: {
         </div>
       )}
 
-      <div className="flex gap-2 mb-4">
+      <div className="flex gap-2 mb-3">
         <button type="button" onClick={() => pedirAsignar([])}
-          className="flex-1 min-h-[46px] rounded-xl bg-teal text-inkOnAccent text-[14px] font-semibold flex items-center justify-center gap-2 active:scale-[0.98]">
-          <Plus size={18} strokeWidth={2.6} /> Asignar servicio
+          className="flex-1 min-h-[42px] rounded-full bg-teal text-inkOnAccent text-[14px] font-semibold flex items-center justify-center gap-2 shadow-glow-teal active:scale-[0.98]">
+          <Plus size={17} strokeWidth={2.6} /> Asignar servicio
         </button>
-        <button type="button" onClick={() => cargar()} aria-label="Actualizar"
-          className="w-12 min-h-[46px] rounded-xl bg-surface-2 border border-line flex items-center justify-center active:scale-95">
-          <RefreshCw size={17} className={cargando ? 'animate-spin' : ''} />
+        <button type="button" onClick={() => cargar()} aria-label="Actualizar" title="Actualizar"
+          className="w-[42px] h-[42px] rounded-full bg-surface-2 border border-line flex items-center justify-center active:scale-95">
+          <RefreshCw size={16} className={cargando ? 'animate-spin' : ''} />
         </button>
-        <button type="button" onClick={descargarExcel} disabled={!datos}
-          className="px-3.5 min-h-[46px] rounded-xl bg-surface-2 border border-line text-[13px] font-semibold flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50">
-          <Download size={16} /> Excel
+        <button type="button" onClick={descargarExcel} disabled={!datos} aria-label="Descargar Excel" title="Descargar Excel"
+          className="w-[42px] h-[42px] rounded-full bg-surface-2 border border-line flex items-center justify-center active:scale-95 disabled:opacity-50">
+          <Download size={16} />
         </button>
       </div>
 
       {error && <p className="text-[13px] text-red font-semibold mb-3">{error}</p>}
 
-      <div className="flex flex-wrap items-center gap-x-1 mb-2">
+      <div className="flex items-center gap-1.5 mb-2 overflow-x-auto -mx-1 px-1 [&>span]:shrink-0 [&>span]:mb-0 [&>span]:mr-0 [&>span]:text-[12px] [&>span]:px-2.5 [&>span]:py-1" style={{ scrollbarWidth: 'none' }}>
         {([
-          ['todos', `Todos (${filas.length})`],
-          ['alertas', `Con alertas (${filas.filter((f) => f.servicios.some((sv) => alertaDe(sv, f.id))).length})`],
-          ['campo', `En campo (${filas.filter((f) => f.servicios.some((sv) => sv.estado === 'en_sitio' || sv.estado === 'en_curso')).length})`],
-          ['sin', `Disponibles (${filas.filter((f) => f.servicios.length === 0).length})`],
+          ['todos', `Todos ${filas.length}`],
+          ['alertas', `Alertas ${filas.filter((f) => f.servicios.some((sv) => alertaDe(sv, f.id))).length}`],
+          ['campo', `En campo ${filas.filter((f) => f.servicios.some((sv) => sv.estado === 'en_sitio' || sv.estado === 'en_curso')).length}`],
+          ['sin', `Disponibles ${filas.filter((f) => f.servicios.length === 0).length}`],
         ] as [Filtro, string][]).map(([k, l]) => (
           <span key={k} className={chip(filtro === k)} onClick={() => setFiltro(k)}>{l}</span>
         ))}
@@ -349,20 +351,12 @@ export default function TableroDia({ onAgendar }: {
       {/* Celular: un técnico a la vez, con tira para cambiar entre ellos. */}
       {visibles.length > 0 && (
         <div className="lg:hidden">
-          <div ref={tira} className="flex gap-1.5 overflow-x-auto pb-2 -mx-1 px-1 snap-x" style={{ scrollbarWidth: 'none' }}>
-            {visibles.map((f) => {
-              const sel = f.id === seleccionado?.id;
-              const punto = puntoTecnico(f);
-              return (
-                <button key={f.id} type="button" onClick={() => setSelId(f.id)} data-tec={f.id}
-                  className={`snap-start shrink-0 px-3 py-2 rounded-xl border text-[13px] font-semibold flex items-center gap-1.5 transition-colors ${sel ? 'bg-teal text-inkOnAccent border-teal' : 'bg-surface-2 border-line text-ink/85'}`}>
-                  {punto && <span className={`w-2 h-2 rounded-full ${punto}`} />}
-                  {nombreCorto(f.nombre)}
-                  <span className={`text-[11px] font-medium ${sel ? 'text-inkOnAccent/80' : 'text-muted'}`}>{f.servicios.length}</span>
-                </button>
-              );
-            })}
-          </div>
+          <TiraTecnicos
+            grupo="hoy"
+            seleccionado={seleccionado?.id}
+            onSeleccionar={setSelId}
+            items={visibles.map((f) => ({ id: f.id, nombre: f.nombre, etiqueta: nombreCorto(f.nombre), cuenta: f.servicios.length, estado: estadoTecnico(f) }))}
+          />
           {seleccionado && (
             <div
               onTouchStart={(e) => { toqueX.current = e.touches[0].clientX; }}
@@ -371,12 +365,9 @@ export default function TableroDia({ onAgendar }: {
                 if (Math.abs(dx) > 60) mover(dx < 0 ? 1 : -1);
               }}
             >
-              <div className="flex items-center justify-between text-[12px] text-muted mb-1.5 px-1">
-                <button type="button" onClick={() => mover(-1)} disabled={indiceSel <= 0} className="w-9 h-9 -ml-2 flex items-center justify-center disabled:opacity-30" aria-label="Técnico anterior"><ChevronLeft size={18} /></button>
-                <span>{indiceSel + 1} de {visibles.length}</span>
-                <button type="button" onClick={() => mover(1)} disabled={indiceSel >= visibles.length - 1} className="w-9 h-9 -mr-2 flex items-center justify-center disabled:opacity-30" aria-label="Técnico siguiente"><ChevronRight size={18} /></button>
+              <div className="mt-2">
+                {seleccionado.servicios.length > 0 ? tarjeta(seleccionado, false) : sinServicio(seleccionado)}
               </div>
-              {seleccionado.servicios.length > 0 ? tarjeta(seleccionado) : sinServicio(seleccionado)}
             </div>
           )}
         </div>
@@ -394,7 +385,8 @@ export default function TableroDia({ onAgendar }: {
               {visibles.filter((f) => f.servicios.length === 0).map((f) => {
                 return (
                   <button key={f.id} type="button" onClick={() => pedirAsignar([f.id])}
-                    className="px-2.5 py-1.5 rounded-full bg-surface-2 border border-line text-[12.5px] font-medium flex items-center gap-1.5 active:scale-95">
+                    className="pl-1 pr-2.5 py-1 rounded-full bg-surface-2 border border-line text-[12.5px] font-medium flex items-center gap-1.5 active:scale-95 hover:border-teal/50">
+                    <AvatarTecnico nombre={f.nombre} size={24} />
                     {f.nombre}
                     <Plus size={13} className="text-teal" />
                   </button>
@@ -483,9 +475,9 @@ function DetalleServicio({
 function Kpi({ n, label, tono }: { n: number | string; label: string; tono?: 'teal' | 'red' }) {
   const color = tono === 'red' ? 'text-red' : tono === 'teal' ? 'text-teal' : 'text-ink';
   return (
-    <div className="rounded-xl bg-surface border border-line px-2 py-2 text-center">
-      <p className={`text-[17px] font-bold tabular-nums leading-none ${color}`}>{n}</p>
-      <p className="text-[10.5px] text-muted font-semibold mt-1 leading-tight">{label}</p>
+    <div className="px-1.5 py-2 text-center">
+      <p className={`text-[16px] font-bold tabular-nums leading-none ${color}`}>{n}</p>
+      <p className="text-[10px] text-muted font-medium mt-1 leading-tight">{label}</p>
     </div>
   );
 }

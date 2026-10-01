@@ -8,6 +8,7 @@ import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
 import { CambioDia, SelectorTecnicos } from '@/components/TableroDia';
 import { PorProgramar } from '@/components/MantenimientosRecurrentes';
+import { TiraTecnicos } from '@/components/AvatarTecnico';
 import { hoyLocal, sumarDias, fechaLocal } from '@/lib/fechaHoy';
 import { listarFestivos, festivosEnCache, Festivo } from '@/lib/avisos';
 import { motivoNoEditable } from '@/lib/serviciosProgramados';
@@ -60,7 +61,6 @@ export default function PlanSemana() {
   const [acciones, setAcciones] = useState<ServicioDia | null>(null);
   const [cambio, setCambio] = useState<ServicioDia | null>(null);
   const [copiar, setCopiar] = useState<ServicioDia | null>(null);
-  const tira = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -106,7 +106,7 @@ export default function PlanSemana() {
   const seleccionado = filas.find((f) => f.id === selId) || filas[0];
 
   useEffect(() => {
-    const cont = tira.current;
+    const cont = document.querySelector<HTMLElement>('[data-tira="semana"]');
     const el = cont?.querySelector<HTMLElement>(`[data-tec="${seleccionado?.id}"]`);
     if (cont && el) cont.scrollTo({ left: el.offsetLeft - cont.clientWidth / 2 + el.clientWidth / 2, behavior: 'smooth' });
   }, [seleccionado?.id]);
@@ -175,19 +175,13 @@ export default function PlanSemana() {
 
       {/* Celular: un técnico a la vez con sus 7 días */}
       <div className={`lg:hidden ${cargando ? 'opacity-60' : ''}`}>
-        <div ref={tira} className="flex gap-1.5 overflow-x-auto pb-2 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
-          {filas.map((f) => {
-            const sel = f.id === seleccionado?.id;
-            const n = cuenta(f.id);
-            return (
-              <button key={f.id} type="button" data-tec={f.id} onClick={() => setSelId(f.id)}
-                className={`shrink-0 px-3 py-2 rounded-xl border text-[13px] font-semibold flex items-center gap-1.5 ${sel ? 'bg-teal text-inkOnAccent border-teal' : 'bg-surface-2 border-line text-ink/85'}`}>
-                {f.id === SIN_TECNICO ? 'Sin técnico' : nombreCorto(f.nombre)}
-                <span className={`text-[11px] font-medium ${sel ? 'text-inkOnAccent/80' : n === 0 ? 'text-red' : 'text-muted'}`}>{n}</span>
-              </button>
-            );
-          })}
-        </div>
+        <TiraTecnicos
+          grupo="semana"
+          seleccionado={seleccionado?.id}
+          onSeleccionar={setSelId}
+          items={filas.map((f) => ({ id: f.id, nombre: f.nombre, etiqueta: f.id === SIN_TECNICO ? 'Sin técnico' : nombreCorto(f.nombre), cuenta: cuenta(f.id) }))}
+        />
+        <div className="h-2" />
         {seleccionado && (
           <div className="rounded-2xl bg-surface border border-line divide-y divide-line">
             {dias.map((d) => {
