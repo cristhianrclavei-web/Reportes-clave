@@ -234,6 +234,8 @@ export default function TableroDia({ onAgendar }: {
     const n = visibles[indiceSel + paso];
     if (n) setSelId(n.id);
   }
+  // Color de uniforme por posición en la lista (orden alfabético).
+  const indiceTec = (id: string) => Math.max(0, (datos?.tecnicos || []).findIndex((t) => t.id === id));
   // Punto del avatar: rojo si hay algo que atender, ámbar en campo, verde si ya acabó.
   function estadoTecnico(f: (typeof filas)[number]): EstadoAvatar {
     if (f.servicios.some((sv) => alertaDe(sv, f.id))) return 'alerta';
@@ -247,7 +249,7 @@ export default function TableroDia({ onAgendar }: {
       <div key={f.id} className="rounded-2xl bg-surface border border-line px-3.5 py-3">
           {conNombre && (
             <div className="flex items-center gap-2.5 mb-1.5">
-              <AvatarTecnico nombre={f.nombre} size={30} estado={estadoTecnico(f)} />
+              <AvatarTecnico nombre={f.nombre} size={30} estado={estadoTecnico(f)} indice={indiceTec(f.id)} />
               <p className="text-[14.5px] font-semibold leading-tight truncate">{f.nombre}</p>
             </div>
           )}
@@ -355,7 +357,7 @@ export default function TableroDia({ onAgendar }: {
             grupo="hoy"
             seleccionado={seleccionado?.id}
             onSeleccionar={setSelId}
-            items={visibles.map((f) => ({ id: f.id, nombre: f.nombre, etiqueta: nombreCorto(f.nombre), cuenta: f.servicios.length, estado: estadoTecnico(f) }))}
+            items={visibles.map((f) => ({ id: f.id, nombre: f.nombre, etiqueta: nombreCorto(f.nombre), cuenta: f.servicios.length, estado: estadoTecnico(f), indice: indiceTec(f.id) }))}
           />
           {seleccionado && (
             <div
@@ -386,7 +388,7 @@ export default function TableroDia({ onAgendar }: {
                 return (
                   <button key={f.id} type="button" onClick={() => pedirAsignar([f.id])}
                     className="pl-1 pr-2.5 py-1 rounded-full bg-surface-2 border border-line text-[12.5px] font-medium flex items-center gap-1.5 active:scale-95 hover:border-teal/50">
-                    <AvatarTecnico nombre={f.nombre} size={24} />
+                    <AvatarTecnico nombre={f.nombre} size={24} indice={indiceTec(f.id)} />
                     {f.nombre}
                     <Plus size={13} className="text-teal" />
                   </button>

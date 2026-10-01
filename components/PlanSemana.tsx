@@ -179,7 +179,7 @@ export default function PlanSemana() {
           grupo="semana"
           seleccionado={seleccionado?.id}
           onSeleccionar={setSelId}
-          items={filas.map((f) => ({ id: f.id, nombre: f.nombre, etiqueta: f.id === SIN_TECNICO ? 'Sin técnico' : nombreCorto(f.nombre), cuenta: cuenta(f.id) }))}
+          items={filas.map((f) => ({ id: f.id, nombre: f.nombre, etiqueta: f.id === SIN_TECNICO ? 'Sin técnico' : nombreCorto(f.nombre), cuenta: cuenta(f.id), indice: Math.max(0, (datos?.tecnicos || []).findIndex((t) => t.id === f.id)) }))}
         />
         <div className="h-2" />
         {seleccionado && (
