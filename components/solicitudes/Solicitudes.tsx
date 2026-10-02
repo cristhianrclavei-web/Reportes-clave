@@ -131,16 +131,16 @@ export default function Solicitudes({ nombre }: { nombre: string }) {
 
       <div className="grid grid-cols-2 gap-3 mb-6">
         <button type="button" onClick={() => setNuevo('horas_extra')}
-          className="group text-left rounded-2xl bg-teal text-inkOnAccent p-4 shadow-glow-teal active:scale-[0.98] transition-transform flex flex-col justify-between gap-3 min-h-[124px]">
-          <span className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center"><Clock size={20} strokeWidth={2.3} /></span>
+          className="group text-left rounded-2xl bg-surface border border-line-strong p-4 active:scale-[0.98] transition-all flex flex-col justify-between gap-3 min-h-[124px] hover:border-teal/60 hover:-translate-y-0.5 active:bg-teal/10">
+          <span className="w-11 h-11 rounded-xl bg-teal/15 text-teal flex items-center justify-center"><Clock size={21} strokeWidth={2.3} /></span>
           <span>
             <span className="block font-display font-bold text-[16px] leading-tight">Horas extra</span>
-            <span className="block text-[12px] opacity-85 leading-snug mt-0.5">Tiempo trabajado fuera de tu horario</span>
+            <span className="block text-[12px] text-muted leading-snug mt-0.5">Tiempo trabajado fuera de tu horario</span>
           </span>
         </button>
         <button type="button" onClick={() => setNuevo('ausencia')}
-          className="group text-left rounded-2xl bg-surface border border-line-strong p-4 active:scale-[0.98] transition-transform flex flex-col justify-between gap-3 min-h-[124px] hover:border-teal/50">
-          <span className="w-10 h-10 rounded-xl bg-teal/12 text-teal flex items-center justify-center"><CalendarDays size={20} strokeWidth={2.3} /></span>
+          className="group text-left rounded-2xl bg-surface border border-line-strong p-4 active:scale-[0.98] transition-all flex flex-col justify-between gap-3 min-h-[124px] hover:border-amber/60 hover:-translate-y-0.5 active:bg-amber/10">
+          <span className="w-11 h-11 rounded-xl bg-amber/15 text-amber flex items-center justify-center"><CalendarDays size={21} strokeWidth={2.3} /></span>
           <span>
             <span className="block font-display font-bold text-[16px] leading-tight">Vacaciones o permiso</span>
             <span className="block text-[12px] text-muted leading-snug mt-0.5">Días libres o ausencias</span>

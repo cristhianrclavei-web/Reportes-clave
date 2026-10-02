@@ -94,11 +94,11 @@ export default function PersonalizarPerfil({ profile }: { profile: any }) {
           <input ref={galeria} type="file" accept="image/*" className="hidden" onChange={(e) => { elegirFoto(e.target.files?.[0]); e.target.value = ''; }} />
           <div className="grid grid-cols-2 gap-2">
             <button type="button" disabled={subiendo} onClick={() => camara.current?.click()}
-              className="min-h-[44px] rounded-xl bg-teal text-inkOnAccent text-[13.5px] font-semibold flex items-center justify-center gap-2 disabled:opacity-50">
+              className="min-h-[44px] rounded-xl border border-dashed border-teal/50 text-teal text-[13.5px] font-semibold flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50">
               <Camera size={16} /> Tomar foto
             </button>
             <button type="button" disabled={subiendo} onClick={() => galeria.current?.click()}
-              className="min-h-[44px] rounded-xl bg-surface-2 border border-line text-[13.5px] font-semibold flex items-center justify-center gap-2 disabled:opacity-50">
+              className="min-h-[44px] rounded-xl border border-dashed border-teal/50 text-teal text-[13.5px] font-semibold flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50">
               <Images size={16} /> Elegir de galería
             </button>
           </div>
