@@ -250,7 +250,7 @@ export default function TableroDia({ onAgendar }: {
       <div key={f.id} className="rounded-2xl bg-surface border border-line px-3.5 py-3">
           {conNombre && (
             <div className="flex items-center gap-2.5 mb-1.5">
-              <AvatarTecnico nombre={f.nombre} size={30} estado={estadoTecnico(f)} indice={indiceTec(f.id)} />
+              <AvatarTecnico id={f.id} nombre={f.nombre} size={30} estado={estadoTecnico(f)} indice={indiceTec(f.id)} />
               <p className="text-[14.5px] font-semibold leading-tight truncate">{f.nombre}</p>
             </div>
           )}
@@ -851,7 +851,7 @@ function VistaEscritorio({
         {(verDisponibles || filtro === 'sin' ? disponibles : disponibles.slice(0, MAX_DISP)).map((f) => (
           <button key={f.id} type="button" onClick={() => pedirAsignar([f.id])} title={`Asignar servicio a ${f.nombre}`}
             className="pl-1 pr-2.5 py-1 rounded-full bg-surface border border-line text-[12.5px] font-medium flex items-center gap-1.5 hover:border-teal/50">
-            <AvatarTecnico nombre={f.nombre} size={22} indice={indiceTec(f.id)} />
+            <AvatarTecnico id={f.id} nombre={f.nombre} size={22} indice={indiceTec(f.id)} />
             {nombreCorto(f.nombre)}
             <Plus size={12} className="text-teal" />
           </button>
@@ -910,7 +910,7 @@ function VistaEscritorio({
                       <span className="flex items-center gap-2 min-w-0">
                         <span className="flex -space-x-2 shrink-0">
                           {sv.asignados.slice(0, 4).map((a) => (
-                            <span key={a.tecnico_id} className="rounded-full ring-2 ring-surface"><AvatarTecnico nombre={a.nombre} size={26} indice={indiceTec(a.tecnico_id)} /></span>
+                            <span key={a.tecnico_id} className="rounded-full ring-2 ring-surface"><AvatarTecnico id={a.tecnico_id} nombre={a.nombre} size={26} indice={indiceTec(a.tecnico_id)} /></span>
                           ))}
                         </span>
                         <span className="text-[12.5px] text-ink/80 truncate">
@@ -935,7 +935,7 @@ function VistaEscritorio({
                         {sv.asignados.map((a) => (
                           <div key={a.tecnico_id} className="rounded-xl bg-surface border border-line pt-2.5">
                             <div className="flex items-center gap-2 px-3 mb-1">
-                              <AvatarTecnico nombre={a.nombre} size={26} indice={indiceTec(a.tecnico_id)} />
+                              <AvatarTecnico id={a.tecnico_id} nombre={a.nombre} size={26} indice={indiceTec(a.tecnico_id)} />
                               <span className="text-[13px] font-semibold truncate">{a.nombre}</span>
                             </div>
                             <div className="[&>div]:pl-3">
@@ -970,7 +970,7 @@ function VistaEscritorio({
             return (
               <button key={f.id} type="button" onClick={() => setTecSel(f.id)}
                 className={`w-full flex items-center gap-3 px-3.5 py-2.5 text-left transition-colors ${activo ? 'bg-teal/10' : 'hover:bg-surface-2/60'}`}>
-                <AvatarTecnico nombre={f.nombre} size={34} estado={estadoTecnico(f)} indice={indiceTec(f.id)} />
+                <AvatarTecnico id={f.id} nombre={f.nombre} size={34} estado={estadoTecnico(f)} indice={indiceTec(f.id)} />
                 <span className="min-w-0 flex-1">
                   <span className={`block text-[13.5px] truncate ${activo ? 'font-bold text-teal' : 'font-semibold'}`}>{f.nombre}</span>
                   <span className={`block text-[12px] truncate ${f.servicios.length === 0 ? 'text-faint' : 'text-muted'}`}>{resumen}</span>
@@ -987,7 +987,7 @@ function VistaEscritorio({
         ) : (
           <>
             <div className="flex items-center gap-3 mb-4">
-              <AvatarTecnico nombre={tecActual.nombre} size={48} estado={estadoTecnico(tecActual)} indice={indiceTec(tecActual.id)} />
+              <AvatarTecnico id={tecActual.id} nombre={tecActual.nombre} size={48} estado={estadoTecnico(tecActual)} indice={indiceTec(tecActual.id)} />
               <div className="min-w-0 flex-1">
                 <p className="font-display font-bold text-[20px] leading-tight truncate">{tecActual.nombre}</p>
                 <p className="text-[13px] text-muted">{tecActual.servicios.length === 0 ? 'Sin servicio este día' : `${tecActual.servicios.length} servicio(s) este día`}</p>

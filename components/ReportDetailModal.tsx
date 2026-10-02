@@ -1,5 +1,6 @@
 'use client';
 
+import AutorReporte from '@/components/AutorReporte';
 import SubTabs from '@/components/SubTabs';
 import Link from 'next/link';
 import { useEffect, useState, useRef } from 'react';
@@ -526,6 +527,7 @@ export default function ReportDetailModal({
         />
 
         {pestana === 'reporte' && (<>
+        <AutorReporte id={report.created_by} nombre={techName(report.profiles)} variante="recuadro" />
         <Section title="Datos generales">
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
             <Detail label="Clave de formato" value={report.data?.claveFormato} />

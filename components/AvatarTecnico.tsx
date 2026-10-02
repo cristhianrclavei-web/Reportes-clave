@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
+import { usePerfil, urlFoto } from '@/lib/perfiles';
 
 // Avatar ilustrado de técnico (casco, cara y uniforme) y la tira para elegir
 // técnico en el celular. Mismo lenguaje que el menú de secciones (DockNav):
@@ -13,7 +14,7 @@ const RESORTE = { type: 'spring', stiffness: 420, damping: 32 } as const;
 // Todos con el mismo tono de piel y fondo; solo cambia el color del
 // uniforme. Con `indice` (posición del técnico en la lista ordenada) no se
 // repite entre los primeros 10; sin él, sale del nombre.
-const UNIFORMES = ['#1f8a6e', '#2f62a8', '#b8642c', '#6a4fa3', '#a8405a', '#4f7f2c', '#0f7c8c', '#c2861b', '#3d4a5c', '#8a5a2b'];
+export const UNIFORMES = ['#1f8a6e', '#2f62a8', '#b8642c', '#6a4fa3', '#a8405a', '#4f7f2c', '#0f7c8c', '#c2861b', '#3d4a5c', '#8a5a2b'];
 const FONDO = '#e1ebe8';
 const PIEL = '#e2ad86';
 
@@ -31,11 +32,20 @@ const PUNTO: Record<Exclude<EstadoAvatar, null>, string> = {
   listo: 'bg-teal',
 };
 
-export function AvatarTecnico({ nombre, size = 44, estado = null, indice }: { nombre: string; size?: number; estado?: EstadoAvatar; indice?: number }) {
-  const uniforme = UNIFORMES[(indice ?? hash(nombre)) % UNIFORMES.length];
+export function AvatarTecnico({ nombre, size = 44, estado = null, indice, id }: { nombre: string; size?: number; estado?: EstadoAvatar; indice?: number; id?: string }) {
+  // Con `id`: foto de perfil si la subió, o el color de uniforme que eligió.
+  const perfil = usePerfil(id);
+  const [fallo, setFallo] = useState<string | null>(null);
+  const url = urlFoto(perfil?.foto_path);
+  // Si la foto no carga (borrada, sin red), se queda el avatar genérico.
+  const foto = url && url !== fallo ? url : null;
+  const uniforme = UNIFORMES[(perfil?.avatar_color ?? indice ?? hash(nombre)) % UNIFORMES.length];
   const piel = PIEL;
   return (
     <span className="relative inline-block shrink-0" style={{ width: size, height: size }}>
+      {foto ? (
+        <img src={foto} alt="" width={size} height={size} loading="lazy" onError={() => setFallo(foto)} className="rounded-full block object-cover w-full h-full" />
+      ) : (
       <svg viewBox="0 0 48 48" width={size} height={size} aria-hidden className="rounded-full block">
         <circle cx="24" cy="24" r="24" fill={FONDO} />
         {/* hombros / uniforme */}
@@ -52,6 +62,7 @@ export function AvatarTecnico({ nombre, size = 44, estado = null, indice }: { no
         <rect x="13" y="18.6" width="22" height="2.6" rx="1.3" fill="#e09a1c" />
         <rect x="22.8" y="10.4" width="2.4" height="8.4" rx="1.2" fill="#ffd36b" />
       </svg>
+      )}
       {estado && (
         <span className="absolute -bottom-0.5 -right-0.5 flex">
           {estado === 'campo' && <span className={`absolute inset-0 rounded-full ${PUNTO[estado]} animate-ping opacity-60`} />}
@@ -123,7 +134,7 @@ export function TiraTecnicos({
                   transition={RESORTE}
                 >
                   <span className={`block rounded-full ${activo ? 'ring-2 ring-teal ring-offset-2 ring-offset-bg' : ''}`}>
-                    <AvatarTecnico nombre={it.nombre} size={42} estado={it.estado || null} indice={it.indice} />
+                    <AvatarTecnico id={it.id} nombre={it.nombre} size={42} estado={it.estado || null} indice={it.indice} />
                   </span>
                   {typeof it.cuenta === 'number' && (
                     <span className={`absolute -top-1 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10.5px] font-bold flex items-center justify-center ring-2 ring-bg ${

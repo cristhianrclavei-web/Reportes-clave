@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabaseServer';
 import ProfileForm from '@/components/ProfileForm';
+import PersonalizarPerfil from '@/components/PersonalizarPerfil';
 import CambiarContrasena from '@/components/CambiarContrasena';
 import AdminUsersSection from '@/components/AdminUsersSection';
 import LogoutButton from '@/components/LogoutButton';
@@ -73,7 +74,9 @@ export default async function PerfilPage() {
 
       <div className="px-4 pt-5">
         <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-wide mb-1.5">Mi perfil</h1>
-        <p className="text-[15px] text-muted font-medium mb-5">Tus datos de contacto</p>
+        <p className="text-[15px] text-muted font-medium mb-5">Tu foto, tus datos de contacto y tu contraseña</p>
+
+        <PersonalizarPerfil profile={profile} />
 
         <ProfileForm user={user} profile={profile} />
 

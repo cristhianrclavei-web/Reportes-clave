@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabaseClient';
 import ReportDetailModal, { ReportDetail, techName } from '@/components/ReportDetailModal';
+import AutorReporte from '@/components/AutorReporte';
 import SupervisorShell from '@/components/SupervisorShell';
 import EmptyIllustration from '@/components/EmptyIllustration';
 import TablaLista, { ColumnaTabla } from '@/components/TablaLista';
@@ -270,8 +271,6 @@ export default function ReportesList({
                         <div className="text-[12px] text-muted mb-3 flex items-center gap-1.5 flex-wrap">
                           <span>{r.tipo_servicio || 'Sin tipo'}{r.sub_tipo_servicio ? ` · ${r.sub_tipo_servicio}` : ''}</span>
                           <span className="text-faint">·</span>
-                          <span className="truncate">{techName(r.profiles)}</span>
-                          <span className="text-faint">·</span>
                           {r.data?.firmaRevisionData ? (
                             <span className="text-[12px] font-semibold px-2.5 py-1 rounded-full bg-teal/15 text-teal flex items-center gap-1.5"><Check size={12} strokeWidth={3} />Completado</span>
                           ) : (
@@ -291,7 +290,7 @@ export default function ReportesList({
                           })()}
                         </div>
 
-                        <div className="flex justify-between items-end">
+                        <div className="flex justify-between items-center gap-3 pt-3 border-t border-line">
                           <div className="flex gap-4">
                             <div>
                               <div className="text-[10px] uppercase tracking-wider text-muted mb-0.5">Fecha</div>
@@ -302,12 +301,7 @@ export default function ReportesList({
                               <span className="text-[13px] font-medium">{r.data?.horaLlegada || '—'} hrs</span>
                             </div>
                           </div>
-                          <span className="text-teal text-[13px] font-semibold flex items-center gap-0.5 shrink-0">
-                            Ver
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                              <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                          </span>
+                          <AutorReporte id={r.created_by} nombre={techName(r.profiles)} />
                         </div>
                       </div>
                     ))}

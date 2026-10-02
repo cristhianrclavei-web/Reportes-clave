@@ -15,6 +15,7 @@ import { useVistaSupervisor } from '@/lib/vistaSupervisor';
 import { coincideBusqueda } from '@/lib/busqueda';
 import { ClienteCatalogo, catalogoEnCache, listarCatalogoClientes } from '@/lib/clientesCatalogo';
 import { navegarConTransicion } from '@/lib/nativeViewTransition';
+import { useMiId, usePerfil, urlFoto } from '@/lib/perfiles';
 import { Search, X, LayoutGrid, Rows3, Building2 } from 'lucide-react';
 
 // Navegación de la computadora:
@@ -149,6 +150,7 @@ export default function DockNav({ userName }: { userName?: string }) {
   const puedeFacturar = usePuedeFacturar();
   const plan = usePlan();
   const secciones = seccionesVisibles(puedeAlmacen, puedeFacturar, plan.modulos);
+  const miPerfil = usePerfil(useMiId());
 
   // --- Buscador expandible ---
   const [buscando, setBuscando] = useState(false);
@@ -207,6 +209,7 @@ export default function DockNav({ userName }: { userName?: string }) {
     navegarConTransicion(() => router.push(href));
   }
 
+  const miFoto = urlFoto(miPerfil?.foto_path);
   const iniciales = (userName || '').trim().split(/\s+/).slice(0, 2).map((x) => x[0]).join('').toUpperCase();
 
   return (
@@ -297,12 +300,16 @@ export default function DockNav({ userName }: { userName?: string }) {
             <div className="flex items-center gap-2">
               <Link href="/perfil" aria-label="Mi perfil"
                 className="flex items-center gap-3 p-1 xl:pr-4 rounded-full hover:bg-surface border border-transparent hover:border-line transition-colors">
-                <span className="w-10 h-10 rounded-full bg-teal text-inkOnAccent flex items-center justify-center text-[13px] font-display font-bold shrink-0">
-                  {iniciales || 'S'}
-                </span>
+                {miFoto ? (
+                  <img src={miFoto} alt="" className="w-10 h-10 rounded-full object-cover shrink-0" />
+                ) : (
+                  <span className="w-10 h-10 rounded-full bg-teal text-inkOnAccent flex items-center justify-center text-[13px] font-display font-bold shrink-0">
+                    {iniciales || 'S'}
+                  </span>
+                )}
                 <span className="hidden xl:block leading-tight text-left">
                   <span className="block text-[14px] font-semibold truncate max-w-[160px]">{userName || 'Supervisor'}</span>
-                  <span className="block text-[12px] text-muted">Supervisor</span>
+                  <span className="block text-[12px] text-muted truncate max-w-[160px]">{miPerfil?.puesto || 'Supervisor'}</span>
                 </span>
               </Link>
               <BotonDock etiqueta="Cerrar sesión">

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { UserRound } from 'lucide-react';
+import { useMiId, usePerfil, urlFoto } from '@/lib/perfiles';
 
 function iniciales(nombre: string): string {
   return nombre
@@ -21,6 +22,7 @@ function iniciales(nombre: string): string {
 // lo que se va es el texto.
 export default function PerfilChip({ nombre, respaldo = 'Mi perfil' }: { nombre?: string; respaldo?: string }) {
   const ini = iniciales(nombre || '');
+  const foto = urlFoto(usePerfil(useMiId())?.foto_path);
 
   return (
     <Link
@@ -28,9 +30,13 @@ export default function PerfilChip({ nombre, respaldo = 'Mi perfil' }: { nombre?
       aria-label="Mi perfil"
       className="shrink-0 min-h-[44px] flex items-center gap-2 pr-1 rounded-full active:scale-95 transition-transform"
     >
-      <span className="w-9 h-9 rounded-full bg-teal text-inkOnAccent flex items-center justify-center text-[11.5px] font-display font-bold shrink-0">
-        {ini || <UserRound size={17} strokeWidth={2.4} />}
-      </span>
+      {foto ? (
+        <img src={foto} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
+      ) : (
+        <span className="w-9 h-9 rounded-full bg-teal text-inkOnAccent flex items-center justify-center text-[11.5px] font-display font-bold shrink-0">
+          {ini || <UserRound size={17} strokeWidth={2.4} />}
+        </span>
+      )}
       <span className="hidden min-[420px]:block text-[13px] font-medium truncate max-w-[92px]">
         {nombre || respaldo}
       </span>
