@@ -8,7 +8,7 @@ import {
   Solicitud, TIPO_LABEL, ESTADO_SOLICITUD, listarSolicitudes, puedoAprobarPersonal, recordatorioCorte,
   corteDe, fechaBonita, duracionTexto,
 } from '@/lib/solicitudesPersonal';
-import { hoyLocal } from '@/lib/fechaHoy';
+import { hoyLocal, sumarDias } from '@/lib/fechaHoy';
 import FormSolicitud from './FormSolicitud';
 import DetalleSolicitud from './DetalleSolicitud';
 
@@ -20,6 +20,7 @@ type Vista = 'autorizar' | 'todas' | 'mias';
 
 // 4.5 → «4 h 30 min»
 const horasFmt = (h: number) => duracionTexto(Math.round(h * 60));
+const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
 function resumenLinea(s: Solicitud): string {
   if (s.tipo === 'horas_extra') return `${duracionTexto(Math.round((s.horas || 0) * 60))} · ${fechaBonita(s.fecha)}${s.cliente_nombre ? ` · ${s.cliente_nombre}` : ''}`;
@@ -37,6 +38,7 @@ export default function Solicitudes({ nombre }: { nombre: string }) {
   const [abierta, setAbierta] = useState<string | null>(null);
   const [aviso, setAviso] = useState<{ corte: string; faltan: number } | null>(null);
   const [corteActual, setCorteActual] = useState('');
+  const [hoyLocalSeguro, setHoyLocalSeguro] = useState('');
 
   const cargar = useCallback(async () => {
     try {
@@ -54,6 +56,7 @@ export default function Solicitudes({ nombre }: { nombre: string }) {
     cargar();
     setAviso(recordatorioCorte());
     setCorteActual(corteDe(hoyLocal()));
+    setHoyLocalSeguro(hoyLocal());
     const t = setInterval(cargar, 60000);
     return () => clearInterval(t);
   }, [cargar]);
@@ -97,34 +100,51 @@ export default function Solicitudes({ nombre }: { nombre: string }) {
     const a = document.createElement('a'); a.href = url; a.download = `horas-extra-corte-${corteActual}.xlsx`; a.click(); URL.revokeObjectURL(url);
   }
 
+  const proximoPago = corteActual === hoyLocalSeguro ? corteDe(sumarDias(corteActual, 1)) : corteActual;
   const pendCorte = porAutorizar.filter((s) => s.tipo === 'horas_extra' && s.corte_pago && aviso && s.corte_pago <= aviso.corte).length;
 
   return (
     <div>
-      {aviso && (
-        <div className="mb-4 rounded-2xl bg-amber/10 border border-amber/40 px-4 py-3 flex items-start gap-3">
-          <Bell size={18} className="text-amber shrink-0 mt-0.5" />
-          <div className="text-[13.5px]">
-            <p className="font-semibold text-amber">
-              Día de pago: {fechaBonita(aviso.corte)} ({aviso.faltan === 1 ? 'el siguiente día hábil' : `en ${aviso.faltan} días hábiles`})
+      {/* Próximo día de pago: siempre visible; en ámbar cuando ya toca mandar
+          o autorizar horas para el cierre de nómina. */}
+      {corteActual && (
+        <div className={`mb-4 rounded-2xl border px-4 py-3.5 flex items-center gap-3.5 ${aviso ? 'bg-amber/10 border-amber/40' : 'bg-surface border-line'}`}>
+          <span className={`w-11 h-11 rounded-xl flex flex-col items-center justify-center shrink-0 leading-none ${aviso ? 'bg-amber/15 text-amber' : 'bg-teal/12 text-teal'}`}>
+            <span className="text-[17px] font-display font-bold">{Number((aviso?.corte || proximoPago).slice(8, 10))}</span>
+            <span className="text-[9.5px] font-semibold uppercase tracking-wide mt-0.5">{MESES_CORTOS[Number((aviso?.corte || proximoPago).slice(5, 7)) - 1]}</span>
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className={`text-[11px] font-semibold uppercase tracking-wider ${aviso ? 'text-amber' : 'text-muted'}`}>
+              {aviso ? <span className="inline-flex items-center gap-1"><Bell size={12} /> Cierre de nómina</span> : 'Próximo día de pago'}
             </p>
-            <p className="text-ink/75">
-              {aprobador
-                ? pendCorte > 0 ? `Hay ${pendCorte} solicitud(es) de horas extra por autorizar: autorízalas antes del cierre de nómina.` : 'No hay horas extra pendientes para este pago.'
-                : 'Si trabajaste horas extra, mándalas ya para que entren en el cierre de nómina de este pago.'}
+            <p className="text-[14.5px] font-semibold first-letter:uppercase">{fechaBonita(aviso?.corte || proximoPago)}</p>
+            <p className="text-[12.5px] text-ink/70 leading-snug">
+              {aviso
+                ? aprobador
+                  ? pendCorte > 0 ? `${pendCorte} solicitud(es) de horas extra por autorizar.` : 'No hay horas extra pendientes para este pago.'
+                  : `Faltan ${aviso.faltan === 1 ? '1 día hábil' : `${aviso.faltan} días hábiles`}: manda tus horas extra para que entren.`
+                : 'Las horas extra que mandes entran en este pago.'}
             </p>
           </div>
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-2 mb-5">
+      <div className="grid grid-cols-2 gap-3 mb-6">
         <button type="button" onClick={() => setNuevo('horas_extra')}
-          className="min-h-[56px] rounded-2xl bg-teal text-inkOnAccent font-semibold text-[14.5px] flex items-center justify-center gap-2 shadow-glow-teal active:scale-[0.98]">
-          <Clock size={18} /> Horas extra
+          className="group text-left rounded-2xl bg-teal text-inkOnAccent p-4 shadow-glow-teal active:scale-[0.98] transition-transform flex flex-col justify-between gap-3 min-h-[124px]">
+          <span className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center"><Clock size={20} strokeWidth={2.3} /></span>
+          <span>
+            <span className="block font-display font-bold text-[16px] leading-tight">Horas extra</span>
+            <span className="block text-[12px] opacity-85 leading-snug mt-0.5">Tiempo trabajado fuera de tu horario</span>
+          </span>
         </button>
         <button type="button" onClick={() => setNuevo('ausencia')}
-          className="min-h-[56px] rounded-2xl bg-surface border border-line-strong font-semibold text-[14.5px] flex items-center justify-center gap-2 active:scale-[0.98]">
-          <CalendarDays size={18} /> Vacaciones o permiso
+          className="group text-left rounded-2xl bg-surface border border-line-strong p-4 active:scale-[0.98] transition-transform flex flex-col justify-between gap-3 min-h-[124px] hover:border-teal/50">
+          <span className="w-10 h-10 rounded-xl bg-teal/12 text-teal flex items-center justify-center"><CalendarDays size={20} strokeWidth={2.3} /></span>
+          <span>
+            <span className="block font-display font-bold text-[16px] leading-tight">Vacaciones o permiso</span>
+            <span className="block text-[12px] text-muted leading-snug mt-0.5">Días libres o ausencias</span>
+          </span>
         </button>
       </div>
 
@@ -159,10 +179,36 @@ export default function Solicitudes({ nombre }: { nombre: string }) {
       {error && <p className="text-[13px] text-red font-semibold mb-3">{error}</p>}
       {lista === null && <p className="text-[13px] text-muted text-center py-6">Cargando…</p>}
       {lista && visibles.length === 0 && !error && (
-        <div className="flex flex-col items-center py-10 text-center text-muted">
-          <Inbox size={28} className="mb-2" />
-          <p className="text-[14px]">{vista === 'autorizar' ? 'No hay solicitudes por autorizar.' : 'Todavía no hay solicitudes.'}</p>
-        </div>
+        vista === 'autorizar' ? (
+          <div className="flex flex-col items-center py-10 text-center text-muted">
+            <Inbox size={28} className="mb-2" />
+            <p className="text-[14px]">No hay solicitudes por autorizar.</p>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-line-strong p-5">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted mb-3">Mis solicitudes</p>
+            <p className="text-[14px] font-semibold mb-3">Todavía no tienes solicitudes. Así funciona:</p>
+            <ol className="flex flex-col gap-3">
+              {[
+                ['Llénala y fírmala', 'Horas extra con sus evidencias, o los días que necesitas.'],
+                ['La autorizan', 'Quien autoriza la firma, te pide una corrección o la rechaza. Te llega aviso.'],
+                ['Queda archivada', 'Puedes bajarla en PDF cuando quieras.'],
+              ].map(([t, d], k) => (
+                <li key={k} className="flex gap-3">
+                  <span className="w-7 h-7 rounded-full bg-teal/15 text-teal text-[13px] font-bold flex items-center justify-center shrink-0">{k + 1}</span>
+                  <span className="min-w-0">
+                    <span className="block text-[13.5px] font-semibold">{t}</span>
+                    <span className="block text-[12.5px] text-muted leading-snug">{d}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )
+      )}
+
+      {visibles.length > 0 && vista === 'mias' && (
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted mb-2">Mis solicitudes · {visibles.length}</p>
       )}
 
       <div className="flex flex-col gap-2.5 lg:grid lg:grid-cols-2">
