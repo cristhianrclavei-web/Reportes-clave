@@ -71,30 +71,29 @@ export const MOTIVOS_PERMISO = [
 ];
 
 // ------------------------------------------------------------------
-// Días de pago y corte de horas extra
+// Días de pago
 // ------------------------------------------------------------------
-// Se paga el 14 y el penúltimo día del mes (29 en meses de 30 días, 30 en
-// meses de 31; en febrero, 27 o 28). Si cae en sábado o domingo se recorre
-// al jueves anterior, porque el pago sale el viernes.
+// Se paga el 15 y el último día del mes (30, 31, o 28/29 en febrero). Si
+// cae en sábado o domingo, se paga el viernes anterior.
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
 function ajustarFinDeSemana(fecha: string): string {
   const d = fechaLocal(fecha).getDay();
-  if (d === 6) return sumarDias(fecha, -2); // sábado → jueves
-  if (d === 0) return sumarDias(fecha, -3); // domingo → jueves
+  if (d === 6) return sumarDias(fecha, -1); // sábado → viernes
+  if (d === 0) return sumarDias(fecha, -2); // domingo → viernes
   return fecha;
 }
 
 export function cortesDelMes(anio: number, mes1a12: number): [string, string] {
   const diasMes = new Date(anio, mes1a12, 0).getDate();
-  const a = `${anio}-${pad(mes1a12)}-14`;
-  const b = `${anio}-${pad(mes1a12)}-${pad(diasMes - 1)}`;
+  const a = `${anio}-${pad(mes1a12)}-15`;
+  const b = `${anio}-${pad(mes1a12)}-${pad(diasMes)}`;
   return [ajustarFinDeSemana(a), ajustarFinDeSemana(b)];
 }
 
-// Corte de pago en el que entra un trabajo hecho en `fecha` (el siguiente
-// corte en o después de esa fecha).
+// Día de pago en el que entra un trabajo hecho en `fecha` (el siguiente
+// pago en o después de esa fecha).
 export function corteDe(fecha: string): string {
   const d = fechaLocal(fecha);
   for (let i = 0; i < 3; i++) {
@@ -107,7 +106,7 @@ export function corteDe(fecha: string): string {
   return fecha;
 }
 
-// Días hábiles (lunes a viernes) que faltan de `hoy` al corte; 0 = hoy es el corte.
+// Días hábiles (lunes a viernes) que faltan de `hoy` al pago; 0 = hoy es el pago.
 export function diasHabilesHasta(hoy: string, corte: string): number {
   let n = 0;
   let f = hoy;
@@ -119,11 +118,14 @@ export function diasHabilesHasta(hoy: string, corte: string): number {
   return n;
 }
 
-// Recordatorio: los 2 días hábiles previos al corte y el día del corte.
+// Recordatorio: los 2 días hábiles antes del pago, para que entre en el
+// cierre de nómina (el día del pago ya es tarde). Si hoy es día de pago, se
+// mira el siguiente.
 export function recordatorioCorte(hoy: string = hoyLocal()): { corte: string; faltan: number } | null {
-  const corte = corteDe(hoy);
+  let corte = corteDe(hoy);
+  if (corte === hoy) corte = corteDe(sumarDias(hoy, 1));
   const faltan = diasHabilesHasta(hoy, corte);
-  return faltan <= 2 ? { corte, faltan } : null;
+  return faltan >= 1 && faltan <= 2 ? { corte, faltan } : null;
 }
 
 export function fechaBonita(f: string | null): string {

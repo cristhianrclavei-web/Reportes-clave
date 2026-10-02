@@ -106,12 +106,12 @@ export default function Solicitudes({ nombre }: { nombre: string }) {
           <Bell size={18} className="text-amber shrink-0 mt-0.5" />
           <div className="text-[13.5px]">
             <p className="font-semibold text-amber">
-              Corte de horas extra: {aviso.faltan === 0 ? 'hoy' : `${aviso.faltan === 1 ? 'mañana hábil' : `en ${aviso.faltan} días hábiles`}`}, {fechaBonita(aviso.corte)}
+              Día de pago: {fechaBonita(aviso.corte)} ({aviso.faltan === 1 ? 'el siguiente día hábil' : `en ${aviso.faltan} días hábiles`})
             </p>
             <p className="text-ink/75">
               {aprobador
-                ? pendCorte > 0 ? `Hay ${pendCorte} solicitud(es) de horas extra por autorizar antes del pago.` : 'No hay horas extra pendientes para este corte.'
-                : 'Si trabajaste horas extra, mándalas antes del corte para que entren en este pago.'}
+                ? pendCorte > 0 ? `Hay ${pendCorte} solicitud(es) de horas extra por autorizar: autorízalas antes del cierre de nómina.` : 'No hay horas extra pendientes para este pago.'
+                : 'Si trabajaste horas extra, mándalas ya para que entren en el cierre de nómina de este pago.'}
             </p>
           </div>
         </div>
@@ -131,7 +131,7 @@ export default function Solicitudes({ nombre }: { nombre: string }) {
       {aprobador && resumenCorte.length > 0 && (
         <div className="mb-5 rounded-2xl bg-surface border border-line p-4">
           <div className="flex items-center justify-between gap-2 mb-2">
-            <p className="text-[13.5px] font-semibold">Horas extra del corte {fechaBonita(corteActual)}</p>
+            <p className="text-[13.5px] font-semibold">Horas extra del pago del {fechaBonita(corteActual)}</p>
             <button type="button" onClick={excelCorte} className="h-8 px-3 rounded-full bg-surface-2 border border-line text-[12.5px] font-semibold flex items-center gap-1.5"><Download size={13} /> Excel</button>
           </div>
           <div className="divide-y divide-line">

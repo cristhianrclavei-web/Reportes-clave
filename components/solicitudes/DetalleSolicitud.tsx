@@ -97,7 +97,7 @@ export default function DetalleSolicitud({
             </div>
             <div className="grid grid-cols-2 gap-3 mb-3">
               <div><span className={labelCls}>Cliente</span><p className="text-[14px]">{s.cliente_nombre || '—'}</p></div>
-              <div><span className={labelCls}>Corte de pago</span><p className="text-[14px] ">{fechaBonita(s.corte_pago)}</p></div>
+              <div><span className={labelCls}>Entra en el pago del</span><p className="text-[14px] ">{fechaBonita(s.corte_pago)}</p></div>
               {s.proyecto && <div className="col-span-2"><span className={labelCls}>Proyecto</span><p className="text-[14px]">{s.proyecto}</p></div>}
             </div>
             <span className={labelCls}>Actividades</span>

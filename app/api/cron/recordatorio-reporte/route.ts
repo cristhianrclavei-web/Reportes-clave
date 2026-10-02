@@ -193,7 +193,7 @@ export async function POST(request: NextRequest) {
         const ids = ((aut as any[]) || []).map((r) => (typeof r === 'string' ? r : r.destinatarios_notificacion_tipo));
         const carga = JSON.stringify({
           titulo: `${horasPorAutorizar} solicitud(es) de horas extra por autorizar`,
-          cuerpo: `El corte de pago es ${cuando}. Autorízalas para que entren en el pago.`,
+          cuerpo: `Se paga ${cuando}. Autorízalas antes del cierre de nómina.`,
           url: '/dashboard/personal',
           tag: 'corte-horas-extra',
         });
@@ -203,8 +203,8 @@ export async function POST(request: NextRequest) {
       if (corte.faltan === 2) {
         const { data: tecs } = await admin.from('profiles').select('id').eq('role', 'tecnico').eq('activo', true);
         const carga = JSON.stringify({
-          titulo: 'Corte de horas extra',
-          cuerpo: `El corte es ${cuando}. Si trabajaste horas extra, mándalas desde Solicitudes.`,
+          titulo: 'Cierre de nómina: horas extra',
+          cuerpo: `Se paga ${cuando}. Si trabajaste horas extra, mándalas hoy desde Solicitudes para que entren en la nómina.`,
           url: '/solicitudes',
           tag: 'corte-horas-extra',
         });

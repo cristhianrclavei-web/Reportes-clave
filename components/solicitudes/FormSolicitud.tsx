@@ -192,7 +192,7 @@ export default function FormSolicitud({
                 <span className="text-[14px]"><b className="text-teal text-[16px]">{duracionTexto(minutos)}</b> de horas extra{cruzaMedianoche ? ' (terminó al día siguiente)' : ''}</span>
               </div>
             )}
-            {corte && <p className="text-[12.5px] text-muted mb-4 -mt-2">Entra en el corte de pago del <b className="text-ink">{fechaBonita(corte)}</b>.</p>}
+            {corte && <p className="text-[12.5px] text-muted mb-4 -mt-2">Entra en el pago del <b className="text-ink">{fechaBonita(corte)}</b>.</p>}
 
             <label className={labelCls}>Servicio de ese día (si fue en uno)</label>
             <select className={`${inputCls} mb-3`} value={servicioId || ''} onChange={(e) => {

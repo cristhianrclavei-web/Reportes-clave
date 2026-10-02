@@ -83,7 +83,7 @@ export async function generateSolicitudPdf(s: Solicitud, fotos: Uint8Array[]): P
       ['Día trabajado', fechaLarga(s.fecha)],
       ['Horario', `${s.hora_inicio?.slice(0, 5)} a ${s.hora_fin?.slice(0, 5)}${s.hora_fin && s.hora_inicio && s.hora_fin <= s.hora_inicio ? ' (día siguiente)' : ''}`],
       ['Total de horas extra', horasTexto(s.horas)],
-      ['Corte de pago', fechaLarga(s.corte_pago)],
+      ['Entra en el pago del', fechaLarga(s.corte_pago)],
       ['Cliente', s.cliente_nombre || '—'],
       ['Proyecto / trabajo', s.proyecto || '—'],
     );
