@@ -300,3 +300,99 @@ export async function urlsFotos(paths: string[]): Promise<string[]> {
   const { data } = await createClient().storage.from('almacen').createSignedUrls(paths, 3600);
   return (data || []).map((d) => d.signedUrl || '');
 }
+
+// --- Préstamo entre técnicos (patch_almacen_fase_d.sql) ---
+
+export type Traspaso = {
+  id: string;
+  folio: string;
+  vale_origen_id: string;
+  de_tecnico: string;
+  a_tecnico: string;
+  items: { item: string; cantidad: number }[];
+  nota: string | null;
+  estado: 'pendiente' | 'aceptado' | 'rechazado' | 'cancelado';
+  vale_destino_id: string | null;
+  motivo_rechazo: string | null;
+  created_at: string;
+  de?: { full_name: string | null } | null;
+  a?: { full_name: string | null } | null;
+};
+
+const SELECT_TRASPASO = '*, de:profiles!almacen_traspasos_de_tecnico_fkey(full_name), a:profiles!almacen_traspasos_a_tecnico_fkey(full_name)';
+
+export const nombreCorto = (n?: string | null) => (n || '').split(' ').slice(0, 2).join(' ') || 'Técnico';
+
+// Préstamos que me quieren hacer (pendientes de aceptar). [] si falta el SQL.
+export async function traspasosParaMi(): Promise<Traspaso[]> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+  const { data, error } = await supabase
+    .from('almacen_traspasos')
+    .select(SELECT_TRASPASO)
+    .eq('a_tecnico', user.id)
+    .eq('estado', 'pendiente')
+    .order('created_at', { ascending: false });
+  return error ? [] : ((data as Traspaso[]) || []);
+}
+
+export async function traspasosDeVale(valeId: string): Promise<Traspaso[]> {
+  const { data, error } = await createClient()
+    .from('almacen_traspasos')
+    .select(SELECT_TRASPASO)
+    .or(`vale_origen_id.eq.${valeId},vale_destino_id.eq.${valeId}`)
+    .order('created_at', { ascending: false });
+  return error ? [] : ((data as Traspaso[]) || []);
+}
+
+export async function companerosParaPrestamo(): Promise<{ id: string; full_name: string }[]> {
+  const { data, error } = await createClient().rpc('companeros_para_prestamo');
+  if (error) throw new Error(error.message);
+  return (data as { id: string; full_name: string }[]) || [];
+}
+
+export async function proponerTraspaso(vale: Vale, aTecnico: { id: string; full_name: string }, items: { item: string; cantidad: number }[], nota: string): Promise<void> {
+  const { data, error } = await createClient().rpc('proponer_traspaso', {
+    p_vale: vale.id, p_a_tecnico: aTecnico.id, p_items: items, p_nota: nota,
+  });
+  if (error) throw new Error(error.message);
+  await notificar({
+    usuarios: [aTecnico.id],
+    traspaso: data as string,
+    tipo: 'vale_almacen',
+    titulo: `${nombreCorto(vale.tecnico)} te quiere prestar herramienta`,
+    mensaje: `De su vale ${vale.folio} (${vale.cliente_nombre}). Acéptalo con tu firma en Vales de almacén.`,
+    url: '/checklists',
+    tag: `traspaso-${data}`,
+  });
+}
+
+export async function aceptarTraspaso(t: Traspaso, firma: string): Promise<void> {
+  const { error } = await createClient().rpc('aceptar_traspaso', { p_traspaso: t.id, p_firma: firma });
+  if (error) throw new Error(error.message);
+  const quien = nombreCorto(t.a?.full_name);
+  await Promise.all([
+    notificar({ usuarios: [t.de_tecnico], traspaso: t.id, tipo: 'vale_almacen', titulo: `${quien} recibió el préstamo ${t.folio}`, mensaje: 'Ya quedó a su nombre; tu vale bajó esas cantidades.', url: '/checklists', tag: `traspaso-${t.id}` }),
+    notificar({ destino: 'almacen', tipo: 'vale_almacen', titulo: `Préstamo ${t.folio} entre técnicos`, mensaje: `${nombreCorto(t.de?.full_name)} → ${quien}. Ahora lo tiene ${quien}.`, url: '/dashboard/almacen?sub=vales', tag: `traspaso-${t.id}` }),
+  ]);
+}
+
+export async function rechazarTraspaso(t: Traspaso, motivo: string): Promise<void> {
+  const { error } = await createClient().rpc('resolver_traspaso', { p_traspaso: t.id, p_estado: 'rechazado', p_motivo: motivo });
+  if (error) throw new Error(error.message);
+  await notificar({ usuarios: [t.de_tecnico], traspaso: t.id, tipo: 'vale_almacen', titulo: `${nombreCorto(t.a?.full_name)} no aceptó el préstamo ${t.folio}`, mensaje: motivo || 'Sigue a tu nombre.', url: '/checklists', tag: `traspaso-${t.id}` });
+}
+
+export async function cancelarTraspaso(t: Traspaso): Promise<void> {
+  const { error } = await createClient().rpc('resolver_traspaso', { p_traspaso: t.id, p_estado: 'cancelado', p_motivo: '' });
+  if (error) throw new Error(error.message);
+}
+
+// Cuánto de cada partida puede todavía prestar (entregado − comprometido en préstamos pendientes).
+export function disponiblesParaPrestar(vale: Vale, pendientes: Traspaso[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const i of vale.items) out[i.id] = Number(i.cantidad_entregada || 0);
+  for (const t of pendientes) if (t.estado === 'pendiente' && t.vale_origen_id === vale.id) for (const x of t.items) out[x.item] = (out[x.item] || 0) - Number(x.cantidad);
+  return out;
+}

@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { X, Camera, MapPin, QrCode, Plus } from 'lucide-react';
+import { X, Camera, MapPin, QrCode, Plus, History, User } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
 import {
   Articulo, Sistema, Ubicacion, CATEGORIAS, UNIDADES, editarArticulo, cambiarFotoArticulo, urlDeDocumento, crearUbicacion,
+  HistorialArticulo, historialArticulo,
 } from '@/lib/almacen';
 
 // Ficha del artículo para el almacenista: datos, dónde se guarda, foto,
@@ -67,6 +68,7 @@ export default function ModalArticulo({
   const [ubicacionId, setUbicacionId] = useState<string | null>(articulo.ubicacion_id || null);
   const [minimo, setMinimo] = useState(String(articulo.minimo || ''));
   const [retornable, setRetornable] = useState(articulo.retornable);
+  const [costo, setCosto] = useState(articulo.costo_unitario != null ? String(articulo.costo_unitario) : '');
   const [fotoUrl, setFotoUrl] = useState<string | null>(null);
   const [subiendo, setSubiendo] = useState(false);
   const [guardando, setGuardando] = useState(false);
@@ -96,6 +98,7 @@ export default function ModalArticulo({
       await editarArticulo(articulo.id, {
         descripcion: descripcion.trim(), categoria, marca: marca.trim() || null, modelo: modelo.trim() || null,
         unidad, sistema_id: sistemaId, ubicacion_id: ubicacionId, minimo: parseFloat(minimo) || 0, retornable,
+        costo_unitario: costo.trim() === '' ? null : Math.max(0, Number(costo) || 0),
       });
       showToast('Artículo actualizado', 'success');
       onGuardado();
@@ -129,6 +132,8 @@ export default function ModalArticulo({
           <input ref={camara} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) cambiarFoto(f); e.target.value = ''; }} />
         </div>
 
+        <Historial articuloId={articulo.id} unidad={articulo.unidad} />
+
         <label className={`${labelCls} flex items-center gap-1.5`}><MapPin size={13} /> Dónde se guarda</label>
         <div className="mb-4"><SelectorUbicacion ubicaciones={ubicaciones} valor={ubicacionId} onCambiar={setUbicacionId} onCreada={onUbicacionCreada} /></div>
 
@@ -154,6 +159,8 @@ export default function ModalArticulo({
           </div>
           <div><label className={labelCls}>Mínimo</label><input type="number" inputMode="decimal" className={inputCls} value={minimo} onChange={(e) => setMinimo(e.target.value)} placeholder="0" /></div>
         </div>
+        <label className={labelCls}>Costo por {unidad} (sin IVA, opcional)</label>
+        <input type="number" inputMode="decimal" min={0} step="0.01" className={`${inputCls} mb-3`} value={costo} onChange={(e) => setCosto(e.target.value)} placeholder="Se llena solo con la última entrada que traiga costo" />
         <label className={labelCls}>Sistema</label>
         <select className={`${inputCls} mb-3`} value={sistemaId || ''} onChange={(e) => setSistemaId(e.target.value || null)}>
           <option value="">Sin sistema</option>
@@ -169,5 +176,48 @@ export default function ModalArticulo({
         </button>
       </div>
     </ModalOverlay>
+  );
+}
+
+function fechaCorta(iso: string | null) {
+  return iso ? new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: '2-digit' }) : '';
+}
+
+// Quién lo tiene ahora y su recorrido (se carga al abrir la ficha).
+function Historial({ articuloId, unidad }: { articuloId: string; unidad: string }) {
+  const [h, setH] = useState<HistorialArticulo | null>(null);
+  const [ver, setVer] = useState(false);
+  useEffect(() => { historialArticulo(articuloId).then(setH).catch(() => setH({ enUso: [], eventos: [] })); }, [articuloId]);
+  if (!h) return <p className="text-[12.5px] text-muted mb-4">Cargando historial…</p>;
+  return (
+    <div className="mb-4 rounded-2xl border border-line bg-surface-2/40 p-3">
+      {h.enUso.length > 0 ? (
+        <div className="mb-2">
+          <p className="text-[11px] uppercase tracking-wider text-muted mb-1">Lo tiene ahora</p>
+          {h.enUso.map((u) => (
+            <p key={u.folio} className="text-[13px] flex items-center gap-1.5">
+              <User size={13} className="text-teal shrink-0" />
+              <span className="min-w-0"><b>{u.tecnico.split(' ').slice(0, 2).join(' ')}</b> · {u.cantidad} {unidad} · {u.folio} · {u.cliente}{u.limite ? ` · devolver ${fechaCorta(u.limite)}` : ''}</span>
+            </p>
+          ))}
+        </div>
+      ) : (
+        <p className="text-[13px] text-muted mb-2">Ningún técnico lo tiene ahora.</p>
+      )}
+      <button type="button" onClick={() => setVer((v) => !v)} className="text-[12.5px] font-semibold text-teal flex items-center gap-1.5 min-h-[30px]">
+        <History size={13} /> {ver ? 'Ocultar historial' : `Ver historial (${h.eventos.length})`}
+      </button>
+      {ver && (
+        <div className="mt-1 max-h-[220px] overflow-y-auto">
+          {h.eventos.length === 0 && <p className="text-[12.5px] text-muted">Sin movimientos todavía.</p>}
+          {h.eventos.map((e, i) => (
+            <div key={i} className="flex gap-2 py-1 border-t border-line text-[12px]">
+              <span className="text-muted shrink-0 w-[68px]">{fechaCorta(e.fecha)}</span>
+              <span className={`min-w-0 ${e.tipo === 'merma' ? 'text-red' : e.tipo === 'instalado' ? 'text-teal' : ''}`}>{e.texto}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

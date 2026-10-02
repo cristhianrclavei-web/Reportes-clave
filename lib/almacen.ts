@@ -30,6 +30,8 @@ export type Articulo = {
   // Dónde se guarda (patch_almacen_ubicaciones.sql) y foto para reconocerlo.
   ubicacion_id?: string | null;
   foto_path?: string | null;
+  // Último costo conocido por unidad (patch_almacen_fase_d.sql).
+  costo_unitario?: number | null;
 };
 
 export type Ubicacion = { id: string; nombre: string; descripcion: string | null; orden: number; activo: boolean };
@@ -305,6 +307,7 @@ export async function registrarEntrada(input: {
   ordenCompra: File | null;
   numerosSerie?: string;
   fotos?: File[];
+  costoUnitario?: number | null;
 }): Promise<void> {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -328,10 +331,31 @@ export async function registrarEntrada(input: {
     factura_path,
     orden_compra_path,
     ...(fotos.length ? { fotos } : {}),
+    ...(input.costoUnitario != null ? { costo_unitario: input.costoUnitario } : {}),
     creado_por: user.id,
   });
   if (error) throw error;
+  // El costo de la compra más reciente queda como costo del artículo.
+  if (input.costoUnitario != null) await editarArticulo(input.articuloId, { costo_unitario: input.costoUnitario }).catch(() => {});
 }
+
+export type LineaCosto = {
+  articulo_id: string; descripcion: string; unidad: string; categoria: CategoriaInsumo;
+  salio: number; regreso: number; neto: number; costo_unitario: number | null; total: number | null;
+};
+
+// Lo que el almacén puso en un servicio (o en su proyecto completo).
+export async function costoAlmacenServicio(servicioId: string): Promise<LineaCosto[]> {
+  const { data, error } = await createClient().rpc('costo_almacen_servicio', { p_servicio: servicioId });
+  if (error) throw new Error(error.message);
+  return ((data as any[]) || []).map((r) => ({
+    ...r, salio: Number(r.salio), regreso: Number(r.regreso), neto: Number(r.neto),
+    costo_unitario: r.costo_unitario == null ? null : Number(r.costo_unitario),
+    total: r.total == null ? null : Number(r.total),
+  }));
+}
+
+export const pesos = (n: number) => n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 
 export async function urlDeDocumento(path: string): Promise<string | null> {
   const supabase = createClient();
@@ -545,4 +569,60 @@ export async function listarProyectosParaAlmacen(): Promise<{ grupoId: string; p
     resultado.push({ grupoId: sv.grupo_id, proyecto: sv.proyecto });
   });
   return resultado;
+}
+
+// --- Historial de un artículo ---
+
+export type HistorialArticulo = {
+  enUso: { folio: string; tecnico: string; cantidad: number; desde: string | null; limite: string | null; cliente: string }[];
+  eventos: { fecha: string; texto: string; tipo: TipoMovimiento | 'instalado' }[];
+};
+
+// Quién lo tiene ahora (vales en uso) y su recorrido: entradas, salidas,
+// devoluciones, ajustes y dónde quedó instalado.
+export async function historialArticulo(articuloId: string): Promise<HistorialArticulo> {
+  const supabase = createClient();
+  const [vi, mv, ei] = await Promise.all([
+    supabase
+      .from('almacen_vale_items')
+      .select('cantidad_entregada, almacen_vales!inner(folio, estado, entregado_en, fecha_limite, cliente_nombre, profiles!almacen_vales_tecnico_id_fkey(full_name))')
+      .eq('articulo_id', articuloId)
+      .in('almacen_vales.estado', ['por_firmar', 'en_uso', 'devolucion_por_confirmar']),
+    supabase
+      .from('almacen_movimientos')
+      .select('tipo, cantidad, created_at, nota, inventario, proveedor')
+      .eq('articulo_id', articuloId)
+      .order('created_at', { ascending: false })
+      .limit(40),
+    supabase
+      .from('almacen_equipos_instalados')
+      .select('folio, cliente, fecha, cantidad, created_at')
+      .eq('articulo_id', articuloId)
+      .order('created_at', { ascending: false })
+      .limit(20),
+  ]);
+
+  const enUso = ((vi.data as any[]) || [])
+    .filter((r) => Number(r.cantidad_entregada) > 0)
+    .map((r) => {
+      const v = Array.isArray(r.almacen_vales) ? r.almacen_vales[0] : r.almacen_vales;
+      const p = Array.isArray(v?.profiles) ? v.profiles[0] : v?.profiles;
+      return { folio: v?.folio, tecnico: p?.full_name || 'Técnico', cantidad: Number(r.cantidad_entregada), desde: v?.entregado_en, limite: v?.fecha_limite, cliente: v?.cliente_nombre };
+    });
+
+  const etiqueta: Record<string, string> = { entrada: 'Entrada', salida: 'Salida', retorno: 'Regresó', ajuste: 'Ajuste +', merma: 'Merma −' };
+  const eventos: HistorialArticulo['eventos'] = [
+    ...((mv.data as any[]) || []).map((m) => ({
+      fecha: m.created_at,
+      tipo: m.tipo as TipoMovimiento,
+      texto: `${etiqueta[m.tipo] || m.tipo} ${Number(m.cantidad)}${m.inventario === 'proyecto' ? ' (proyecto)' : ''}${m.nota ? ` · ${m.nota}` : m.proveedor ? ` · ${m.proveedor}` : ''}`,
+    })),
+    ...((ei.data as any[]) || []).map((e) => ({
+      fecha: e.created_at,
+      tipo: 'instalado' as const,
+      texto: `Instalado ${Number(e.cantidad)} · ${e.cliente || ''} · folio ${e.folio || '—'}`,
+    })),
+  ].sort((a, b) => b.fecha.localeCompare(a.fecha));
+
+  return { enUso, eventos };
 }

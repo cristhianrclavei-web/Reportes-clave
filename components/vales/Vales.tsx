@@ -5,6 +5,7 @@ import { Plus, AlertTriangle, PackageX, ClipboardList } from 'lucide-react';
 import { showToast } from '@/components/Toast';
 import NuevoVale from './NuevoVale';
 import ValeDetalle from './ValeDetalle';
+import PrestamosParaMi from './PrestamosParaMi';
 import {
   Vale, AltaSolicitada, ETIQUETA_ESTADO, valeVencido, listarVales, listarAltasPendientes, resolverAlta,
 } from '@/lib/vales';
@@ -116,6 +117,8 @@ export default function Vales({ modo }: { modo: 'tecnico' | 'almacen' }) {
           <Plus size={19} strokeWidth={2.6} /> Pedir al almacén
         </button>
       )}
+
+      {modo === 'tecnico' && <PrestamosParaMi onCambio={cargar} />}
 
       {vencidos > 0 && (
         <div className="rounded-2xl px-4 py-2.5 mb-3 bg-red/10 border border-red/30 text-[13px] text-red font-semibold flex items-center gap-2">

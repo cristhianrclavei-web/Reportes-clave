@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { X, FileText, Camera, Images, Clock, AlertTriangle, Check } from 'lucide-react';
+import { X, FileText, Camera, Images, Clock, AlertTriangle, Check, Users } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
 import SignaturePad, { SignaturePadHandle } from '@/components/SignaturePad';
 import { showToast } from '@/components/Toast';
@@ -11,6 +11,7 @@ import {
   Vale, ETIQUETA_ESTADO, MOTIVOS_FALTANTE, valeVencido,
   firmarVale, devolverVale, subirFotoDevolucion, pedirMasDias, cancelarVale,
   entregarVale, recibirDevolucion, resolverMasDias, urlsFotos,
+  Traspaso, traspasosDeVale, companerosParaPrestamo, proponerTraspaso, cancelarTraspaso, disponiblesParaPrestar, nombreCorto,
 } from '@/lib/vales';
 
 // Detalle de un vale de almacén, el mismo para el técnico y para el
@@ -37,6 +38,9 @@ export default function ValeDetalle({
   const [error, setError] = useState<string | null>(null);
   const est = ETIQUETA_ESTADO[vale.estado];
   const vencido = valeVencido(vale);
+  const [traspasos, setTraspasos] = useState<Traspaso[]>([]);
+  const [recargaT, setRecargaT] = useState(0);
+  useEffect(() => { traspasosDeVale(vale.id).then(setTraspasos); }, [vale.id, recargaT]);
 
   async function ejecutar(fn: () => Promise<void>, ok: string) {
     setGuardando(true);
@@ -106,6 +110,32 @@ export default function ValeDetalle({
 
         {vale.fotos_devolucion?.length > 0 && <FotosDevolucion paths={vale.fotos_devolucion} />}
 
+        {traspasos.length > 0 && (
+          <div className="mt-3 rounded-xl border border-line p-3">
+            <p className={labelCls}>Préstamos entre técnicos</p>
+            <div className="flex flex-col gap-1.5">
+              {traspasos.map((t) => {
+                const salida = t.vale_origen_id === vale.id;
+                const etiqueta = { pendiente: 'esperando que acepte', aceptado: 'aceptado', rechazado: 'no lo aceptó', cancelado: 'cancelado' }[t.estado];
+                return (
+                  <div key={t.id} className="flex items-center justify-between gap-2 text-[12.5px]">
+                    <span className="min-w-0">
+                      <b className="font-mono">{t.folio}</b> · {salida ? `a ${nombreCorto(t.a?.full_name)}` : `de ${nombreCorto(t.de?.full_name)}`}
+                      {' · '}{t.items.reduce((s, x) => s + Number(x.cantidad), 0)} pza · <span className={t.estado === 'pendiente' ? 'text-amber font-semibold' : 'text-muted'}>{etiqueta}</span>
+                      {t.motivo_rechazo && <span className="text-muted"> ({t.motivo_rechazo})</span>}
+                    </span>
+                    {t.estado === 'pendiente' && salida && (
+                      <button type="button" disabled={guardando}
+                        onClick={() => ejecutar(async () => { await cancelarTraspaso(t); setRecargaT((k) => k + 1); }, 'Préstamo cancelado')}
+                        className="text-[12px] font-semibold text-red shrink-0">Cancelar</button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {error && <p className="text-[13px] text-red font-semibold mt-3">{error}</p>}
 
         {/* Acciones */}
@@ -118,6 +148,10 @@ export default function ValeDetalle({
           {modo === 'tecnico' && (vale.estado === 'en_uso' || vale.estado === 'por_firmar') && (
             <>
               <Devolver vale={vale} guardando={guardando} ejecutar={ejecutar} />
+              {vale.estado === 'en_uso' && (
+                <Prestar vale={vale} pendientes={traspasos} guardando={guardando}
+                  ejecutar={(fn, ok) => ejecutar(async () => { await fn(); setRecargaT((k) => k + 1); }, ok)} />
+              )}
               {vale.extension_estado !== 'pendiente' && <MasDias vale={vale} guardando={guardando} ejecutar={ejecutar} />}
             </>
           )}
@@ -267,6 +301,58 @@ function Devolver({ vale, guardando, ejecutar }: { vale: Vale; guardando: boolea
         className="min-h-[46px] rounded-xl bg-teal text-inkOnAccent text-[14px] font-semibold disabled:opacity-50">
         {guardando ? 'Enviando…' : 'Enviar devolución'}
       </button>
+    </div>
+  );
+}
+
+// Pasar herramienta a un compañero sin regresarla al almacén. El otro la
+// acepta con su firma y le queda un vale a su nombre con el mismo plazo.
+function Prestar({ vale, pendientes, guardando, ejecutar }: { vale: Vale; pendientes: Traspaso[]; guardando: boolean; ejecutar: Ejecutar }) {
+  const [abierto, setAbierto] = useState(false);
+  const [companeros, setCompaneros] = useState<{ id: string; full_name: string }[] | null>(null);
+  const [aQuien, setAQuien] = useState('');
+  const [cant, setCant] = useState<Record<string, string>>({});
+  const [nota, setNota] = useState('');
+  const disp = useMemo(() => disponiblesParaPrestar(vale, pendientes), [vale, pendientes]);
+
+  useEffect(() => {
+    if (abierto && companeros === null) companerosParaPrestamo().then(setCompaneros).catch(() => setCompaneros([]));
+  }, [abierto, companeros]);
+
+  if (!abierto) {
+    return <button type="button" onClick={() => setAbierto(true)} className="text-[13px] font-semibold text-teal py-1 flex items-center gap-1.5 self-start"><Users size={14} /> Prestar a un compañero</button>;
+  }
+  const items = vale.items.filter((i) => (disp[i.id] || 0) > 0);
+  const elegidos = items.map((i) => ({ item: i.id, cantidad: Math.min(Number(cant[i.id]) || 0, disp[i.id] || 0) })).filter((x) => x.cantidad > 0);
+  const destino = (companeros || []).find((c) => c.id === aQuien);
+  return (
+    <div className="rounded-xl border border-teal/40 bg-teal/5 p-3">
+      <p className="text-[13px] mb-2">Se lo pasas sin regresarlo al almacén. Cuando lo acepte con su firma, queda a su nombre y tu vale baja esas cantidades.</p>
+      <p className={labelCls}>¿A quién?</p>
+      <select className={`${inputCls} mb-2`} value={aQuien} onChange={(e) => setAQuien(e.target.value)}>
+        <option value="">{companeros === null ? 'Cargando…' : 'Elige un compañero'}</option>
+        {(companeros || []).map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}
+      </select>
+      <p className={labelCls}>¿Qué le pasas?</p>
+      {items.length === 0 && <p className="text-[12.5px] text-muted mb-2">No te queda nada libre para prestar en este vale.</p>}
+      {items.map((i) => (
+        <div key={i.id} className="flex items-center justify-between gap-2 rounded-lg bg-surface border border-line p-2.5 mb-1.5">
+          <span className="min-w-0">
+            <span className="block text-[13px] font-medium truncate">{i.articulo?.descripcion}</span>
+            <span className="block text-[11.5px] text-muted">Tienes {disp[i.id]} {i.articulo?.unidad}</span>
+          </span>
+          <input type="number" inputMode="decimal" min={0} max={disp[i.id]} placeholder="0" value={cant[i.id] ?? ''}
+            onChange={(e) => setCant({ ...cant, [i.id]: e.target.value })}
+            className="w-16 px-2 py-1.5 rounded-lg bg-surface-2 border border-line text-[14px] text-center shrink-0" />
+        </div>
+      ))}
+      <input className={`${inputCls} mt-1`} placeholder="Nota (opcional)" value={nota} onChange={(e) => setNota(e.target.value)} />
+      <div className="grid grid-cols-2 gap-2 mt-2">
+        <button type="button" onClick={() => setAbierto(false)} className="min-h-[42px] rounded-xl border border-line text-[13px] font-semibold">Cancelar</button>
+        <button type="button" disabled={guardando || !destino || elegidos.length === 0}
+          onClick={() => ejecutar(async () => { await proponerTraspaso(vale, destino!, elegidos, nota); setAbierto(false); setCant({}); }, `Se le avisó a ${nombreCorto(destino?.full_name)}`)}
+          className="min-h-[42px] rounded-xl bg-teal text-inkOnAccent text-[13px] font-semibold disabled:opacity-50">Prestar</button>
+      </div>
     </div>
   );
 }

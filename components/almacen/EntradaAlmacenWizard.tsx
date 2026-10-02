@@ -76,6 +76,7 @@ export default function EntradaAlmacenWizard({
   const [factura, setFactura] = useState<File | null>(null);
   // Fotos del ticket/recibo o del equipo recibido (además de factura y OC).
   const [fotos, setFotos] = useState<File[]>([]);
+  const [costo, setCosto] = useState('');
   const [ordenCompra, setOrdenCompra] = useState<File | null>(null);
 
   const articuloElegido = articulos.find((a) => a.id === articuloId) || null;
@@ -128,6 +129,7 @@ export default function EntradaAlmacenWizard({
         articuloId, cantidad: cant, inventario,
         grupoId: inventario === 'proyecto' ? grupoId : null,
         proveedor, nota: notaEntrada, factura, ordenCompra, numerosSerie, fotos,
+        costoUnitario: costo.trim() !== '' && Number(costo) >= 0 ? Number(costo) : null,
       });
       showToast('Entrada registrada', 'success');
       onRegistrada();
@@ -243,6 +245,16 @@ export default function EntradaAlmacenWizard({
             <span className="text-[15px] text-muted shrink-0 w-[60px]">{articuloElegido?.unidad || ''}</span>
           </div>
 
+          <label className={labelCls}>Costo por {articuloElegido?.unidad || 'unidad'} (opcional, sin IVA)</label>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[15px] text-muted">$</span>
+            <input type="number" inputMode="decimal" min={0} step="0.01" value={costo} onChange={(e) => setCosto(e.target.value)}
+              placeholder={articuloElegido?.costo_unitario != null ? String(articuloElegido.costo_unitario) : '0.00'} className={inputCls} />
+          </div>
+          <p className="text-[12.5px] text-muted leading-relaxed mb-5">
+            {articuloElegido?.costo_unitario != null ? `Último costo: $${articuloElegido.costo_unitario}. ` : ''}Sirve para saber cuánto material se fue en cada servicio.
+          </p>
+
           <label className={labelCls}>Números de serie (si aplica)</label>
           <textarea
             value={numerosSerie}
@@ -291,6 +303,7 @@ export default function EntradaAlmacenWizard({
               factura && 'Factura adjunta',
               ordenCompra && 'Orden de compra adjunta',
               fotos.length > 0 && `${fotos.length} foto(s)`,
+              costo.trim() && `Costo: $${costo} c/u`,
               notaEntrada.trim() && `Nota: ${notaEntrada.trim()}`,
             ].filter(Boolean).join(' · ') || 'Sin datos adicionales'}
             onEditar={() => setPaso(4)}

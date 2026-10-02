@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Peticion invalida' }, { status: 400 });
   }
 
-  const { destino, usuarios, titulo, mensaje, url, tag, tipo } = cuerpo || {};
+  const { destino, usuarios, titulo, mensaje, url, tag, tipo, traspaso } = cuerpo || {};
   if (!titulo || !mensaje) {
     return NextResponse.json({ error: 'Falta titulo o mensaje' }, { status: 400 });
   }
@@ -76,7 +76,20 @@ export async function POST(request: NextRequest) {
       .eq('id', user.id)
       .single();
 
-    if (perfil?.role !== 'supervisor') {
+    // Excepción: préstamo de herramienta entre técnicos. Solo se puede avisar
+    // a la otra persona de un préstamo en el que uno participa.
+    let permitidoPorPrestamo = false;
+    if (perfil?.role !== 'supervisor' && typeof traspaso === 'string') {
+      const { data: t } = await supabase
+        .from('almacen_traspasos')
+        .select('de_tecnico, a_tecnico')
+        .eq('id', traspaso)
+        .maybeSingle();
+      const participantes = t ? [t.de_tecnico, t.a_tecnico] : [];
+      permitidoPorPrestamo = participantes.includes(user.id) && usuarios.every((u: string) => participantes.includes(u));
+    }
+
+    if (perfil?.role !== 'supervisor' && !permitidoPorPrestamo) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
   }

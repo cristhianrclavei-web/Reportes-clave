@@ -16,6 +16,7 @@ import ProgressBar from '@/components/ProgressBar';
 import { ChevronLeft, MapPin, Play, Check, Clock, Trash2, AlertTriangle, Timer, Flag, Camera, Plus, Users, Pencil, CalendarClock, PackageCheck, Bookmark, ChevronRight, X, TrendingUp, CalendarX, Lock, PauseCircle, PlayCircle, CheckCircle2 } from 'lucide-react';
 import { calcularResultadoServicio } from '@/lib/resultadoServicio';
 import InsumosChecklist from '@/components/InsumosChecklist';
+import CostoAlmacenServicio from '@/components/almacen/CostoAlmacenServicio';
 import ModalOverlay from '@/components/ModalOverlay';
 import { listarPlantillas, guardarComoPlantilla, obtenerInsumos, resumenDeChecklist, PlantillaInsumos, ResumenChecklist } from '@/lib/insumos';
 import { ResultadoBadges } from '@/components/ResultadoServicioBadges';
@@ -679,6 +680,8 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
             <p className="text-[13px] text-muted">Sin herramienta ni material capturado. Toca para agregar.</p>
           )}
         </button>
+
+        <CostoAlmacenServicio servicioId={servicio.id} esProyecto={servicio.dias_totales > 1} />
 
         {/* Checklist con evidencia */}
         <div className="glass rounded-2xl p-4 mb-4">

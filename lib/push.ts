@@ -228,6 +228,8 @@ export async function notificar(opciones: {
   url?: string;
   tag?: string;
   tipo?: TipoAviso;
+  // Préstamo entre técnicos: permite que un técnico avise al otro participante.
+  traspaso?: string;
 }): Promise<void> {
   try {
     await fetch('/api/push', {
