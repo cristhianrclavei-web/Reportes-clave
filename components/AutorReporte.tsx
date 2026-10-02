@@ -7,10 +7,11 @@ import { usePerfil } from '@/lib/perfiles';
 //   · compacto: para la tarjeta de la lista de reportes.
 //   · recuadro: «Elaborado por» dentro del detalle del reporte.
 
-// «Cristhian Ivan Rodriguez» → «Cristhian Ivan»: cabe en la tarjeta.
+// «Hector Cardenas Ruiz» → «Hector C.»: cabe en la tarjeta (el nombre
+// completo queda en el title y en el recuadro del detalle).
 function corto(n: string) {
   const p = n.trim().split(/\s+/);
-  return p.length > 2 ? `${p[0]} ${p[1]}` : n;
+  return p.length > 1 ? `${p[0]} ${p[1][0]}.` : n;
 }
 
 export default function AutorReporte({ id, nombre, variante = 'compacto' }: { id?: string | null; nombre: string; variante?: 'compacto' | 'recuadro' }) {
@@ -21,8 +22,8 @@ export default function AutorReporte({ id, nombre, variante = 'compacto' }: { id
     return (
       <span className="flex items-center gap-2 min-w-0">
         <span className="rounded-full ring-2 ring-teal/25 shrink-0"><AvatarTecnico id={id || undefined} nombre={nombre || 'Técnico'} size={34} /></span>
-        <span className="min-w-0 leading-tight">
-          <span className="block text-[13px] font-semibold truncate max-w-[150px]">{corto(nombre || 'Técnico')}</span>
+        <span className="min-w-0 leading-tight text-left">
+          <span className="block text-[13px] font-semibold truncate max-w-[150px]" title={nombre}>{corto(nombre || 'Técnico')}</span>
           <span className="block text-[11px] text-muted truncate max-w-[150px]">{puesto}</span>
         </span>
       </span>

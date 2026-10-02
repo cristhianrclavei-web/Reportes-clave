@@ -291,7 +291,7 @@ export default function ReportesList({
                         </div>
 
                         <div className="flex justify-between items-center gap-3 pt-3 border-t border-line">
-                          <div className="flex gap-4">
+                          <div className="flex gap-3 shrink-0 whitespace-nowrap">
                             <div>
                               <div className="text-[10px] uppercase tracking-wider text-muted mb-0.5">Fecha</div>
                               <span className="text-[13px] font-medium">{formatFecha(r.fecha)}</span>
