@@ -49,8 +49,8 @@ function LoginForm() {
     const validation = await validateLoginUser(supabase, data.user.id);
 
     if (!validation.valid) {
-      // Desautenticar inmediatamente si falla la validación
-      await supabase.auth.signOut();
+      // Desautenticar inmediatamente si falla la validación (solo esta sesión)
+      await supabase.auth.signOut({ scope: 'local' });
       setError(validation.reason || 'No tienes permiso para acceder');
       return;
     }

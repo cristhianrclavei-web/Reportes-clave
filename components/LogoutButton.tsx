@@ -76,8 +76,11 @@ export default function LogoutButton({ compacto = false, className }: { compacto
       console.warn('[LOGOUT] No se pudo dar de baja el push:', error);
     }
 
+    // scope 'local': cierra solo la sesión de ESTE dispositivo. El valor por
+    // defecto ('global') revocaba todas las sesiones de la cuenta, así que
+    // salir en el celular sacaba también a la computadora (y viceversa).
     try {
-      await conLimite(createClient().auth.signOut(), 5000);
+      await conLimite(createClient().auth.signOut({ scope: 'local' }), 5000);
     } catch (error) {
       console.warn('[LOGOUT] signOut no completo:', error);
     }
