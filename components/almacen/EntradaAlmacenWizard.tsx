@@ -563,10 +563,11 @@ function CapturaDocumento({ label, archivo, onCambiar, soloImagen }: { label: st
 }
 
 export function ModalNuevoArticulo({
-  sistemas, ubicaciones = [], sistemaSugerido, descripcionSugerida, onCancelar, onCreado,
+  sistemas, ubicaciones = [], sistemaSugerido, descripcionSugerida, avisoCreado, onCancelar, onCreado,
 }: {
   sistemas: Sistema[];
   ubicaciones?: Ubicacion[];
+  avisoCreado?: string;
   sistemaSugerido: string | null;
   descripcionSugerida: string;
   onCancelar: () => void;
@@ -600,7 +601,7 @@ export function ModalNuevoArticulo({
       // existencia. Sin este aviso, es fácil creer que "Agregar" ya
       // registró la entrada y salirse antes del paso de cantidad, dejando
       // el artículo en 0 aunque sí haya llegado al almacén.
-      showToast('Catálogo actualizado — ahora indica cuánto entró', 'success');
+      showToast(avisoCreado || 'Catálogo actualizado — ahora indica cuánto entró', 'success');
       onCreado(nuevo);
     } catch (e: any) {
       alert('No se pudo agregar: ' + (e?.message || 'error'));

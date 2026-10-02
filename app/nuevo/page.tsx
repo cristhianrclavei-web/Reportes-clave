@@ -29,6 +29,8 @@ import { FormatoLlenado } from '@/lib/formatosMantenimiento';
 import { usePlan, tieneModulo } from '@/lib/planes';
 import EtiquetasMantenimiento from '@/components/EtiquetasMantenimiento';
 import { guardarCamposBorrador, guardarFotosBorrador, leerBorrador, borrarBorrador } from '@/lib/borradorReporte';
+import EquipoInstaladoRenglon, { EquipoFila, ArticuloCatalogo } from '@/components/EquipoInstaladoRenglon';
+import { sinRegistroDeReporte } from '@/lib/equiposInstalados';
 
 // Hora "HH:mm" del reloj del dispositivo — igual al formato que ya entrega
 // el <input type="time">, así que sirve tal cual como valor de respaldo.
@@ -251,7 +253,18 @@ export default function NuevoReportePage() {
   const [actividades, setActividades] = useState<string[]>(['']);
   const [showCaso, setShowCaso] = useState(false);
   const [casoPuntos, setCasoPuntos] = useState<CasoPunto[]>([{ ...EMPTY_PUNTO }]);
-  const [equipos, setEquipos] = useState([{ cant: '', desc: '', modelo: '', marca: '', serie: '' }]);
+  const [equipos, setEquipos] = useState<EquipoFila[]>([{ cant: '', desc: '', modelo: '', marca: '', serie: '' }]);
+  // Catálogo del almacén para ligar el equipo instalado (Fase C). Sin red o
+  // sin permiso queda en null y los renglones funcionan como texto libre.
+  const [catalogoEquipos, setCatalogoEquipos] = useState<ArticuloCatalogo[] | null>(null);
+  useEffect(() => {
+    createClient()
+      .from('almacen_articulos')
+      .select('id, descripcion, marca, modelo, unidad')
+      .eq('activo', true)
+      .in('categoria', ['equipo', 'material'])
+      .then(({ data, error }) => { if (!error && data) setCatalogoEquipos(data as ArticuloCatalogo[]); });
+  }, []);
   const [firmaIngNombre, setFirmaIngNombre] = useState('');
   const [firmaClienteNombre, setFirmaClienteNombre] = useState('');
   // Cliente que no estaba para firmar: queda registrado quién recibió y el
@@ -699,10 +712,6 @@ export default function NuevoReportePage() {
     setSeguridad((s) => (s.includes(v) ? s.filter((x) => x !== v) : [...s, v]));
   }
 
-  function updateEquipo(i: number, field: string, value: string) {
-    setEquipos((eqs) => eqs.map((e, idx) => (idx === i ? { ...e, [field]: value } : e)));
-  }
-
   function updateActividad(i: number, value: string) {
     setActividades((acts) => acts.map((a, idx) => (idx === i ? value : a)));
   }
@@ -788,6 +797,9 @@ export default function NuevoReportePage() {
         }))
         .filter((p) => p.definicion || p.descripcion || p.analisis || p.plan || p.resultados || p.pasosFuturos),
       equipos: equipos.filter((e) => e.cant || e.desc || e.modelo || e.marca || e.serie),
+      // Marca de versión: el trigger del almacén solo revisa reportes hechos
+      // con el formulario que ya liga equipos al catálogo.
+      equiposAlmacen: true,
       servicioProgramadoId: servicioSeleccionadoId || null,
       formatosMtto: conFormato ? formatos : [],
       ...(conFormato ? { tokenVerificacion: tokenVerificacion() } : {}),
@@ -1102,6 +1114,19 @@ export default function NuevoReportePage() {
         url: '/dashboard/reportes',
         tag: 'reporte-nuevo',
       });
+      // Equipo instalado que no está en el almacén: el reporte ya quedó
+      // guardado; se avisa para que el almacenista lo registre.
+      const sinRegistro = await sinRegistroDeReporte(reportId);
+      if (sinRegistro > 0) {
+        const aviso = {
+          tipo: 'equipo_sin_registro' as const,
+          titulo: 'Equipo instalado sin registro en almacén',
+          mensaje: `${sinRegistro} equipo(s) · folio ${claveFormato} · ${empresaCliente.trim()}`,
+          url: '/dashboard/almacen?sub=instalados',
+          tag: 'equipo-sin-registro',
+        };
+        await Promise.all([notificar({ destino: 'almacen', ...aviso }), notificar({ destino: 'supervisores', ...aviso })]);
+      }
       resetAll();
       // Guardado completo: se cierra el formulario y se regresa a la lista.
       // (Sin conexión se queda aquí: la lista necesita red para cargar.)
@@ -1567,13 +1592,14 @@ export default function NuevoReportePage() {
         {/* Montaje de soportería y equipo */}
         <Plegable titulo="Montaje de soportería y equipo" cuenta={equipos.filter((e) => e.cant || e.desc || e.modelo || e.marca || e.serie).length}>
           {equipos.map((eq, i) => (
-            <div key={i} className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-2">
-              <input placeholder="Cant." className={inputCls} value={eq.cant} onChange={(e) => updateEquipo(i, 'cant', e.target.value)} />
-              <input placeholder="Descripción" className={`${inputCls} sm:col-span-1`} value={eq.desc} onChange={(e) => updateEquipo(i, 'desc', e.target.value)} />
-              <input placeholder="Modelo" className={inputCls} value={eq.modelo} onChange={(e) => updateEquipo(i, 'modelo', e.target.value)} />
-              <input placeholder="Marca" className={inputCls} value={eq.marca} onChange={(e) => updateEquipo(i, 'marca', e.target.value)} />
-              <input placeholder="No. Serie" className={inputCls} value={eq.serie} onChange={(e) => updateEquipo(i, 'serie', e.target.value)} />
-            </div>
+            <EquipoInstaladoRenglon
+              key={i}
+              eq={eq}
+              catalogo={catalogoEquipos}
+              inputCls={inputCls}
+              onCambiar={(nuevo) => setEquipos((eqs) => eqs.map((e, idx) => (idx === i ? nuevo : e)))}
+              onQuitar={equipos.length > 1 ? () => setEquipos((eqs) => eqs.filter((_, idx) => idx !== i)) : undefined}
+            />
           ))}
           <button
             type="button"

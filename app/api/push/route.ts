@@ -26,6 +26,7 @@ const TIPOS_VALIDOS = new Set([
   'servicio_confirmado',
   'reporte_pendiente',
   'vale_almacen',
+  'equipo_sin_registro',
   'general',
 ]);
 

@@ -148,9 +148,33 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Equipo instalado sin registro en almacén (solo en la mañana): recordatorio
+  // al almacenista mientras haya pendientes.
+  let equiposSinRegistro = 0;
+  if (momento === 'manana') {
+    const { data: pend, error: errPend } = await admin
+      .from('almacen_equipos_instalados')
+      .select('folio')
+      .eq('estado', 'sin_registro');
+    if (!errPend && pend && pend.length > 0) {
+      equiposSinRegistro = pend.length;
+      const folios = [...new Set((pend as any[]).map((p) => p.folio).filter(Boolean))];
+      const { data: alm } = await admin.rpc('destinatarios_notificacion_tipo', { p_destino: 'almacen', p_tipo: 'equipo_sin_registro' });
+      const ids = ((alm as any[]) || []).map((r) => (typeof r === 'string' ? r : r.destinatarios_notificacion_tipo));
+      const carga = JSON.stringify({
+        titulo: `${pend.length} equipo(s) instalados sin registro en almacén`,
+        cuerpo: `Folio ${folios.slice(0, 4).join(', ')}${folios.length > 4 ? '…' : ''}. Regístralos en Almacén → Instalados.`,
+        url: '/dashboard/almacen?sub=instalados',
+        tag: 'equipo-sin-registro',
+      });
+      const r = await avisarUsuarios(admin, ids, 'equipo_sin_registro', carga);
+      caducadas.push(...r.caducadas);
+    }
+  }
+
   if (caducadas.length > 0) {
     await admin.from('push_suscripciones').delete().in('endpoint', caducadas);
   }
 
-  return NextResponse.json({ enviadas, tecnicos: porTecnico.size, escalados, valesVencidos, limpiadas: caducadas.length });
+  return NextResponse.json({ enviadas, tecnicos: porTecnico.size, escalados, valesVencidos, equiposSinRegistro, limpiadas: caducadas.length });
 }

@@ -7,6 +7,8 @@ import Vales from '@/components/vales/Vales';
 import UbicacionesAlmacen from '@/components/almacen/UbicacionesAlmacen';
 import ConteoFisico from '@/components/almacen/ConteoFisico';
 import ModalArticulo from '@/components/almacen/ModalArticulo';
+import EquiposSinRegistro from '@/components/almacen/EquiposSinRegistro';
+import AlertaEquiposSinRegistro from '@/components/AlertaEquiposSinRegistro';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import SupervisorShell from '@/components/SupervisorShell';
@@ -34,12 +36,12 @@ function fmtFecha(iso: string | null): string {
 }
 
 export default function AlmacenList({ userName }: { userName?: string }) {
-  const [seccion, setSeccion] = useState<'vales' | 'existencias' | 'entrada' | 'movimientos' | 'catalogo' | 'sistemas' | 'ubicaciones' | 'conteo'>('vales');
+  const [seccion, setSeccion] = useState<'vales' | 'existencias' | 'entrada' | 'movimientos' | 'catalogo' | 'sistemas' | 'ubicaciones' | 'conteo' | 'instalados'>('vales');
   // Enlace desde los avisos: ?sub=vales|existencias…
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     const sub = q.get('sub');
-    if (sub === 'existencias' || sub === 'movimientos' || sub === 'catalogo' || sub === 'sistemas' || sub === 'vales' || sub === 'ubicaciones' || sub === 'conteo') setSeccion(sub);
+    if (sub === 'existencias' || sub === 'movimientos' || sub === 'catalogo' || sub === 'sistemas' || sub === 'vales' || sub === 'ubicaciones' || sub === 'conteo' || sub === 'instalados') setSeccion(sub);
     // Etiquetas QR: ?ubicacion=<id> abre esa ubicación; ?articulo=<id>, su ficha.
     if (q.get('ubicacion')) { setUbicacionInicial(q.get('ubicacion')); setSeccion('ubicaciones'); }
     if (q.get('articulo')) setArticuloQr(q.get('articulo'));
@@ -62,6 +64,7 @@ export default function AlmacenList({ userName }: { userName?: string }) {
   const [ubicacionInicial, setUbicacionInicial] = useState<string | null>(null);
   const [articuloQr, setArticuloQr] = useState<string | null>(null);
   const [articuloAbierto, setArticuloAbierto] = useState<Articulo | null>(null);
+  const [alertaKey, setAlertaKey] = useState(0);
 
   const [filtro, setFiltro] = useState<'todos' | CategoriaInsumo>('todos');
   const [busqueda, setBusqueda] = useState('');
@@ -162,6 +165,7 @@ export default function AlmacenList({ userName }: { userName?: string }) {
               { k: 'existencias', label: 'Existencias', Icono: Boxes },
               { k: 'movimientos', label: 'Movimientos', Icono: ArrowLeftRight },
               { k: 'catalogo', label: 'Catálogo', Icono: ScrollText },
+              { k: 'instalados', label: 'Instalados', Icono: HardHat },
               { k: 'ubicaciones', label: 'Ubicaciones', Icono: MapPin },
               { k: 'conteo', label: 'Conteo', Icono: ClipboardCheck },
               { k: 'sistemas', label: 'Sistemas', Icono: LayoutGrid },
@@ -189,7 +193,21 @@ export default function AlmacenList({ userName }: { userName?: string }) {
           </div>
         )}
 
+        {seccion !== 'instalados' && (
+          <AlertaEquiposSinRegistro key={`alerta-${alertaKey}`} enAlmacen onIr={() => setSeccion('instalados')} />
+        )}
+
         {seccion === 'vales' && <Vales modo="almacen" />}
+
+        {!loading && seccion === 'instalados' && (
+          <EquiposSinRegistro
+            articulos={articulos}
+            sistemas={sistemas}
+            ubicaciones={ubicaciones}
+            onCatalogoActualizado={async () => { setArticulos(await listarArticulos(false)); }}
+            onCambio={() => { setAlertaKey((k) => k + 1); cargar(); }}
+          />
+        )}
 
         {!loading && seccion === 'ubicaciones' && (
           <UbicacionesAlmacen
