@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus, AlertTriangle, PackageX, ClipboardList } from 'lucide-react';
+import { Plus, AlertTriangle, PackageX, ClipboardList, Archive, ChevronDown, Search, X, ChevronRight } from 'lucide-react';
 import { showToast } from '@/components/Toast';
 import NuevoVale from './NuevoVale';
 import ValeDetalle from './ValeDetalle';
@@ -165,16 +165,13 @@ export default function Vales({ modo }: { modo: 'tecnico' | 'almacen' }) {
       )}
 
       {cerrados.length > 0 && (
-        <div className="mt-2">
-          <button type="button" onClick={() => setVerCerrados(!verCerrados)} className="text-[13px] font-semibold text-teal py-1">
-            {verCerrados ? 'Ocultar' : 'Ver'} cerrados ({cerrados.length})
-          </button>
-          {verCerrados && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 mt-2">
-              {cerrados.map((v) => <Tarjeta key={v.id} v={v} verTecnico={modo === 'almacen'} onAbrir={() => setAbierto(v.id)} />)}
-            </div>
-          )}
-        </div>
+        <HistorialVales
+          vales={cerrados}
+          abierto={verCerrados}
+          onAlternar={() => setVerCerrados(!verCerrados)}
+          verTecnico={modo === 'almacen'}
+          onAbrir={(id) => setAbierto(id)}
+        />
       )}
 
       {nuevo && <NuevoVale onClose={() => setNuevo(false)} onCreado={() => { setNuevo(false); cargar(); }} />}
@@ -182,5 +179,140 @@ export default function Vales({ modo }: { modo: 'tecnico' | 'almacen' }) {
         <ValeDetalle vale={valeAbierto} modo={modo} onClose={() => setAbierto(null)} onCambio={() => { cargar(); }} />
       )}
     </div>
+  );
+}
+
+// ------------------------------------------------------------------
+// Historial: vales cerrados, rechazados y cancelados
+// ------------------------------------------------------------------
+
+const MESES_LARGOS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+type FiltroHist = 'todos' | 'cerrado' | 'rechazado' | 'cancelado';
+
+// Fecha con la que el vale terminó (recibido por el almacén) o, si no, cuando se pidió.
+const fechaFin = (v: Vale) => v.recibido_en || v.created_at;
+
+// Etiquetas del historial con más contraste que las de la bandeja.
+const ESTADO_HIST: Record<string, { label: string; cls: string }> = {
+  cerrado: { label: '✓ Cerrado', cls: 'bg-teal/12 text-teal ring-1 ring-teal/25' },
+  rechazado: { label: 'Rechazado', cls: 'bg-red/12 text-red ring-1 ring-red/25' },
+  cancelado: { label: 'Cancelado', cls: 'bg-surface-2 text-ink/60 ring-1 ring-line-strong' },
+};
+
+function HistorialVales({
+  vales, abierto, onAlternar, verTecnico, onAbrir,
+}: {
+  vales: Vale[];
+  abierto: boolean;
+  onAlternar: () => void;
+  verTecnico: boolean;
+  onAbrir: (id: string) => void;
+}) {
+  const [filtro, setFiltro] = useState<FiltroHist>('todos');
+  const [q, setQ] = useState('');
+  const [limite, setLimite] = useState(20);
+
+  const cuenta = (e: FiltroHist) => (e === 'todos' ? vales.length : vales.filter((v) => v.estado === e).length);
+  const norm = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const nq = norm(q.trim());
+
+  const lista = useMemo(() => vales
+    .filter((v) => filtro === 'todos' || v.estado === filtro)
+    .filter((v) => !nq || norm(`${v.folio} ${v.cliente_nombre} ${v.tecnico || ''} ${v.items.map((i) => i.articulo?.descripcion || '').join(' ')}`).includes(nq))
+    .sort((a, b) => fechaFin(b).localeCompare(fechaFin(a))),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [vales, filtro, nq]);
+
+  // Agrupado por mes de cierre.
+  const meses = useMemo(() => {
+    const out: { clave: string; titulo: string; vales: Vale[] }[] = [];
+    for (const v of lista.slice(0, limite)) {
+      const d = new Date(fechaFin(v));
+      const clave = `${d.getFullYear()}-${d.getMonth()}`;
+      let g = out.find((x) => x.clave === clave);
+      if (!g) { g = { clave, titulo: `${MESES_LARGOS[d.getMonth()]} ${d.getFullYear()}`, vales: [] }; out.push(g); }
+      g.vales.push(v);
+    }
+    return out;
+  }, [lista, limite]);
+
+  const fechaCorta = (iso: string) => new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
+
+  return (
+    <section className="mt-6 rounded-2xl bg-surface border border-line overflow-hidden">
+      <button type="button" onClick={onAlternar} aria-expanded={abierto}
+        className="w-full flex items-center gap-3.5 px-4 py-4 text-left hover:bg-surface-2/50 transition-colors">
+        <span className="w-11 h-11 rounded-xl bg-teal/12 text-teal flex items-center justify-center shrink-0">
+          <Archive size={20} strokeWidth={2.2} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-display font-semibold text-[16px]">Historial de vales</span>
+          <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-[12.5px] text-muted mt-0.5">
+            <span><b className="text-ink font-semibold">{cuenta('cerrado')}</b> cerrados</span>
+            {cuenta('rechazado') > 0 && <span><b className="text-red font-semibold">{cuenta('rechazado')}</b> rechazados</span>}
+            {cuenta('cancelado') > 0 && <span><b className="text-ink/70 font-semibold">{cuenta('cancelado')}</b> cancelados</span>}
+          </span>
+        </span>
+        <span className="shrink-0 h-9 px-3.5 rounded-full bg-surface-2 border border-line text-[13px] font-semibold flex items-center gap-1.5">
+          {abierto ? 'Ocultar' : 'Ver historial'}
+          <ChevronDown size={15} className={`transition-transform ${abierto ? 'rotate-180' : ''}`} />
+        </span>
+      </button>
+
+      {abierto && (
+        <div className="border-t border-line px-4 pt-3 pb-4">
+          <div className="flex flex-col lg:flex-row lg:items-center gap-2.5 mb-3">
+            <div className="relative lg:w-[300px]">
+              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+              <input value={q} onChange={(e) => { setQ(e.target.value); setLimite(20); }} placeholder="Folio, cliente, técnico o artículo"
+                className="w-full h-10 pl-10 pr-9 rounded-full bg-surface-2 border border-line focus:border-teal focus:outline-none text-[14px] placeholder:text-muted" />
+              {q && <button type="button" onClick={() => setQ('')} aria-label="Limpiar" className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full flex items-center justify-center text-muted"><X size={14} /></button>}
+            </div>
+            <div className="flex gap-1.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+              {(['todos', 'cerrado', 'rechazado', 'cancelado'] as FiltroHist[]).filter((k) => k === 'todos' || cuenta(k) > 0).map((k) => (
+                <button key={k} type="button" onClick={() => { setFiltro(k); setLimite(20); }}
+                  className={`shrink-0 h-8 px-3 rounded-full text-[12.5px] font-semibold border transition-colors ${filtro === k ? 'bg-teal text-inkOnAccent border-teal' : 'bg-surface-2 border-line text-ink/75'}`}>
+                  {k === 'todos' ? 'Todos' : ETIQUETA_ESTADO[k].label + 's'} {cuenta(k)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {lista.length === 0 && <p className="text-[13.5px] text-muted text-center py-8">Nada coincide.</p>}
+
+          {meses.map((m) => (
+            <div key={m.clave} className="mb-3 last:mb-0">
+              <p className="text-[11.5px] font-semibold uppercase tracking-wider text-muted mb-1.5 capitalize">{m.titulo} · {m.vales.length}</p>
+              <div className="rounded-xl border border-line divide-y divide-line overflow-hidden">
+                {m.vales.map((v) => {
+                  const est = ESTADO_HIST[v.estado] || ETIQUETA_ESTADO[v.estado];
+                  const piezas = v.items.reduce((n, i) => n + Number(i.cantidad_entregada ?? i.cantidad_solicitada ?? 0), 0);
+                  return (
+                    <button key={v.id} type="button" onClick={() => onAbrir(v.id)}
+                      className="w-full text-left px-3.5 py-2.5 hover:bg-surface-2/60 transition-colors grid grid-cols-[1fr_auto] lg:grid-cols-[80px_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.4fr)_90px_120px_16px] gap-x-4 gap-y-0.5 items-center">
+                      <span className="text-[12px] font-mono font-semibold text-teal lg:order-none">{v.folio}</span>
+                      <span className={`lg:hidden text-[11px] font-semibold px-2 py-0.5 rounded-full justify-self-end ${est.cls}`}>{est.label}</span>
+                      <span className="text-[14px] font-semibold truncate col-span-2 lg:col-span-1">{v.cliente_nombre}</span>
+                      <span className="text-[12.5px] text-muted truncate col-span-2 lg:col-span-1">{verTecnico ? v.tecnico : `${v.items.length} artículo(s)`}</span>
+                      <span className="hidden lg:block text-[12.5px] text-ink/75 truncate">{v.items.slice(0, 2).map((i) => i.articulo?.descripcion).join(', ')}{v.items.length > 2 ? ` +${v.items.length - 2}` : ''}</span>
+                      <span className="hidden lg:block text-[12.5px] text-muted tabular-nums">{piezas} pza · {fechaCorta(fechaFin(v))}</span>
+                      <span className="hidden lg:block"><span className={`text-[11.5px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${est.cls}`}>{est.label}</span></span>
+                      <ChevronRight size={15} className="hidden lg:block text-faint" />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+
+          {lista.length > limite && (
+            <button type="button" onClick={() => setLimite((l) => l + 20)}
+              className="w-full mt-2 min-h-[40px] rounded-xl border border-line text-[13px] font-semibold text-teal hover:bg-surface-2">
+              Ver 20 más ({lista.length - limite} restantes)
+            </button>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
