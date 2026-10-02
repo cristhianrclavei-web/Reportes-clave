@@ -33,6 +33,8 @@ type Props = {
   sistemas: Sistema[];
   ubicaciones?: Ubicacion[];
   articulos: Articulo[];
+  // Desde la ficha del artículo: la entrada arranca con él ya elegido.
+  articuloInicial?: string | null;
   proyectos: { grupoId: string; proyecto: string }[];
   onRegistrada: () => void;
   onCancelar: () => void;
@@ -49,15 +51,15 @@ const TITULOS: Record<number, string> = {
 };
 
 export default function EntradaAlmacenWizard({
-  sistemas, ubicaciones = [], articulos, proyectos, onRegistrada, onCancelar, onCatalogoActualizado,
+  sistemas, ubicaciones = [], articulos, articuloInicial, proyectos, onRegistrada, onCancelar, onCatalogoActualizado,
 }: Props) {
-  const [paso, setPaso] = useState(1);
+  const [paso, setPaso] = useState(articuloInicial ? 2 : 1);
   const [busy, setBusy] = useState(false);
 
   // Paso 1 — artículo
   const [busqueda, setBusqueda] = useState('');
   const [filtroSistema, setFiltroSistema] = useState<'todos' | 'sin-sistema' | string>('todos');
-  const [articuloId, setArticuloId] = useState('');
+  const [articuloId, setArticuloId] = useState(articuloInicial || '');
   const [showNuevoArticulo, setShowNuevoArticulo] = useState(false);
   const [showNuevoSistema, setShowNuevoSistema] = useState(false);
   const [nuevoSistemaNombre, setNuevoSistemaNombre] = useState('');

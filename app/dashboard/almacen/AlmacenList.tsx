@@ -65,6 +65,7 @@ export default function AlmacenList({ userName }: { userName?: string }) {
   const [articuloQr, setArticuloQr] = useState<string | null>(null);
   const [articuloAbierto, setArticuloAbierto] = useState<Articulo | null>(null);
   const [alertaKey, setAlertaKey] = useState(0);
+  const [entradaDe, setEntradaDe] = useState<string | null>(null);
 
   const [filtro, setFiltro] = useState<'todos' | CategoriaInsumo>('todos');
   const [busqueda, setBusqueda] = useState('');
@@ -272,7 +273,7 @@ export default function AlmacenList({ userName }: { userName?: string }) {
                   </option>
                 ))}
               </select>
-              <BotonNuevo label="Entrada" Icono={Plus} onClick={() => setSeccion('entrada')} />
+              <BotonNuevo label="Entrada" Icono={Plus} onClick={() => { setEntradaDe(null); setSeccion('entrada'); }} />
             </div>
             {ubicaciones.length > 0 && (
               <select
@@ -378,13 +379,16 @@ export default function AlmacenList({ userName }: { userName?: string }) {
         {/* --- Registrar entrada --- */}
         {!loading && seccion === 'entrada' && (
           <EntradaAlmacenWizard
+            key={entradaDe || 'nueva'}
             sistemas={sistemas}
             ubicaciones={ubicaciones}
             articulos={articulos.filter((a) => a.activo)}
+            articuloInicial={entradaDe}
             proyectos={proyectos}
-            onCancelar={() => setSeccion('existencias')}
+            onCancelar={() => { setEntradaDe(null); setSeccion('existencias'); }}
             onCatalogoActualizado={cargar}
             onRegistrada={async () => {
+              setEntradaDe(null);
               setSeccion('existencias');
               await cargar();
             }}
@@ -639,6 +643,7 @@ export default function AlmacenList({ userName }: { userName?: string }) {
           onClose={() => setArticuloAbierto(null)}
           onGuardado={() => { setArticuloAbierto(null); cargar(); }}
           onUbicacionCreada={(u) => setUbicaciones((p) => [...p, u])}
+          onRegistrarEntrada={() => { setEntradaDe(articuloAbierto.id); setArticuloAbierto(null); setSeccion('entrada'); window.scrollTo({ top: 0 }); }}
         />
       )}
 

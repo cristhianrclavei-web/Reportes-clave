@@ -49,7 +49,7 @@ export function SelectorUbicacion({
 }
 
 export default function ModalArticulo({
-  articulo, sistemas, ubicaciones, existencia, onClose, onGuardado, onUbicacionCreada,
+  articulo, sistemas, ubicaciones, existencia, onClose, onGuardado, onUbicacionCreada, onRegistrarEntrada,
 }: {
   articulo: Articulo;
   sistemas: Sistema[];
@@ -58,6 +58,7 @@ export default function ModalArticulo({
   onClose: () => void;
   onGuardado: () => void;
   onUbicacionCreada: (u: Ubicacion) => void;
+  onRegistrarEntrada?: () => void;
 }) {
   const [descripcion, setDescripcion] = useState(articulo.descripcion);
   const [categoria, setCategoria] = useState(articulo.categoria);
@@ -118,6 +119,13 @@ export default function ModalArticulo({
           </div>
           <button onClick={onClose} aria-label="Cerrar" className="w-10 h-10 -mr-1 -mt-1 flex items-center justify-center text-muted shrink-0"><X size={19} /></button>
         </div>
+
+        {onRegistrarEntrada && articulo.activo && (
+          <button type="button" onClick={onRegistrarEntrada}
+            className="w-full min-h-[46px] mb-4 rounded-2xl bg-teal text-inkOnAccent font-semibold text-[14.5px] flex items-center justify-center gap-2 active:scale-[0.98]">
+            <Plus size={17} strokeWidth={2.6} /> Registrar entrada
+          </button>
+        )}
 
         <div className="flex items-center gap-3 mb-4">
           <button type="button" onClick={() => camara.current?.click()} className="w-24 h-24 rounded-2xl border border-dashed border-line-strong bg-surface-2 overflow-hidden flex items-center justify-center shrink-0">
