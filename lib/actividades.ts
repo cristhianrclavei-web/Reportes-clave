@@ -1,3 +1,4 @@
+import { reducirFoto } from './reducirFoto';
 import { createClient } from './supabaseClient';
 import { getCurrentLocation } from './geolocation';
 import { notificar } from './push';
@@ -74,6 +75,7 @@ export async function obtenerActividad(id: string): Promise<{ actividad: Activid
 }
 
 async function subirFotoEvento(actividadId: string, file: File): Promise<string | null> {
+  file = await reducirFoto(file);
   const supabase = createClient();
   const ext = file.name.split('.').pop() || 'jpg';
   const path = `actividades/${actividadId}/${Date.now()}.${ext}`;

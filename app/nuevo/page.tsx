@@ -1,5 +1,6 @@
 'use client';
 
+import { reducirFoto } from '@/lib/reducirFoto';
 import { ContactoCatalogo, catalogoEnCache, normalizar as normalizarNombre } from '@/lib/clientesCatalogo';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -880,7 +881,7 @@ export default function NuevoReportePage() {
       const { revisionEstado, facturaEstado, fechaConcluido, ...formulario } = sharedData;
       const fotoData: { path: string; caption: string }[] = fotosServicio.map((f) => ({ path: f.path, caption: f.caption.trim() }));
       for (let i = 0; i < fotos.length; i++) {
-        const f = fotos[i].file;
+        const f = await reducirFoto(fotos[i].file);
         const ext = f.name.split('.').pop() || 'jpg';
         const path = `${editarId}/${Date.now()}-${i}.${ext}`;
         const { error: eUp } = await supabase.storage.from('evidencias').upload(path, f, { contentType: f.type || 'image/jpeg' });
@@ -1075,7 +1076,7 @@ export default function NuevoReportePage() {
       }));
       // Subir fotos de evidencia nuevas, si hay
       for (let i = 0; i < fotos.length; i++) {
-        const f = fotos[i].file;
+        const f = await reducirFoto(fotos[i].file);
         const ext = f.name.split('.').pop() || 'jpg';
         const path = `${reportId}/${Date.now()}-${i}.${ext}`;
         const { error: uploadError } = await supabase.storage.from('evidencias').upload(path, f, {

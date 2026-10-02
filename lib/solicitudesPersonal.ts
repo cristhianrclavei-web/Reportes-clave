@@ -1,3 +1,4 @@
+import { reducirFoto } from './reducirFoto';
 import { createClient } from './supabaseClient';
 import { notificar } from './push';
 import { fechaLocal, hoyLocal, sumarDias } from './fechaHoy';
@@ -195,6 +196,7 @@ export async function puedoAprobarPersonal(): Promise<boolean> {
 }
 
 export async function subirEvidencia(file: File): Promise<string> {
+  file = await reducirFoto(file);
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('Sin sesión');

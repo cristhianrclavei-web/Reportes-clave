@@ -1,5 +1,6 @@
 'use client';
 
+import { reducirFoto } from '@/lib/reducirFoto';
 import AutorReporte from '@/components/AutorReporte';
 import SubTabs from '@/components/SubTabs';
 import Link from 'next/link';
@@ -162,7 +163,7 @@ export default function ReportDetailModal({
       const nuevasFotos: { path: string; caption: string }[] = [];
 
       for (let i = 0; i < fotosCorreccion.length; i++) {
-        const f = fotosCorreccion[i].file;
+        const f = await reducirFoto(fotosCorreccion[i].file);
         const ext = f.name.split('.').pop() || 'jpg';
         const path = `${report.id}/correccion-${Date.now()}-${i}.${ext}`;
         const { error } = await supabase.storage.from('evidencias').upload(path, f, {

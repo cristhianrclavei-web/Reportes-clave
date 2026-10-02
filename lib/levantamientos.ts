@@ -1,3 +1,4 @@
+import { reducirFoto } from './reducirFoto';
 import { createClient } from './supabaseClient';
 
 export const SISTEMAS_SUGERIDOS = [
@@ -63,6 +64,7 @@ async function siguienteFolio(supabase: ReturnType<typeof createClient>): Promis
 }
 
 async function subirFoto(levantamientoId: string, file: File): Promise<string> {
+  file = await reducirFoto(file);
   const supabase = createClient();
   const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
   const path = `levantamientos/${levantamientoId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;

@@ -1,3 +1,4 @@
+import { reducirFoto } from './reducirFoto';
 import { createClient } from './supabaseClient';
 import { registrarAccionGlobal } from './auditoriaGlobal';
 import type { EstadoProyecto } from './proyectos';
@@ -176,6 +177,7 @@ export async function subirLogoCliente(id: string, file: File): Promise<void> {
   const { data: actual } = await supabase.from('clientes').select('logo_path').eq('id', id).single();
   const anterior = actual?.logo_path as string | null;
 
+  file = await reducirFoto(file);
   const ext = file.name.split('.').pop() || 'jpg';
   const path = `clientes/${id}/logo-${Date.now()}.${ext}`;
   const { error: eUp } = await supabase.storage.from('proyectos-documentos').upload(path, file, { contentType: file.type || 'image/jpeg' });
@@ -197,6 +199,7 @@ export async function subirFotoPortadaCliente(id: string, file: File): Promise<v
   const { data: actual } = await supabase.from('clientes').select('foto_portada_path').eq('id', id).single();
   const anterior = actual?.foto_portada_path as string | null;
 
+  file = await reducirFoto(file);
   const ext = file.name.split('.').pop() || 'jpg';
   const path = `clientes/${id}/portada-${Date.now()}.${ext}`;
   const { error: eUp } = await supabase.storage.from('proyectos-documentos').upload(path, file, { contentType: file.type || 'image/jpeg' });

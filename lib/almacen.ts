@@ -1,3 +1,4 @@
+import { reducirFoto } from './reducirFoto';
 import { createClient } from './supabaseClient';
 import { CategoriaInsumo, CATEGORIAS, UNIDADES } from './insumos';
 import { notificar } from './push';
@@ -286,6 +287,7 @@ export async function cancelarConteo(conteoId: string): Promise<void> {
 // --- Entradas ---
 
 async function subirDocumento(carpeta: string, file: File): Promise<string | null> {
+  file = await reducirFoto(file);
   const supabase = createClient();
   const ext = file.name.split('.').pop() || 'pdf';
   const path = `${carpeta}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;

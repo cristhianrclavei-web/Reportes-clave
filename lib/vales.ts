@@ -1,3 +1,4 @@
+import { reducirFoto } from './reducirFoto';
 import { createClient } from './supabaseClient';
 import { notificar } from './push';
 import { Articulo, listarArticulos, mapaDeExistencias } from './almacen';
@@ -197,6 +198,7 @@ export async function firmarVale(vale: Vale, firma: string): Promise<void> {
 }
 
 export async function subirFotoDevolucion(valeId: string, file: File | Blob): Promise<string> {
+  file = await reducirFoto(file);
   const ext = (file as File).name?.split('.').pop() || 'jpg';
   const path = `vales/${valeId}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
   const { error } = await createClient().storage.from('almacen').upload(path, file, { contentType: file.type || 'image/jpeg' });

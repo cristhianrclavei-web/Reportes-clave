@@ -1,3 +1,4 @@
+import { reducirFoto } from './reducirFoto';
 import { createClient } from './supabaseClient';
 import { getCurrentLocation } from './geolocation';
 import { registrarAccionGlobal } from './auditoriaGlobal';
@@ -896,6 +897,7 @@ export async function eliminarProyecto(grupoId: string): Promise<void> {
 }
 
 async function subirFotoServicio(servicioId: string, file: File): Promise<string | null> {
+  file = await reducirFoto(file);
   const supabase = createClient();
   const ext = file.name.split('.').pop() || 'jpg';
   const path = `servicios/${servicioId}/${Date.now()}.${ext}`;

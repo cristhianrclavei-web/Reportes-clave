@@ -1,3 +1,4 @@
+import { reducirFoto } from './reducirFoto';
 import { createClient } from './supabaseClient';
 import { coincideBusqueda } from './busqueda';
 import { registrarAccionGlobal } from './auditoriaGlobal';
@@ -173,11 +174,12 @@ export async function agregarDocumento(
   if (!user) throw new Error('No hay sesión activa');
   if (!input.nombre.trim()) throw new Error('Falta indicar de qué es el documento.');
 
-  const ext = input.archivo.name.split('.').pop() || 'bin';
+  const archivo = await reducirFoto(input.archivo);
+  const ext = archivo.name.split('.').pop() || 'bin';
   const path = `${proyectoId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
   const { error: eUp } = await supabase.storage
     .from('proyectos-documentos')
-    .upload(path, input.archivo, { contentType: input.archivo.type || 'application/octet-stream' });
+    .upload(path, archivo, { contentType: archivo.type || 'application/octet-stream' });
   if (eUp) throw new Error('No se pudo subir el archivo: ' + eUp.message);
 
   const { error } = await supabase.from('proyecto_documentos').insert({

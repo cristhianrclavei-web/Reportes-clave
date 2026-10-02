@@ -1,4 +1,5 @@
 import { createClient } from './supabaseClient';
+import { reducirFoto } from './reducirFoto';
 import { getOfflineReports, deleteOfflineReport, PendingReport } from './offlineQueue';
 import { vincularReporteAServicio } from './serviciosProgramados';
 import { generarUUID } from './uuid';
@@ -55,11 +56,13 @@ async function syncOne(item: PendingReport): Promise<void> {
   if (item.fotos && item.fotos.length > 0) {
     for (let i = 0; i < item.fotos.length; i++) {
       const f = item.fotos[i];
-      const blob = dataUrlToBlob(f.fileDataUrl);
-      const ext = f.fileName.split('.').pop() || 'jpg';
+      // Se reduce aquí (al subir) y no al guardar sin conexión, para no
+      // gastar batería mientras se captura en campo.
+      const blob = await reducirFoto(new File([dataUrlToBlob(f.fileDataUrl)], f.fileName || 'foto.jpg', { type: f.fileType || 'image/jpeg' }));
+      const ext = blob.name.split('.').pop() || 'jpg';
       const path = `${reportId}/${Date.now()}-${i}.${ext}`;
       const { error: upErr } = await supabase.storage.from('evidencias').upload(path, blob, {
-        contentType: f.fileType || 'image/jpeg',
+        contentType: blob.type || 'image/jpeg',
       });
       if (!upErr) fotoData.push({ path, caption: f.caption });
     }
