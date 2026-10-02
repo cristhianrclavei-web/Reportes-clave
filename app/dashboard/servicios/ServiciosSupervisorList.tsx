@@ -9,6 +9,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import SupervisorShell from '@/components/SupervisorShell';
 import SubTabs from '@/components/SubTabs';
+import Rutinas, { CargarRutina } from '@/components/rutinas/Rutinas';
+import { listarRutinas, tareasDeRutina } from '@/lib/rutinas';
 import TableroDia from '@/components/TableroDia';
 import { useRouter } from 'next/navigation';
 import { listarRecurrentes, avanzarRecurrente } from '@/lib/mantenimientosRecurrentes';
@@ -194,6 +196,16 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   const [omitirFinDeSemana, setOmitirFinDeSemana] = useState(false);
   const [tecnicoIds, setTecnicoIds] = useState<string[]>([]);
   const [tareas, setTareas] = useState<string[]>(['']);
+  // Rutina cargada: sus tareas se suman a las que ya hay, sin repetir.
+  function cargarTareasDeRutina(nuevas: string[]) {
+    setTareas((prev) => {
+      const actuales = prev.map((t) => t.trim()).filter(Boolean);
+      const sinRepetir = nuevas.filter((t) => !actuales.some((a) => a.toLowerCase() === t.toLowerCase()));
+      const todas = [...actuales, ...sinRepetir];
+      return todas.length ? todas : [''];
+    });
+  }
+  const [subPlantillas, setSubPlantillas] = useState<'rutinas' | 'listas'>('rutinas');
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -242,6 +254,9 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
     const q = new URLSearchParams(window.location.search);
     if (q.get('agendar') !== '1') return;
     recurrenteRef.current = q.get('recurrente');
+    // Rutina del mantenimiento recurrente: se precargan sus tareas.
+    const rutinaId = q.get('rutina');
+    if (rutinaId) listarRutinas().then((rs) => { const r = rs.find((x) => x.id === rutinaId); if (r) cargarTareasDeRutina(tareasDeRutina(r)); }).catch(() => {});
     volverRef.current = q.get('volver');
     abrirAgendar({
       fecha: q.get('fecha') || undefined,
@@ -798,6 +813,15 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
 
         {/* Administración de plantillas de herramienta */}
         {seccion === 'plantillas' && (
+          <div className="flex gap-1.5 mb-4">
+            {([['rutinas', 'Rutinas de tareas'], ['listas', 'Herramienta y material']] as const).map(([k, l]) => (
+              <button key={k} type="button" onClick={() => setSubPlantillas(k)}
+                className={`h-9 px-4 rounded-full text-[13px] font-semibold border transition-colors ${subPlantillas === k ? 'bg-teal text-inkOnAccent border-teal' : 'bg-surface border-line text-ink/75'}`}>{l}</button>
+            ))}
+          </div>
+        )}
+        {seccion === 'plantillas' && subPlantillas === 'rutinas' && <Rutinas />}
+        {seccion === 'plantillas' && subPlantillas === 'listas' && (
           <div>
             <p className="text-[12.5px] text-muted mb-3 leading-relaxed">
               Listas guardadas de herramienta y material. Se cargan al programar un servicio.
@@ -1056,6 +1080,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
               <p className="text-[12.5px] text-muted mb-2.5">
                 Una sola lista para todo el proyecto; lo pendiente pasa al día siguiente.
               </p>
+              <CargarRutina tareasActuales={tareas} onCargar={(ts) => cargarTareasDeRutina(ts)} />
               {tareas.map((t, i) => (
                 <div key={i} className="flex items-center gap-2 mb-2">
                   <span className="text-[12px] text-muted w-5 shrink-0">{i + 1}.</span>

@@ -1,5 +1,6 @@
 'use client';
 
+import { Rutina, listarRutinas, tareasDeRutina } from '@/lib/rutinas';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, X, Repeat, Pencil, CalendarPlus, SkipForward } from 'lucide-react';
@@ -73,6 +74,7 @@ export function PorProgramar() {
     if (r.descripcion) q.set('descripcion', r.descripcion);
     if (r.hora) q.set('hora', r.hora.slice(0, 5));
     if (r.tecnico_ids.length) q.set('tecnicos', r.tecnico_ids.join(','));
+    if (r.rutina_id) q.set('rutina', r.rutina_id);
     router.push(`/dashboard/servicios?${q.toString()}`);
   }
 
@@ -188,6 +190,9 @@ function FormRecurrente({ inicial, tecnicos, onClose, onListo }: {
   const [ids, setIds] = useState<string[]>(inicial.tecnico_ids || []);
   const [notas, setNotas] = useState(inicial.notas || '');
   const [activo, setActivo] = useState(inicial.activo ?? true);
+  const [rutinaId, setRutinaId] = useState<string | null>(inicial.rutina_id || null);
+  const [rutinas, setRutinas] = useState<Rutina[]>([]);
+  useEffect(() => { listarRutinas().then(setRutinas).catch(() => {}); }, []);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -200,6 +205,7 @@ function FormRecurrente({ inicial, tecnicos, onClose, onListo }: {
       await guardarRecurrente({
         id: inicial.id, cliente_id: clienteId, proyecto, descripcion, frecuencia, proxima_fecha: proxima,
         hora: hora || null, duracion_min: inicial.duracion_min || 120, tecnico_ids: ids, notas, activo,
+        ...(rutinas.length ? { rutina_id: rutinaId } : {}),
       });
       showToast('Mantenimiento recurrente guardado', 'success');
       onListo();
@@ -249,6 +255,15 @@ function FormRecurrente({ inicial, tecnicos, onClose, onListo }: {
             <input type="time" className={inputCls} value={hora} onChange={(e) => setHora(e.target.value)} />
           </div>
         </div>
+        {rutinas.length > 0 && (
+          <>
+            <label className={labelCls}>Rutina de tareas</label>
+            <select className={`${inputCls} mb-3`} value={rutinaId || ''} onChange={(e) => setRutinaId(e.target.value || null)}>
+              <option value="">Sin rutina</option>
+              {rutinas.map((r) => <option key={r.id} value={r.id}>{r.nombre} ({tareasDeRutina(r).length} tareas)</option>)}
+            </select>
+          </>
+        )}
         <label className={labelCls}>Técnicos de siempre (opcional)</label>
         <SelectorTecnicos tecnicos={tecnicos} seleccion={ids} onCambiar={setIds} />
         <label className={`${labelCls} mt-2`}>Notas (opcional)</label>

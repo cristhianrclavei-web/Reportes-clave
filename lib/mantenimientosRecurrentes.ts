@@ -32,6 +32,8 @@ export type Recurrente = {
   notas: string | null;
   activo: boolean;
   ultima_programacion: string | null;
+  // Rutina de tareas que se precarga al programarlo (patch_rutinas_tareas.sql).
+  rutina_id?: string | null;
 };
 
 // «2026-11-30» + 3 meses → «2027-02-28» (si el mes no tiene ese día, el último).
@@ -71,6 +73,7 @@ export async function guardarRecurrente(r: Omit<Recurrente, 'id' | 'ultima_progr
     tecnico_ids: r.tecnico_ids,
     notas: r.notas?.trim() || null,
     activo: r.activo,
+    ...(r.rutina_id !== undefined ? { rutina_id: r.rutina_id } : {}),
   };
   const { error } = r.id
     ? await supabase.from('mantenimientos_recurrentes').update(fila).eq('id', r.id)
