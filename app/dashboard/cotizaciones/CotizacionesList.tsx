@@ -11,6 +11,7 @@ import CotizacionForm from '@/components/CotizacionForm';
 import { VistaCondicional } from '@/lib/vistaSupervisor';
 import { Cotizacion, LineaCotizacion, obtenerCotizacion, copiaParaOtroCliente } from '@/lib/cotizaciones';
 import { hoyLocal } from '@/lib/fechaHoy';
+import { descartarBorradorFormulario } from '@/lib/useBorradorFormulario';
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
 import { Plus, Search, Receipt, Copy, X } from 'lucide-react';
@@ -175,7 +176,7 @@ export default function CotizacionesList({
                 <p className="text-[14px] font-semibold">Copia de {copia.origen.folio} · {copia.origen.empresa}</p>
                 <p className="text-[12.5px] text-muted">Se copiaron las partidas, precios y condiciones. Escribe los datos del nuevo cliente, revisa precios y tipo de cambio, y guarda: se crea con folio nuevo y la original no cambia.</p>
               </div>
-              <button type="button" onClick={() => setCopia(null)}
+              <button type="button" onClick={() => { descartarBorradorFormulario(`cotizacion:copia:${copia.origen.id}`); setCopia(null); }}
                 className="shrink-0 h-9 px-3.5 rounded-full border border-line text-[13px] font-semibold flex items-center gap-1.5 hover:bg-surface-2">
                 <X size={14} /> Empezar en blanco
               </button>

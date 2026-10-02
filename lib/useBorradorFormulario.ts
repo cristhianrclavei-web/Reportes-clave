@@ -99,3 +99,15 @@ export function useBorradorFormulario<T>({
 
   return { recuperadoEn, limpiar };
 }
+
+// Borra un borrador sin tener el formulario montado (p. ej. «Empezar en
+// blanco» después de copiar una cotización).
+export async function descartarBorradorFormulario(clave: string): Promise<void> {
+  try {
+    const { data } = await createClient().auth.getSession();
+    const id = data.session?.user.id;
+    if (id) await operar('readwrite', (s) => s.delete(`form:${clave}:${id}`));
+  } catch {
+    // no crítico
+  }
+}
