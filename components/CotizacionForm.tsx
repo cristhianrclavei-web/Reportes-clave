@@ -51,7 +51,11 @@ export default function CotizacionForm({
   nombreUsuario,
   correoUsuario,
   onGuardado,
+  claveBorrador,
 }: {
+  // Copia de otra cotización: borrador propio para no mezclarse con el de
+  // «Nueva cotización» en blanco.
+  claveBorrador?: string;
   modo: 'crear' | 'editar';
   cotizacionId?: string;
   inicial?: { cotizacion: Cotizacion; lineas: LineaCotizacion[] };
@@ -248,7 +252,7 @@ export default function CotizacionForm({
     ? Boolean(empresa.trim() || grupos.some((g) => g.items.some((it) => it.descripcion.trim())))
     : JSON.stringify(datosForm) !== huellaInicial.current;
   const borrador = useBorradorFormulario({
-    clave: modo === 'editar' && cotizacionId ? `cotizacion:${cotizacionId}` : 'cotizacion:nueva',
+    clave: claveBorrador || (modo === 'editar' && cotizacionId ? `cotizacion:${cotizacionId}` : 'cotizacion:nueva'),
     datos: datosForm,
     hayDatos: hayCambios,
     aplicar: aplicarDatos,

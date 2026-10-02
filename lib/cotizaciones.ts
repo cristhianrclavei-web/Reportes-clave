@@ -312,3 +312,32 @@ export function agruparPorSistema<T extends { sistema: string }>(lineas: T[]): {
   }
   return grupos;
 }
+
+// Copia de una cotización para otro cliente: mismas partidas, precios y
+// condiciones; sin los datos del cliente, con fecha de hoy y como borrador
+// nuevo (se guarda con folio propio al crearla). El firmante pasa a ser
+// quien hace la copia.
+export function copiaParaOtroCliente(
+  origen: { cotizacion: Cotizacion; lineas: LineaCotizacion[] },
+  hoy: string,
+  firmante?: { nombre?: string; correo?: string },
+): { cotizacion: Cotizacion; lineas: LineaCotizacion[] } {
+  return {
+    cotizacion: {
+      ...origen.cotizacion,
+      fecha: hoy,
+      empresa: '',
+      atencion: null,
+      telefono: null,
+      correo: null,
+      direccion: null,
+      firmante_nombre: firmante?.nombre || origen.cotizacion.firmante_nombre,
+      firmante_correo: firmante?.correo || origen.cotizacion.firmante_correo,
+      estado: 'borrador',
+      aprobada_por: null,
+      aprobada_firma: null,
+      aprobada_en: null,
+    },
+    lineas: origen.lineas,
+  };
+}

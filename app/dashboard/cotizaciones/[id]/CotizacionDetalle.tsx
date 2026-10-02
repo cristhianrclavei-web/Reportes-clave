@@ -12,7 +12,7 @@ import {
   eliminarCotizacion, agruparPorSistema, obtenerCotizacion,
 } from '@/lib/cotizaciones';
 import { showToast } from '@/components/Toast';
-import { FileText, Pencil, Trash2, ChevronLeft, X, Check, Send, Ban, MessageCircle, ExternalLink } from 'lucide-react';
+import { FileText, Pencil, Trash2, ChevronLeft, X, Check, Send, Ban, MessageCircle, ExternalLink, Copy } from 'lucide-react';
 import { MARCA, MARCA_MAYUS } from '@/lib/marca';
 
 // WhatsApp necesita el código de país adelante — los teléfonos se capturan
@@ -467,6 +467,15 @@ export default function CotizacionDetalle({
           Editar
         </button>
       )}
+
+      {/* Copiar: la misma cotización como base para otro cliente. */}
+      <Link
+        href={`/dashboard/cotizaciones?copiar=${cotizacion.id}`}
+        className="w-full min-h-[48px] mb-3 rounded-xl border border-teal/50 text-teal font-semibold text-[14.5px] flex items-center justify-center gap-2 active:scale-95 transition-transform hover:bg-teal/5"
+      >
+        <Copy size={16} strokeWidth={2.3} />
+        Copiar para otro cliente
+      </Link>
 
       {/* Cancelar (eliminar): libre mientras sigue en borrador; una vez
           firmada, solo quien puede aprobar cotizaciones (Clara/Everardo)

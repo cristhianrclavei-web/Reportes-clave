@@ -2,15 +2,18 @@
 
 import { useAliasClientes } from '@/lib/useAliasClientes';
 import { coincideBusqueda } from '@/lib/busqueda';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import SupervisorShell from '@/components/SupervisorShell';
 import TablaLista, { ColumnaTabla } from '@/components/TablaLista';
 import EmptyIllustration from '@/components/EmptyIllustration';
 import CotizacionForm from '@/components/CotizacionForm';
 import { VistaCondicional } from '@/lib/vistaSupervisor';
-import { Cotizacion } from '@/lib/cotizaciones';
-import { Plus, Search, Receipt } from 'lucide-react';
+import { Cotizacion, LineaCotizacion, obtenerCotizacion, copiaParaOtroCliente } from '@/lib/cotizaciones';
+import { hoyLocal } from '@/lib/fechaHoy';
+import ModalOverlay from '@/components/ModalOverlay';
+import { showToast } from '@/components/Toast';
+import { Plus, Search, Receipt, Copy, X } from 'lucide-react';
 import SelectorSemana, { RangoSeleccionado } from '@/components/SelectorSemana';
 
 function formatFecha(fecha: string): string {
@@ -66,6 +69,35 @@ export default function CotizacionesList({
   // dos tareas distintas, separarlas en pestañas evita que el formulario y
   // la lista compitan por espacio en la misma pantalla.
   const [seccion, setSeccion] = useState<'nueva' | 'cotizaciones'>('cotizaciones');
+  // Copia de otra cotización para un cliente nuevo (mismas partidas y condiciones).
+  const [copia, setCopia] = useState<{ origen: Cotizacion; datos: { cotizacion: Cotizacion; lineas: LineaCotizacion[] } } | null>(null);
+  const [eligiendoCopia, setEligiendoCopia] = useState(false);
+  const [cargandoCopia, setCargandoCopia] = useState(false);
+
+  async function copiarDe(id: string) {
+    setCargandoCopia(true);
+    try {
+      const origen = await obtenerCotizacion(id);
+      setCopia({ origen: origen.cotizacion, datos: copiaParaOtroCliente(origen, hoyLocal(), { nombre: userName, correo: correoUsuario }) });
+      setSeccion('nueva');
+      setEligiendoCopia(false);
+      window.scrollTo({ top: 0 });
+    } catch (e: any) {
+      showToast(e?.message || 'No se pudo copiar la cotización', 'error');
+    } finally {
+      setCargandoCopia(false);
+    }
+  }
+
+  // Desde el detalle: /dashboard/cotizaciones?copiar=<id>
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('copiar');
+    if (id) {
+      copiarDe(id);
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [search, setSearch] = useState('');
   const aliasClientes = useAliasClientes();
   const [rango, setRango] = useState<RangoSeleccionado | null>(null);
@@ -135,7 +167,43 @@ export default function CotizacionesList({
       </div>
 
       {seccion === 'nueva' && (
-        <CotizacionForm modo="crear" nombreUsuario={userName} correoUsuario={correoUsuario} />
+        <>
+          {copia ? (
+            <div className="mb-4 rounded-2xl border border-teal/40 bg-teal/8 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+              <span className="w-10 h-10 rounded-xl bg-teal/15 text-teal flex items-center justify-center shrink-0"><Copy size={18} /></span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[14px] font-semibold">Copia de {copia.origen.folio} · {copia.origen.empresa}</p>
+                <p className="text-[12.5px] text-muted">Se copiaron las partidas, precios y condiciones. Escribe los datos del nuevo cliente, revisa precios y tipo de cambio, y guarda: se crea con folio nuevo y la original no cambia.</p>
+              </div>
+              <button type="button" onClick={() => setCopia(null)}
+                className="shrink-0 h-9 px-3.5 rounded-full border border-line text-[13px] font-semibold flex items-center gap-1.5 hover:bg-surface-2">
+                <X size={14} /> Empezar en blanco
+              </button>
+            </div>
+          ) : (
+            <button type="button" onClick={() => setEligiendoCopia(true)} disabled={cotizaciones.length === 0}
+              className="w-full mb-4 min-h-[48px] rounded-2xl border border-dashed border-teal/50 text-teal text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-teal/5 disabled:opacity-50">
+              <Copy size={16} /> Copiar de otra cotización
+            </button>
+          )}
+          <CotizacionForm
+            key={copia ? `copia-${copia.origen.id}` : 'nueva'}
+            modo="crear"
+            inicial={copia?.datos}
+            claveBorrador={copia ? `cotizacion:copia:${copia.origen.id}` : undefined}
+            nombreUsuario={userName}
+            correoUsuario={correoUsuario}
+          />
+        </>
+      )}
+
+      {eligiendoCopia && (
+        <ElegirCotizacion
+          cotizaciones={cotizaciones}
+          cargando={cargandoCopia}
+          onElegir={copiarDe}
+          onClose={() => setEligiendoCopia(false)}
+        />
       )}
 
       {seccion === 'cotizaciones' && (
@@ -227,5 +295,55 @@ export default function CotizacionesList({
         </>
       )}
     </SupervisorShell>
+  );
+}
+
+// Buscador de la cotización a copiar.
+function ElegirCotizacion({
+  cotizaciones, cargando, onElegir, onClose,
+}: {
+  cotizaciones: Cotizacion[];
+  cargando: boolean;
+  onElegir: (id: string) => void;
+  onClose: () => void;
+}) {
+  const [q, setQ] = useState('');
+  const lista = cotizaciones
+    .filter((c) => !q.trim() || coincideBusqueda(`${c.folio} ${c.empresa} ${c.atencion || ''} ${c.notas || ''}`, q))
+    .slice(0, 40);
+  return (
+    <ModalOverlay onClose={() => !cargando && onClose()}>
+      <div className="glass-strong rounded-3xl w-full max-w-lg p-5 max-h-[85vh] flex flex-col">
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div>
+            <h2 className="font-display font-bold text-[19px]">Copiar de otra cotización</h2>
+            <p className="text-[13px] text-muted">Elige la cotización que quieres usar de base para el nuevo cliente.</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Cerrar" className="w-9 h-9 flex items-center justify-center text-muted shrink-0"><X size={18} /></button>
+        </div>
+        <div className="relative mb-3">
+          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Folio, cliente o nota (ej. paneles)"
+            className="w-full h-11 pl-10 pr-3 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[14.5px]" />
+        </div>
+        <div className="overflow-y-auto -mx-1 px-1 flex-1">
+          {lista.length === 0 && <p className="text-[13px] text-muted text-center py-6">Nada coincide.</p>}
+          <div className="flex flex-col gap-2">
+            {lista.map((c) => (
+              <button key={c.id} type="button" disabled={cargando} onClick={() => onElegir(c.id)}
+                className="w-full text-left rounded-xl bg-surface border border-line px-3.5 py-3 hover:border-teal/50 disabled:opacity-60 flex items-center gap-3">
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[12px] font-mono font-semibold text-teal">{c.folio}</span>
+                  <span className="block text-[14px] font-semibold truncate">{c.empresa}</span>
+                  <span className="block text-[12px] text-muted">{formatFecha(c.fecha)}{c.atencion ? ` · ${c.atencion}` : ''}</span>
+                </span>
+                <span className="text-[13.5px] font-semibold tabular-nums shrink-0">{money(c.total)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        {cargando && <p className="text-[12.5px] text-muted text-center mt-2">Copiando…</p>}
+      </div>
+    </ModalOverlay>
   );
 }
