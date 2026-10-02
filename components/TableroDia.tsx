@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   ChevronLeft, ChevronRight, ChevronDown, RefreshCw, Plus, X, Download, AlertTriangle, ArrowRightLeft, FileText, Clock, UserX,
+  Search, Users, List as ListIcon,
 } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
 import { AvatarTecnico, TiraTecnicos, EstadoAvatar } from '@/components/AvatarTecnico';
@@ -322,9 +323,9 @@ export default function TableroDia({ onAgendar }: {
         </div>
       )}
 
-      <div className="flex gap-2 mb-3">
+      <div className="flex gap-2 mb-3 lg:justify-end">
         <button type="button" onClick={() => pedirAsignar([])}
-          className="flex-1 min-h-[42px] rounded-full bg-teal text-inkOnAccent text-[14px] font-semibold flex items-center justify-center gap-2 shadow-glow-teal active:scale-[0.98]">
+          className="flex-1 lg:flex-none lg:px-6 min-h-[42px] rounded-full bg-teal text-inkOnAccent text-[14px] font-semibold flex items-center justify-center gap-2 shadow-glow-teal active:scale-[0.98]">
           <Plus size={17} strokeWidth={2.6} /> Asignar servicio
         </button>
         <button type="button" onClick={() => cargar()} aria-label="Actualizar" title="Actualizar"
@@ -339,7 +340,7 @@ export default function TableroDia({ onAgendar }: {
 
       {error && <p className="text-[13px] text-red font-semibold mb-3">{error}</p>}
 
-      <div className="flex items-center gap-1.5 mb-2 overflow-x-auto -mx-1 px-1 [&>span]:shrink-0 [&>span]:mb-0 [&>span]:mr-0 [&>span]:text-[12px] [&>span]:px-2.5 [&>span]:py-1" style={{ scrollbarWidth: 'none' }}>
+      <div className="lg:hidden flex items-center gap-1.5 mb-2 overflow-x-auto -mx-1 px-1 [&>span]:shrink-0 [&>span]:mb-0 [&>span]:mr-0 [&>span]:text-[12px] [&>span]:px-2.5 [&>span]:py-1" style={{ scrollbarWidth: 'none' }}>
         {([
           ['todos', `Todos ${filas.length}`],
           ['alertas', `Alertas ${filas.filter((f) => f.servicios.some((sv) => alertaDe(sv, f.id))).length}`],
@@ -375,30 +376,34 @@ export default function TableroDia({ onAgendar }: {
         </div>
       )}
 
-      {/* Computadora: todos a la vista. */}
-      <div className="hidden lg:block">
-        <div className="grid grid-cols-2 gap-2.5 items-start">
-          {visibles.filter((f) => f.servicios.length > 0).map((f) => tarjeta(f))}
+      {/* Computadora: vista por servicio (tabla agrupada) o por técnico
+          (lista + detalle). Aguanta mucho personal sin saturarse. */}
+      {datos && (
+        <div className="hidden lg:block">
+          <VistaEscritorio
+            filas={filas}
+            servicios={datos.servicios}
+            filtro={filtro}
+            hoy={hoy}
+            minutos={minutos}
+            fecha={fecha}
+            alertaDe={alertaDe}
+            estadoTecnico={estadoTecnico}
+            indiceTec={indiceTec}
+            pedirAsignar={pedirAsignar}
+            onCambio={setCambio}
+            chips={([
+              ['todos', `Todos ${filas.length}`],
+              ['alertas', `Alertas ${filas.filter((f) => f.servicios.some((sv) => alertaDe(sv, f.id))).length}`],
+              ['campo', `En campo ${filas.filter((f) => f.servicios.some((sv) => sv.estado === 'en_sitio' || sv.estado === 'en_curso')).length}`],
+              ['sin', `Disponibles ${filas.filter((f) => f.servicios.length === 0).length}`],
+            ] as [Filtro, string][]).map(([k, l]) => (
+              <button key={k} type="button" onClick={() => setFiltro(k)}
+                className={`h-8 px-3 rounded-full text-[12.5px] font-semibold border transition-colors ${filtro === k ? 'bg-teal text-inkOnAccent border-teal' : 'bg-surface border-line text-ink/75 hover:text-ink'}`}>{l}</button>
+            ))}
+          />
         </div>
-        {(filtro === 'todos' || filtro === 'sin') && visibles.some((f) => f.servicios.length === 0) && (
-          <div className="mt-2.5 rounded-2xl border border-dashed border-line-strong px-3.5 py-3">
-            <p className="text-[12px] font-semibold uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><UserX size={14} /> Disponibles (sin servicio)</p>
-            <div className="flex flex-wrap gap-1.5">
-              {visibles.filter((f) => f.servicios.length === 0).map((f) => {
-                return (
-                  <button key={f.id} type="button" onClick={() => pedirAsignar([f.id])}
-                    className="pl-1 pr-2.5 py-1 rounded-full bg-surface-2 border border-line text-[12.5px] font-medium flex items-center gap-1.5 active:scale-95 hover:border-teal/50">
-                    <AvatarTecnico nombre={f.nombre} size={24} indice={indiceTec(f.id)} />
-                    {f.nombre}
-                    <Plus size={13} className="text-teal" />
-                  </button>
-                );
-              })}
-            </div>
-            <p className="text-[11.5px] text-faint mt-2">Toca un nombre para asignarle un servicio.</p>
-          </div>
-        )}
-      </div>
+      )}
 
       {datos && visibles.length === 0 && filas.length > 0 && <p className="text-[13px] text-muted text-center py-6">Nada con este filtro.</p>}
       {datos && filas.length === 0 && <p className="text-[13px] text-muted text-center py-8">No hay técnicos activos.</p>}
@@ -710,5 +715,319 @@ export function CambioDia({
         </button>
       </div>
     </ModalOverlay>
+  );
+}
+
+// ------------------------------------------------------------------
+// Vista de computadora
+// ------------------------------------------------------------------
+
+type FilaTec = { id: string; nombre: string; servicios: ServicioDia[] };
+
+// Estado del servicio completo (no de un técnico): si no ha iniciado,
+// cuántos de sus técnicos ya lo vieron o confirmaron.
+function estadoGlobal(s: ServicioDia): { texto: string; cls: string } {
+  if (s.estado !== 'programado') {
+    const e = estadoServicio(s, '');
+    return { texto: e.texto, cls: e.cls };
+  }
+  const n = s.asignados.length;
+  if (n === 0) return { texto: 'Sin técnico', cls: 'bg-red/12 text-red' };
+  const enterados = s.asignados.filter((a) => a.enterado_en).length;
+  const sinVer = s.asignados.filter((a) => !a.visto_en && !a.enterado_en).length;
+  if (enterados === n) return { texto: n > 1 ? `Enterados ${n}/${n}` : 'Enterado', cls: 'bg-surface-2 text-ink/80' };
+  if (sinVer > 0) return { texto: n > 1 ? `Sin ver ${sinVer}/${n}` : 'Sin ver', cls: 'bg-red/12 text-red' };
+  return { texto: n > 1 ? `Vistos ${n - enterados}/${n}` : 'Visto', cls: 'bg-amber/12 text-amber' };
+}
+
+const KEY_VISTA_DIA = 'tablero-dia-vista';
+
+function VistaEscritorio({
+  filas, servicios, filtro, hoy, minutos, fecha, alertaDe, estadoTecnico, indiceTec, pedirAsignar, onCambio, chips,
+}: {
+  chips: React.ReactNode;
+  filas: FilaTec[];
+  servicios: ServicioDia[];
+  filtro: Filtro;
+  hoy: string;
+  minutos: number;
+  fecha: string;
+  alertaDe: (s: ServicioDia, tecnicoId: string) => boolean;
+  estadoTecnico: (f: FilaTec) => EstadoAvatar;
+  indiceTec: (id: string) => number;
+  pedirAsignar: (ids: string[]) => void;
+  onCambio: (s: ServicioDia) => void;
+}) {
+  const [vista, setVista] = useState<'servicio' | 'tecnico'>('servicio');
+  const [q, setQ] = useState('');
+  const [abierto, setAbierto] = useState<string | null>(null);
+  const [tecSel, setTecSel] = useState<string | null>(null);
+  const [plegados, setPlegados] = useState<Set<string>>(new Set());
+  const [verDisponibles, setVerDisponibles] = useState(false);
+
+  useEffect(() => {
+    try { const v = localStorage.getItem(KEY_VISTA_DIA); if (v === 'tecnico' || v === 'servicio') setVista(v); } catch { /* sin almacenamiento */ }
+  }, []);
+  function cambiarVista(v: 'servicio' | 'tecnico') {
+    setVista(v);
+    try { localStorage.setItem(KEY_VISTA_DIA, v); } catch { /* no crítico */ }
+  }
+
+  const norm = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const nq = norm(q.trim());
+  const coincideServicio = (s: ServicioDia) =>
+    !nq || norm(s.proyecto).includes(nq) || s.asignados.some((a) => norm(a.nombre).includes(nq));
+
+  const alertaServicio = (s: ServicioDia) =>
+    s.asignados.length === 0 ? alertaDe(s, '') : s.asignados.some((a) => alertaDe(s, a.tecnico_id));
+
+  const grupos = useMemo(() => {
+    const lista = servicios.filter(coincideServicio);
+    const atencion = lista.filter(alertaServicio);
+    const resto = lista.filter((s) => !alertaServicio(s));
+    return [
+      { k: 'atencion', titulo: 'Requieren atención', tono: 'text-red', items: atencion },
+      { k: 'campo', titulo: 'En campo', tono: 'text-teal', items: resto.filter((s) => s.estado === 'en_sitio' || s.estado === 'en_curso') },
+      { k: 'iniciar', titulo: 'Por iniciar', tono: 'text-ink', items: resto.filter((s) => s.estado === 'programado') },
+      { k: 'concluidos', titulo: 'Concluidos', tono: 'text-muted', items: resto.filter((s) => s.estado === 'concluido') },
+    ].filter((g) => {
+      if (filtro === 'alertas') return g.k === 'atencion';
+      if (filtro === 'campo') return g.k === 'campo' || (g.k === 'atencion');
+      return true;
+    }).map((g) => (filtro === 'campo' && g.k === 'atencion'
+      ? { ...g, items: g.items.filter((s) => s.estado === 'en_sitio' || s.estado === 'en_curso') }
+      : g));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [servicios, nq, filtro, hoy, minutos, fecha]);
+
+  const disponibles = filas.filter((f) => f.servicios.length === 0 && (!nq || norm(f.nombre).includes(nq)));
+  const tecnicosLista = filas.filter((f) => {
+    if (nq && !norm(f.nombre).includes(nq) && !f.servicios.some((s) => norm(s.proyecto).includes(nq))) return false;
+    if (filtro === 'sin') return f.servicios.length === 0;
+    if (filtro === 'campo') return f.servicios.some((sv) => sv.estado === 'en_sitio' || sv.estado === 'en_curso');
+    if (filtro === 'alertas') return f.servicios.some((sv) => alertaDe(sv, f.id));
+    return true;
+  }).sort((a, b) => {
+    // Primero lo que hay que atender, luego en campo, programados, listos y disponibles.
+    const peso = (f: FilaTec) => {
+      const e = estadoTecnico(f);
+      return e === 'alerta' ? 0 : e === 'campo' ? 1 : f.servicios.length === 0 ? 4 : e === 'listo' ? 3 : 2;
+    };
+    return peso(a) - peso(b) || a.nombre.localeCompare(b.nombre);
+  });
+  const tecActual = tecnicosLista.find((f) => f.id === tecSel) || tecnicosLista[0] || null;
+
+  const plegar = (k: string) => setPlegados((p) => { const n = new Set(p); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+
+  // --- Barra: buscador + selector de vista ---
+  const barra = (
+    <div className="flex items-center gap-3 mb-4">
+      <div className="relative w-[280px] shrink-0">
+        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar técnico o servicio"
+          className="w-full h-10 pl-10 pr-9 rounded-full bg-surface border border-line focus:border-teal focus:outline-none text-[14px] placeholder:text-muted" />
+        {q && (
+          <button type="button" onClick={() => setQ('')} aria-label="Limpiar" className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full flex items-center justify-center text-muted hover:bg-surface-2"><X size={14} /></button>
+        )}
+      </div>
+      <div className="flex items-center gap-1.5 flex-wrap">{chips}</div>
+      <div className="ml-auto flex items-center p-1 rounded-full bg-surface border border-line shrink-0">
+        {([['servicio', 'Por servicio', ListIcon], ['tecnico', 'Por técnico', Users]] as const).map(([k, l, I]) => (
+          <button key={k} type="button" onClick={() => cambiarVista(k)}
+            className={`h-8 px-3.5 rounded-full text-[13px] font-semibold flex items-center gap-1.5 transition-colors ${vista === k ? 'bg-teal text-inkOnAccent' : 'text-ink/70 hover:text-ink'}`}>
+            <I size={14} /> {l}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  // --- Disponibles: compactos, se expanden si son muchos ---
+  const MAX_DISP = 10;
+  const bloqueDisponibles = (filtro === 'todos' || filtro === 'sin') && disponibles.length > 0 && (
+    <div className="mb-4 rounded-2xl border border-dashed border-line-strong px-4 py-3">
+      <div className="flex items-center gap-3 flex-wrap">
+        <p className="text-[12px] font-semibold uppercase tracking-wider text-muted flex items-center gap-1.5 shrink-0"><UserX size={14} /> Disponibles · {disponibles.length}</p>
+        {(verDisponibles || filtro === 'sin' ? disponibles : disponibles.slice(0, MAX_DISP)).map((f) => (
+          <button key={f.id} type="button" onClick={() => pedirAsignar([f.id])} title={`Asignar servicio a ${f.nombre}`}
+            className="pl-1 pr-2.5 py-1 rounded-full bg-surface border border-line text-[12.5px] font-medium flex items-center gap-1.5 hover:border-teal/50">
+            <AvatarTecnico nombre={f.nombre} size={22} indice={indiceTec(f.id)} />
+            {nombreCorto(f.nombre)}
+            <Plus size={12} className="text-teal" />
+          </button>
+        ))}
+        {filtro !== 'sin' && disponibles.length > MAX_DISP && (
+          <button type="button" onClick={() => setVerDisponibles((v) => !v)} className="text-[12.5px] font-semibold text-teal">
+            {verDisponibles ? 'Ver menos' : `+${disponibles.length - MAX_DISP} más`}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
+  // --- Vista por servicio ---
+  const COLS = 'grid grid-cols-[64px_minmax(0,1.6fr)_minmax(0,1.3fr)_150px_150px_110px_28px] gap-4 items-center';
+  const vistaServicio = (
+    <>
+      {bloqueDisponibles}
+      {filtro !== 'sin' && (
+        <div className="rounded-2xl bg-surface border border-line overflow-hidden">
+          <div className={`${COLS} px-4 py-2.5 border-b border-line bg-surface-2/60 text-[11px] font-semibold uppercase tracking-wider text-muted`}>
+            <span>Hora</span><span>Servicio</span><span>Técnicos</span><span>Estado</span><span>Tiempos</span><span>Reporte</span><span />
+          </div>
+          {grupos.every((g) => g.items.length === 0) && (
+            <p className="text-[13.5px] text-muted text-center py-10">{servicios.length === 0 ? 'No hay servicios este día.' : 'Nada coincide con la búsqueda o el filtro.'}</p>
+          )}
+          {grupos.filter((g) => g.items.length > 0).map((g) => (
+            <div key={g.k}>
+              <button type="button" onClick={() => plegar(g.k)}
+                className="w-full flex items-center gap-2 px-4 py-2 bg-bg/60 border-b border-line text-left">
+                <ChevronDown size={14} className={`text-muted transition-transform ${plegados.has(g.k) ? '-rotate-90' : ''}`} />
+                <span className={`text-[12.5px] font-bold ${g.tono}`}>{g.titulo}</span>
+                <span className="text-[12px] text-muted">{g.items.length}</span>
+              </button>
+              {!plegados.has(g.k) && g.items.map((sv) => {
+                const est = estadoGlobal(sv);
+                const alerta = g.k === 'atencion';
+                const atraso = llegadaAtrasada(sv, hoy, minutos, fecha);
+                const open = abierto === sv.id;
+                return (
+                  <div key={sv.id} className={`border-b border-line last:border-b-0 ${open ? 'bg-surface-2/40' : ''}`}>
+                    <button type="button" onClick={() => setAbierto(open ? null : sv.id)}
+                      className={`${COLS} w-full px-4 py-3 text-left hover:bg-surface-2/50 transition-colors`}>
+                      <span className="text-[13px] tabular-nums font-semibold">{horaCorta(sv.hora_programada) || '—'}</span>
+                      <span className="min-w-0">
+                        <span className="flex items-center gap-1.5">
+                          {alerta && <AlertTriangle size={13} className="text-red shrink-0" />}
+                          <span className="text-[14px] font-semibold truncate">{sv.proyecto}</span>
+                        </span>
+                        <span className="block text-[12px] text-muted truncate">
+                          {sv.dias_totales > 1 ? `Día ${sv.numero_dia} de ${sv.dias_totales}` : 'Un día'}
+                          {sv.avisosPendientes.length > 0 && <span className="text-red font-semibold"> · {sv.avisosPendientes.length} aviso(s)</span>}
+                          {atraso > 0 && <span className="text-red font-semibold"> · {duracion(atraso)} tarde</span>}
+                        </span>
+                      </span>
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span className="flex -space-x-2 shrink-0">
+                          {sv.asignados.slice(0, 4).map((a) => (
+                            <span key={a.tecnico_id} className="rounded-full ring-2 ring-surface"><AvatarTecnico nombre={a.nombre} size={26} indice={indiceTec(a.tecnico_id)} /></span>
+                          ))}
+                        </span>
+                        <span className="text-[12.5px] text-ink/80 truncate">
+                          {sv.asignados.length === 0 ? 'Sin asignar' : sv.asignados.map((a) => nombreCorto(a.nombre)).join(', ')}
+                        </span>
+                      </span>
+                      <span><span className={`text-[11.5px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${est.cls}`}>{est.texto}</span></span>
+                      <span className="text-[12px] tabular-nums text-muted leading-tight">
+                        {sv.hora_llegada ? <>Llegó {hora(sv.hora_llegada)}</> : '—'}
+                        {sv.hora_fin && <><br />Fin {hora(sv.hora_fin)}</>}
+                      </span>
+                      <span>
+                        {sv.report_id ? <span className="text-[11.5px] font-semibold text-teal flex items-center gap-1"><FileText size={13} /> Listo</span>
+                          : sv.estado === 'concluido' ? <span className="text-[11.5px] font-semibold text-red">Falta</span>
+                          : <span className="text-[12px] text-faint">—</span>}
+                      </span>
+                      <ChevronDown size={16} className={`text-faint transition-transform ${open ? 'rotate-180' : ''}`} />
+                    </button>
+                    {open && (
+                      <div className="px-4 pb-4 grid grid-cols-2 xl:grid-cols-3 gap-3">
+                        {sv.asignados.length === 0 && <p className="text-[13px] text-muted">Este servicio no tiene técnico asignado.</p>}
+                        {sv.asignados.map((a) => (
+                          <div key={a.tecnico_id} className="rounded-xl bg-surface border border-line pt-2.5">
+                            <div className="flex items-center gap-2 px-3 mb-1">
+                              <AvatarTecnico nombre={a.nombre} size={26} indice={indiceTec(a.tecnico_id)} />
+                              <span className="text-[13px] font-semibold truncate">{a.nombre}</span>
+                            </div>
+                            <div className="[&>div]:pl-3">
+                              <DetalleServicio s={sv} tecnicoId={a.tecnico_id} hoy={hoy} minutos={minutos} fecha={fecha} onCambio={() => onCambio(sv)} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+
+  // --- Vista por técnico: lista + detalle ---
+  const vistaTecnico = (
+    <div className="grid grid-cols-[320px_minmax(0,1fr)] gap-4 items-start">
+      <div className="rounded-2xl bg-surface border border-line overflow-hidden lg:sticky lg:top-[150px]">
+        <div className="max-h-[calc(100vh-190px)] overflow-y-auto divide-y divide-line">
+          {tecnicosLista.length === 0 && <p className="text-[13px] text-muted p-4">Nadie coincide.</p>}
+          {tecnicosLista.map((f) => {
+            const activo = tecActual?.id === f.id;
+            const enCurso = f.servicios.find((s) => s.estado === 'en_sitio' || s.estado === 'en_curso');
+            const resumen = f.servicios.length === 0 ? 'Disponible'
+              : enCurso ? `${enCurso.estado === 'en_curso' ? 'En curso' : 'En sitio'} · ${enCurso.proyecto}`
+              : `${f.servicios.length} servicio${f.servicios.length > 1 ? 's' : ''} · ${f.servicios.filter((s) => s.estado === 'concluido').length} concluido(s)`;
+            return (
+              <button key={f.id} type="button" onClick={() => setTecSel(f.id)}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 text-left transition-colors ${activo ? 'bg-teal/10' : 'hover:bg-surface-2/60'}`}>
+                <AvatarTecnico nombre={f.nombre} size={34} estado={estadoTecnico(f)} indice={indiceTec(f.id)} />
+                <span className="min-w-0 flex-1">
+                  <span className={`block text-[13.5px] truncate ${activo ? 'font-bold text-teal' : 'font-semibold'}`}>{f.nombre}</span>
+                  <span className={`block text-[12px] truncate ${f.servicios.length === 0 ? 'text-faint' : 'text-muted'}`}>{resumen}</span>
+                </span>
+                {f.servicios.length > 0 && <span className="text-[11.5px] font-bold tabular-nums w-6 h-6 rounded-full bg-surface-2 flex items-center justify-center shrink-0">{f.servicios.length}</span>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div className="rounded-2xl bg-surface border border-line p-5 min-h-[240px]">
+        {!tecActual ? (
+          <p className="text-[13.5px] text-muted text-center py-10">Elige un técnico.</p>
+        ) : (
+          <>
+            <div className="flex items-center gap-3 mb-4">
+              <AvatarTecnico nombre={tecActual.nombre} size={48} estado={estadoTecnico(tecActual)} indice={indiceTec(tecActual.id)} />
+              <div className="min-w-0 flex-1">
+                <p className="font-display font-bold text-[20px] leading-tight truncate">{tecActual.nombre}</p>
+                <p className="text-[13px] text-muted">{tecActual.servicios.length === 0 ? 'Sin servicio este día' : `${tecActual.servicios.length} servicio(s) este día`}</p>
+              </div>
+              <button type="button" onClick={() => pedirAsignar([tecActual.id])}
+                className="h-10 px-4 rounded-full bg-teal/12 text-teal text-[13px] font-semibold flex items-center gap-1.5 hover:bg-teal/20">
+                <Plus size={15} /> Asignar servicio
+              </button>
+            </div>
+            {tecActual.servicios.length === 0 ? (
+              <p className="text-[13.5px] text-muted rounded-xl border border-dashed border-line-strong px-4 py-6 text-center">Disponible: no tiene servicios asignados.</p>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {tecActual.servicios.map((sv) => {
+                  const e = estadoServicio(sv, tecActual.id);
+                  return (
+                    <div key={sv.id} className={`rounded-xl border pt-3 ${alertaDe(sv, tecActual.id) ? 'border-red/40' : 'border-line'}`}>
+                      <div className="flex items-center gap-3 px-4">
+                        <span className="text-[13px] tabular-nums font-semibold w-12 shrink-0">{horaCorta(sv.hora_programada) || '—'}</span>
+                        <span className="flex-1 min-w-0 text-[15px] font-semibold truncate">{sv.proyecto}</span>
+                        <span className={`text-[11.5px] font-semibold px-2.5 py-1 rounded-full shrink-0 ${e.cls}`}>{e.corto}</span>
+                      </div>
+                      <div className="[&>div]:pl-[76px] [&>div]:pt-1">
+                        <DetalleServicio s={sv} tecnicoId={tecActual.id} hoy={hoy} minutos={minutos} fecha={fecha} onCambio={() => onCambio(sv)} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      {barra}
+      {vista === 'servicio' ? vistaServicio : vistaTecnico}
+    </div>
   );
 }
