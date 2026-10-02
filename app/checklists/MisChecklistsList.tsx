@@ -6,13 +6,15 @@ import Link from 'next/link';
 import ThemeToggle from '@/components/ThemeToggle';
 import LogoutButton from '@/components/LogoutButton';
 import TecnicoTabs from '@/components/TecnicoTabs';
+import SubTabs from '@/components/SubTabs';
+import Vales from '@/components/vales/Vales';
 import InsumosChecklist from '@/components/InsumosChecklist';
 import ModalOverlay from '@/components/ModalOverlay';
 import Logo from '@/components/Logo';
 import { listarMisChecklists, MiChecklist } from '@/lib/insumos';
 import {
   X, ChevronRight, PackageCheck, PackageX, Wrench, Package, HardHat,
-  PackagePlus, Clock, Check,
+  PackagePlus, Clock, Check, ClipboardList,
 } from 'lucide-react';
 
 function fmtFecha(fecha: string): string {
@@ -34,6 +36,7 @@ export default function MisChecklistsList({ userName }: { userName?: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [abierto, setAbierto] = useState<MiChecklist | null>(null);
+  const [sub, setSub] = useState<'vales' | 'listas'>('vales');
 
   async function cargar() {
     try {
@@ -68,6 +71,19 @@ export default function MisChecklistsList({ userName }: { userName?: string }) {
       <div className="px-4 pt-5">
         <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-wide mb-1">Herramienta y material</h1>
         <p className="text-[15px] text-muted font-medium mb-4">{userName || 'Técnico'}</p>
+
+        <SubTabs
+          activa={sub}
+          onCambiar={setSub}
+          opciones={[
+            { k: 'vales', label: 'Vales de almacén', Icono: ClipboardList },
+            { k: 'listas', label: 'Listas de carga', Icono: PackageCheck },
+          ]}
+        />
+
+        {sub === 'vales' && <Vales modo="tecnico" />}
+
+        {sub === 'listas' && (<>
 
 
         {loading && (
@@ -139,6 +155,7 @@ export default function MisChecklistsList({ userName }: { userName?: string }) {
             );
           })}
         </div>
+        </>)}
       </div>
 
       {abierto && (

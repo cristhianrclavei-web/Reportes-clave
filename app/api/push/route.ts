@@ -25,6 +25,7 @@ const TIPOS_VALIDOS = new Set([
   'confirmacion_devolucion',
   'servicio_confirmado',
   'reporte_pendiente',
+  'vale_almacen',
   'general',
 ]);
 

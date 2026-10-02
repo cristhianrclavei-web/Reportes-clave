@@ -110,9 +110,47 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Vales de almacén con plazo vencido (solo en la mañana): al técnico que
+  // los tiene y un resumen al almacén.
+  let valesVencidos = 0;
+  if (momento === 'manana') {
+    const { data: vencidos } = await admin
+      .from('almacen_vales')
+      .select('id, folio, tecnico_id, cliente_nombre, fecha_limite, profiles!almacen_vales_tecnico_id_fkey(full_name)')
+      .in('estado', ['en_uso', 'por_firmar'])
+      .lt('fecha_limite', new Date().toISOString());
+    const lista = (vencidos as any[]) || [];
+    valesVencidos = lista.length;
+    const porTec = new Map<string, any[]>();
+    for (const v of lista) porTec.set(v.tecnico_id, [...(porTec.get(v.tecnico_id) || []), v]);
+    for (const [tecId, vs] of porTec) {
+      const carga = JSON.stringify({
+        titulo: vs.length === 1 ? `Vale ${vs[0].folio} vencido` : `${vs.length} vales de almacén vencidos`,
+        cuerpo: 'Devuelve lo del almacén o pide más días desde la app.',
+        url: '/checklists',
+        tag: 'vales-vencidos',
+      });
+      const r = await avisarUsuarios(admin, [tecId], 'vale_almacen', carga);
+      caducadas.push(...r.caducadas);
+    }
+    if (lista.length > 0) {
+      const { data: alm } = await admin.rpc('destinatarios_notificacion_tipo', { p_destino: 'almacen', p_tipo: 'vale_almacen' });
+      const ids = ((alm as any[]) || []).map((r) => (typeof r === 'string' ? r : r.destinatarios_notificacion_tipo));
+      const nombres = [...new Set(lista.map((v) => (Array.isArray(v.profiles) ? v.profiles[0]?.full_name : v.profiles?.full_name)?.split(' ')[0] || 'Técnico'))];
+      const carga = JSON.stringify({
+        titulo: `${lista.length} vale(s) de almacén vencidos`,
+        cuerpo: `Fuera del almacén con plazo vencido: ${nombres.join(', ')}.`,
+        url: '/dashboard/almacen?sub=vales',
+        tag: 'vales-vencidos-almacen',
+      });
+      const r = await avisarUsuarios(admin, ids, 'vale_almacen', carga);
+      caducadas.push(...r.caducadas);
+    }
+  }
+
   if (caducadas.length > 0) {
     await admin.from('push_suscripciones').delete().in('endpoint', caducadas);
   }
 
-  return NextResponse.json({ enviadas, tecnicos: porTecnico.size, escalados, limpiadas: caducadas.length });
+  return NextResponse.json({ enviadas, tecnicos: porTecnico.size, escalados, valesVencidos, limpiadas: caducadas.length });
 }

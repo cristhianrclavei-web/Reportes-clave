@@ -3,6 +3,7 @@
 import { coincideBusqueda } from '@/lib/busqueda';
 import { BotonNuevo } from '@/components/AccionPrincipal';
 import SubTabs from '@/components/SubTabs';
+import Vales from '@/components/vales/Vales';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import SupervisorShell from '@/components/SupervisorShell';
@@ -19,7 +20,7 @@ import {
 import EntradaAlmacenWizard, { ModalNuevoArticulo } from '@/components/almacen/EntradaAlmacenWizard';
 import {
   Plus, FileText, ScrollText, Wrench, Package, HardHat,
-  Trash2, Boxes, ArrowLeftRight, ArrowDown, ArrowUp, RotateCcw, AlertTriangle, LayoutGrid, Search,
+  Trash2, Boxes, ArrowLeftRight, ArrowDown, ArrowUp, RotateCcw, AlertTriangle, LayoutGrid, Search, ClipboardList,
 } from 'lucide-react';
 
 const ICONO: Record<CategoriaInsumo, any> = { herramienta: Wrench, material: Package, equipo: HardHat };
@@ -30,7 +31,12 @@ function fmtFecha(iso: string | null): string {
 }
 
 export default function AlmacenList({ userName }: { userName?: string }) {
-  const [seccion, setSeccion] = useState<'existencias' | 'entrada' | 'movimientos' | 'catalogo' | 'sistemas'>('existencias');
+  const [seccion, setSeccion] = useState<'vales' | 'existencias' | 'entrada' | 'movimientos' | 'catalogo' | 'sistemas'>('vales');
+  // Enlace desde los avisos: ?sub=vales|existencias…
+  useEffect(() => {
+    const sub = new URLSearchParams(window.location.search).get('sub');
+    if (sub === 'existencias' || sub === 'movimientos' || sub === 'catalogo' || sub === 'sistemas' || sub === 'vales') setSeccion(sub);
+  }, []);
   const [movimientos, setMovimientos] = useState<MovimientoDetallado[]>([]);
   const [existencias, setExistencias] = useState<Existencia[]>([]);
   const [articulos, setArticulos] = useState<Articulo[]>([]);
@@ -121,6 +127,7 @@ export default function AlmacenList({ userName }: { userName?: string }) {
             activa={seccion}
             onCambiar={setSeccion}
             opciones={[
+              { k: 'vales', label: 'Vales', Icono: ClipboardList },
               { k: 'existencias', label: 'Existencias', Icono: Boxes },
               { k: 'movimientos', label: 'Movimientos', Icono: ArrowLeftRight },
               { k: 'catalogo', label: 'Catálogo', Icono: ScrollText },
@@ -137,7 +144,7 @@ export default function AlmacenList({ userName }: { userName?: string }) {
           </div>
         )}
 
-        {loading && (
+        {loading && seccion !== 'vales' && (
           <div className="flex flex-col gap-2.5" aria-busy="true">
             {[0, 1, 2, 3].map((i) => (
               <div key={i} className="rounded-2xl bg-surface border border-line p-4 flex items-center gap-3">
@@ -148,6 +155,8 @@ export default function AlmacenList({ userName }: { userName?: string }) {
             ))}
           </div>
         )}
+
+        {seccion === 'vales' && <Vales modo="almacen" />}
 
         {/* --- Existencias --- */}
         {!loading && seccion === 'existencias' && (

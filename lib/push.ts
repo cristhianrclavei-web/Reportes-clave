@@ -156,7 +156,8 @@ export type TipoAviso =
   | 'servicio_sin_confirmar'
   | 'recordatorio_confirmar_servicio'
   | 'firma_cliente'
-  | 'reportes_atrasados';
+  | 'reportes_atrasados'
+  | 'vale_almacen';
 
 export const TIPOS_AVISO: { valor: TipoAviso; label: string; detalle: string; paraTecnico?: boolean }[] = [
   { valor: 'aviso_servicio', label: 'Avisos sobre días programados', detalle: 'Cuando un técnico avisa que un día no se va a poder' },
@@ -169,6 +170,7 @@ export const TIPOS_AVISO: { valor: TipoAviso; label: string; detalle: string; pa
   { valor: 'confirmacion_devolucion', label: 'Confirmación de tu devolución', detalle: 'Cuando almacén confirma que recibió lo que devolviste', paraTecnico: true },
   { valor: 'correccion_solicitada', label: 'Correcciones de reportes', detalle: 'Cuando un técnico pide corregir un reporte' },
   { valor: 'firma_cliente', label: 'Firmas del cliente a distancia', detalle: 'Cuando un cliente firma un reporte desde el enlace que le mandaste', paraTecnico: true },
+  { valor: 'vale_almacen', label: 'Vales de almacén', detalle: 'Pedidos, entregas, devoluciones y plazos de herramienta y material', paraTecnico: true },
   { valor: 'reportes_atrasados', label: 'Reportes atrasados', detalle: 'A las 9:00, si un técnico acumula 2 días o más sin reporte ni justificación' },
   { valor: 'reporte_nuevo', label: 'Reportes concluidos', detalle: 'Cuando se guarda un reporte de servicio' },
   { valor: 'cierre_servicio', label: 'Cierre de servicios', detalle: 'Cuando un técnico termina un servicio' },
