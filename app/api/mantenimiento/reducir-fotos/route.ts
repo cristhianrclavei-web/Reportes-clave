@@ -10,8 +10,8 @@ export const maxDuration = 300;
 // subidas a tamaño completo, igual que hoy se reducen al subirlas (lado
 // mayor 1600 px, JPEG 82). Reemplaza el archivo en el mismo path, así que
 // los reportes siguen apuntando a la misma foto. Autorizado por Cristhian
-// sabiendo que los originales no se recuperan. Solo quien administra
-// usuarios. Se borra al terminar.
+// sabiendo que los originales no se recuperan. Solo supervisores. Se borra
+// al terminar.
 
 const UMBRAL = 600 * 1024;
 
@@ -37,8 +37,8 @@ export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Sin sesión' }, { status: 401 });
-  const { data: gestor } = await supabase.rpc('puede_gestionar_usuarios');
-  if (!gestor) return NextResponse.json({ error: 'Solo quien administra usuarios' }, { status: 403 });
+  const { data: rol } = await supabase.rpc('get_my_role');
+  if (rol !== 'supervisor') return NextResponse.json({ error: 'Solo supervisores' }, { status: 403 });
   if (!hayClienteAdmin()) return NextResponse.json({ error: 'Sin llave de servicio' }, { status: 500 });
 
   const limite = Math.min(Number(request.nextUrl.searchParams.get('limite') || 15), 40);
