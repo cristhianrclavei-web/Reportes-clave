@@ -1,3 +1,4 @@
+import { tuberiasDe, cablesDe, soporteriaDe, cantidadTexto } from './materialesReporte';
 import ExcelJS from 'exceljs';
 import { REPORT_TEMPLATE_XLSX_BASE64 } from './reportTemplateBase64';
 import { MARCA, MARCA_MAYUS } from './marca';
@@ -137,16 +138,23 @@ export async function generateReportXlsx(report: ReportRow): Promise<Buffer> {
   }
 
   // ---------- Tubería ----------
+  // La plantilla tiene un renglón para Roscada, Ajuste y Ranurada; los demás
+  // tipos (conduit, PVC, flexible…) se juntan en el de «Otra».
   const tuberiaRowMap: Record<string, number> = { Roscada: 23, Ajuste: 24, Ranurada: 25, Otra: 26 };
-  const tuberiaData: Record<string, { medida: string; metros: string; especifica?: string }> = data.tuberia || {};
-  Object.entries(tuberiaData).forEach(([tipo, v]) => {
-    const row = tuberiaRowMap[tipo];
-    if (!row) return;
-    if (tipo === 'Otra') {
-      setValueShrinkToFit(sheet.getCell(`B${row}`), v.especifica ? `Otra: ${v.especifica}` : 'Otra', 12, 9, 6);
-    }
-    if (v.medida) setValueShrinkToFit(sheet.getCell(`D${row}`), v.medida, 12, 9, 6);
-    if (v.metros) setValueShrinkToFit(sheet.getCell(`E${row}`), v.metros, 12, 9, 6);
+  const porRenglon = new Map<number, { otros: string[]; medidas: string[]; cantidades: string[] }>();
+  for (const t of tuberiasDe(data)) {
+    const row = tuberiaRowMap[t.tipo] && t.tipo !== 'Otra' ? tuberiaRowMap[t.tipo] : 26;
+    const g = porRenglon.get(row) || { otros: [], medidas: [], cantidades: [] };
+    if (row === 26) g.otros.push(t.articulo || (t.tipo === 'Otra' ? t.especifica || 'Otra' : t.tipo) || 'Otra');
+    if (t.medida) g.medidas.push(t.medida);
+    const c = cantidadTexto(t.cantidad, t.unidad);
+    if (c !== '—') g.cantidades.push(c);
+    porRenglon.set(row, g);
+  }
+  porRenglon.forEach((g, row) => {
+    if (row === 26 && g.otros.length) setValueShrinkToFit(sheet.getCell(`B${row}`), `Otra: ${[...new Set(g.otros)].join(', ')}`, 12, 9, 6);
+    if (g.medidas.length) setValueShrinkToFit(sheet.getCell(`D${row}`), [...new Set(g.medidas)].join(', '), 12, 9, 6);
+    if (g.cantidades.length) setValueShrinkToFit(sheet.getCell(`E${row}`), g.cantidades.join(' + '), 12, 9, 6);
   });
 
   // ---------- Sistema de seguridad (resaltar seleccionados + texto "Otra") ----------
@@ -166,13 +174,14 @@ export async function generateReportXlsx(report: ReportRow): Promise<Buffer> {
   }
 
   // ---------- Cable instalado (hasta 2, según el espacio de la plantilla) ----------
-  const cablesList: any[] = data.cables && data.cables.length > 0 ? data.cables : [data.cable1, data.cable2].filter(Boolean);
-  function writeCable(cable: { tipo?: string; calibre?: string; metros?: string } | null, colStart: string) {
+  const cablesList = cablesDe(data);
+  function writeCable(cable: { tipo: string; calibre: string; cantidad: string; unidad: string } | null, colStart: string, extra = 0) {
     if (!cable) return;
+    const cant = cantidadTexto(cable.cantidad, cable.unidad);
     const rowMap: [string, string | undefined][] = [
-      ['29', cable.tipo],
+      ['29', extra ? `${cable.tipo} (+${extra} más en la app)` : cable.tipo],
       ['30', cable.calibre],
-      ['31', cable.metros],
+      ['31', cant === '—' ? '' : cant],
     ];
     const colEnd = colStart === 'B' ? 'D' : 'G';
     rowMap.forEach(([row, value]) => {
@@ -182,10 +191,15 @@ export async function generateReportXlsx(report: ReportRow): Promise<Buffer> {
     });
   }
   writeCable(cablesList[0] || null, 'B');
-  writeCable(cablesList[1] || null, 'F');
+  writeCable(cablesList[1] || null, 'F', Math.max(0, cablesList.length - 2));
 
   // ---------- Montaje de soportería y equipo (hasta 8 filas, 34-41) ----------
-  const equipos: any[] = data.equipos || [];
+  // En la plantilla soportería y equipo comparten tabla: primero el equipo y
+  // después la soportería y fijación.
+  const equipos: any[] = [
+    ...(data.equipos || []),
+    ...soporteriaDe(data).map((x) => ({ cant: x.cantidad ? cantidadTexto(x.cantidad, x.unidad) : '', desc: [x.articulo || x.desc, x.medida].filter(Boolean).join(' '), modelo: '', marca: '', serie: '' })),
+  ];
   const eqStartRow = 34;
   const eqMaxRows = 8;
   equipos.slice(0, eqMaxRows).forEach((eq, i) => {

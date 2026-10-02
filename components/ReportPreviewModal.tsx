@@ -1,4 +1,5 @@
 'use client';
+import { tuberiasDe, cablesDe, soporteriaDe, textoTuberia, textoCable, textoSoporteria } from '@/lib/materialesReporte';
 import { X } from 'lucide-react';
 import { ResumenFormatos } from './FormatoMantenimiento';
 
@@ -102,17 +103,9 @@ export default function ReportPreviewModal({ preview, onClose }: { preview: Prev
               .join(', ')}
           />
           <Detail label="Observaciones" value={data.observaciones} />
-          {data.tuberia && Object.keys(data.tuberia).length > 0 && (
-            <Detail
-              label="Tubería"
-              value={Object.entries(data.tuberia as Record<string, { medida: string; metros: string; especifica?: string }>)
-                .map(([t, v]) => `${t}${t === 'Otra' && v.especifica ? ` (${v.especifica})` : ''}: ${v.medida || '—'} · ${v.metros || '—'} m`)
-                .join(' / ')}
-            />
-          )}
-          {(data.cables || []).map((c: any, i: number) => (
-            <Detail key={i} label={`Cable ${i + 1}`} value={`${c.tipo || '—'} / cal. ${c.calibre || '—'} / ${c.metros || '—'} m`} />
-          ))}
+          {tuberiasDe(data).length > 0 && <Detail label="Tubería" value={tuberiasDe(data).map(textoTuberia).join(' / ')} />}
+          {cablesDe(data).length > 0 && <Detail label="Cable instalado" value={cablesDe(data).map(textoCable).join(' / ')} />}
+          {soporteriaDe(data).length > 0 && <Detail label="Soportería y fijación" value={soporteriaDe(data).map(textoSoporteria).join(' / ')} />}
         </div>
 
         {(data.equipos || []).length > 0 && (

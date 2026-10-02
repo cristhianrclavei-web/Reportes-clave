@@ -1,3 +1,4 @@
+import { tuberiasDe, cablesDe, soporteriaDe, textoTuberia, textoCable, textoSoporteria } from './materialesReporte';
 import { PDFDocument, rgb } from 'pdf-lib';
 import { comprimirFoto } from './pdfFotos';
 import {
@@ -220,14 +221,14 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
   }
 
   // ================= TUBERÍA + SISTEMA DE SEGURIDAD =================
-  const tuberiaData: Record<string, { medida: string; metros: string; especifica?: string }> = data.tuberia || {};
-  const tuberiaTypes = ['Roscada', 'Ajuste', 'Ranurada', 'Otra'];
+  // Tubería: formato nuevo (lista) o viejo (por tipo), ver lib/materialesReporte.
+  const tuberiaLineas = tuberiasDe(data).map((t) => wrapText(textoTuberia(t), font, 8.5, contentW * 0.4 - 16));
   const segSelected: string[] = (data.sistemaSeguridad || []).map((s: string) => s.replace('Alarma&Det', 'Alarma & Det.'));
 
   const tsLeftW = contentW * 0.4;
   const tsRightW = contentW - tsLeftW - 12;
   const tsRightX = MARGIN + tsLeftW + 12;
-  const tubH = 18 + tuberiaTypes.length * 13 + 10;
+  const tubH = 18 + Math.max(1, tuberiaLineas.reduce((n, l) => n + l.length, 0)) * 13 + 10;
   const segH = 18 + SEG_OPTIONS.length * 14 + 8 + (segSelected.includes('Otra') && data.seguridadOtraTexto ? 13 : 0);
   const tsRowH = Math.max(tubH, segH);
 
@@ -235,12 +236,15 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
   const tsTop = y;
   boxBorder(MARGIN, tsTop, tsLeftW, tsRowH);
   boxTitle(MARGIN, tsLeftW, tsTop, 18, 'Tubería');
-  let ty = tsTop - 18 - 11;
-  tuberiaTypes.forEach((t) => {
-    const v = tuberiaData[t];
-    const label = t === 'Otra' && v?.especifica ? `Otra (${v.especifica})` : t;
-    checkbox(MARGIN + 8, ty - 6, !!v, v ? `${label}: Medida ${v.medida || '—'} · Metros ${v.metros || '—'}` : label);
-    ty -= 13;
+  let ty = tsTop - 18 - 13;
+  if (tuberiaLineas.length === 0) {
+    page.drawText('Sin tubería', { x: MARGIN + 8, y: ty, size: 8.5, font, color: GRAY_TEXT });
+  }
+  tuberiaLineas.forEach((lineas) => {
+    lineas.forEach((l, k) => {
+      page.drawText(`${k === 0 ? '• ' : '  '}${l}`, { x: MARGIN + 8, y: ty, size: 8.5, font, color: NAVY });
+      ty -= 13;
+    });
   });
 
   boxBorder(tsRightX, tsTop, tsRightW, tsRowH);
@@ -255,30 +259,27 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
   }
   y = tsTop - tsRowH - 10;
 
-  // ================= CABLE INSTALADO =================
-  const cablesList: any[] = data.cables && data.cables.length > 0 ? data.cables : [data.cable1, data.cable2].filter(Boolean);
-  if (cablesList.length > 0) {
-    const halfW = (contentW - 10) / 2;
-    const cableRowH = 18 + 13 * 3 + 8;
-    for (let i = 0; i < cablesList.length; i += 2) {
-      const pair = cablesList.slice(i, i + 2);
-      ensureSpace(cableRowH + 10);
-      const cableTop = y;
-      pair.forEach((d, j) => {
-        const x = MARGIN + j * (halfW + 10);
-        boxBorder(x, cableTop, halfW, cableRowH);
-        boxTitle(x, halfW, cableTop, 18, `Cable ${i + j + 1}`);
-        let cy = cableTop - 18 - 11;
-        [['Tipo', d?.tipo], ['Calibre', d?.calibre], ['Metros', d?.metros]].forEach(([label, value]) => {
-          page.drawText(`${label}: ${value || '—'}`, { x: x + 8, y: cy, size: 8.5, font, color: NAVY });
-          cy -= 13;
-        });
-      });
-      y = cableTop - cableRowH - 10;
-    }
-  }
+  // ================= CABLE INSTALADO / SOPORTERÍA Y FIJACIÓN =================
+  // Cuadro con un renglón por material (viñeta y texto ajustado al ancho).
+  const cuadroLista = (titulo: string, textos: string[]) => {
+    if (textos.length === 0) return;
+    const lineas = textos.map((t) => wrapText(t, font, 8.5, contentW - 24));
+    const h = 18 + lineas.reduce((n, l) => n + l.length, 0) * 13 + 10;
+    ensureSpace(h + 10);
+    const top = y;
+    boxBorder(MARGIN, top, contentW, h);
+    boxTitle(MARGIN, contentW, top, 18, titulo);
+    let ly = top - 18 - 13;
+    lineas.forEach((ls) => ls.forEach((l, k) => {
+      page.drawText(`${k === 0 ? '• ' : '  '}${l}`, { x: MARGIN + 8, y: ly, size: 8.5, font, color: NAVY });
+      ly -= 13;
+    }));
+    y = top - h - 10;
+  };
+  cuadroLista('Cable instalado', cablesDe(data).map(textoCable));
+  cuadroLista('Montaje de soportería y fijación', soporteriaDe(data).map(textoSoporteria));
 
-  // ================= MONTAJE DE SOPORTERÍA Y EQUIPO =================
+  // ================= MONTAJE DE EQUIPO =================
   const equipos: any[] = data.equipos || [];
   const eqCols = [
     { label: 'CANT.', key: 'cant', w: 0.09 },
@@ -293,7 +294,8 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
   ensureSpace(eqH + 10);
   const eqTop = y;
   boxBorder(MARGIN, eqTop, contentW, eqH);
-  boxTitle(MARGIN, contentW, eqTop, 18, 'Montaje de soportería y equipo');
+  // Reportes viejos (sin sección de soportería) traían todo junto aquí.
+  boxTitle(MARGIN, contentW, eqTop, 18, Array.isArray(data.soporteria) ? 'Montaje de equipo' : 'Montaje de soportería y equipo');
   let cx = MARGIN;
   const headerRowY = eqTop - 18;
   eqCols.forEach((c) => {

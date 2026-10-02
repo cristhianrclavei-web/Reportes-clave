@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Check, AlertTriangle, X } from 'lucide-react';
 import { coincideBusqueda } from '@/lib/busqueda';
+import { soloNumero } from '@/lib/materialesReporte';
 
 // Renglón de «Montaje de soportería y equipo» en el reporte. Al escribir la
 // descripción sugiere artículos del almacén; elegir uno llena marca y modelo
@@ -50,7 +51,7 @@ export default function EquipoInstaladoRenglon({
   return (
     <div className="mb-3">
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-        <input placeholder="Cant." className={inputCls} value={eq.cant} onChange={(e) => cambiar('cant', e.target.value)} />
+        <input placeholder="Cant." inputMode="decimal" className={`${inputCls} text-center tabular-nums`} value={eq.cant} onChange={(e) => cambiar('cant', soloNumero(e.target.value))} />
         <div className="relative col-span-1">
           <input
             placeholder="Descripción"

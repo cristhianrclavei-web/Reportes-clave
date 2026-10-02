@@ -32,6 +32,9 @@ import EtiquetasMantenimiento from '@/components/EtiquetasMantenimiento';
 import { guardarCamposBorrador, guardarFotosBorrador, leerBorrador, borrarBorrador } from '@/lib/borradorReporte';
 import EquipoInstaladoRenglon, { EquipoFila, ArticuloCatalogo } from '@/components/EquipoInstaladoRenglon';
 import { sinRegistroDeReporte } from '@/lib/equiposInstalados';
+import { FilaTuberia, FilaCable, FilaSoporteria, tuberiasDe, cablesDe, soporteriaDe } from '@/lib/materialesReporte';
+import { SeccionTuberia, SeccionCable, SeccionSoporteria, tuberiaVacia, cableVacio, soporteriaVacia } from '@/components/reporte/MaterialesReporte';
+import TraerDelVale from '@/components/reporte/TraerDelVale';
 
 // Hora "HH:mm" del reloj del dispositivo — igual al formato que ya entrega
 // el <input type="time">, así que sirve tal cual como valor de respaldo.
@@ -242,14 +245,11 @@ export default function NuevoReportePage() {
   const [tipoServicioOtroTexto, setTipoServicioOtroTexto] = useState('');
   const [seguridad, setSeguridad] = useState<string[]>([]);
   const [seguridadOtraTexto, setSeguridadOtraTexto] = useState('');
-  const TUBERIA_TYPES = ['Roscada', 'Ajuste', 'Ranurada', 'Otra'] as const;
-  const [tuberia, setTuberia] = useState<Record<string, { active: boolean; medida: string; metros: string; especifica: string }>>({
-    Roscada: { active: false, medida: '', metros: '', especifica: '' },
-    Ajuste: { active: false, medida: '', metros: '', especifica: '' },
-    Ranurada: { active: false, medida: '', metros: '', especifica: '' },
-    Otra: { active: false, medida: '', metros: '', especifica: '' },
-  });
-  const [cables, setCables] = useState([{ tipo: '', calibre: '', metros: '' }]);
+  // Materiales: listas con cantidad numérica y unidad, ligables al almacén
+  // (lib/materialesReporte.ts lee también el formato de reportes viejos).
+  const [tuberias, setTuberias] = useState<FilaTuberia[]>([tuberiaVacia()]);
+  const [cables, setCables] = useState<FilaCable[]>([cableVacio()]);
+  const [soporteria, setSoporteria] = useState<FilaSoporteria[]>([soporteriaVacia()]);
   const [observaciones, setObservaciones] = useState('');
   const [actividades, setActividades] = useState<string[]>(['']);
   const [showCaso, setShowCaso] = useState(false);
@@ -331,7 +331,7 @@ export default function NuevoReportePage() {
     empresaCliente, clienteId, contactosCliente, servicioSeleccionadoId, personalAsignado, fecha, ordCompra,
     horaLlegada, horaSalida, listaConceptos, contactoUsuario, puestoArea, vehiculo, placas, vehiculoOtro,
     manejadoPor, ingACargo, personalAdicional, tipoServicio, subTipo, tipoServicioOtroTexto, seguridad,
-    seguridadOtraTexto, tuberia, cables, observaciones, actividades, showCaso, casoPuntos, equipos,
+    seguridadOtraTexto, tuberias, cables, soporteria, observaciones, actividades, showCaso, casoPuntos, equipos,
     firmaIngNombre, firmaClienteNombre, servicioConcluido, paso, usaFormato, formatos, fotosServicio,
     firmaIngData, firmaClienteData,
     clienteAusente, motivoAusente, recibioNombre, recibioPuesto, recibioFirma,
@@ -351,7 +351,11 @@ export default function NuevoReportePage() {
     set(setVehiculo, c.vehiculo); set(setPlacas, c.placas); set(setVehiculoOtro, c.vehiculoOtro); set(setManejadoPor, c.manejadoPor);
     set(setIngACargo, c.ingACargo); set(setPersonalAdicional, c.personalAdicional); set(setTipoServicio, c.tipoServicio);
     set(setSubTipo, c.subTipo); set(setTipoServicioOtroTexto, c.tipoServicioOtroTexto); set(setSeguridad, c.seguridad);
-    set(setSeguridadOtraTexto, c.seguridadOtraTexto); set(setTuberia, c.tuberia); set(setCables, c.cables);
+    set(setSeguridadOtraTexto, c.seguridadOtraTexto);
+    // Borradores viejos guardaban «tuberia» como objeto y cables con «metros».
+    if (c.tuberias !== undefined || c.tuberia !== undefined) { const t = tuberiasDe(c); setTuberias(t.length ? t : [tuberiaVacia()]); }
+    if (c.cables !== undefined) { const cb = cablesDe(c); setCables(cb.length ? cb : [cableVacio()]); }
+    if (c.soporteria !== undefined) setSoporteria(c.soporteria.length ? c.soporteria : [soporteriaVacia()]);
     set(setObservaciones, c.observaciones); set(setActividades, c.actividades); set(setShowCaso, c.showCaso);
     set(setCasoPuntos, c.casoPuntos); set(setEquipos, c.equipos); set(setFirmaIngNombre, c.firmaIngNombre);
     set(setFirmaClienteNombre, c.firmaClienteNombre); set(setServicioConcluido, c.servicioConcluido);
@@ -385,11 +389,6 @@ export default function NuevoReportePage() {
     const d = r.data || {};
     const personal: string[] = Array.isArray(d.personal) ? d.personal : [];
     const adicional = d.ingACargo && personal[0] === d.ingACargo ? personal.slice(1) : personal.filter((x) => x !== d.ingACargo);
-    const tub: Record<string, any> = {};
-    for (const t of TUBERIA_TYPES) {
-      const v = d.tuberia?.[t];
-      tub[t] = { active: Boolean(v), medida: v?.medida || '', metros: v?.metros || '', especifica: v?.especifica || '' };
-    }
     const casos = Array.isArray(d.casoPuntos) && d.casoPuntos.length ? d.casoPuntos : null;
     // Fotos ya subidas: se muestran como existentes (se pueden quitar o
     // cambiar su comentario) y se pueden agregar nuevas.
@@ -408,7 +407,7 @@ export default function NuevoReportePage() {
       ingACargo: d.ingACargo || '', personalAdicional: adicional.length ? adicional : [''],
       tipoServicio: r.tipo_servicio, subTipo: r.sub_tipo_servicio, tipoServicioOtroTexto: d.tipoServicioOtroTexto || '',
       seguridad: Array.isArray(d.sistemaSeguridad) ? d.sistemaSeguridad : [], seguridadOtraTexto: d.seguridadOtraTexto || '',
-      tuberia: tub, cables: Array.isArray(d.cables) && d.cables.length ? d.cables : [{ tipo: '', calibre: '', metros: '' }],
+      tuberias: tuberiasDe(d), cables: cablesDe(d), soporteria: soporteriaDe(d),
       observaciones: d.observaciones || '',
       actividades: Array.isArray(d.actividades) && d.actividades.length ? d.actividades : [''],
       showCaso: Boolean(casos), casoPuntos: casos || [{ ...EMPTY_PUNTO }],
@@ -750,13 +749,9 @@ export default function NuevoReportePage() {
     setShowEtiquetas(false); setShowPreview(false); setPaso(1);
     setSeguridad([]); setSeguridadOtraTexto(''); setObservaciones(''); setActividades(['']); setShowCaso(false);
     setCasoPuntos([{ ...EMPTY_PUNTO }]);
-    setTuberia({
-      Roscada: { active: false, medida: '', metros: '', especifica: '' },
-      Ajuste: { active: false, medida: '', metros: '', especifica: '' },
-      Ranurada: { active: false, medida: '', metros: '', especifica: '' },
-      Otra: { active: false, medida: '', metros: '', especifica: '' },
-    });
-    setCables([{ tipo: '', calibre: '', metros: '' }]);
+    setTuberias([tuberiaVacia()]);
+    setCables([cableVacio()]);
+    setSoporteria([soporteriaVacia()]);
     setEquipos([{ cant: '', desc: '', modelo: '', marca: '', serie: '' }]);
     setFirmaIngNombre(''); setFirmaClienteNombre('');
     setClienteAusente(false); setMotivoAusente(''); setRecibioNombre(''); setRecibioPuesto(''); setRecibioFirma(null);
@@ -768,15 +763,12 @@ export default function NuevoReportePage() {
   }
 
   function buildSharedData() {
-    const tuberiaOut: Record<string, { medida: string; metros: string; especifica?: string }> = {};
-    TUBERIA_TYPES.forEach((t) => {
-      if (tuberia[t].active) {
-        tuberiaOut[t] = { medida: tuberia[t].medida, metros: tuberia[t].metros };
-        if (t === 'Otra') tuberiaOut[t].especifica = tuberia[t].especifica;
-      }
-    });
     const personalList = [ingACargo.trim(), ...personalAdicional.map((p) => p.trim())].filter(Boolean);
-    const cablesOut = cables.filter((c) => c.tipo || c.calibre || c.metros);
+    const tuberiasOut = tuberias.filter((t) => t.tipo || t.medida || t.cantidad || t.articuloId);
+    // «metros» se sigue escribiendo para lectores viejos del formato.
+    const cablesOut = cables.filter((c) => c.tipo || c.calibre || c.cantidad || c.articuloId)
+      .map((c) => ({ ...c, metros: c.unidad === 'm' ? c.cantidad : '' }));
+    const soporteriaOut = soporteria.filter((x) => x.desc || x.medida || x.cantidad || x.articuloId);
     return {
       ingACargo, personal: personalList,
       ordCompra, horaLlegada, horaSalida, listaConceptos, contactoUsuario, puestoArea,
@@ -784,8 +776,9 @@ export default function NuevoReportePage() {
       tipoServicioOtroTexto: tipoServicio === 'Otro' ? tipoServicioOtroTexto : '',
       sistemaSeguridad: seguridad, seguridadOtraTexto: seguridad.includes('Otra') ? seguridadOtraTexto : '',
       observaciones,
-      tuberia: tuberiaOut,
+      tuberias: tuberiasOut,
       cables: cablesOut,
+      soporteria: soporteriaOut,
       actividades: actividades.map((a) => a.trim()).filter(Boolean),
       casoPuntos: casoPuntos
         .map((p) => ({
@@ -1500,98 +1493,38 @@ export default function NuevoReportePage() {
           />
         )}
 
+        {/* Lo que salió del almacén para este servicio: se carga en las
+            secciones de abajo con un toque. */}
+        {servicioSeleccionadoId && (
+          <TraerDelVale
+            servicioId={servicioSeleccionadoId}
+            onTraer={(m) => {
+              const sinVacios = <T,>(lista: T[], vacio: (x: T) => boolean) => lista.filter((x) => !vacio(x));
+              if (m.tuberias.length) setTuberias((p) => [...sinVacios(p, (x) => !x.tipo && !x.medida && !x.cantidad && !x.articuloId), ...m.tuberias]);
+              if (m.cables.length) setCables((p) => [...sinVacios(p, (x) => !x.tipo && !x.calibre && !x.cantidad && !x.articuloId), ...m.cables]);
+              if (m.soporteria.length) setSoporteria((p) => [...sinVacios(p, (x) => !x.desc && !x.medida && !x.cantidad && !x.articuloId), ...m.soporteria]);
+              if (m.equipos.length) setEquipos((p) => [...sinVacios(p, (x) => !x.cant && !x.desc && !x.modelo && !x.marca && !x.serie), ...m.equipos]);
+            }}
+          />
+        )}
+
         {/* Tubería */}
-        <Plegable titulo="Tubería" cuenta={Object.values(tuberia).filter((t) => t.active).length}>
-          {TUBERIA_TYPES.map((t) => (
-            <div key={t} className="mb-2 last:mb-0">
-              <span
-                className={chipCls(tuberia[t].active)}
-                onClick={() => setTuberia((prev) => ({ ...prev, [t]: { ...prev[t], active: !prev[t].active } }))}
-              >
-                {t}
-              </span>
-              {tuberia[t].active && (
-                <div className="mt-2">
-                  {t === 'Otra' && (
-                    <div className="mb-2">
-                      <label className={labelCls}>Especifica</label>
-                      <input
-                        type="text"
-                        className={inputCls}
-                        value={tuberia[t].especifica}
-                        onChange={(e) => setTuberia((prev) => ({ ...prev, [t]: { ...prev[t], especifica: e.target.value } }))}
-                      />
-                    </div>
-                  )}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className={labelCls}>Medida</label>
-                      <input
-                        type="text"
-                        className={inputCls}
-                        value={tuberia[t].medida}
-                        onChange={(e) => setTuberia((prev) => ({ ...prev, [t]: { ...prev[t], medida: e.target.value } }))}
-                      />
-                    </div>
-                    <div>
-                      <label className={labelCls}>Metros</label>
-                      <input
-                        type="text"
-                        className={inputCls}
-                        value={tuberia[t].metros}
-                        onChange={(e) => setTuberia((prev) => ({ ...prev, [t]: { ...prev[t], metros: e.target.value } }))}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
+        <Plegable titulo="Tubería" cuenta={tuberias.filter((t) => t.tipo || t.cantidad || t.articuloId).length}>
+          <SeccionTuberia filas={tuberias} onCambiar={setTuberias} catalogo={catalogoEquipos} inputCls={inputCls} />
         </Plegable>
 
         {/* Cable instalado */}
-        <Plegable titulo="Cable instalado" cuenta={cables.filter((c) => c.tipo || c.calibre || c.metros).length}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {cables.map((c, i) => (
-              <div key={i} className="p-3 rounded-xl bg-surface-2 border border-line relative">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-[11px] font-semibold text-muted uppercase tracking-wider">Cable {i + 1}</p>
-                  {cables.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => setCables((prev) => prev.filter((_, idx) => idx !== i))}
-                      className="text-red text-sm active:scale-90 transition-transform"
-                    >
-                      <X size={19} strokeWidth={2.6} />
-                    </button>
-                  )}
-                </div>
-                <div className="mb-2">
-                  <label className={labelCls}>Tipo</label>
-                  <input type="text" className={inputCls} value={c.tipo} onChange={(e) => setCables((prev) => prev.map((x, idx) => (idx === i ? { ...x, tipo: e.target.value } : x)))} />
-                </div>
-                <div className="mb-2">
-                  <label className={labelCls}>Calibre</label>
-                  <input type="text" className={inputCls} value={c.calibre} onChange={(e) => setCables((prev) => prev.map((x, idx) => (idx === i ? { ...x, calibre: e.target.value } : x)))} />
-                </div>
-                <div>
-                  <label className={labelCls}>Metros</label>
-                  <input type="text" className={inputCls} value={c.metros} onChange={(e) => setCables((prev) => prev.map((x, idx) => (idx === i ? { ...x, metros: e.target.value } : x)))} />
-                </div>
-              </div>
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={() => setCables((prev) => [...prev, { tipo: '', calibre: '', metros: '' }])}
-            className="w-full mt-3 border border-dashed border-teal/50 text-teal py-2 rounded-xl text-[13px] font-medium active:scale-95 transition-transform"
-          >
-            + Agregar cable
-          </button>
+        <Plegable titulo="Cable instalado" cuenta={cables.filter((c) => c.tipo || c.cantidad || c.articuloId).length}>
+          <SeccionCable filas={cables} onCambiar={setCables} catalogo={catalogoEquipos} inputCls={inputCls} />
         </Plegable>
 
-        {/* Montaje de soportería y equipo */}
-        <Plegable titulo="Montaje de soportería y equipo" cuenta={equipos.filter((e) => e.cant || e.desc || e.modelo || e.marca || e.serie).length}>
+        {/* Montaje de soportería y fijación */}
+        <Plegable titulo="Montaje de soportería y fijación" cuenta={soporteria.filter((x) => x.desc || x.cantidad || x.articuloId).length}>
+          <SeccionSoporteria filas={soporteria} onCambiar={setSoporteria} catalogo={catalogoEquipos} inputCls={inputCls} />
+        </Plegable>
+
+        {/* Montaje de equipo */}
+        <Plegable titulo="Montaje de equipo" cuenta={equipos.filter((e) => e.cant || e.desc || e.modelo || e.marca || e.serie).length}>
           {equipos.map((eq, i) => (
             <EquipoInstaladoRenglon
               key={i}

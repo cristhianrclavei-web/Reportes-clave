@@ -1,5 +1,6 @@
 'use client';
 
+import { tuberiasDe, cablesDe, soporteriaDe, textoTuberia, textoCable, textoSoporteria } from '@/lib/materialesReporte';
 import { reducirFoto } from '@/lib/reducirFoto';
 import AutorReporte from '@/components/AutorReporte';
 import SubTabs from '@/components/SubTabs';
@@ -594,20 +595,9 @@ export default function ReportDetailModal({
                 .join(', ')}
             />
             <Detail label="Observaciones" value={report.data?.observaciones} />
-            {report.data?.tuberia && Object.keys(report.data.tuberia).length > 0 && (
-              <Detail
-                label="Tubería"
-                value={Object.entries(report.data.tuberia as Record<string, { medida: string; metros: string; especifica?: string }>)
-                  .map(([t, v]) => `${t}${t === 'Otra' && v.especifica ? ` (${v.especifica})` : ''}: ${v.medida || '—'} · ${v.metros || '—'} m`)
-                  .join(' / ')}
-              />
-            )}
-            {(() => {
-              const cablesList: any[] = report.data?.cables || [report.data?.cable1, report.data?.cable2].filter(Boolean);
-              return cablesList.map((c, i) => (
-                <Detail key={i} label={`Cable ${i + 1}`} value={`${c.tipo || '—'} / cal. ${c.calibre || '—'} / ${c.metros || '—'} m`} />
-              ));
-            })()}
+            {tuberiasDe(report.data).length > 0 && <Detail label="Tubería" value={tuberiasDe(report.data).map(textoTuberia).join(' / ')} />}
+            {cablesDe(report.data).length > 0 && <Detail label="Cable instalado" value={cablesDe(report.data).map(textoCable).join(' / ')} />}
+            {soporteriaDe(report.data).length > 0 && <Detail label="Soportería y fijación" value={soporteriaDe(report.data).map(textoSoporteria).join(' / ')} />}
           </div>
         </Section>
 

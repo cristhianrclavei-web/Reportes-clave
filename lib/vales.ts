@@ -398,3 +398,23 @@ export function disponiblesParaPrestar(vale: Vale, pendientes: Traspaso[]): Reco
   for (const t of pendientes) if (t.estado === 'pendiente' && t.vale_origen_id === vale.id) for (const x of t.items) out[x.item] = (out[x.item] || 0) - Number(x.cantidad);
   return out;
 }
+
+// Lo que salió del almacén para un servicio (vales entregados), neto de lo
+// que ya se devolvió: sirve para llenar los materiales del reporte.
+export async function salidasDelServicio(servicioId: string): Promise<{ folios: string[]; items: { articulo: ValeItem['articulo']; cantidad: number }[] }> {
+  const { data, error } = await createClient()
+    .from('almacen_vales')
+    .select(SELECT_VALE)
+    .eq('servicio_id', servicioId)
+    .in('estado', ['por_firmar', 'en_uso', 'devolucion_por_confirmar', 'cerrado']);
+  if (error) return { folios: [], items: [] };
+  const vales = ((data as any[]) || []).map(mapear);
+  const porArticulo = new Map<string, { articulo: ValeItem['articulo']; cantidad: number }>();
+  for (const v of vales) for (const i of v.items) {
+    const neto = Number(i.cantidad_entregada || 0) - Number(i.cantidad_recibida ?? i.cantidad_devuelta ?? 0);
+    if (neto <= 0 || !i.articulo) continue;
+    const prev = porArticulo.get(i.articulo_id);
+    porArticulo.set(i.articulo_id, { articulo: i.articulo, cantidad: (prev?.cantidad || 0) + neto });
+  }
+  return { folios: vales.map((v) => v.folio), items: [...porArticulo.values()] };
+}
