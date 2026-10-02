@@ -27,9 +27,15 @@ export type Articulo = {
   // es esa. El número de serie va en cada entrada, no aquí.
   marca: string | null;
   modelo: string | null;
+  // Dónde se guarda (patch_almacen_ubicaciones.sql) y foto para reconocerlo.
+  ubicacion_id?: string | null;
+  foto_path?: string | null;
 };
 
-export type TipoMovimiento = 'entrada' | 'salida' | 'retorno' | 'ajuste';
+export type Ubicacion = { id: string; nombre: string; descripcion: string | null; orden: number; activo: boolean };
+
+// «merma» resta existencia (faltante en un conteo, pieza dañada); «ajuste» suma.
+export type TipoMovimiento = 'entrada' | 'salida' | 'retorno' | 'ajuste' | 'merma';
 
 export type Movimiento = {
   id: string;
@@ -130,6 +136,8 @@ export async function crearArticulo(input: {
   sistemaId?: string | null;
   marca?: string;
   modelo?: string;
+  ubicacionId?: string | null;
+  foto?: File | null;
 }): Promise<Articulo> {
   const supabase = createClient();
   const descripcion = input.descripcion.trim();
@@ -166,6 +174,8 @@ export async function crearArticulo(input: {
       sistema_id: input.sistemaId || null,
       marca: input.marca?.trim() || null,
       modelo: input.modelo?.trim() || null,
+      ubicacion_id: input.ubicacionId || null,
+      foto_path: input.foto ? await subirDocumento('articulos', input.foto) : null,
       creado_por: user?.id,
     })
     .select()
@@ -193,6 +203,84 @@ export async function reactivarArticulo(id: string): Promise<void> {
   await editarArticulo(id, { activo: true });
 }
 
+// Cambia la foto del artículo (sube la nueva; la anterior queda en el bucket).
+export async function cambiarFotoArticulo(id: string, foto: File): Promise<string> {
+  const path = await subirDocumento('articulos', foto);
+  if (!path) throw new Error('No se pudo subir la foto');
+  await editarArticulo(id, { foto_path: path });
+  return path;
+}
+
+// --- Ubicaciones ---
+
+export async function listarUbicaciones(soloActivas = true): Promise<Ubicacion[]> {
+  let q = createClient().from('almacen_ubicaciones').select('*').order('orden').order('nombre');
+  if (soloActivas) q = q.eq('activo', true);
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data as Ubicacion[]) || [];
+}
+
+export async function crearUbicacion(nombre: string, descripcion = ''): Promise<Ubicacion> {
+  const { data, error } = await createClient()
+    .from('almacen_ubicaciones')
+    .insert({ nombre: nombre.trim(), descripcion: descripcion.trim() || null })
+    .select()
+    .single();
+  if (error) throw new Error(error.code === '23505' ? 'Ya existe una ubicación con ese nombre' : error.message);
+  return data as Ubicacion;
+}
+
+export async function editarUbicacion(id: string, cambios: Partial<Ubicacion>): Promise<void> {
+  const { error } = await createClient().from('almacen_ubicaciones').update(cambios).eq('id', id);
+  if (error) throw new Error(error.code === '23505' ? 'Ya existe una ubicación con ese nombre' : error.message);
+}
+
+export async function asignarUbicacion(articuloIds: string[], ubicacionId: string | null): Promise<void> {
+  if (!articuloIds.length) return;
+  const { error } = await createClient().from('almacen_articulos').update({ ubicacion_id: ubicacionId }).in('id', articuloIds);
+  if (error) throw error;
+}
+
+// --- Conteo físico ---
+
+export type Conteo = { id: string; folio: string; ubicacion_id: string | null; estado: 'abierto' | 'cerrado' | 'cancelado'; nota: string | null; created_at: string; cerrado_en: string | null };
+export type ConteoItem = { id: string; articulo_id: string; esperado: number; contado: number | null; nota: string | null };
+
+export async function listarConteos(): Promise<Conteo[]> {
+  const { data, error } = await createClient().from('almacen_conteos').select('*').order('created_at', { ascending: false }).limit(30);
+  if (error) throw error;
+  return (data as Conteo[]) || [];
+}
+
+export async function iniciarConteo(ubicacionId: string | null, nota: string): Promise<string> {
+  const { data, error } = await createClient().rpc('iniciar_conteo', { p_ubicacion: ubicacionId, p_nota: nota });
+  if (error) throw new Error(error.message);
+  return data as string;
+}
+
+export async function itemsDeConteo(conteoId: string): Promise<ConteoItem[]> {
+  const { data, error } = await createClient().from('almacen_conteo_items').select('*').eq('conteo_id', conteoId);
+  if (error) throw error;
+  return (data as ConteoItem[]) || [];
+}
+
+export async function guardarContado(itemId: string, contado: number | null, nota: string): Promise<void> {
+  const { error } = await createClient().from('almacen_conteo_items').update({ contado, nota: nota.trim() || null }).eq('id', itemId);
+  if (error) throw error;
+}
+
+export async function cerrarConteo(conteoId: string): Promise<number> {
+  const { data, error } = await createClient().rpc('cerrar_conteo', { p_conteo: conteoId });
+  if (error) throw new Error(error.message);
+  return (data as number) || 0;
+}
+
+export async function cancelarConteo(conteoId: string): Promise<void> {
+  const { error } = await createClient().from('almacen_conteos').update({ estado: 'cancelado' }).eq('id', conteoId).eq('estado', 'abierto');
+  if (error) throw error;
+}
+
 // --- Entradas ---
 
 async function subirDocumento(carpeta: string, file: File): Promise<string | null> {
@@ -216,6 +304,7 @@ export async function registrarEntrada(input: {
   factura: File | null;
   ordenCompra: File | null;
   numerosSerie?: string;
+  fotos?: File[];
 }): Promise<void> {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -225,6 +314,7 @@ export async function registrarEntrada(input: {
     input.factura ? subirDocumento('facturas', input.factura) : Promise.resolve(null),
     input.ordenCompra ? subirDocumento('ordenes', input.ordenCompra) : Promise.resolve(null),
   ]);
+  const fotos = (await Promise.all((input.fotos || []).map((f) => subirDocumento('entradas', f)))).filter(Boolean) as string[];
 
   const { error } = await supabase.from('almacen_movimientos').insert({
     articulo_id: input.articuloId,
@@ -237,6 +327,7 @@ export async function registrarEntrada(input: {
     nota: input.nota.trim() || null,
     factura_path,
     orden_compra_path,
+    ...(fotos.length ? { fotos } : {}),
     creado_por: user.id,
   });
   if (error) throw error;

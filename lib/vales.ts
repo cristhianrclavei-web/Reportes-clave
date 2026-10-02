@@ -37,7 +37,7 @@ export type ValeItem = {
   cantidad_recibida: number | null;
   motivo_faltante: string | null;
   nota: string | null;
-  articulo: Pick<Articulo, 'id' | 'descripcion' | 'unidad' | 'categoria' | 'marca' | 'modelo' | 'retornable'>;
+  articulo: Pick<Articulo, 'id' | 'descripcion' | 'unidad' | 'categoria' | 'marca' | 'modelo' | 'retornable'> & { almacen_ubicaciones?: { nombre: string } | null };
 };
 
 export type Vale = {
@@ -86,7 +86,7 @@ export function valeVencido(v: Pick<Vale, 'estado' | 'fecha_limite'>, ahora = Da
 }
 
 const SELECT_VALE =
-  '*, profiles!almacen_vales_tecnico_id_fkey(full_name), almacen_vale_items(*, almacen_articulos(id, descripcion, unidad, categoria, marca, modelo, retornable))';
+  '*, profiles!almacen_vales_tecnico_id_fkey(full_name), almacen_vale_items(*, almacen_articulos(id, descripcion, unidad, categoria, marca, modelo, retornable, almacen_ubicaciones(nombre)))';
 
 function mapear(r: any): Vale {
   const { profiles, almacen_vale_items, ...resto } = r;

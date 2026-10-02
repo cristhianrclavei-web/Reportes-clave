@@ -3,9 +3,10 @@
 import { coincideBusqueda } from '@/lib/busqueda';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Articulo, Sistema, CategoriaInsumo, CATEGORIAS, UNIDADES,
+  Articulo, Sistema, Ubicacion, CategoriaInsumo, CATEGORIAS, UNIDADES,
   crearArticulo, crearSistema, registrarEntrada,
 } from '@/lib/almacen';
+import { SelectorUbicacion } from '@/components/almacen/ModalArticulo';
 import { showToast } from '@/components/Toast';
 import {
   ChevronLeft, Search, Plus, X, Camera, Images, FileText,
@@ -30,6 +31,7 @@ const ICONO: Record<CategoriaInsumo, any> = { herramienta: Wrench, material: Pac
 
 type Props = {
   sistemas: Sistema[];
+  ubicaciones?: Ubicacion[];
   articulos: Articulo[];
   proyectos: { grupoId: string; proyecto: string }[];
   onRegistrada: () => void;
@@ -47,7 +49,7 @@ const TITULOS: Record<number, string> = {
 };
 
 export default function EntradaAlmacenWizard({
-  sistemas, articulos, proyectos, onRegistrada, onCancelar, onCatalogoActualizado,
+  sistemas, ubicaciones = [], articulos, proyectos, onRegistrada, onCancelar, onCatalogoActualizado,
 }: Props) {
   const [paso, setPaso] = useState(1);
   const [busy, setBusy] = useState(false);
@@ -72,6 +74,8 @@ export default function EntradaAlmacenWizard({
   const [proveedor, setProveedor] = useState('');
   const [notaEntrada, setNotaEntrada] = useState('');
   const [factura, setFactura] = useState<File | null>(null);
+  // Fotos del ticket/recibo o del equipo recibido (además de factura y OC).
+  const [fotos, setFotos] = useState<File[]>([]);
   const [ordenCompra, setOrdenCompra] = useState<File | null>(null);
 
   const articuloElegido = articulos.find((a) => a.id === articuloId) || null;
@@ -123,7 +127,7 @@ export default function EntradaAlmacenWizard({
       await registrarEntrada({
         articuloId, cantidad: cant, inventario,
         grupoId: inventario === 'proyecto' ? grupoId : null,
-        proveedor, nota: notaEntrada, factura, ordenCompra, numerosSerie,
+        proveedor, nota: notaEntrada, factura, ordenCompra, numerosSerie, fotos,
       });
       showToast('Entrada registrada', 'success');
       onRegistrada();
@@ -260,6 +264,7 @@ export default function EntradaAlmacenWizard({
 
           <CapturaDocumento label="Factura" archivo={factura} onCambiar={setFactura} />
           <CapturaDocumento label="Orden de compra" archivo={ordenCompra} onCambiar={setOrdenCompra} />
+          <FotosEntrada fotos={fotos} onCambiar={setFotos} />
 
           <label className={labelCls}>Nota (opcional)</label>
           <input type="text" value={notaEntrada} onChange={(e) => setNotaEntrada(e.target.value)} className={inputCls} />
@@ -285,6 +290,7 @@ export default function EntradaAlmacenWizard({
               proveedor.trim() && `Proveedor: ${proveedor.trim()}`,
               factura && 'Factura adjunta',
               ordenCompra && 'Orden de compra adjunta',
+              fotos.length > 0 && `${fotos.length} foto(s)`,
               notaEntrada.trim() && `Nota: ${notaEntrada.trim()}`,
             ].filter(Boolean).join(' · ') || 'Sin datos adicionales'}
             onEditar={() => setPaso(4)}
@@ -347,6 +353,7 @@ export default function EntradaAlmacenWizard({
       {showNuevoArticulo && (
         <ModalNuevoArticulo
           sistemas={sistemas}
+          ubicaciones={ubicaciones}
           sistemaSugerido={filtroSistema !== 'todos' && filtroSistema !== 'sin-sistema' ? filtroSistema : null}
           descripcionSugerida={busqueda}
           onCancelar={() => setShowNuevoArticulo(false)}
@@ -481,7 +488,41 @@ function PasoArticulo({
   );
 }
 
-function CapturaDocumento({ label, archivo, onCambiar }: { label: string; archivo: File | null; onCambiar: (f: File | null) => void }) {
+function FotosEntrada({ fotos, onCambiar }: { fotos: File[]; onCambiar: (f: File[]) => void }) {
+  const camaraRef = useRef<HTMLInputElement>(null);
+  const galeriaRef = useRef<HTMLInputElement>(null);
+  const previews = useMemo(() => fotos.map((f) => URL.createObjectURL(f)), [fotos]);
+  const agregar = (lista: FileList | null) => { if (lista) onCambiar([...fotos, ...Array.from(lista)].slice(0, 8)); };
+  return (
+    <div className="mb-5">
+      <label className="text-[13px] text-ink/75 block mb-1.5">Fotos del ticket o del equipo recibido (opcional)</label>
+      <input ref={camaraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { agregar(e.target.files); e.target.value = ''; }} />
+      <input ref={galeriaRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { agregar(e.target.files); e.target.value = ''; }} />
+      {fotos.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-2">
+          {previews.map((u, i) => (
+            <div key={u} className="relative">
+              <img src={u} alt="" className="w-16 h-16 object-cover rounded-lg border border-line" />
+              <button type="button" aria-label="Quitar foto" onClick={() => onCambiar(fotos.filter((_, j) => j !== i))} className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-red text-white flex items-center justify-center"><X size={13} strokeWidth={2.6} /></button>
+            </div>
+          ))}
+        </div>
+      )}
+      {fotos.length < 8 && (
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={() => camaraRef.current?.click()} className="min-h-[48px] rounded-xl border border-dashed border-teal/50 text-teal text-[13.5px] font-medium flex items-center justify-center gap-2 active:scale-95 transition-transform">
+            <Camera size={16} strokeWidth={2.3} /> Tomar foto
+          </button>
+          <button onClick={() => galeriaRef.current?.click()} className="min-h-[48px] rounded-xl border border-dashed border-teal/50 text-teal text-[13.5px] font-medium flex items-center justify-center gap-2 active:scale-95 transition-transform">
+            <Images size={16} strokeWidth={2.3} /> Elegir fotos
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CapturaDocumento({ label, archivo, onCambiar, soloImagen }: { label: string; archivo: File | null; onCambiar: (f: File | null) => void; soloImagen?: boolean }) {
   const camaraRef = useRef<HTMLInputElement>(null);
   const galeriaRef = useRef<HTMLInputElement>(null);
   const preview = useMemo(() => (archivo && archivo.type.startsWith('image/') ? URL.createObjectURL(archivo) : null), [archivo]);
@@ -491,7 +532,7 @@ function CapturaDocumento({ label, archivo, onCambiar }: { label: string; archiv
     <div className="mb-5">
       <label className="text-[13px] text-ink/75 block mb-1.5">{label} (opcional)</label>
       <input ref={camaraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => onCambiar(e.target.files?.[0] || null)} />
-      <input ref={galeriaRef} type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => onCambiar(e.target.files?.[0] || null)} />
+      <input ref={galeriaRef} type="file" accept={soloImagen ? 'image/*' : 'application/pdf,image/*'} className="hidden" onChange={(e) => onCambiar(e.target.files?.[0] || null)} />
 
       {!archivo ? (
         <div className="grid grid-cols-2 gap-2">
@@ -522,9 +563,10 @@ function CapturaDocumento({ label, archivo, onCambiar }: { label: string; archiv
 }
 
 export function ModalNuevoArticulo({
-  sistemas, sistemaSugerido, descripcionSugerida, onCancelar, onCreado,
+  sistemas, ubicaciones = [], sistemaSugerido, descripcionSugerida, onCancelar, onCreado,
 }: {
   sistemas: Sistema[];
+  ubicaciones?: Ubicacion[];
   sistemaSugerido: string | null;
   descripcionSugerida: string;
   onCancelar: () => void;
@@ -538,6 +580,9 @@ export function ModalNuevoArticulo({
   const [sistemaId, setSistemaId] = useState<string | null>(sistemaSugerido);
   const [marca, setMarca] = useState('');
   const [modelo, setModelo] = useState('');
+  const [ubicacionId, setUbicacionId] = useState<string | null>(null);
+  const [listaUbic, setListaUbic] = useState<Ubicacion[]>(ubicaciones);
+  const [foto, setFoto] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
 
   const inputCls = 'w-full px-3.5 min-h-[48px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]';
@@ -549,7 +594,7 @@ export function ModalNuevoArticulo({
     try {
       const nuevo = await crearArticulo({
         categoria, descripcion, unidad, retornable,
-        minimo: parseFloat(minimo) || 0, sistemaId, marca, modelo,
+        minimo: parseFloat(minimo) || 0, sistemaId, marca, modelo, ubicacionId, foto,
       });
       // Este modal solo da de alta el artículo en el catálogo — con 0 en
       // existencia. Sin este aviso, es fácil creer que "Agregar" ya
@@ -605,6 +650,13 @@ export function ModalNuevoArticulo({
             <input type="text" value={modelo} onChange={(e) => setModelo(e.target.value)} placeholder="DS-2CD" className={inputCls} />
           </div>
         </div>
+
+        <label className={labelCls}>Dónde se guarda (opcional)</label>
+        <div className="mb-4">
+          <SelectorUbicacion ubicaciones={listaUbic} valor={ubicacionId} onCambiar={setUbicacionId} onCreada={(u) => setListaUbic((p) => [...p, u])} />
+        </div>
+
+        <CapturaDocumento label="Foto del artículo" archivo={foto} onCambiar={setFoto} soloImagen />
 
         <label className={labelCls}>Sistema (opcional)</label>
         <select value={sistemaId || ''} onChange={(e) => setSistemaId(e.target.value || null)} className={`${inputCls} mb-4`}>

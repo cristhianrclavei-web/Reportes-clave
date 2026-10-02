@@ -4,6 +4,9 @@ import { coincideBusqueda } from '@/lib/busqueda';
 import { BotonNuevo } from '@/components/AccionPrincipal';
 import SubTabs from '@/components/SubTabs';
 import Vales from '@/components/vales/Vales';
+import UbicacionesAlmacen from '@/components/almacen/UbicacionesAlmacen';
+import ConteoFisico from '@/components/almacen/ConteoFisico';
+import ModalArticulo from '@/components/almacen/ModalArticulo';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import SupervisorShell from '@/components/SupervisorShell';
@@ -12,7 +15,7 @@ import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
 import {
   Articulo, Existencia, CATEGORIAS, CategoriaInsumo,
-  listarArticulos, desactivarArticulo, reactivarArticulo, listarExistencias,
+  listarArticulos, desactivarArticulo, reactivarArticulo, listarExistencias, listarUbicaciones, Ubicacion,
   listarProyectosParaAlmacen, urlDeDocumento,
   listarMovimientos, MovimientoDetallado, listarBajoMinimo, ArticuloBajoMinimo, editarArticulo,
   Sistema, listarSistemas, crearSistema, desactivarSistema, articulosPorSistema,
@@ -20,7 +23,7 @@ import {
 import EntradaAlmacenWizard, { ModalNuevoArticulo } from '@/components/almacen/EntradaAlmacenWizard';
 import {
   Plus, FileText, ScrollText, Wrench, Package, HardHat,
-  Trash2, Boxes, ArrowLeftRight, ArrowDown, ArrowUp, RotateCcw, AlertTriangle, LayoutGrid, Search, ClipboardList,
+  Trash2, Boxes, ArrowLeftRight, ArrowDown, ArrowUp, RotateCcw, AlertTriangle, LayoutGrid, Search, ClipboardList, MapPin, ClipboardCheck,
 } from 'lucide-react';
 
 const ICONO: Record<CategoriaInsumo, any> = { herramienta: Wrench, material: Package, equipo: HardHat };
@@ -31,11 +34,15 @@ function fmtFecha(iso: string | null): string {
 }
 
 export default function AlmacenList({ userName }: { userName?: string }) {
-  const [seccion, setSeccion] = useState<'vales' | 'existencias' | 'entrada' | 'movimientos' | 'catalogo' | 'sistemas'>('vales');
+  const [seccion, setSeccion] = useState<'vales' | 'existencias' | 'entrada' | 'movimientos' | 'catalogo' | 'sistemas' | 'ubicaciones' | 'conteo'>('vales');
   // Enlace desde los avisos: ?sub=vales|existencias…
   useEffect(() => {
-    const sub = new URLSearchParams(window.location.search).get('sub');
-    if (sub === 'existencias' || sub === 'movimientos' || sub === 'catalogo' || sub === 'sistemas' || sub === 'vales') setSeccion(sub);
+    const q = new URLSearchParams(window.location.search);
+    const sub = q.get('sub');
+    if (sub === 'existencias' || sub === 'movimientos' || sub === 'catalogo' || sub === 'sistemas' || sub === 'vales' || sub === 'ubicaciones' || sub === 'conteo') setSeccion(sub);
+    // Etiquetas QR: ?ubicacion=<id> abre esa ubicación; ?articulo=<id>, su ficha.
+    if (q.get('ubicacion')) { setUbicacionInicial(q.get('ubicacion')); setSeccion('ubicaciones'); }
+    if (q.get('articulo')) setArticuloQr(q.get('articulo'));
   }, []);
   const [movimientos, setMovimientos] = useState<MovimientoDetallado[]>([]);
   const [existencias, setExistencias] = useState<Existencia[]>([]);
@@ -51,9 +58,14 @@ export default function AlmacenList({ userName }: { userName?: string }) {
   const [editandoMinimo, setEditandoMinimo] = useState<Articulo | null>(null);
   const [minimoEdit, setMinimoEdit] = useState('');
   const [sistemas, setSistemas] = useState<Sistema[]>([]);
+  const [ubicaciones, setUbicaciones] = useState<Ubicacion[]>([]);
+  const [ubicacionInicial, setUbicacionInicial] = useState<string | null>(null);
+  const [articuloQr, setArticuloQr] = useState<string | null>(null);
+  const [articuloAbierto, setArticuloAbierto] = useState<Articulo | null>(null);
 
   const [filtro, setFiltro] = useState<'todos' | CategoriaInsumo>('todos');
   const [busqueda, setBusqueda] = useState('');
+  const [filtroUbic, setFiltroUbic] = useState('');
   const [verBaja, setVerBaja] = useState(false);
 
   async function cargar() {
@@ -70,6 +82,8 @@ export default function AlmacenList({ userName }: { userName?: string }) {
       setMovimientos(mv);
       setBajoMinimo(bm);
       setSistemas(si);
+      // Antes de correr el SQL de ubicaciones la tabla no existe: no frena el almacén.
+      listarUbicaciones().then(setUbicaciones).catch(() => setUbicaciones([]));
       setError(null);
     } catch (e: any) {
       setError(e?.message || 'No se pudo cargar el almacén');
@@ -80,16 +94,33 @@ export default function AlmacenList({ userName }: { userName?: string }) {
 
   useEffect(() => { cargar(); }, []);
 
+  // Existencia del inventario general por artículo (fichas, ubicaciones).
+  const existenciaGeneral = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const e of existencias) if (e.inventario === 'general') m[e.articulo.id] = (m[e.articulo.id] || 0) + e.cantidad;
+    return m;
+  }, [existencias]);
+  const nombreUbicacion = (id?: string | null) => (id ? ubicaciones.find((u) => u.id === id)?.nombre || null : null);
+
+  // Al escanear la etiqueta de un artículo, se abre su ficha en cuanto carga.
+  useEffect(() => {
+    if (!articuloQr || articulos.length === 0) return;
+    const a = articulos.find((x) => x.id === articuloQr);
+    if (a) setArticuloAbierto(a);
+    setArticuloQr(null);
+  }, [articuloQr, articulos]);
+
   const existenciasFiltradas = useMemo(
     () => {
       const q = busqueda.trim().toLowerCase();
       return existencias.filter((e) => {
         if (filtro !== 'todos' && e.articulo.categoria !== filtro) return false;
+        if (filtroUbic === 'sin' ? !!e.articulo.ubicacion_id : filtroUbic && e.articulo.ubicacion_id !== filtroUbic) return false;
         if (q && !coincideBusqueda(`${e.articulo.descripcion} ${e.proyecto || ''}`, q)) return false;
         return true;
       });
     },
-    [existencias, filtro, busqueda]
+    [existencias, filtro, busqueda, filtroUbic]
   );
 
   async function handleNuevoSistema() {
@@ -131,6 +162,8 @@ export default function AlmacenList({ userName }: { userName?: string }) {
               { k: 'existencias', label: 'Existencias', Icono: Boxes },
               { k: 'movimientos', label: 'Movimientos', Icono: ArrowLeftRight },
               { k: 'catalogo', label: 'Catálogo', Icono: ScrollText },
+              { k: 'ubicaciones', label: 'Ubicaciones', Icono: MapPin },
+              { k: 'conteo', label: 'Conteo', Icono: ClipboardCheck },
               { k: 'sistemas', label: 'Sistemas', Icono: LayoutGrid },
             ]}
           />
@@ -157,6 +190,21 @@ export default function AlmacenList({ userName }: { userName?: string }) {
         )}
 
         {seccion === 'vales' && <Vales modo="almacen" />}
+
+        {!loading && seccion === 'ubicaciones' && (
+          <UbicacionesAlmacen
+            ubicaciones={ubicaciones}
+            articulos={articulos}
+            existencia={existenciaGeneral}
+            inicial={ubicacionInicial}
+            onCambio={async () => { setUbicaciones(await listarUbicaciones().catch(() => [])); setArticulos(await listarArticulos(false)); }}
+            onAbrirArticulo={setArticuloAbierto}
+          />
+        )}
+
+        {!loading && seccion === 'conteo' && (
+          <ConteoFisico articulos={articulos.filter((a) => a.activo)} ubicaciones={ubicaciones} onCerrado={cargar} />
+        )}
 
         {/* --- Existencias --- */}
         {!loading && seccion === 'existencias' && (
@@ -208,6 +256,18 @@ export default function AlmacenList({ userName }: { userName?: string }) {
               </select>
               <BotonNuevo label="Entrada" Icono={Plus} onClick={() => setSeccion('entrada')} />
             </div>
+            {ubicaciones.length > 0 && (
+              <select
+                value={filtroUbic}
+                onChange={(e) => setFiltroUbic(e.target.value)}
+                aria-label="Ubicación"
+                className={`w-full lg:w-auto mb-4 -mt-2 px-3 min-h-[44px] rounded-xl border text-[14px] font-medium ${filtroUbic ? 'bg-teal/12 border-teal/40 text-teal' : 'bg-surface-2 border-line text-ink/80'}`}
+              >
+                <option value="">Todas las ubicaciones</option>
+                {ubicaciones.map((u) => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+                <option value="sin">Sin ubicación</option>
+              </select>
+            )}
 
             {existenciasFiltradas.length === 0 && (
               <div className="flex flex-col items-center py-10 text-center">
@@ -239,10 +299,15 @@ export default function AlmacenList({ userName }: { userName?: string }) {
                     key={`${e.articulo.id}-${e.inventario}-${e.grupoId || 'g'}-${i}`}
                     className="rounded-2xl lg:rounded-xl bg-surface border border-line p-4 lg:py-3 lg:grid lg:grid-cols-[1.6fr_90px_90px_1.3fr_100px_110px] lg:gap-3 lg:items-center transition-all duration-150 hover:-translate-y-0.5 hover:shadow-diffuse hover:border-line-strong"
                   >
-                    <div className="min-w-0 flex items-center gap-2">
+                    <button type="button" onClick={() => setArticuloAbierto(e.articulo)} className="min-w-0 flex items-center gap-2 text-left">
                       <Icono size={15} strokeWidth={2.3} className="text-muted shrink-0" />
-                      <span className="text-[14.5px] font-semibold truncate">{e.articulo.descripcion}</span>
-                    </div>
+                      <span className="min-w-0">
+                        <span className="block text-[14.5px] font-semibold truncate">{e.articulo.descripcion}</span>
+                        {nombreUbicacion(e.articulo.ubicacion_id) && (
+                          <span className="block text-[11.5px] text-teal truncate">{nombreUbicacion(e.articulo.ubicacion_id)}</span>
+                        )}
+                      </span>
+                    </button>
 
                     <div className="flex items-center gap-4 mt-2 lg:hidden">
                       <span className={`text-[15px] font-display font-bold ${e.cantidad <= 0 ? 'text-red' : ''}`}>
@@ -296,6 +361,7 @@ export default function AlmacenList({ userName }: { userName?: string }) {
         {!loading && seccion === 'entrada' && (
           <EntradaAlmacenWizard
             sistemas={sistemas}
+            ubicaciones={ubicaciones}
             articulos={articulos.filter((a) => a.activo)}
             proyectos={proyectos}
             onCancelar={() => setSeccion('existencias')}
@@ -329,7 +395,8 @@ export default function AlmacenList({ userName }: { userName?: string }) {
                   entrada: { Icono: ArrowDown, color: 'text-teal', signo: '+', label: 'Entrada' },
                   salida: { Icono: ArrowUp, color: 'text-red', signo: '−', label: 'Salida' },
                   retorno: { Icono: RotateCcw, color: 'text-teal', signo: '+', label: 'Retorno' },
-                  ajuste: { Icono: ArrowLeftRight, color: 'text-amber', signo: '', label: 'Ajuste' },
+                  ajuste: { Icono: ArrowLeftRight, color: 'text-amber', signo: '+', label: 'Ajuste' },
+                  merma: { Icono: ArrowLeftRight, color: 'text-red', signo: '−', label: 'Merma' },
                 }[m.tipo];
                 return (
                   <div key={m.id} className="rounded-2xl lg:rounded-xl bg-surface border border-line p-4 lg:py-3 flex items-center gap-3 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-diffuse hover:border-line-strong">
@@ -456,12 +523,15 @@ export default function AlmacenList({ userName }: { userName?: string }) {
                             {sistemas.find((sx) => sx.id === a.sistema_id)?.nombre || ''}
                           </p>
                         )}
+                        {nombreUbicacion(a.ubicacion_id) ? (
+                          <p className="text-[12px] text-muted mt-0.5">En: {nombreUbicacion(a.ubicacion_id)}</p>
+                        ) : a.activo && <p className="text-[12px] text-amber mt-0.5">Sin ubicación</p>}
                         {a.activo && (
                           <button
-                            onClick={() => { setEditandoMinimo(a); setMinimoEdit(String(a.minimo || '')); }}
+                            onClick={() => setArticuloAbierto(a)}
                             className="text-[12.5px] text-teal font-medium mt-1 min-h-[32px]"
                           >
-                            {a.minimo > 0 ? `Mínimo: ${a.minimo} ${a.unidad}` : 'Definir mínimo'}
+                            Editar ficha{a.minimo > 0 ? ` · mínimo ${a.minimo} ${a.unidad}` : ''}
                           </button>
                         )}
                       </div>
@@ -542,9 +612,22 @@ export default function AlmacenList({ userName }: { userName?: string }) {
         </ModalOverlay>
       )}
 
+      {articuloAbierto && (
+        <ModalArticulo
+          articulo={articuloAbierto}
+          sistemas={sistemas}
+          ubicaciones={ubicaciones}
+          existencia={existenciaGeneral[articuloAbierto.id] || 0}
+          onClose={() => setArticuloAbierto(null)}
+          onGuardado={() => { setArticuloAbierto(null); cargar(); }}
+          onUbicacionCreada={(u) => setUbicaciones((p) => [...p, u])}
+        />
+      )}
+
       {showNuevoArticulo && (
         <ModalNuevoArticulo
           sistemas={sistemas}
+          ubicaciones={ubicaciones}
           sistemaSugerido={null}
           descripcionSugerida=""
           onCancelar={() => setShowNuevoArticulo(false)}

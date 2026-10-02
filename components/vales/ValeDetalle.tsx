@@ -321,6 +321,7 @@ function Entregar({ vale, guardando, ejecutar }: { vale: Vale; guardando: boolea
             <span className="min-w-0">
               <span className="block text-[13px] font-medium truncate">{i.articulo?.descripcion}</span>
               <span className={`block text-[11.5px] ${c > disp ? 'text-red font-semibold' : 'text-muted'}`}>Hay {disp} {i.articulo?.unidad} · pidió {n(i.cantidad_solicitada)}</span>
+              {i.articulo?.almacen_ubicaciones?.nombre && <span className="block text-[11.5px] text-teal font-semibold">En: {i.articulo.almacen_ubicaciones.nombre}</span>}
             </span>
             <input type="number" inputMode="decimal" min={0} value={cant[i.id] ?? ''} onChange={(e) => setCant({ ...cant, [i.id]: e.target.value })}
               className="w-16 px-2 py-1.5 rounded-lg bg-surface-2 border border-line text-[14px] text-center shrink-0" />
