@@ -20,7 +20,7 @@ import { LogOut, AlertTriangle } from 'lucide-react';
 // se anuncia como «reportes-clave.vercel.app dice», que en un teléfono
 // prestado parece un aviso de una página cualquiera, y además no permite
 // decir lo único que de verdad importa aquí: si hay reportes sin subir.
-export default function LogoutButton({ compacto = false }: { compacto?: boolean }) {
+export default function LogoutButton({ compacto = false, className }: { compacto?: boolean; className?: string }) {
   const [preguntando, setPreguntando] = useState(false);
   const [saliendo, setSaliendo] = useState(false);
   const [pendientes, setPendientes] = useState<number | null>(null);
@@ -102,7 +102,8 @@ export default function LogoutButton({ compacto = false }: { compacto?: boolean 
           onClick={abrir}
           disabled={saliendo}
           aria-label="Cerrar sesión"
-          className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center text-ink/70 active:scale-90 transition-transform disabled:opacity-60"
+          title="Cerrar sesión"
+          className={className || 'shrink-0 w-11 h-11 rounded-full flex items-center justify-center text-ink/70 active:scale-90 transition-transform disabled:opacity-60'}
         >
           <LogOut size={19} strokeWidth={2.3} />
         </button>

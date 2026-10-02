@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { navegarConTransicion } from '@/lib/nativeViewTransition';
 
-export default function ThemeToggle() {
+export default function ThemeToggle({ className }: { className?: string } = {}) {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
   useEffect(() => {
@@ -31,7 +31,7 @@ export default function ThemeToggle() {
       type="button"
       onClick={toggle}
       aria-label="Cambiar tema claro/oscuro"
-      className="w-9 h-9 rounded-full border border-line-strong flex items-center justify-center shrink-0 active:scale-90 transition-transform bg-surface-2"
+      className={className || 'w-9 h-9 rounded-full border border-line-strong flex items-center justify-center shrink-0 active:scale-90 transition-transform bg-surface-2'}
     >
       {theme === 'dark' ? (
         // sun icon (tap to switch to light)

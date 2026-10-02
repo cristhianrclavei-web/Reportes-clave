@@ -151,7 +151,7 @@ export default function AlmacenList({ userName }: { userName?: string }) {
       title={seccion === 'entrada' ? 'Registrar entrada' : 'Almacén'}
       userName={userName}
       mostrarAlmacen
-      wrapperClassName="max-w-2xl lg:max-w-6xl mx-auto pb-16 lg:px-6"
+      wrapperClassName="max-w-2xl lg:max-w-6xl mx-auto pb-16 lg:px-8"
     >
         {seccion === 'entrada' ? (
           <button onClick={() => setSeccion('existencias')} className="mb-4 text-[13.5px] font-semibold text-teal">

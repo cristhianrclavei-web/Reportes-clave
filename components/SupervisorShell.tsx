@@ -74,8 +74,8 @@ export default function SupervisorShell({
         <NavPestanas items={todas} active={active} />
       </div>
 
-      <div className="px-4 lg:px-0 pt-5 lg:pt-4">
-        <div className="flex items-center justify-between gap-3 mb-5">
+      <div className="px-4 lg:px-0 pt-5 lg:pt-8">
+        <div className="flex items-center justify-between gap-3 mb-5 lg:mb-7">
           <div className="flex items-center gap-1.5 min-w-0">
             {volver && (
               <button
@@ -87,7 +87,7 @@ export default function SupervisorShell({
                 <ChevronLeft size={24} strokeWidth={2.4} />
               </button>
             )}
-            <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-wide min-w-0">{title}</h1>
+            <h1 className="font-display font-bold text-2xl lg:text-[34px] lg:leading-tight tracking-wide min-w-0">{title}</h1>
           </div>
           {acciones && <div className="shrink-0 flex items-center gap-2">{acciones}</div>}
         </div>

@@ -5,7 +5,6 @@ import { usePathname, useRouter } from 'next/navigation';
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
 import Link from '@/components/TransitionLink';
 import Logo from './Logo';
-import PerfilChip from './PerfilChip';
 import ThemeToggle from './ThemeToggle';
 import LogoutButton from './LogoutButton';
 import { DashboardTabKey, seccionesVisibles } from './DashboardTabs';
@@ -133,18 +132,13 @@ function SeccionDock({
           />
         </>
       )}
-      <span className="relative flex flex-col items-center justify-center gap-1 py-2.5 px-2 transition-transform duration-200 ease-out group-hover:-translate-y-[3px]">
-        <Icono size={21} strokeWidth={activo ? 2.5 : 2.1} />
-        <span className={`text-[12.5px] truncate max-w-full ${activo ? 'font-semibold' : 'font-medium'}`}>{etiqueta}</span>
+      <span className="relative flex flex-col items-center justify-center gap-1.5 pt-3 pb-3.5 px-2 transition-transform duration-200 ease-out group-hover:-translate-y-[3px]">
+        <Icono size={22} strokeWidth={activo ? 2.5 : 2.1} />
+        <span className={`text-[13px] truncate max-w-full ${activo ? 'font-semibold' : 'font-medium'}`}>{etiqueta}</span>
       </span>
     </Link>
   );
 }
-
-const claseIcono = (activo: boolean) =>
-  `w-11 h-11 rounded-[14px] flex items-center justify-center transition-colors ${
-    activo ? 'text-teal' : 'text-ink/65 hover:text-ink hover:bg-surface-2'
-  }`;
 
 export default function DockNav({ userName }: { userName?: string }) {
   const pathname = usePathname();
@@ -213,44 +207,45 @@ export default function DockNav({ userName }: { userName?: string }) {
     navegarConTransicion(() => router.push(href));
   }
 
+  const iniciales = (userName || '').trim().split(/\s+/).slice(0, 2).map((x) => x[0]).join('').toUpperCase();
+
   return (
     <>
-      {/* Renglón del logo: se va con el scroll. Lleva el buscador, el tema,
-          la vista y el perfil para que la barra de abajo sea solo de
-          secciones. */}
-      <div className="hidden lg:block">
-        <div className="max-w-[1440px] mx-auto px-8 pt-4 pb-3 flex items-center gap-4">
-          <Logo variante="completo" size={30} className="shrink-0" />
-          <div className="ml-auto flex items-center gap-1.5">
-            {/* Buscador: el campo crece hacia la izquierda */}
-            <div ref={cajaRef} className="relative flex items-center">
-              <div
-                className="overflow-hidden transition-[width,opacity] duration-300 ease-out"
-                style={{ width: buscando ? 260 : 0, opacity: buscando ? 1 : 0 }}
-              >
-                <input
-                  ref={inputRef}
-                  value={texto}
-                  onChange={(e) => setTexto(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape') cerrar();
-                    if (e.key === 'Enter' && resultados[0]) ir(resultados[0].href);
-                  }}
-                  tabIndex={buscando ? 0 : -1}
-                  placeholder="Sección o cliente…"
-                  className="w-[252px] mr-1 h-11 px-3 rounded-[14px] bg-surface-2 border border-line focus:border-teal focus:outline-none text-[14px]"
-                />
-              </div>
-              <BotonDock etiqueta={buscando ? 'Cerrar búsqueda' : 'Buscar (Ctrl+K)'}>
-                <button
-                  type="button"
-                  aria-label="Buscar"
-                  onClick={() => (buscando ? cerrar() : setBuscando(true))}
-                  className={claseIcono(buscando)}
-                >
-                  {buscando ? <X size={19} strokeWidth={2.2} /> : <Search size={19} strokeWidth={2.2} />}
+      {/* Encabezado de la computadora: se va con el scroll. Marca a la
+          izquierda; a la derecha el buscador, las preferencias (tema y vista)
+          agrupadas, y la cuenta (perfil y salir). Mismo ancho que el
+          contenido de las secciones para que todo quede alineado. */}
+      <header className="hidden lg:block">
+        <div className="max-w-6xl mx-auto px-8 pt-7 pb-6 flex items-center gap-8">
+          <Link href="/dashboard" aria-label="Ir al resumen" className="shrink-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/50">
+            <Logo variante="completo" size={48} />
+          </Link>
+
+          <div className="ml-auto flex items-center gap-4 xl:gap-5">
+            {/* Buscador siempre visible */}
+            <div ref={cajaRef} className="relative">
+              <Search size={17} strokeWidth={2.2} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+              <input
+                ref={inputRef}
+                value={texto}
+                onChange={(e) => { setTexto(e.target.value); setBuscando(true); }}
+                onFocus={() => setBuscando(true)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') { cerrar(); inputRef.current?.blur(); }
+                  if (e.key === 'Enter' && resultados[0]) ir(resultados[0].href);
+                }}
+                placeholder="Buscar sección o cliente"
+                aria-label="Buscar sección o cliente"
+                className="w-[230px] xl:w-[320px] h-12 pl-11 pr-16 rounded-full bg-surface border border-line hover:border-line-strong focus:border-teal focus:ring-4 focus:ring-teal/10 focus:outline-none text-[14px] placeholder:text-muted transition-colors"
+              />
+              {texto ? (
+                <button type="button" aria-label="Limpiar búsqueda" onClick={() => { setTexto(''); inputRef.current?.focus(); }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full flex items-center justify-center text-muted hover:bg-surface-2">
+                  <X size={15} strokeWidth={2.3} />
                 </button>
-              </BotonDock>
+              ) : (
+                <kbd className="absolute right-4 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded-md border border-line bg-surface-2 text-[11px] font-sans font-medium text-muted pointer-events-none">Ctrl K</kbd>
+              )}
 
               <AnimatePresence>
                 {buscando && resultados.length > 0 && (
@@ -259,7 +254,7 @@ export default function DockNav({ userName }: { userName?: string }) {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -6 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute left-0 top-full mt-3 w-[300px] rounded-2xl bg-surface border border-line shadow-diffuse p-1.5 z-50"
+                    className="absolute left-0 right-0 top-full mt-2 rounded-2xl bg-surface border border-line shadow-diffuse p-1.5 z-50"
                   >
                     {resultados.map((r, i) => (
                       <li key={r.href}>
@@ -279,39 +274,56 @@ export default function DockNav({ userName }: { userName?: string }) {
               </AnimatePresence>
             </div>
 
-            <BotonDock etiqueta="Tema claro / oscuro">
-              <div className="w-11 h-11 flex items-center justify-center">
-                <ThemeToggle />
-              </div>
-            </BotonDock>
-            <BotonDock etiqueta={vista === 'nueva' ? 'Ver listas como tarjetas' : 'Ver listas como tabla'}>
-              <button
-                type="button"
-                aria-label="Cambiar entre tarjetas y tabla"
-                onClick={() => setVista(vista === 'nueva' ? 'clasica' : 'nueva')}
-                className={claseIcono(false)}
-              >
-                {vista === 'nueva' ? <LayoutGrid size={19} strokeWidth={2.1} /> : <Rows3 size={19} strokeWidth={2.1} />}
-              </button>
-            </BotonDock>
-            <span className="w-px h-7 bg-line-strong mx-2" aria-hidden="true" />
-            <PerfilChip nombre={userName} respaldo="Supervisor" />
-            <LogoutButton compacto />
+            {/* Preferencias: tema y vista, en una sola cápsula */}
+            <div className="flex items-center gap-1 p-1 rounded-full bg-surface border border-line">
+              <BotonDock etiqueta="Tema claro / oscuro">
+                <ThemeToggle className="w-10 h-10 rounded-full flex items-center justify-center text-ink/70 hover:text-ink hover:bg-surface-2 active:scale-90 transition" />
+              </BotonDock>
+              <BotonDock etiqueta={vista === 'nueva' ? 'Ver listas como tarjetas' : 'Ver listas como tabla'}>
+                <button
+                  type="button"
+                  aria-label="Cambiar entre tarjetas y tabla"
+                  onClick={() => setVista(vista === 'nueva' ? 'clasica' : 'nueva')}
+                  className="w-10 h-10 rounded-full flex items-center justify-center text-ink/70 hover:text-ink hover:bg-surface-2 active:scale-90 transition"
+                >
+                  {vista === 'nueva' ? <LayoutGrid size={18} strokeWidth={2.1} /> : <Rows3 size={18} strokeWidth={2.1} />}
+                </button>
+              </BotonDock>
+            </div>
+
+            <span className="w-px h-9 bg-line-strong" aria-hidden="true" />
+
+            {/* Cuenta: perfil (nombre y rol) y salir */}
+            <div className="flex items-center gap-2">
+              <Link href="/perfil" aria-label="Mi perfil"
+                className="flex items-center gap-3 p-1 xl:pr-4 rounded-full hover:bg-surface border border-transparent hover:border-line transition-colors">
+                <span className="w-10 h-10 rounded-full bg-teal text-inkOnAccent flex items-center justify-center text-[13px] font-display font-bold shrink-0">
+                  {iniciales || 'S'}
+                </span>
+                <span className="hidden xl:block leading-tight text-left">
+                  <span className="block text-[14px] font-semibold truncate max-w-[160px]">{userName || 'Supervisor'}</span>
+                  <span className="block text-[12px] text-muted">Supervisor</span>
+                </span>
+              </Link>
+              <BotonDock etiqueta="Cerrar sesión">
+                <LogoutButton compacto className="w-11 h-11 rounded-full border border-line bg-surface flex items-center justify-center text-ink/65 hover:text-red hover:border-red/40 active:scale-90 transition disabled:opacity-60" />
+              </BotonDock>
+            </div>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* Barra de secciones: fija arriba al hacer scroll, a todo lo ancho,
-          con ícono y nombre de cada sección. */}
-      <div className="hidden lg:block sticky top-0 z-30 bg-bg pb-2 pt-1">
+      {/* Barra de secciones: fija arriba al hacer scroll, con ícono y nombre
+          de cada sección. */}
+      <div className="hidden lg:block sticky top-0 z-30 bg-bg pt-2 pb-3">
         {/* Desvanecido bajo la barra: el contenido se pierde suave al pasar
             por debajo en vez de verse cortado en seco. */}
-        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-full h-5 bg-gradient-to-b from-bg to-transparent" />
-        <div className="max-w-[1440px] mx-auto px-8">
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-full h-6 bg-gradient-to-b from-bg to-transparent" />
+        <div className="max-w-6xl mx-auto px-8">
           <LayoutGroup id="dock">
             <nav
               aria-label="Secciones"
-              className="flex items-stretch gap-1 rounded-[22px] bg-surface border border-line p-1.5 shadow-diffuse"
+              className="flex items-stretch gap-1.5 rounded-[24px] bg-surface border border-line p-2 shadow-diffuse"
             >
               {secciones.map((t) => (
                 <SeccionDock key={t.key} href={t.href} etiqueta={t.label} Icono={t.Icono} activo={t.key === activa} />

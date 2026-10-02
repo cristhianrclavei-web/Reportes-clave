@@ -134,7 +134,7 @@ export default function ReportesList({
       active="reportes"
       title="Reportes"
       userName={userName}
-      wrapperClassName="max-w-3xl lg:max-w-6xl mx-auto pb-10 px-0 lg:px-4"
+      wrapperClassName="max-w-3xl lg:max-w-6xl mx-auto pb-10 px-0 lg:px-8"
     >
         <SubTabs
           activa={subseccion}
