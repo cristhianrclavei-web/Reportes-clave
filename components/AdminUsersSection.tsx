@@ -17,6 +17,7 @@ interface User {
   can_manage_billing?: boolean;
   can_approve_review?: boolean;
   can_approve_cotizacion?: boolean;
+  can_approve_personal?: boolean;
   created_at: string;
 }
 
@@ -60,7 +61,7 @@ export default function AdminUsersSection({ initialUsers = [] }: { initialUsers?
 
   const alternarPermiso = async (
     u: User,
-    campo: 'can_manage_almacen' | 'can_manage_billing' | 'can_approve_review' | 'can_approve_cotizacion'
+    campo: 'can_manage_almacen' | 'can_manage_billing' | 'can_approve_review' | 'can_approve_cotizacion' | 'can_approve_personal'
   ) => {
     const valorNuevo = !u[campo];
     setUsuarios((prev) => prev.map((x) => (x.id === u.id ? { ...x, [campo]: valorNuevo } : x)));
@@ -215,6 +216,16 @@ export default function AdminUsersSection({ initialUsers = [] }: { initialUsers?
                               className="w-5 h-5 accent-teal shrink-0"
                             />
                             <span className="text-[14px]">Firma de cotización</span>
+                          </label>
+                          <label className="flex items-center gap-2.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={!!u.can_approve_personal}
+                              onChange={() => alternarPermiso(u, 'can_approve_personal')}
+                              disabled={guardando}
+                              className="w-5 h-5 accent-teal shrink-0"
+                            />
+                            <span className="text-[14px]">Autoriza horas extra, vacaciones y permisos</span>
                           </label>
                         </div>
                       </div>

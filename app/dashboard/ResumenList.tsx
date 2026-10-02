@@ -1,6 +1,7 @@
 'use client';
 
 import AlertaEquiposSinRegistro from '@/components/AlertaEquiposSinRegistro';
+import AlertaSolicitudes from '@/components/AlertaSolicitudes';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabaseClient';
@@ -125,6 +126,7 @@ export default function ResumenList({
           <Stat label="Reportes totales" value={reports.length} accent="teal" />
         </div>
 
+        <AlertaSolicitudes />
         <AlertaEquiposSinRegistro />
 
         {errorCarga && (

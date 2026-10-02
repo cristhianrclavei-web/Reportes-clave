@@ -33,7 +33,7 @@ function seccionActiva(pathname: string): DashboardTabKey {
   const [, , seg] = pathname.split('/');
   const mapa: Record<string, DashboardTabKey> = {
     servicios: 'servicios', agenda: 'agenda', reportes: 'reportes', cotizaciones: 'cotizaciones',
-    proyectos: 'proyectos', eventos: 'eventos', almacen: 'almacen', facturacion: 'facturacion',
+    proyectos: 'proyectos', eventos: 'eventos', almacen: 'almacen', facturacion: 'facturacion', personal: 'personal',
   };
   return mapa[seg] || 'resumen';
 }

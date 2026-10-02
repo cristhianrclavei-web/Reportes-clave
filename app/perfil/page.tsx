@@ -24,6 +24,7 @@ type UsuarioLista = {
   can_manage_billing?: boolean;
   can_approve_review?: boolean;
   can_approve_cotizacion?: boolean;
+  can_approve_personal?: boolean;
   created_at: string;
 };
 
@@ -48,7 +49,7 @@ export default async function PerfilPage() {
   if (esGestor) {
     const { data } = await supabase
       .from('profiles')
-      .select('id, full_name, role, telefono, activo, can_manage_usuarios, can_manage_almacen, can_manage_billing, can_approve_review, can_approve_cotizacion, created_at')
+      .select('id, full_name, role, telefono, activo, can_manage_usuarios, can_manage_almacen, can_manage_billing, can_approve_review, can_approve_cotizacion, can_approve_personal, created_at')
       .order('full_name', { ascending: true });
     usuarios = data || [];
   }

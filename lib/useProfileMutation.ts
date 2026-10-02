@@ -139,7 +139,7 @@ export function useUsersAdmin() {
   const setUsuarioPermiso = useCallback(
     async (
       userId: string,
-      campo: 'can_manage_almacen' | 'can_manage_billing' | 'can_approve_review' | 'can_approve_cotizacion',
+      campo: 'can_manage_almacen' | 'can_manage_billing' | 'can_approve_review' | 'can_approve_cotizacion' | 'can_approve_personal',
       valor: boolean
     ): Promise<UpdateResult> => {
       setLoading(true);

@@ -1,6 +1,6 @@
 'use client';
 
-import { FileText, FolderKanban, History, CalendarDays, LayoutDashboard, Warehouse, Receipt, Building2, ReceiptText } from 'lucide-react';
+import { FileText, FolderKanban, History, CalendarDays, LayoutDashboard, Warehouse, Receipt, Building2, ReceiptText, CalendarClock } from 'lucide-react';
 
 // Secciones del panel del supervisor: una sola fuente de verdad para la
 // barra lateral, la barra inferior del celular y el buscador (Ctrl+K).
@@ -12,6 +12,7 @@ export const TABS = [
   { key: 'reportes', label: 'Reportes', corto: 'Reportes', href: '/dashboard/reportes', Icono: FileText },
   { key: 'cotizaciones', label: 'Cotizaciones', corto: 'Cotizar', href: '/dashboard/cotizaciones', Icono: Receipt },
   { key: 'proyectos', label: 'Clientes', corto: 'Clientes', href: '/dashboard/proyectos', Icono: Building2 },
+  { key: 'personal', label: 'Personal', corto: 'Personal', href: '/dashboard/personal', Icono: CalendarClock },
   { key: 'eventos', label: 'Actividad', corto: 'Actividad', href: '/dashboard/eventos', Icono: History },
 ] as const;
 
@@ -44,7 +45,7 @@ export function seccionesVisibles(puedeAlmacen: boolean, puedeFacturar: boolean,
 export const GRUPOS_NAV: { titulo: string; keys: DashboardTabKey[] }[] = [
   { titulo: 'Operación', keys: ['resumen', 'servicios', 'agenda', 'reportes'] },
   { titulo: 'Ventas', keys: ['cotizaciones', 'facturacion', 'proyectos'] },
-  { titulo: 'Control', keys: ['almacen', 'eventos'] },
+  { titulo: 'Control', keys: ['personal', 'almacen', 'eventos'] },
 ];
 
 // Las 4 que van fijas en la barra inferior del celular; el resto va en «Más».

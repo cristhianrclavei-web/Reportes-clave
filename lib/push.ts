@@ -158,7 +158,8 @@ export type TipoAviso =
   | 'firma_cliente'
   | 'reportes_atrasados'
   | 'vale_almacen'
-  | 'equipo_sin_registro';
+  | 'equipo_sin_registro'
+  | 'solicitud_personal';
 
 export const TIPOS_AVISO: { valor: TipoAviso; label: string; detalle: string; paraTecnico?: boolean }[] = [
   { valor: 'aviso_servicio', label: 'Avisos sobre días programados', detalle: 'Cuando un técnico avisa que un día no se va a poder' },
@@ -172,6 +173,7 @@ export const TIPOS_AVISO: { valor: TipoAviso; label: string; detalle: string; pa
   { valor: 'correccion_solicitada', label: 'Correcciones de reportes', detalle: 'Cuando un técnico pide corregir un reporte' },
   { valor: 'firma_cliente', label: 'Firmas del cliente a distancia', detalle: 'Cuando un cliente firma un reporte desde el enlace que le mandaste', paraTecnico: true },
   { valor: 'vale_almacen', label: 'Vales de almacén', detalle: 'Pedidos, entregas, devoluciones y plazos de herramienta y material', paraTecnico: true },
+  { valor: 'solicitud_personal', label: 'Horas extra, vacaciones y permisos', detalle: 'Solicitudes por autorizar, autorizadas o con corrección pedida, y el recordatorio del corte de pago', paraTecnico: true },
   { valor: 'equipo_sin_registro', label: 'Equipo instalado sin registro', detalle: 'Cuando un reporte trae equipo instalado que no está en el almacén' },
   { valor: 'reportes_atrasados', label: 'Reportes atrasados', detalle: 'A las 9:00, si un técnico acumula 2 días o más sin reporte ni justificación' },
   { valor: 'reporte_nuevo', label: 'Reportes concluidos', detalle: 'Cuando se guarda un reporte de servicio' },
@@ -221,7 +223,7 @@ export async function guardarPreferencia(tipo: TipoAviso, activo: boolean): Prom
 }
 
 export async function notificar(opciones: {
-  destino?: 'supervisores' | 'almacen';
+  destino?: 'supervisores' | 'almacen' | 'personal';
   usuarios?: string[];
   titulo: string;
   mensaje: string;

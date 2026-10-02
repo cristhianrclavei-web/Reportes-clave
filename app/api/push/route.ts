@@ -27,10 +27,11 @@ const TIPOS_VALIDOS = new Set([
   'reporte_pendiente',
   'vale_almacen',
   'equipo_sin_registro',
+  'solicitud_personal',
   'general',
 ]);
 
-const DESTINOS_VALIDOS = new Set(['supervisores', 'almacen']);
+const DESTINOS_VALIDOS = new Set(['supervisores', 'almacen', 'personal']);
 
 // Envio de notificaciones push. Corre en el servidor porque la clave privada
 // VAPID no puede salir de aqui.

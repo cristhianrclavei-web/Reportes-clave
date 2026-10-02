@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import webpush from 'web-push';
 import { createAdminClient, hayClienteAdmin } from '@/lib/supabaseAdmin';
 import { horaActualMexico } from '@/lib/horaMexico';
+import { recordatorioCorte, fechaBonita } from '@/lib/solicitudesPersonal';
 import { avisarUsuarios } from '@/lib/cronPush';
 import { sumarDias } from '@/lib/fechaHoy';
 import { INICIO_COBERTURA, agruparPorTecnico, inicioVentana, mensajePendiente } from '@/lib/coberturaReportes';
@@ -172,9 +173,50 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Corte de horas extra (solo en la mañana): los 2 días hábiles previos y el
+  // día del corte. A quien autoriza, si hay horas por autorizar; a los
+  // técnicos, una sola vez (2 días hábiles antes) para que manden las suyas.
+  let horasPorAutorizar = 0;
+  const corte = momento === 'manana' ? recordatorioCorte(hoy) : null;
+  if (corte) {
+    const { data: pend, error: errPend } = await admin
+      .from('solicitudes_personal')
+      .select('id')
+      .eq('tipo', 'horas_extra')
+      .eq('estado', 'pendiente')
+      .lte('corte_pago', corte.corte);
+    if (!errPend) {
+      horasPorAutorizar = (pend || []).length;
+      const cuando = corte.faltan === 0 ? 'hoy' : `el ${fechaBonita(corte.corte)}`;
+      if (horasPorAutorizar > 0) {
+        const { data: aut } = await admin.rpc('destinatarios_notificacion_tipo', { p_destino: 'personal', p_tipo: 'solicitud_personal' });
+        const ids = ((aut as any[]) || []).map((r) => (typeof r === 'string' ? r : r.destinatarios_notificacion_tipo));
+        const carga = JSON.stringify({
+          titulo: `${horasPorAutorizar} solicitud(es) de horas extra por autorizar`,
+          cuerpo: `El corte de pago es ${cuando}. Autorízalas para que entren en el pago.`,
+          url: '/dashboard/personal',
+          tag: 'corte-horas-extra',
+        });
+        const r = await avisarUsuarios(admin, ids, 'solicitud_personal', carga);
+        caducadas.push(...r.caducadas);
+      }
+      if (corte.faltan === 2) {
+        const { data: tecs } = await admin.from('profiles').select('id').eq('role', 'tecnico').eq('activo', true);
+        const carga = JSON.stringify({
+          titulo: 'Corte de horas extra',
+          cuerpo: `El corte es ${cuando}. Si trabajaste horas extra, mándalas desde Solicitudes.`,
+          url: '/solicitudes',
+          tag: 'corte-horas-extra',
+        });
+        const r = await avisarUsuarios(admin, ((tecs as any[]) || []).map((t) => t.id), 'solicitud_personal', carga);
+        caducadas.push(...r.caducadas);
+      }
+    }
+  }
+
   if (caducadas.length > 0) {
     await admin.from('push_suscripciones').delete().in('endpoint', caducadas);
   }
 
-  return NextResponse.json({ enviadas, tecnicos: porTecnico.size, escalados, valesVencidos, equiposSinRegistro, limpiadas: caducadas.length });
+  return NextResponse.json({ enviadas, tecnicos: porTecnico.size, escalados, valesVencidos, equiposSinRegistro, horasPorAutorizar, limpiadas: caducadas.length });
 }
