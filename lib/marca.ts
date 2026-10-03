@@ -64,3 +64,9 @@ export const DEMO = {
 };
 
 export const MARCA_MAYUS = MARCA.nombre.toUpperCase();
+
+// Ícono de la app. Clave Inteligente usa sus imágenes de public/icons; las
+// demás marcas, uno dibujado con sus iniciales (app/icono/[tam]/route.tsx).
+export function iconoApp(tam: 192 | 512): string {
+  return MARCA.iniciales === 'CI' ? `/icons/icon-${tam}.png` : `/icono/${tam}`;
+}

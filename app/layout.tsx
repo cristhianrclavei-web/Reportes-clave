@@ -5,7 +5,7 @@ import ToastContainer from '@/components/Toast';
 import OfflineSyncManager from '@/components/OfflineSyncManager';
 import SeleccionarNumeros from '@/components/SeleccionarNumeros';
 import AvisoSuscripcion from '@/components/AvisoSuscripcion';
-import { MARCA, MARCA_MAYUS, DEMO } from '@/lib/marca';
+import { MARCA, MARCA_MAYUS, DEMO, iconoApp } from '@/lib/marca';
 
 const display = Barlow_Condensed({
   subsets: ['latin'],
@@ -27,8 +27,8 @@ export const metadata: Metadata = {
   title: `${MARCA.appNombre} · ${MARCA.nombre}`,
   description: `App de reportes de servicio ${MARCA.claveFormato} para técnicos y supervisores`,
   icons: {
-    icon: '/icons/icon-192.png',
-    apple: '/icons/icon-192.png',
+    icon: iconoApp(192),
+    apple: iconoApp(192),
   },
   appleWebApp: {
     capable: true,
