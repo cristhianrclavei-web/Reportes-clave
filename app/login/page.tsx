@@ -140,7 +140,7 @@ function LoginForm() {
               Tu operación de campo,<br className="hidden sm:block" /> en una sola app
             </h1>
             <p className="mt-3 text-[15px] sm:text-base text-muted max-w-xl">
-              Elige cómo quieres entrar y recorre {MARCA.appNombre.toLowerCase()} con datos de ejemplo:
+              Elige cómo quieres entrar y recorre la app con datos de ejemplo:
               agenda, reportes firmados, cotizaciones y almacén.
             </p>
           </div>
