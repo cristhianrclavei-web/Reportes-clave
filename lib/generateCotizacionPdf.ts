@@ -286,11 +286,17 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
   ];
   if (cot.notas) condiciones.push(cot.notas);
 
-  for (const linea of condiciones) {
-    for (const wl of wrapText(linea, font, 9.5, contentW)) {
-      ensureSpace(15);
-      page.drawText(wl, { x: MARGIN, y, size: 9.5, font, color: NAVY });
-      y -= 14;
+  // Los campos de texto largo (garantía, tiempo de entrega, notas) pueden
+  // traer varios párrafos: cada salto de línea se respeta y una línea vacía
+  // deja un espacio entre párrafos.
+  for (const condicion of condiciones) {
+    for (const parrafo of condicion.split(/\r?\n/)) {
+      if (!parrafo.trim()) { y -= 7; continue; }
+      for (const wl of wrapText(parrafo, font, 9.5, contentW)) {
+        ensureSpace(15);
+        page.drawText(wl, { x: MARGIN, y, size: 9.5, font, color: NAVY });
+        y -= 14;
+      }
     }
   }
 

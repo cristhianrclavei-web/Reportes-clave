@@ -556,7 +556,7 @@ export default function CotizacionForm({
           </div>
           <div>
             <label className={labelCls}>Garantía</label>
-            <input className={inputCls} value={garantia} onChange={(e) => setGarantia(e.target.value)} />
+            <textarea className={`${inputCls} min-h-[100px]`} value={garantia} onChange={(e) => setGarantia(e.target.value)} />
           </div>
           <div className="grid grid-cols-2 gap-3.5">
             <div>
