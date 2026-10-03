@@ -1,7 +1,12 @@
 /** @type {import('next').NextConfig} */
 
 // Origen de Supabase — usado en CSP para permitir API, Storage y Realtime.
-const SUPABASE_ORIGIN = 'https://sxtedvxqnqrzuxpvgpih.supabase.co';
+// La base de ESTA instalación (cada cliente y el demo tienen la suya). Sin
+// la variable se usa la de Clave Inteligente, como antes.
+const SUPABASE_ORIGIN = new URL(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://sxtedvxqnqrzuxpvgpih.supabase.co'
+).origin;
+const SUPABASE_WSS = SUPABASE_ORIGIN.replace(/^https:/, 'wss:');
 const esDesarrollo = process.env.NODE_ENV === 'development';
 
 // Content Security Policy.
@@ -27,7 +32,7 @@ const csp = [
   "font-src 'self' data:",
   // nominatim: búsqueda de direcciones (gratis, sin llave) al capturar la
   // ubicación de un sitio programado.
-  `connect-src 'self' ${SUPABASE_ORIGIN} wss://sxtedvxqnqrzuxpvgpih.supabase.co https://nominatim.openstreetmap.org`,
+  `connect-src 'self' ${SUPABASE_ORIGIN} ${SUPABASE_WSS} https://nominatim.openstreetmap.org`,
   "media-src 'self' blob:",
   "worker-src 'self' blob:",
   "manifest-src 'self'",

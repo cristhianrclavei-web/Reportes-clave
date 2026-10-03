@@ -133,7 +133,7 @@ function LoginForm() {
                 type="button"
                 disabled={loading}
                 onClick={() => entrar(DEMO.supervisor.correo, DEMO.supervisor.contrasena)}
-                className="min-h-[48px] rounded-2xl bg-teal text-inkOnAccent font-semibold text-[14px] disabled:opacity-60 active:scale-95 transition-transform"
+                className="min-h-[48px] rounded-2xl border border-teal/50 text-teal font-semibold text-[14px] disabled:opacity-60 active:scale-95 transition-transform"
               >
                 Supervisor
               </button>
@@ -146,7 +146,7 @@ function LoginForm() {
                 Técnico
               </button>
             </div>
-            <p className="text-[11.5px] text-muted text-center mt-3">o entra con tu cuenta</p>
+            <p className="text-[11.5px] text-muted text-center mt-3">Toca una para entrar directo · o usa tu cuenta abajo</p>
           </div>
         )}
 
