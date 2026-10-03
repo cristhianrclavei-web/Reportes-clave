@@ -28,6 +28,14 @@ export const MARCA = {
   // mantenimiento, así que debe seguir funcionando mientras las etiquetas
   // estén pegadas (si se cambia de dominio, el anterior debe redirigir).
   appUrl: valor(process.env.NEXT_PUBLIC_MARCA_APP_URL, 'https://reportes-clave.vercel.app'),
+  // El Excel del reporte es la plantilla CRM0851 de Clave Inteligente (con su
+  // logo y su acomodo): solo se ofrece en instalaciones que usan ese formato.
+  // Las demás entregan el reporte en PDF. Se puede forzar con
+  // NEXT_PUBLIC_MARCA_EXCEL=1 / 0.
+  excelReporte: valor(
+    process.env.NEXT_PUBLIC_MARCA_EXCEL,
+    valor(process.env.NEXT_PUBLIC_MARCA_CLAVE_FORMATO, 'CRM0851') === 'CRM0851' ? '1' : '0',
+  ) === '1',
   // Identidad visual de la instalación.
   //   tema: 'clave' (verde sobre azul noche) | 'azul' (pizarra y azul eléctrico).
   //         Los colores viven en app/globals.css ([data-tema]).

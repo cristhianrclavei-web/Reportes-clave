@@ -3,6 +3,7 @@ import { ipAddress as ipAddress1 } from "@vercel/functions";
 import { createClient } from '@/lib/supabaseServer';
 import { generateReportXlsx } from '@/lib/generateReportXlsx';
 import { auditarDescarga } from '@/lib/auditarDescarga'; // NUEVO - OWASP A09
+import { MARCA } from '@/lib/marca';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +14,11 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
+  // La plantilla de Excel es la de Clave Inteligente: en instalaciones con
+  // otro formato el reporte solo se entrega en PDF.
+  if (!MARCA.excelReporte) {
+    return NextResponse.json({ error: 'Esta instalación entrega los reportes en PDF' }, { status: 404 });
+  }
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {

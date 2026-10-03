@@ -1,5 +1,6 @@
 'use client';
 
+import { MARCA } from '@/lib/marca';
 import { tuberiasDe, cablesDe, soporteriaDe, textoTuberia, textoCable, textoSoporteria } from '@/lib/materialesReporte';
 import { reducirFoto } from '@/lib/reducirFoto';
 import AutorReporte from '@/components/AutorReporte';
@@ -467,7 +468,7 @@ export default function ReportDetailModal({
               'min-h-[62px] w-full rounded-2xl flex flex-col items-center justify-center gap-1 text-[12px] font-semibold active:scale-95 transition-transform disabled:opacity-60';
             const secundario = `${base} bg-surface-2 border border-line text-ink/85 hover:border-teal/40`;
             return (
-              <div className={`w-full grid gap-2 ${conEtiqueta ? 'grid-cols-4' : 'grid-cols-3'}`}>
+              <div className={`w-full grid gap-2 ${['grid-cols-2', 'grid-cols-3', 'grid-cols-4'][(conEtiqueta ? 1 : 0) + (MARCA.excelReporte ? 1 : 0)]}`}>
                 <button
                   onClick={() => window.open(`/api/reports/${report.id}/pdf?t=${Date.now()}`, '_blank', 'noopener,noreferrer')}
                   className={`${base} bg-teal text-inkOnAccent shadow-glow-teal`}
@@ -481,13 +482,15 @@ export default function ReportDetailModal({
                     Etiqueta
                   </button>
                 )}
-                <button
-                  onClick={() => { window.location.href = `/api/reports/${report.id}/xlsx?t=${Date.now()}`; }}
-                  className={secundario}
-                >
-                  <FileSpreadsheet size={19} strokeWidth={2.3} className="text-teal" />
-                  Excel
-                </button>
+                {MARCA.excelReporte && (
+                  <button
+                    onClick={() => { window.location.href = `/api/reports/${report.id}/xlsx?t=${Date.now()}`; }}
+                    className={secundario}
+                  >
+                    <FileSpreadsheet size={19} strokeWidth={2.3} className="text-teal" />
+                    Excel
+                  </button>
+                )}
                 <div className="relative">
                   <button onClick={() => setShareMenuOpen((v) => !v)} disabled={sharing} className={secundario}>
                     <Share2 size={19} strokeWidth={2.3} className="text-teal" />
@@ -499,10 +502,12 @@ export default function ReportDetailModal({
                         <FileText size={15} strokeWidth={2.4} className="text-teal" />
                         Como PDF
                       </button>
-                      <button onClick={() => handleShare('xlsx')} className="flex items-center gap-2 text-left text-[13px] font-medium px-3 py-2.5 rounded-xl hover:bg-white/10 active:scale-95 transition-transform">
-                        <FileSpreadsheet size={15} strokeWidth={2.4} className="text-teal" />
-                        Como Excel
-                      </button>
+                      {MARCA.excelReporte && (
+                        <button onClick={() => handleShare('xlsx')} className="flex items-center gap-2 text-left text-[13px] font-medium px-3 py-2.5 rounded-xl hover:bg-white/10 active:scale-95 transition-transform">
+                          <FileSpreadsheet size={15} strokeWidth={2.4} className="text-teal" />
+                          Como Excel
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

@@ -4,6 +4,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { ReportDetail } from './ReportDetailModal';
 import BotonInfo from '@/components/BotonInfo';
 import { hoyLocal } from '@/lib/fechaHoy';
+import { MARCA } from '@/lib/marca';
+
+// «Ing. Everardo Sánchez» → «Ing. Sánchez»: quien firma la revisión, en corto.
+const REVISOR_PARTES = MARCA.revisor.trim().split(/\s+/);
+const REVISOR_CORTO = REVISOR_PARTES.length > 2
+  ? `${REVISOR_PARTES[0]} ${REVISOR_PARTES[REVISOR_PARTES.length - 1]}`
+  : MARCA.revisor;
 
 type Report = ReportDetail;
 
@@ -178,7 +185,7 @@ export default function KpiSection({ reports }: { reports: Report[] }) {
               <div className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-teal shrink-0" />
                 <span className="font-semibold">{completados}</span>
-                <span className="text-muted">completados (firmados por Ing. Sánchez)</span>
+                <span className="text-muted">completados (firmados por {REVISOR_CORTO})</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-line-strong shrink-0" />

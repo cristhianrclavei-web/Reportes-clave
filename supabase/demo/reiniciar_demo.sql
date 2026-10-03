@@ -39,6 +39,11 @@ declare
   hoy date := (now() at time zone 'America/Mexico_City')::date;
   t text;
   v_sup uuid; v_tec uuid; v_tec2 uuid; v_tec3 uuid; v_id uuid; v_s uuid; x record;
+  v_r uuid; v_nom text; v_contacto text; v_puesto text; v_ini timestamptz; i integer := 0;
+  -- Rúbricas de ejemplo (trazos ficticios) para que los reportes salgan firmados.
+  f1 constant text := 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQQAAABaBAMAAACs1TUKAAAAGFBMVEX////+/v78/Pzx8fG5ublwcHAzMzMHBwfVgEbpAAAE5UlEQVR42u1YTXeqSBClW5x1N3lv3+AkayYY3Zon6tZRsbdzkig/IED//aluvloEJGee2UxXzknOAQL3Vt26VWBZJkyYMGHChAkTJkyY+A/hkK4z1PM88g0IEPy0B1a/vgEDWfntT0FkEkYHhu+OAP8QH+1pIHYshPjw2b0h0Kc0+6stDXjEs0O4Eh93TwPZ/MO3bRDYLNvBn5XY3jsNTvw6S1qIYlvsLc9zrXVy5zSg0ZnZaYsYGE8sV0IcxX/ftymwnXkP8YK0HF/QHMvmzmnAdopdfl1uVlUH/0xRjdBxfz+EcYLJ5h1d1ScuYaEHvqcVAgD32xtiliD08yrVVJMoGWunwyX6ktQ896aQ2OaNQjFo0xi12oAsSuOgU5EtvpAGOX4wvQlhy9BINDyajlNtPjkVHsJP/AviRNYoXPrWDfkwDqxofEkNeVxXB9u850wQtMkoHp4G9hiL7PR8A4OCAKkglxpNLe0AekxxYeYJZrPBaUB2nEVHkS2tvlogJ4Ya0MZtgbZz0R4iF4OsGijD71QY9nT5sU36bOGXONtbpM8c5Q0bekQPjWSzQgyEv0LK+AfqW36Qhnxhecyyefbcb46uulhn5lyIURZgrsQA0CTecfZMOlYcO4qWrDxJ1il0A3IIYPhFepxJlZlynTbjb7TtqjxZaNIhSESmasHAjVwi8hLvWK856ppv+EDtlXKKoEd1Mdm0V4KB+sLwKAqAuJp+2PqzWz4gRNV9SDfAlrlE1UpBZp9Iwc7aLA+NePoL/pbDHTTu1Lbe588KgpQE0Sizq71G3pfM3wpJtG0xbJ35csEo/53xHbm9pMu75hXQDJnOUtwyTwFpOVEvyqbpf4fkYTZXuUIPwh+0Z8hOv7wrjIfdlZsB8VdSKEKtm/hai+sk734Jl1QSHg6hpk7HbdYjEwALVl4t2fDNStBHsXBLd1fCmb/TQRDcohthUyw7iO9Qu2bkdlMC/0TNgcQ/ypcekLOs2mbY2gvECsqM56DZOGNtcge3wtVagcfilTUGUlrlDqA6Ul0LMhBC0Ql0ru4PLw+J0zpxIM9/lNxlrtnlO0e8xbVwIKN1jyFKHU9G9+ZYPiPzXWieddoOnvC9ZppN64CBpO2XsAhS2MQcqp5cYSV9/pxXYg8WYost6vCwRPOLhnfQsViU6CTpp8Tx5u/FgVEQTMMwio4dtl5vjc4TzNQpTxDrmP3naUb1cY618QSWTWlNGtYNi++DIAxXUXSGiKJDGLbbBJlX0oZFWZzi7l2Abc6JNkfGsm4FafKS+VWlMZBeiSiK4cmnKArDZRD4vbZQvymR0VGcuvdj2fjsYquxStJ2DEmfFKSPkjRP1mkQBNom0/mxhGlDGjEcsL71JlRjvZS3LXYlaQ6ko5J0KEmPk9knnFRXupT2dSflWuJBBbhr0YR8e/KO1flJwLNwdZKkYUE8qHzX2+8kjrfw6EG2cFF7dA23JF2dKOQtScfiBKQna3gDLxStLpWkyezkDjImNfl7TmukR7LSYVHpgvQUpGPZICC/yLdGBvtDt+wfhxvTTJFelZU+5JUu40WIswAEbTPlS6993VUqSeedVdlSLbLp6hwt/bZvcmjwJwnE+iAo0s+XnaXLG4ZJ8C1fBXs6y4EuccmdH05vdBa1TJgwYcKECRMmTJgwYeJ/Ev8Cnb0PDefDSA0AAAAASUVORK5CYII=';
+  f2 constant text := 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQQAAABaBAMAAACs1TUKAAAAGFBMVEX////+/v78/Pzy8vK6urpwcHA1NTUHBwd8byMWAAAFPElEQVR42u1YTVujPBRNAuwTfN0HdFyj1HZbR1q21dqynrEtP2AK+fvvDZ8BgtWn2lXuSqHkfuScc2+CkDFjxowZM2bMmDFjxr5sbOwF9i4UAR59wxG9TAj0ZiQIbD3jyxTh6sD0yfJl/kQvE0K64voiiPRIzi/yZ34zy7SO6DK7zc7cCez6xPdP/ozY4l4TKr5J5ySdn7UTGMobIOSeXIQnup0gdo55vKJnRWBNNvtNhPCpVbz4XVNvtjy6dPbOzgiBW1shUiF2wSlIYSd/GIZJkxVld//OAAOxlmL/HEZLkQXsFGY0nIB98Chx+pRgXxBZuhS74o9FukP8FCeGyWLpnTiZqz50vXFo4T793Fvxxl2P+R56FOsTWwGeBiHwGGCA7TxQFoZwwtHGQcM+FuNdJf6+tc1PUAvUac4HUIBHsEVKCBhNtod9oK8ptg9PnRfUyQOv+phayZG0CxGqpSUdQEGKBU+U2OhjKg4ie9bWlMV5BzeQ1jtpK2KL1cdtl037sMPXhWSqIYCEZc/hJM3nTAvp6KB2FOZkQRs9ptNjgxW+0LQeYndhBxnHhSKANvG2VBkoHbpNjhrdB9TQ5EX1maxwh6BpLTG6bdc9rRSTx39ZW4Q58ZiL7HTNNNpyZPG6deoCwjuB8sesggDssY7aiqsmJvkBnTZ0lZslHzE+zT06XOAPu1NEFlJgPc7WZQH+kU+AQTaI4sO7+jn2k9cSUIT0ly8I9OQrIlKhueOiBged6vrB4JM6pFYeidPkTp3M1xCIWfuGwTweTBqAjvIZ03bFgUZ7JRolTkm96D/W/riPp4JArHlMupJWpWXnT1BH8p/Qz2K9sOv+3YQAI1Tr1hvkWEg8j1/pGMmLMsQZDBBtVsO5RckMeme5L9iq/mBT5UNsDwn0QttN1vY96SN9xT4k64MNhapFW+FwdqyTP5QV5eprxHtZlltDrqunzMmHGsyY5NIcwR5VJ4QBpNVVmzkKyFmEgK+EurkgNJ0ylO0MV5gG4CmTDriWWZcDZJJtkt0kirab7RAsxGk5gf20bjmVQve5zOPOOFW9puWP3esM9LPjGiwMwfVSiPxw2GzfoojrdqLZP4WiVT1ob7Yj1x1eQglxERggAjOUvCiub8KwyPoArjfg+jkMRge91gudHXE3XSrhNq7oUlwxZD179yGyx5zWrhebDbjeS9dh+NBkq1ano/K1iKsFgQEWl3yhPRY2sgmuAay+/MLJELLCNIsW+9L1XmbdzDKFa4/RjyZINpBK/EsWpMG6SrC558olpWuJcguyXuQy61zrGrBx+oxft3Q+ax2WCq2iD7KWroGX5f/S9VJUBU/zKErXvaw/fw6Aaq/dknErZU6RIfgS6qVrv35l53Kvy4KnddZ2uk8y5H7VdQuqRY7kiKwqRNHcO02MFOzabLZCQrxwDbQphwQf5nbtUPX5u47kDfmoAz2QxzkFdXYr1xW7JLEfs5pdtvhdZU3Q5PdZh3HfEWs0SboNazvnHNSO2LXrsCZ2QX9w7U7bMwBD593M4KskB0QF3ba98qQIYKtxjUjpGijIe328OO2cdx1hb+EUiLuK9QpzoK9oCquIDa1gLedDcnXmFUCvpVth744LOrBXyC9mbDCKwUBLMXcygr7PCLTcbiXxrwyN3QTBDBIQbqV/2TeGALnSwY3TIr/XF5rZ6W5uxdn9D1+K0Visx7LkS5HBifWnrwax/RbQ0UuMKM3X+IeLIHmOP3g3eTh1e/EdEPXHs8TA1ktdVI+ay5AxY8aMGTNmzJgxY8YuZf8D9v0h/7p+z0YAAAAASUVORK5CYII=';
+  f3 constant text := 'data:image/png;base64,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';
   c_plaza uuid := gen_random_uuid(); c_hosp uuid := gen_random_uuid();
   c_torre uuid := gen_random_uuid(); c_ind uuid := gen_random_uuid();
   c_cole uuid := gen_random_uuid(); c_hotel uuid := gen_random_uuid();
@@ -326,6 +331,93 @@ begin
   update public.servicios_programados set report_id = r2 where id = s2;
   update public.servicios_programados set report_id = r3 where id = s3;
   update public.servicios_programados set report_id = r4 where id = s4;
+
+  -- Firmas de los reportes anteriores: técnico siempre; cliente en casi
+  -- todos (uno queda pendiente de firma, como ejemplo); revisión en los ya
+  -- aprobados.
+  update public.reports set data = data || jsonb_build_object('firmaIngData', f1) where id in (r1, r2, r3, r4, r5);
+  update public.reports set data = data || jsonb_build_object('firmaClienteData', f2) where id in (r1, r2, r3, r5);
+  update public.reports set data = data || jsonb_build_object(
+    'firmaRevisionData', f3, 'firmaRevisionNombre', 'Ing. Laura Méndez', 'firmaRevisionFecha', hoy - 1)
+  where id in (r1, r2, r5);
+
+  -- ---------- Una semana de actividad de toda la plantilla ----------
+  -- Servicios ya concluidos con sus tiempos reales y su reporte, para que
+  -- los indicadores del Resumen (hoy, semana, técnicos activos, tiempos,
+  -- conformidad) se vean como en una operación en marcha.
+  for x in
+    select * from (values
+      (4, c_plaza, 'Plaza Comercial Arboleda', -5, time '09:00', 120, 110, 'Mantenimiento', 'Preventivo', 'CCTV',
+         'Limpieza y ajuste de 18 cámaras del estacionamiento', 'Verificación de grabación y respaldo de NVR', 'Sin novedades. Se recomienda cambiar 2 fuentes en el siguiente mantenimiento.'),
+      (5, c_torre, 'Corporativo Torre Azul', -5, time '11:00', 90, 100, 'Mantenimiento', 'Correctivo', 'Control de acceso',
+         'Reemplazo de electroimán en puerta de site', 'Prueba de apertura con tarjeta y botón de salida', 'Electroimán dañado por golpe; queda operando.'),
+      (6, c_ind, 'Industrias Metálicas del Bajío', -4, time '08:00', 240, 260, 'Mantenimiento', 'Preventivo', 'Red contra incendio',
+         'Prueba de bomba principal y jockey', 'Revisión de presión en 12 hidrantes', 'Hidrante 7 con fuga leve en válvula: se cotiza reparación.'),
+      (7, c_hotel, 'Hotel Real del Valle', -4, time '10:00', 120, 95, 'Instalación nueva', null, 'Alarma intrusión',
+         'Instalación de 6 sensores de movimiento en bodega', 'Alta de zonas y prueba de comunicación con el panel', 'Sistema entregado y explicado al gerente.'),
+      (8, c_cole, 'Colegio Los Pinos', -3, time '09:00', 180, 200, 'Instalación nueva', null, 'Inst. eléctricas',
+         'Tendido de 60 m de tubería conduit', 'Cableado y conexión de 4 contactos regulados', 'Pendiente pintura de canalización por parte del colegio.'),
+      (9, c_hosp, 'Hospital Santa Lucía', -3, time '13:00', 60, 55, 'Mantenimiento', 'Correctivo', 'CCTV',
+         'Reemplazo de cámara en acceso de ambulancias', 'Ajuste de ángulo y prueba nocturna', 'Cámara anterior con sensor dañado; se retira.'),
+      (10, c_torre, 'Corporativo Torre Azul', -2, time '09:30', 120, 130, 'Mantenimiento', 'Preventivo', 'Control de acceso',
+         'Lubricación y ajuste de 4 torniquetes', 'Respaldo de base de datos de tarjetas', 'Torniquete 2 con desgaste en brazo: vigilar.'),
+      (11, c_plaza, 'Plaza Comercial Arboleda', -2, time '12:00', 120, 115, 'Mantenimiento', 'Preventivo', 'Alarma&Det',
+         'Prueba de 16 estaciones manuales', 'Prueba de sirenas y estrobos por zona', 'Todas las estaciones responden correctamente.'),
+      (12, c_ind, 'Industrias Metálicas del Bajío', -1, time '08:00', 180, 170, 'Mantenimiento', 'Correctivo', 'Automatización',
+         'Diagnóstico de falla en variador de línea 2', 'Reprogramación de rampa de arranque', 'Línea operando; se recomienda refacción de respaldo.'),
+      (13, c_hotel, 'Hotel Real del Valle', -1, time '15:00', 90, 120, 'Mantenimiento', 'Correctivo', 'CCTV',
+         'Revisión de pérdida de video en 3 cámaras del lobby', 'Cambio de conectores y de un tramo de cable', 'Falla por conectores sulfatados.'),
+      (14, c_hosp, 'Hospital Santa Lucía', 0, time '07:00', 90, 80, 'Mantenimiento', 'Preventivo', 'Red contra incendio',
+         'Inspección mensual de 24 extintores', 'Revisión de gabinetes y señalización', '2 extintores próximos a vencer: se programa recarga.'),
+      (15, c_cole, 'Colegio Los Pinos', 0, time '07:30', 60, 70, 'Mantenimiento', 'Correctivo', 'Inst. eléctricas',
+         'Cambio de pastilla térmica en tablero de laboratorio', 'Medición de carga por circuito', 'Circuito de laboratorio al 80% de su capacidad.')
+    ) v(n, cli, nombre, dia, hora, est, real_min, tipo, sub, sistema, act1, act2, obs)
+  loop
+    i := i + 1;
+    select u.id, p.full_name into v_id, v_nom from auth.users u join public.profiles p on p.id = u.id
+      where u.email = 'tecnico' || x.n || dominio;
+    continue when v_id is null;
+    select c.nombre, c.puesto into v_contacto, v_puesto from public.cliente_contactos c where c.cliente_id = x.cli limit 1;
+    v_s := gen_random_uuid();
+    v_r := gen_random_uuid();
+    v_ini := ((hoy + x.dia) + x.hora) at time zone 'America/Mexico_City';
+
+    insert into public.servicios_programados
+      (id, creado_por, proyecto, descripcion, fecha, duracion_estimada_min, hora_programada, estado, cliente_id)
+    values (v_s, v_sup, x.nombre, x.act1, hoy + x.dia, x.est, x.hora, 'programado', x.cli);
+    insert into public.servicio_tecnicos (servicio_id, tecnico_id, visto_en, enterado_en)
+    values (v_s, v_id, v_ini - interval '1 day', v_ini - interval '1 day');
+    update public.servicios_programados set
+      estado = 'concluido',
+      hora_llegada = v_ini - make_interval(mins => (i % 4) * 4),
+      hora_inicio = v_ini + make_interval(mins => 6 + (i % 3) * 5),
+      hora_fin = v_ini + make_interval(mins => 6 + (i % 3) * 5 + x.real_min)
+    where id = v_s;
+
+    insert into public.reports (id, created_by, empresa_cliente, cliente_id, fecha, tipo_servicio, sub_tipo_servicio, created_at, data)
+    values (v_r, v_id, x.nombre, x.cli, hoy + x.dia, x.tipo, x.sub,
+      v_ini + make_interval(mins => 20 + x.real_min),
+      jsonb_build_object(
+        'ingACargo', v_nom, 'personal', jsonb_build_array(v_nom),
+        'horaLlegada', to_char(x.hora, 'HH24:MI'), 'horaSalida', to_char(x.hora + make_interval(mins => 10 + x.real_min), 'HH24:MI'),
+        'contactoUsuario', v_contacto, 'puestoArea', v_puesto,
+        'sistemaSeguridad', jsonb_build_array(x.sistema),
+        'actividades', jsonb_build_array(x.act1, x.act2), 'observaciones', x.obs,
+        'equipos', jsonb_build_array(), 'tuberias', jsonb_build_array(), 'cables', jsonb_build_array(), 'soporteria', jsonb_build_array(),
+        'fotos', jsonb_build_array(), 'firmaIngNombre', v_nom, 'firmaIngData', f1,
+        'firmaClienteNombre', v_contacto,
+        -- Dos reportes quedan sin firma del cliente, como ejemplo de pendientes.
+        'firmaClienteData', case when i in (5, 12) then null else f2 end,
+        'servicioConcluido', true, 'fechaConcluido', hoy + x.dia,
+        'facturaEstado', case when x.dia < -2 or (i % 2 = 0 and x.dia < 0) then 'facturado' else 'pendiente' end,
+        'servicioProgramadoId', v_s)
+      -- Los de los últimos dos días aún no los revisa la supervisora.
+      || case when x.dia < -1 then jsonb_build_object(
+           'revisionEstado', 'aprobado', 'firmaRevisionData', f3,
+           'firmaRevisionNombre', 'Ing. Laura Méndez', 'firmaRevisionFecha', hoy + x.dia + 1)
+         else jsonb_build_object('revisionEstado', 'pendiente') end);
+    update public.servicios_programados set report_id = v_r where id = v_s;
+  end loop;
 
   -- ---------- Cotizaciones ----------
   insert into public.cotizaciones (id, folio, created_by, fecha, atencion, empresa, cliente_id, telefono, correo, estado, firmante_nombre, notas) values
