@@ -8,6 +8,7 @@ import { validateLoginUser } from '@/lib/validateLoginUser'; // NUEVO - OWASP A0
 import ThemeToggle from '@/components/ThemeToggle';
 import { useTheme } from '@/lib/useTheme';
 import Logo from '@/components/Logo';
+import { DEMO, MARCA } from '@/lib/marca';
 
 function LoginForm() {
   const [email, setEmail] = useState('');
@@ -22,14 +23,18 @@ function LoginForm() {
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
+    await entrar(email, password);
+  }
+
+  async function entrar(correo: string, contrasena: string) {
     setLoading(true);
     setError(null);
     const supabase = createClient();
 
     // ===== PASO 1: Autenticar en Supabase =====
-    const { data, error: authError } = await supabase.auth.signInWithPassword({ 
-      email, 
-      password 
+    const { data, error: authError } = await supabase.auth.signInWithPassword({
+      email: correo,
+      password: contrasena,
     });
 
     setLoading(false);
@@ -116,9 +121,34 @@ function LoginForm() {
             <Logo variante="completo" size={56} />
           </div>
           <p className="text-xs text-muted">
-            {modoOlvido ? 'Recuperar contraseña' : 'Reportes de servicio'}
+            {modoOlvido ? 'Recuperar contraseña' : MARCA.appNombre}
           </p>
         </div>
+
+        {DEMO.activo && !modoOlvido && (
+          <div className="mb-6">
+            <p className="text-[13px] font-semibold text-center mb-2.5">Prueba la app con una cuenta de ejemplo</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => entrar(DEMO.supervisor.correo, DEMO.supervisor.contrasena)}
+                className="min-h-[48px] rounded-2xl bg-teal text-inkOnAccent font-semibold text-[14px] disabled:opacity-60 active:scale-95 transition-transform"
+              >
+                Supervisor
+              </button>
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => entrar(DEMO.tecnico.correo, DEMO.tecnico.contrasena)}
+                className="min-h-[48px] rounded-2xl border border-teal/50 text-teal font-semibold text-[14px] disabled:opacity-60 active:scale-95 transition-transform"
+              >
+                Técnico
+              </button>
+            </div>
+            <p className="text-[11.5px] text-muted text-center mt-3">o entra con tu cuenta</p>
+          </div>
+        )}
 
         <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted mb-1.5">Correo</label>
         <input

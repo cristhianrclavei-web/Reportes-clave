@@ -28,6 +28,11 @@ export const MARCA = {
   // mantenimiento, así que debe seguir funcionando mientras las etiquetas
   // estén pegadas (si se cambia de dominio, el anterior debe redirigir).
   appUrl: valor(process.env.NEXT_PUBLIC_MARCA_APP_URL, 'https://reportes-clave.vercel.app'),
+  // Letras dentro del escudo del logo y nombre corto al instalar la app.
+  iniciales: valor(process.env.NEXT_PUBLIC_MARCA_INICIALES, 'CI').slice(0, 3),
+  nombreCorto: valor(process.env.NEXT_PUBLIC_MARCA_NOMBRE_CORTO, 'Reportes CI'),
+  // Tira de íconos de servicios bajo el nombre (propia de Clave Inteligente).
+  iconos: valor(process.env.NEXT_PUBLIC_MARCA_ICONOS, '1') === '1',
 };
 
 // Datos del emisor para la prefactura (los mismos del CFDI que timbra el PAC).
@@ -39,6 +44,21 @@ export const EMISOR = {
   correo: valor(process.env.NEXT_PUBLIC_EMISOR_CORREO, 'facturas@clave-i.com'),
   web: valor(process.env.NEXT_PUBLIC_EMISOR_WEB, 'www.clave-i.com'),
   lugarExpedicion: valor(process.env.NEXT_PUBLIC_EMISOR_CP, '44860'),
+};
+
+// Modo demostración: aviso fijo arriba y acceso rápido con cuentas de prueba.
+// Las credenciales del demo son públicas a propósito (la base del demo solo
+// tiene datos ficticios y se reinicia cada noche).
+export const DEMO = {
+  activo: process.env.NEXT_PUBLIC_DEMO === '1',
+  supervisor: {
+    correo: process.env.NEXT_PUBLIC_DEMO_SUPERVISOR_CORREO || '',
+    contrasena: process.env.NEXT_PUBLIC_DEMO_SUPERVISOR_CONTRASENA || '',
+  },
+  tecnico: {
+    correo: process.env.NEXT_PUBLIC_DEMO_TECNICO_CORREO || '',
+    contrasena: process.env.NEXT_PUBLIC_DEMO_TECNICO_CONTRASENA || '',
+  },
 };
 
 export const MARCA_MAYUS = MARCA.nombre.toUpperCase();

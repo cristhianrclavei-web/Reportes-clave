@@ -5,7 +5,7 @@ import ToastContainer from '@/components/Toast';
 import OfflineSyncManager from '@/components/OfflineSyncManager';
 import SeleccionarNumeros from '@/components/SeleccionarNumeros';
 import AvisoSuscripcion from '@/components/AvisoSuscripcion';
-import { MARCA, MARCA_MAYUS } from '@/lib/marca';
+import { MARCA, MARCA_MAYUS, DEMO } from '@/lib/marca';
 
 const display = Barlow_Condensed({
   subsets: ['latin'],
@@ -26,7 +26,6 @@ const mono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: `${MARCA.appNombre} · ${MARCA.nombre}`,
   description: 'App de reportes de servicio CRM0851 para técnicos y supervisores',
-  manifest: '/manifest.json',
   icons: {
     icon: '/icons/icon-192.png',
     apple: '/icons/icon-192.png',
@@ -34,7 +33,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Reportes CI',
+    title: MARCA.nombreCorto,
   },
 };
 
@@ -69,6 +68,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="font-sans bg-bg text-ink m-0 min-h-screen transition-colors duration-300">
+        {DEMO.activo && (
+          <div className="bg-amber text-black text-center text-[12px] font-semibold px-3 py-1.5">
+            Versión de demostración · datos ficticios que se reinician cada noche
+          </div>
+        )}
         <AvisoSuscripcion />
         {children}
         <ToastContainer />

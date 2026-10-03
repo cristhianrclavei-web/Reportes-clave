@@ -38,7 +38,7 @@ function Badge({ size = 44 }: { size?: number }) {
         fontFamily="var(--font-display), system-ui, sans-serif"
         letterSpacing="1"
       >
-        CI
+        {MARCA.iniciales}
       </text>
     </svg>
   );
@@ -175,7 +175,7 @@ export default function Logo({
           {MARCA_MAYUS}
         </p>
         <div className="h-px bg-red/70 my-[6px]" />
-        <TiraIconos alto={Math.max(14, size * 0.3)} />
+        {MARCA.iconos && <TiraIconos alto={Math.max(14, size * 0.3)} />}
       </div>
     </div>
   );

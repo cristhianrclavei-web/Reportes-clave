@@ -1,5 +1,5 @@
 const CACHE_NAME = 'reportes-ci-v2';
-const APP_SHELL = ['/manifest.json'];
+const APP_SHELL = ['/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
