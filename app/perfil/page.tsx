@@ -8,7 +8,7 @@ import AdminUsersSection from '@/components/AdminUsersSection';
 import LogoutButton from '@/components/LogoutButton';
 import ThemeToggle from '@/components/ThemeToggle';
 import Logo from '@/components/Logo';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, ChevronRight, BadgeCheck } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -82,6 +82,20 @@ export default async function PerfilPage() {
         <ProfileForm user={user} profile={profile} />
 
         <CambiarContrasena email={user.email || ''} />
+
+        {profile.role === 'supervisor' && (
+          <Link
+            href="/suscripcion"
+            className="mb-6 rounded-2xl bg-surface border border-line p-5 flex items-center gap-3 active:scale-[0.99] transition-transform"
+          >
+            <BadgeCheck size={20} strokeWidth={2.4} className="text-teal shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="font-display font-bold text-[19px] tracking-wide">Suscripción</p>
+              <p className="text-[13px] text-muted">Plan, días restantes y paquetes</p>
+            </div>
+            <ChevronRight size={20} className="text-muted shrink-0" />
+          </Link>
+        )}
 
         {esGestor && <AdminUsersSection initialUsers={usuarios} />}
 

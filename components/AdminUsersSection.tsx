@@ -1,8 +1,10 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { useUsersAdmin } from '@/lib/useProfileMutation';
-import { usePlan, PLANES } from '@/lib/planes';
+import { usePlan } from '@/lib/planes';
+import { PLANES } from '@/lib/planesDatos';
 import { showToast } from '@/components/Toast';
 import { Edit2, Save, X, ChevronDown, UserMinus, UserCheck, Users } from 'lucide-react';
 
@@ -110,6 +112,9 @@ export default function AdminUsersSection({ initialUsers = [] }: { initialUsers?
       <div className="mb-5 flex items-center justify-between gap-3 rounded-xl bg-surface-2 border border-line px-3.5 py-2.5 text-[13px]">
         <span>
           Plan <b className="text-teal">{PLANES[plan.plan]?.nombre || plan.plan}</b>
+          {plan.es_supervisor && (
+            <Link href="/suscripcion" className="ml-2 text-muted underline underline-offset-2">Ver</Link>
+          )}
         </span>
         <span className="text-muted tabular-nums">
           {usuarios.filter((u) => u.activo !== false).length}

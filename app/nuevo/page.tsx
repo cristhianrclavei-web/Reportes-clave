@@ -27,7 +27,8 @@ import { hoyLocal } from '@/lib/fechaHoy';
 import { MARCA, MARCA_MAYUS } from '@/lib/marca';
 import { SelectorFormatos, PasoFormato, pendientesFormatos } from '@/components/FormatoMantenimiento';
 import { FormatoLlenado } from '@/lib/formatosMantenimiento';
-import { usePlan, tieneModulo } from '@/lib/planes';
+import { usePlan } from '@/lib/planes';
+import { tieneModulo, soloLectura } from '@/lib/planesDatos';
 import EtiquetasMantenimiento from '@/components/EtiquetasMantenimiento';
 import { guardarCamposBorrador, guardarFotosBorrador, leerBorrador, borrarBorrador } from '@/lib/borradorReporte';
 import EquipoInstaladoRenglon, { EquipoFila, ArticuloCatalogo } from '@/components/EquipoInstaladoRenglon';
@@ -1136,6 +1137,23 @@ export default function NuevoReportePage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  // Suscripción vencida: la base rechaza reportes nuevos, así que se avisa
+  // antes de que el técnico capture todo (y no se queda en la cola offline).
+  if (soloLectura(plan)) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 pt-16 text-center">
+        <p className="font-display font-bold text-2xl tracking-wide mb-2">App en solo lectura</p>
+        <p className="text-[15px] text-muted mb-6">
+          La suscripción venció, así que por ahora no se pueden capturar reportes. Puedes consultar y descargar los
+          que ya existen. Avisa a tu supervisor para renovar.
+        </p>
+        <Link href="/mis-reportes" className="inline-flex min-h-[44px] px-5 rounded-xl bg-teal text-inkOnAccent font-semibold items-center">
+          Ver mis reportes
+        </Link>
+      </div>
+    );
   }
 
   return (

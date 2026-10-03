@@ -2,33 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from './supabaseClient';
-
-// Paquetes de la app (ver supabase/patch_planes.sql: los módulos de cada
-// plan deben coincidir con modulos_activos()).
-export type Modulo =
-  | 'reportes' | 'servicios' | 'ubicacion' | 'clientes'
-  | 'cotizaciones' | 'almacen' | 'formatos' | 'facturacion' | 'ia';
-
-export type PlanClave = 'campo' | 'profesional' | 'empresa';
-
-export const PLANES: Record<PlanClave, { nombre: string; modulos: Modulo[] }> = {
-  campo: { nombre: 'Campo', modulos: ['reportes', 'servicios', 'ubicacion', 'clientes'] },
-  profesional: {
-    nombre: 'Profesional',
-    modulos: ['reportes', 'servicios', 'ubicacion', 'clientes', 'cotizaciones', 'almacen', 'formatos'],
-  },
-  empresa: {
-    nombre: 'Empresa',
-    modulos: ['reportes', 'servicios', 'ubicacion', 'clientes', 'cotizaciones', 'almacen', 'formatos', 'facturacion', 'ia'],
-  },
-};
-
-export type MiPlan = {
-  plan: PlanClave;
-  modulos: Modulo[];
-  limite_usuarios: number | null;
-  usuarios_activos: number;
-};
+import { PLANES, MiPlan } from './planesDatos';
 
 // Mientras no se sabe el plan (o si la función aún no existe en la base) se
 // asume todo activo: así nada desaparece por un error de red.
@@ -65,6 +39,3 @@ export function usePlan(): MiPlan {
   return plan;
 }
 
-export function tieneModulo(plan: MiPlan, m: Modulo): boolean {
-  return plan.modulos.includes(m);
-}

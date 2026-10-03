@@ -4,6 +4,7 @@ import './globals.css';
 import ToastContainer from '@/components/Toast';
 import OfflineSyncManager from '@/components/OfflineSyncManager';
 import SeleccionarNumeros from '@/components/SeleccionarNumeros';
+import AvisoSuscripcion from '@/components/AvisoSuscripcion';
 import { MARCA, MARCA_MAYUS } from '@/lib/marca';
 
 const display = Barlow_Condensed({
@@ -68,6 +69,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="font-sans bg-bg text-ink m-0 min-h-screen transition-colors duration-300">
+        <AvisoSuscripcion />
         {children}
         <ToastContainer />
         <OfflineSyncManager />
