@@ -604,7 +604,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
         >
           <span className="flex items-center gap-2.5 text-[14.5px] font-medium">
             <PackageCheck size={18} strokeWidth={2.3} className="text-teal" />
-            Herramienta y material
+            Herramienta, material y equipo
           </span>
           <ChevronRight size={17} strokeWidth={2.4} className="text-muted" />
         </Link>

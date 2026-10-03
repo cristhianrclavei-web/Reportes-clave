@@ -851,7 +851,7 @@ export default function ReportDetailModal({
                 <textarea
                   value={motivoSolicitud}
                   onChange={(e) => setMotivoSolicitud(e.target.value)}
-                  placeholder="Ej. Vinculé el reporte al servicio equivocado, es el de Casther y no el de HSMC."
+                  placeholder="Ej. Vinculé el reporte al servicio equivocado, es el de la bodega y no el de las oficinas."
                   className="w-full px-3 py-2.5 mb-3 rounded-xl bg-surface border border-line focus:border-teal focus:outline-none text-[14px] min-h-[80px]"
                 />
                 <div className="flex gap-2">

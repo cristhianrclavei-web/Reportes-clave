@@ -658,7 +658,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
           <div className="flex items-center justify-between gap-2.5 mb-2.5">
             <p className="font-display font-semibold text-[15px] flex items-center gap-2 min-w-0">
               <PackageCheck size={18} strokeWidth={2.3} className="text-teal shrink-0" />
-              <span className="truncate">Herramienta y material</span>
+              <span className="truncate">Herramienta, material y equipo</span>
             </p>
             <ChevronRight size={18} strokeWidth={2.4} className="text-muted shrink-0" />
           </div>
@@ -886,7 +886,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
             {/* Encabezado fijo: antes se iba con el scroll y quedaba cortado */}
             <div className="px-5 pt-5 pb-3 shrink-0 border-b border-line">
               <div className="flex items-start justify-between gap-3 mb-1">
-                <p className="font-display font-semibold text-[17px]">Herramienta y material</p>
+                <p className="font-display font-semibold text-[17px]">Herramienta, material y equipo</p>
                 <button
                   onClick={() => setShowInsumos(false)}
                   aria-label="Cerrar"

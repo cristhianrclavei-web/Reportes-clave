@@ -69,7 +69,7 @@ export default function MisChecklistsList({ userName }: { userName?: string }) {
       </div>
 
       <div className="px-4 pt-5">
-        <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-wide mb-1">Herramienta y material</h1>
+        <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-wide mb-1">Herramienta, material y equipo</h1>
         <p className="text-[15px] text-muted font-medium mb-4">{userName || 'Técnico'}</p>
 
         <SubTabs

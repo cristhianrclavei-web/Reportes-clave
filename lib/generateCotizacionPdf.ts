@@ -36,7 +36,7 @@ function fechaLarga(fechaISO: string): string {
   const [y, m, d] = (fechaISO || '').split('-').map(Number);
   if (!y) return '';
   const fecha = new Date(y, (m || 1) - 1, d || 1);
-  return `Guadalajara, Jal. a ${fecha.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' })}`;
+  return `${MARCA.ciudad} a ${fecha.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' })}`;
 }
 
 export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotizacion[]): Promise<Uint8Array> {

@@ -111,7 +111,7 @@ export default function BitacoraList({ userName }: { userName: string }) {
             <input
               value={proyecto}
               onChange={(e) => setProyecto(e.target.value)}
-              placeholder="Ej. PRINT PACK — Etapa 4"
+              placeholder="Ej. Plaza Central — Etapa 2"
               className="w-full px-3.5 py-2.5 mb-3 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[14px]"
             />
             <label className="text-[11px] uppercase tracking-wider text-muted block mb-1">¿Qué vas a hacer?</label>

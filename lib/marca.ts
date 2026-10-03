@@ -42,6 +42,8 @@ export const MARCA = {
   //   logo: 'escudo' (hexágono con nodos) | 'bloque' (cuadro redondeado).
   tema: valor(process.env.NEXT_PUBLIC_MARCA_TEMA, 'clave') === 'azul' ? ('azul' as const) : ('clave' as const),
   logo: valor(process.env.NEXT_PUBLIC_MARCA_LOGO, 'escudo') === 'bloque' ? ('bloque' as const) : ('escudo' as const),
+  // Ciudad desde donde se fechan las cotizaciones («Guadalajara, Jal. a 3 de…»).
+  ciudad: valor(process.env.NEXT_PUBLIC_MARCA_CIUDAD, 'Guadalajara, Jal.'),
   // Pie de página del PDF de cotización (dirección y teléfono de la empresa).
   pieCotizacion: valor(process.env.NEXT_PUBLIC_MARCA_PIE_COTIZACION, 'Tejedores 578 Col. La Paz Guadalajara Jalisco 44860 Tel: 3315781794'),
   // Letras dentro del escudo del logo y nombre corto al instalar la app.

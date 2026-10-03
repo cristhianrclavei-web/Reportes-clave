@@ -237,7 +237,7 @@ function FormRecurrente({ inicial, tecnicos, onClose, onListo }: {
         </div>
         <label className={labelCls}>Cliente</label>
         <div className="mb-3">
-          <AutocompletarCliente soloSugerir value={proyecto} onChange={(n, id) => { setProyecto(n); setClienteId(id); }} className={inputCls} placeholder="Ej. HSMCH Capital Norte" />
+          <AutocompletarCliente soloSugerir value={proyecto} onChange={(n, id) => { setProyecto(n); setClienteId(id); }} className={inputCls} placeholder="Ej. Hospital Central" />
         </div>
         <label className={labelCls}>Qué se hace</label>
         <input className={`${inputCls} mb-3`} value={descripcion} onChange={(e) => setDescripcion(e.target.value)} placeholder="Ej. Pruebas de detectores NFPA 72" />

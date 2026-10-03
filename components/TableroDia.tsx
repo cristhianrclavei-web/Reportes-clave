@@ -575,7 +575,7 @@ export function AsignarRapido({
         )}
         <label className={labelCls}>Cliente / proyecto</label>
         <div className="mb-3">
-          <AutocompletarCliente soloSugerir value={proyecto} onChange={(n, id) => { setProyecto(n); setClienteId(id); }} className={inputCls} placeholder="Ej. Pinturas Casther" />
+          <AutocompletarCliente soloSugerir value={proyecto} onChange={(n, id) => { setProyecto(n); setClienteId(id); }} className={inputCls} placeholder="Ej. Comercial del Norte" />
         </div>
         <label className={labelCls}>Qué se va a hacer (opcional)</label>
         <input className={`${inputCls} mb-3`} value={descripcion} onChange={(e) => setDescripcion(e.target.value)} placeholder="Ej. Mantenimiento preventivo CCTV" />

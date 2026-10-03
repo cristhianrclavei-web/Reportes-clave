@@ -54,7 +54,7 @@ export default function CamposCliente({
       <input
         value={valor.nombre}
         onChange={(e) => set({ nombre: e.target.value })}
-        placeholder={fisica ? 'Ej. Juan González Pérez' : 'Ej. Aislantes y Empaques'}
+        placeholder={fisica ? 'Ej. Juan González Pérez' : 'Ej. Comercializadora del Norte'}
         className={`${inputCls} mb-4`}
       />
 

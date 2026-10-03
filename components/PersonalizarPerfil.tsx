@@ -128,7 +128,7 @@ export default function PersonalizarPerfil({ profile }: { profile: any }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
         <div>
           <label className={labelCls}>Apodo (cómo te dicen)</label>
-          <input className={inputCls} maxLength={24} value={apodo} onChange={(e) => setApodo(e.target.value)} placeholder="Ej. El Inge, Chris" />
+          <input className={inputCls} maxLength={24} value={apodo} onChange={(e) => setApodo(e.target.value)} placeholder="Ej. El Inge, Beto" />
         </div>
         <div>
           <label className={labelCls}>Puesto</label>

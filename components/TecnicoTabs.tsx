@@ -13,7 +13,7 @@ import { FileText, ClipboardList, NotebookPen, PackageCheck, Plus, CalendarClock
 const TABS = [
   { key: 'reportes', label: 'Reportes', href: '/mis-reportes', Icono: FileText },
   { key: 'servicios', label: 'Servicios', href: '/servicios', Icono: ClipboardList },
-  { key: 'checklists', label: 'Herramienta', href: '/checklists', Icono: PackageCheck },
+  { key: 'checklists', label: 'Insumos', href: '/checklists', Icono: PackageCheck },
   { key: 'bitacora', label: 'Bitácora', href: '/bitacora', Icono: NotebookPen },
   { key: 'solicitudes', label: 'Solicitudes', href: '/solicitudes', Icono: CalendarClock },
 ] as const;

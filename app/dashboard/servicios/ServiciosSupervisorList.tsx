@@ -154,7 +154,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
 
   const [proyecto, setProyecto] = useState('');
   // Cliente elegido de la lista; se conserva aunque después se le agregue la
-  // etapa al nombre («PRINT PACK — Etapa 4»), mientras empiece igual.
+  // etapa al nombre («Plaza Central — Etapa 2»), mientras empiece igual.
   const [proyectoCliente, setProyectoCliente] = useState<{ id: string; nombre: string } | null>(null);
   const [descripcion, setDescripcion] = useState('');
   const [fecha, setFecha] = useState(hoyLocal());
@@ -814,7 +814,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
         {/* Administración de plantillas de herramienta */}
         {seccion === 'plantillas' && (
           <div className="flex gap-1.5 mb-4">
-            {([['rutinas', 'Rutinas de tareas'], ['listas', 'Herramienta y material']] as const).map(([k, l]) => (
+            {([['rutinas', 'Rutinas de tareas'], ['listas', 'Herramienta, material y equipo']] as const).map(([k, l]) => (
               <button key={k} type="button" onClick={() => setSubPlantillas(k)}
                 className={`h-9 px-4 rounded-full text-[13px] font-semibold border transition-colors ${subPlantillas === k ? 'bg-teal text-inkOnAccent border-teal' : 'bg-surface border-line text-ink/75'}`}>{l}</button>
             ))}
@@ -908,7 +908,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
                     if (id) setProyectoCliente({ id, nombre });
                   }}
                   className="w-full px-3.5 min-h-[48px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]"
-                  placeholder="Ej. PRINT PACK — Etapa 4"
+                  placeholder="Ej. Plaza Central — Etapa 2"
                 />
               </div>
 

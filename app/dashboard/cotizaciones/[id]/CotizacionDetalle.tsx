@@ -478,7 +478,7 @@ export default function CotizacionDetalle({
       </Link>
 
       {/* Cancelar (eliminar): libre mientras sigue en borrador; una vez
-          firmada, solo quien puede aprobar cotizaciones (Clara/Everardo)
+          firmada, solo quien puede aprobar cotizaciones
           puede seguir cancelándola. */}
       {(!cotizacion.aprobada_firma || puedeAprobar) && (
         <button
