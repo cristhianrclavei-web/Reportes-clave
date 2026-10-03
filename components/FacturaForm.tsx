@@ -259,7 +259,7 @@ export default function FacturaForm({
         </div>
         {clienteId && (
           <label className="flex items-center gap-2 mt-3 text-[13px] text-ink/80 cursor-pointer">
-            <input type="checkbox" checked={guardarEnCliente} onChange={(e) => setGuardarEnCliente(e.target.checked)} className="accent-[#22B08A] w-4 h-4" />
+            <input type="checkbox" checked={guardarEnCliente} onChange={(e) => setGuardarEnCliente(e.target.checked)} className="accent-teal w-4 h-4" />
             Guardar estos datos en el cliente para la próxima factura
           </label>
         )}
@@ -402,7 +402,7 @@ export default function FacturaForm({
                       type="checkbox"
                       checked={c.objeto_imp === '02'}
                       onChange={(e) => cambiarConcepto(i, { objeto_imp: e.target.checked ? '02' : '01' })}
-                      className="accent-[#22B08A] w-4 h-4"
+                      className="accent-teal w-4 h-4"
                     />
                     Lleva IVA
                   </label>

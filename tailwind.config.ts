@@ -14,17 +14,19 @@ const config: Config = {
         ink: 'rgb(var(--c-ink) / <alpha-value>)',
         muted: 'rgb(var(--c-muted) / <alpha-value>)',
         faint: 'rgb(var(--c-faint) / <alpha-value>)',
-        // fixed brand accents — look good on both light and dark backgrounds
+        // Acento de marca. Se llama «teal» por el verde de Clave Inteligente,
+        // pero el valor sale del tema de la instalación (app/globals.css,
+        // data-tema en <html>): otra marca puede usar otro color.
         teal: {
-          DEFAULT: '#22B08A',
-          dark: '#15614F',
-          glow: 'rgba(34,176,138,0.35)',
+          DEFAULT: 'rgb(var(--c-acento) / <alpha-value>)',
+          dark: 'rgb(var(--c-acento-oscuro) / <alpha-value>)',
+          glow: 'rgb(var(--c-acento) / 0.35)',
         },
         amber: '#E8B04B',
         red: '#E0654A',
         // fixed dark ink used as text ON TOP of teal/amber accent buttons,
         // independent of the light/dark page theme, for guaranteed contrast
-        inkOnAccent: '#0A121C',
+        inkOnAccent: 'rgb(var(--c-sobre-acento) / <alpha-value>)',
       },
       fontFamily: {
         display: ['var(--font-display)', 'sans-serif'],
@@ -37,7 +39,7 @@ const config: Config = {
       },
       boxShadow: {
         glow: '0 0 0 1px rgb(var(--c-line-rgb) / var(--c-line-a-strong)), 0 8px 30px rgb(0 0 0 / var(--c-shadow-a))',
-        'glow-teal': '0 0 24px rgba(34,176,138,0.25)',
+        'glow-teal': '0 0 24px rgb(var(--c-acento) / 0.25)',
       },
       backdropBlur: {
         xs: '2px',

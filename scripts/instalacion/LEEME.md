@@ -54,6 +54,8 @@ Importar el mismo repo de GitHub. Variables de entorno:
 | `CRON_SECRET` | el mismo `DESTINO_CRON_SECRET` |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | par nuevo: `npx web-push generate-vapid-keys` |
 | `NEXT_PUBLIC_MARCA_*` | nombre, app, iniciales, nombre corto, teléfonos, web, correo, domicilio, pie de cotización, clave de formato, revisor, `APP_URL` |
+| `NEXT_PUBLIC_MARCA_TEMA` | `azul` para la identidad pizarra/azul eléctrico (sin la variable: el verde de Clave Inteligente) |
+| `NEXT_PUBLIC_MARCA_LOGO` | `bloque` para el logo de cuadro redondeado con iniciales (sin la variable: el escudo hexagonal) |
 | `NEXT_PUBLIC_MARCA_ICONOS` | `0` (la tira de íconos es de Clave Inteligente) |
 | `NEXT_PUBLIC_EMISOR_*` | datos fiscales del cliente (prefactura) |
 | `NEXT_PUBLIC_VENTAS_WHATSAPP` | tu número para «Contratar» |

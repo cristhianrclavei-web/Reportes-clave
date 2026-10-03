@@ -11,6 +11,11 @@
   --c-ink: 243 246 247;       /* #F3F6F7 */
   --c-muted: 167 184 194;     /* #A7B8C2 — subido para legibilidad bajo sol directo */
   --c-faint: 122 141 152;     /* #7A8D98 — subido: antes se perdía en exteriores */
+  /* Acento de marca (clases «teal» de Tailwind) y texto encima de él. */
+  --c-acento: 34 176 138;        /* #22B08A */
+  --c-acento-oscuro: 21 97 79;   /* #15614F */
+  --c-acento-solido: 33 86 62;   /* #21563E — botón principal en tema claro */
+  --c-sobre-acento: 10 18 28;    /* #0A121C */
   --c-line-rgb: 255 255 255;
   --c-line-a: 0.1;
   --c-line-a-strong: 0.16;
@@ -41,6 +46,35 @@
   --c-glass-blur-strong: 18px;
 }
 
+/* ---------- Tema «azul» (NEXT_PUBLIC_MARCA_TEMA=azul) ----------
+   Identidad para instalaciones con marca propia (hoy, el demo): pizarra y
+   azul eléctrico. Solo cambia variables; ningún componente sabe del tema. */
+[data-tema="azul"] {
+  --c-bg: 15 23 42;            /* #0F172A */
+  --c-surface: 30 41 59;       /* #1E293B */
+  --c-surface-2: 39 52 73;     /* #273449 */
+  --c-ink: 248 250 252;        /* #F8FAFC */
+  --c-muted: 170 184 204;
+  --c-faint: 120 135 158;
+  --c-acento: 59 130 246;      /* #3B82F6 — legible como texto sobre pizarra */
+  --c-acento-oscuro: 30 64 175;
+  --c-acento-solido: 37 99 235;
+  --c-sobre-acento: 255 255 255;
+}
+[data-tema="azul"].light {
+  --c-bg: 248 250 252;         /* #F8FAFC */
+  --c-surface: 255 255 255;
+  --c-surface-2: 241 245 249;  /* #F1F5F9 */
+  --c-ink: 15 23 42;           /* #0F172A */
+  --c-muted: 71 85 105;
+  --c-faint: 100 116 139;
+  --c-line-rgb: 15 23 42;
+  --c-acento: 37 99 235;       /* #2563EB */
+  --c-acento-oscuro: 29 78 216; /* #1D4ED8 */
+  --c-acento-solido: 37 99 235;
+  --c-sobre-acento: 255 255 255;
+}
+
 html, body {
   background: rgb(var(--c-bg));
   color: rgb(var(--c-ink));
@@ -51,7 +85,7 @@ html, body {
 }
 
 ::selection {
-  background: rgba(34, 176, 138, 0.35);
+  background: rgb(var(--c-acento) / 0.35);
 }
 
 input, textarea, select {
@@ -102,11 +136,11 @@ input::placeholder, textarea::placeholder {
   inset: 0;
   z-index: -1;
   border-radius: inherit;
-  background: radial-gradient(130% 110% at 12% -10%, rgba(34, 176, 138, 0.14), transparent 55%);
+  background: radial-gradient(130% 110% at 12% -10%, rgb(var(--c-acento) / 0.14), transparent 55%);
   pointer-events: none;
 }
 .light .ambient-glow::before {
-  background: radial-gradient(130% 110% at 12% -10%, rgba(34, 176, 138, 0.08), transparent 55%);
+  background: radial-gradient(130% 110% at 12% -10%, rgb(var(--c-acento) / 0.08), transparent 55%);
 }
 
 /* Filo que "atrapa la luz" arriba de una superficie de vidrio — el detalle

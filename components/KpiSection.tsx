@@ -56,13 +56,12 @@ function DonutChart({ percent, size = 108, stroke = 12, color }: { percent: numb
           cy={size / 2}
           r={r}
           fill="none"
-          stroke={color}
           strokeWidth={stroke}
           strokeDasharray={c}
           strokeDashoffset={offset}
           strokeLinecap="round"
           transform={`rotate(-90 ${size / 2} ${size / 2})`}
-          style={{ transition: 'stroke-dashoffset 0.6s ease' }}
+          style={{ stroke: color, transition: 'stroke-dashoffset 0.6s ease' }}
         />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
@@ -174,7 +173,7 @@ export default function KpiSection({ reports }: { reports: Report[] }) {
             </BotonInfo>
           </div>
           <div className="flex items-center gap-4">
-            <DonutChart percent={pctCompletados} color="#22B08A" />
+            <DonutChart percent={pctCompletados} color="rgb(var(--c-acento))" />
             <div className="flex flex-col gap-1.5 text-[12px]">
               <div className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-teal shrink-0" />

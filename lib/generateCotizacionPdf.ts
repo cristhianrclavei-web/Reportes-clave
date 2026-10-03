@@ -1,6 +1,6 @@
 import { PDFDocument, PDFFont, PDFPage } from 'pdf-lib';
 import {
-  NAVY, GRAY_LINE, GRAY_TEXT, ROJO,
+  NAVY, GRAY_LINE, GRAY_TEXT, ROJO, LINEA_MARCA,
   MARGIN, PAGE_W, PAGE_H,
   embedBrandFonts, drawBadge, drawIconStrip, drawWatermark,
 } from './pdfBranding';
@@ -82,7 +82,7 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
     pg.drawText(MARCA_MAYUS, { x: wordX, y: topY - 15, size: wordSize, font: display, color: NAVY });
     const wordmarkW = display.widthOfTextAtSize(MARCA_MAYUS, wordSize);
     const lineY = topY - 24;
-    pg.drawLine({ start: { x: wordX, y: lineY }, end: { x: wordX + wordmarkW, y: lineY }, thickness: 1, color: ROJO });
+    pg.drawLine({ start: { x: wordX, y: lineY }, end: { x: wordX + wordmarkW, y: lineY }, thickness: 1, color: LINEA_MARCA });
     drawIconStrip(pg, wordX, lineY - 8, 14, GRAY_TEXT);
     return topY - badgeSize - 20;
   }

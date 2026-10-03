@@ -1,7 +1,7 @@
 import { PDFDocument, PDFFont, PDFPage, rgb, degrees, LineCapStyle, StandardFonts } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { BARLOW_CONDENSED_BOLD_BASE64, INTER_REGULAR_BASE64, INTER_SEMIBOLD_BASE64 } from './brandFonts';
-import { MARCA } from './marca';
+import { MARCA, COLORES } from './marca';
 
 // Piezas de marca compartidas entre los distintos PDF que genera la app
 // (reporte de servicio, cotización, ...): colores, tipografía y el logo en
@@ -10,12 +10,22 @@ import { MARCA } from './marca';
 // apareció un segundo PDF (cotizaciones) que necesitaba el mismo encabezado.
 
 export const NAVY = rgb(0.06, 0.15, 0.23);
-export const TEAL_DARK = rgb(0.07, 0.25, 0.21);
+function hex(h: string) {
+  const n = parseInt(h.slice(1), 16);
+  return rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
+}
+// Acento oscuro de títulos y totales: sigue el tema de la instalación.
+export const TEAL_DARK = MARCA.tema === 'azul' ? hex(COLORES.acentoOscuro) : rgb(0.07, 0.25, 0.21);
 export const GRAY_LINE = rgb(0.55, 0.55, 0.55);
 export const GRAY_TEXT = rgb(0.42, 0.48, 0.5);
 export const WHITE = rgb(1, 1, 1);
+// VERDE y ROJO tienen significado en los documentos (cumple / no cumple,
+// aprobada / rechazada): no cambian con el tema.
 export const VERDE = rgb(0x2f / 255, 0x7d / 255, 0x5c / 255);
+// Color del logo y de la línea bajo el nombre: estos sí siguen a la marca.
+export const COLOR_MARCA = hex(COLORES.logo);
 export const ROJO = rgb(0xe0 / 255, 0x65 / 255, 0x4a / 255);
+export const LINEA_MARCA = MARCA.logo === 'bloque' ? COLOR_MARCA : ROJO;
 
 export const PAGE_W = 612;
 export const PAGE_H = 792;
@@ -32,6 +42,12 @@ export function rectPath(x: number, y: number, w: number, h: number): string {
 export const BADGE_HEX_PATH = 'M50 8 L84 26 V64 L50 92 L16 64 V26 Z';
 export const BADGE_NODES: [number, number, number][] = [[50, 8, 7], [16, 45, 7], [50, 92, 7]];
 export const BADGE_LINE_PATH = 'M16 45 L50 92';
+
+// Marca «bloque» (cuadro redondeado), viewBox 0 0 100 100 — igual que
+// Bloque() en Logo.tsx.
+export const BLOQUE_PATH = 'M30 6 H70 A24 24 0 0 1 94 30 V70 A24 24 0 0 1 70 94 H30 A24 24 0 0 1 6 70 V30 A24 24 0 0 1 30 6 Z';
+export const BLOQUE_NODES: [number, number, number][] = [[66, 20, 5], [80, 34, 5]];
+export const BLOQUE_LINE_PATH = 'M66 20 L80 34';
 
 // Los seis servicios, viewBox 0 0 24 24 — mismos paths que ICONOS en Logo.tsx.
 export const ICONOS_PATHS: string[][] = [
@@ -98,8 +114,36 @@ export function drawBadge(
 ) {
   const scale = size / 100;
   const opacity = opts.opacity ?? 1;
-  const markColor = opts.markColor ?? VERDE;
+  const markColor = opts.markColor ?? COLOR_MARCA;
   const rotate = opts.rotate;
+
+  if (MARCA.logo === 'bloque') {
+    // Marca de agua (markColor explícito): solo el contorno, para no tapar
+    // el contenido. En el encabezado: bloque relleno con iniciales blancas.
+    const contorno = opts.markColor !== undefined;
+    const tinta = contorno ? markColor : WHITE;
+    if (contorno) {
+      pg.drawSvgPath(BLOQUE_PATH, { x, y: yTop, scale, borderColor: markColor, borderWidth: 5, borderOpacity: opacity, rotate });
+    } else {
+      pg.drawSvgPath(BLOQUE_PATH, { x, y: yTop, scale, color: markColor, opacity, rotate });
+    }
+    for (const [cx, cy, r] of BLOQUE_NODES) {
+      pg.drawSvgPath(circlePath(cx, cy, r), { x, y: yTop, scale, color: tinta, opacity, rotate });
+    }
+    pg.drawSvgPath(BLOQUE_LINE_PATH, { x, y: yTop, scale, borderColor: tinta, borderWidth: 3.5, borderOpacity: opacity, borderLineCap: LineCapStyle.Round, rotate });
+    const fs = 38 * scale;
+    const tw = display.widthOfTextAtSize(MARCA.iniciales, fs);
+    const lx = scale * 48 - tw / 2;
+    const ly = -scale * 69;
+    const rd = rotate ? (rotate.angle * Math.PI) / 180 : 0;
+    pg.drawText(MARCA.iniciales, {
+      x: x + lx * Math.cos(rd) - ly * Math.sin(rd),
+      y: yTop + lx * Math.sin(rd) + ly * Math.cos(rd),
+      size: fs, font: display, color: contorno ? (opts.textColor ?? markColor) : WHITE, opacity, rotate,
+    });
+    return;
+  }
+
   pg.drawSvgPath(BADGE_HEX_PATH, { x, y: yTop, scale, borderColor: markColor, borderWidth: 6, borderOpacity: opacity, borderLineCap: LineCapStyle.Round, rotate });
   for (const [cx, cy, r] of BADGE_NODES) {
     pg.drawSvgPath(circlePath(cx, cy, r), { x, y: yTop, scale, color: markColor, opacity, rotate });

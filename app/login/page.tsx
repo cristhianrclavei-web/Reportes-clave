@@ -207,7 +207,7 @@ function LoginForm() {
           }`}
           style={
             theme === 'light'
-              ? { backgroundColor: '#21563E', color: '#FFFFFF', boxShadow: '0 6px 18px rgba(33,86,62,0.35)' }
+              ? { backgroundColor: 'rgb(var(--c-acento-solido))', color: '#FFFFFF', boxShadow: '0 6px 18px rgb(var(--c-acento-solido) / 0.35)' }
               : undefined
           }
         >

@@ -2,7 +2,7 @@ import { tuberiasDe, cablesDe, soporteriaDe, textoTuberia, textoCable, textoSopo
 import { PDFDocument, rgb } from 'pdf-lib';
 import { comprimirFoto } from './pdfFotos';
 import {
-  NAVY, TEAL_DARK, GRAY_LINE, GRAY_TEXT, WHITE, VERDE, ROJO,
+  NAVY, TEAL_DARK, GRAY_LINE, GRAY_TEXT, WHITE, VERDE, ROJO, LINEA_MARCA,
   MARGIN, PAGE_W, PAGE_H,
   embedBrandFonts, drawBadge, drawIconStrip, drawWatermark,
 } from './pdfBranding';
@@ -105,7 +105,7 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
   page.drawText(MARCA_MAYUS, { x: wordX, y: headerTop - 15, size: wordSize, font: display, color: NAVY });
   const wordmarkW = display.widthOfTextAtSize(MARCA_MAYUS, wordSize);
   const lineY = headerTop - 24;
-  page.drawLine({ start: { x: wordX, y: lineY }, end: { x: wordX + wordmarkW, y: lineY }, thickness: 1, color: ROJO });
+  page.drawLine({ start: { x: wordX, y: lineY }, end: { x: wordX + wordmarkW, y: lineY }, thickness: 1, color: LINEA_MARCA });
   drawIconStrip(page, wordX, lineY - 8, 14, GRAY_TEXT);
 
   page.drawText('REPORTE DE SERVICIO', { x: PAGE_W - MARGIN - 210, y: headerTop - 10, size: 14, font: display, color: NAVY });

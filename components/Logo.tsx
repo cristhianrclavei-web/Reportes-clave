@@ -1,5 +1,5 @@
 'use client';
-import { MARCA, MARCA_MAYUS } from '@/lib/marca';
+import { MARCA, MARCA_MAYUS, COLORES } from '@/lib/marca';
 
 // Logo de Clave Inteligente en SVG vectorial.
 //
@@ -10,10 +10,43 @@ import { MARCA, MARCA_MAYUS } from '@/lib/marca';
 // íconos usan currentColor (heredan el color del contenedor) y el hexágono usa
 // el verde de marca, que funciona sobre fondo claro y oscuro.
 
-const VERDE = '#2F7D5C';
+const VERDE = COLORES.logo;
+
+// Marca «bloque»: cuadro redondeado con degradado, iniciales y dos nodos
+// conectados. Es la identidad de las instalaciones que no usan el escudo.
+function Bloque({ size = 44 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="marca-bloque" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor={COLORES.logo2} />
+          <stop offset="1" stopColor={COLORES.logo} />
+        </linearGradient>
+      </defs>
+      <rect x="6" y="6" width="88" height="88" rx="24" fill="url(#marca-bloque)" />
+      {/* Nodos conectados */}
+      <path d="M66 20 L80 34" stroke="#FFFFFF" strokeOpacity="0.75" strokeWidth="3.5" strokeLinecap="round" />
+      <circle cx="66" cy="20" r="5" fill="#FFFFFF" />
+      <circle cx="80" cy="34" r="5" fill="#FFFFFF" />
+      <text
+        x="48"
+        y="69"
+        textAnchor="middle"
+        fontSize="38"
+        fontWeight="700"
+        fill="#FFFFFF"
+        fontFamily="var(--font-display), system-ui, sans-serif"
+        letterSpacing="1"
+      >
+        {MARCA.iniciales}
+      </text>
+    </svg>
+  );
+}
 
 // Hexágono con nodos + "CI". Es la marca compacta para encabezados.
 function Badge({ size = 44 }: { size?: number }) {
+  if (MARCA.logo === 'bloque') return <Bloque size={size} />;
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" fill="none" aria-hidden="true">
       <path
@@ -174,7 +207,7 @@ export default function Logo({
         >
           {MARCA_MAYUS}
         </p>
-        <div className="h-px bg-red/70 my-[6px]" />
+        <div className={`h-px my-[6px] ${MARCA.logo === 'bloque' ? 'bg-teal/70' : 'bg-red/70'}`} />
         {MARCA.iconos && <TiraIconos alto={Math.max(14, size * 0.3)} />}
       </div>
     </div>

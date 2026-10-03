@@ -1,5 +1,5 @@
 import type { MetadataRoute } from 'next';
-import { MARCA, iconoApp } from '@/lib/marca';
+import { MARCA, COLORES, iconoApp } from '@/lib/marca';
 
 // Datos de la app al instalarla en el celular. Salen de lib/marca.ts para que
 // cada cliente (y el demo) muestre su propio nombre.
@@ -10,8 +10,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: `${MARCA.appNombre} ${MARCA.claveFormato}`,
     start_url: '/',
     display: 'standalone',
-    background_color: '#0A121C',
-    theme_color: '#0A121C',
+    background_color: COLORES.fondo,
+    theme_color: COLORES.fondo,
     orientation: 'portrait',
     icons: [
       { src: iconoApp(192), sizes: '192x192', type: 'image/png' },

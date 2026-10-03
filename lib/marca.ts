@@ -28,6 +28,12 @@ export const MARCA = {
   // mantenimiento, así que debe seguir funcionando mientras las etiquetas
   // estén pegadas (si se cambia de dominio, el anterior debe redirigir).
   appUrl: valor(process.env.NEXT_PUBLIC_MARCA_APP_URL, 'https://reportes-clave.vercel.app'),
+  // Identidad visual de la instalación.
+  //   tema: 'clave' (verde sobre azul noche) | 'azul' (pizarra y azul eléctrico).
+  //         Los colores viven en app/globals.css ([data-tema]).
+  //   logo: 'escudo' (hexágono con nodos) | 'bloque' (cuadro redondeado).
+  tema: valor(process.env.NEXT_PUBLIC_MARCA_TEMA, 'clave') === 'azul' ? ('azul' as const) : ('clave' as const),
+  logo: valor(process.env.NEXT_PUBLIC_MARCA_LOGO, 'escudo') === 'bloque' ? ('bloque' as const) : ('escudo' as const),
   // Pie de página del PDF de cotización (dirección y teléfono de la empresa).
   pieCotizacion: valor(process.env.NEXT_PUBLIC_MARCA_PIE_COTIZACION, 'Tejedores 578 Col. La Paz Guadalajara Jalisco 44860 Tel: 3315781794'),
   // Letras dentro del escudo del logo y nombre corto al instalar la app.
@@ -64,6 +70,12 @@ export const DEMO = {
 };
 
 export const MARCA_MAYUS = MARCA.nombre.toUpperCase();
+
+// Colores de marca que no pasan por CSS: logo, PDF, ícono de la app y
+// colores del sistema (barra del navegador, pantalla de carga).
+export const COLORES = MARCA.tema === 'azul'
+  ? { logo: '#2563EB', logo2: '#3B82F6', acentoOscuro: '#1E40AF', fondo: '#0F172A' }
+  : { logo: '#2F7D5C', logo2: '#2F7D5C', acentoOscuro: '#12403A', fondo: '#0A121C' };
 
 // Ícono de la app. Clave Inteligente usa sus imágenes de public/icons; las
 // demás marcas, uno dibujado con sus iniciales (app/icono/[tam]/route.tsx).

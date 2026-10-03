@@ -5,7 +5,7 @@ import ToastContainer from '@/components/Toast';
 import OfflineSyncManager from '@/components/OfflineSyncManager';
 import SeleccionarNumeros from '@/components/SeleccionarNumeros';
 import AvisoSuscripcion from '@/components/AvisoSuscripcion';
-import { MARCA, MARCA_MAYUS, DEMO, iconoApp } from '@/lib/marca';
+import { MARCA, MARCA_MAYUS, DEMO, COLORES, iconoApp } from '@/lib/marca';
 
 const display = Barlow_Condensed({
   subsets: ['latin'],
@@ -38,7 +38,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#0A121C',
+  themeColor: COLORES.fondo,
   width: 'device-width',
   initialScale: 1,
   // Sin esto, env(safe-area-inset-*) vale 0 siempre: el contenido y las
@@ -49,7 +49,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es" suppressHydrationWarning className={`dark ${display.variable} ${sans.variable} ${mono.variable}`}>
+    <html lang="es" data-tema={MARCA.tema} suppressHydrationWarning className={`dark ${display.variable} ${sans.variable} ${mono.variable}`}>
       <head>
         <script
           dangerouslySetInnerHTML={{
