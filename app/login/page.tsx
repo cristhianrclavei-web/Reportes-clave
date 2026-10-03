@@ -101,15 +101,15 @@ function LoginForm() {
         clave: 'supervisor' as const,
         Icono: LayoutDashboard,
         titulo: 'Supervisor',
-        persona: 'Laura Méndez · Coordinadora de servicio',
+        lema: 'Coordina y da seguimiento a la operación',
         cuenta: DEMO.supervisor,
-        puntos: ['Tablero del día con 15 técnicos', 'Agenda, reportes y cotizaciones', 'Clientes, almacén y facturación'],
+        puntos: ['Tablero del día', 'Agenda, reportes y cotizaciones', 'Clientes, almacén y facturación'],
       },
       {
         clave: 'tecnico' as const,
         Icono: Wrench,
         titulo: 'Técnico',
-        persona: 'Jorge Ramírez · Técnico de campo',
+        lema: 'El trabajo del día, desde el celular',
         cuenta: DEMO.tecnico,
         puntos: ['Sus servicios de hoy, paso a paso', 'Reporte con fotos y firma del cliente', 'Funciona desde el celular, aun sin señal'],
       },
@@ -120,24 +120,25 @@ function LoginForm() {
       setEntrando(null);
     }
     return (
-      <div className="min-h-screen flex items-center justify-center px-5 py-10 relative overflow-hidden">
+      <div className="min-h-screen flex items-center justify-center px-5 py-5 sm:py-10 relative overflow-hidden">
         <div className="pointer-events-none absolute -bottom-40 -right-24 w-[26rem] h-[26rem] rounded-full bg-teal/15 blur-[120px]" />
         <div className="pointer-events-none absolute -top-32 -left-24 w-[22rem] h-[22rem] rounded-full bg-teal/10 blur-[110px]" />
         <div className="pointer-events-none absolute top-1/3 right-1/4 w-56 h-56 rounded-full bg-amber/10 blur-[100px]" />
 
-        <div className="absolute top-5 right-5 z-20">
-          <ThemeToggle />
-        </div>
-
         <div className="relative z-10 w-full max-w-3xl">
+          {/* El cambio de tema va en su propio renglón, alineado a la orilla
+              de las tarjetas: así no flota encima del logo en el celular. */}
+          <div className="flex justify-end mb-4 sm:mb-2">
+            <ThemeToggle variante="interruptor" />
+          </div>
           <div className="flex flex-col items-center text-center mb-8">
             <Logo variante="completo" size={60} />
             <span className="mt-6 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal/12 border border-teal/30 text-teal text-[12px] font-semibold tracking-wide">
               <span className="w-1.5 h-1.5 rounded-full bg-teal animate-pulse" />
               Demo en vivo · sin registro
             </span>
-            <h1 className="mt-4 font-display font-bold text-[34px] sm:text-[44px] leading-[1.05] tracking-wide">
-              Tu operación de campo,<br className="hidden sm:block" /> en una sola app
+            <h1 className="mt-4 font-display font-bold text-[32px] sm:text-[44px] leading-[1.05] tracking-wide">
+              Tu operación de campo,<br /> en una sola app
             </h1>
             <p className="mt-3 text-[15px] sm:text-base text-muted max-w-xl">
               Elige cómo quieres entrar y recorre la app con datos de ejemplo:
@@ -162,7 +163,7 @@ function LoginForm() {
                     </span>
                     <div className="min-w-0">
                       <p className="font-display font-bold text-[24px] leading-tight tracking-wide">{a.titulo}</p>
-                      <p className="text-[12.5px] text-muted truncate">{a.persona}</p>
+                      <p className="text-[12.5px] text-muted truncate">{a.lema}</p>
                     </div>
                   </div>
                   <ul className="space-y-2 mb-5">

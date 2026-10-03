@@ -69,8 +69,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="font-sans bg-bg text-ink m-0 min-h-screen transition-colors duration-300">
         {DEMO.activo && (
-          <div className="bg-amber text-black text-center text-[12px] font-semibold px-3 py-1.5">
-            Versión de demostración · datos ficticios que se reinician cada noche
+          <div
+            className="relative z-30 border-b border-line bg-surface-2/70 backdrop-blur text-muted text-[11.5px] px-3 pb-1.5 flex items-center justify-center gap-2 text-center"
+            style={{ paddingTop: 'calc(0.375rem + env(safe-area-inset-top))' }}
+          >
+            <span className="px-1.5 py-px rounded-md bg-teal/15 border border-teal/30 text-teal text-[10px] font-semibold tracking-[0.12em] shrink-0">
+              DEMO
+            </span>
+            <span>
+              Entorno de demostración
+              <span className="hidden sm:inline"> · la información se restablece cada noche</span>
+            </span>
           </div>
         )}
         <AvisoSuscripcion />
