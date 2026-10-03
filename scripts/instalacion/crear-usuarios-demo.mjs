@@ -1,9 +1,10 @@
-// Crea las 4 cuentas del demo en el proyecto Supabase DESTINO.
+// Crea las 16 cuentas del demo (1 supervisora y 15 técnicos) en el proyecto Supabase DESTINO.
 //
 //   supervisor@demo.servitec.test   (acceso rápido «Supervisor» del login)
 //   tecnico@demo.servitec.test      (acceso rápido «Técnico»)
 //   tecnico2@demo.servitec.test     (no inicia sesión: contraseña aleatoria)
 //   tecnico3@demo.servitec.test     (no inicia sesión: contraseña aleatoria)
+//   tecnico4 … tecnico15            (igual: solo para que la plantilla se vea completa)
 //
 // Lee de .env.instalacion:
 //   DESTINO_SUPABASE_URL, DESTINO_SECRET_KEY (service role / secret key),
@@ -37,6 +38,13 @@ const cuentas = [
   { usuario: 'tecnico', nombre: 'Jorge Ramírez', rol: 'tecnico', contrasena: env.DEMO_TECNICO_CONTRASENA },
   { usuario: 'tecnico2', nombre: 'Miguel Torres', rol: 'tecnico', contrasena: randomBytes(18).toString('base64url') },
   { usuario: 'tecnico3', nombre: 'Daniel Ortiz', rol: 'tecnico', contrasena: randomBytes(18).toString('base64url') },
+  // Plantilla ampliada (los nombres definitivos los pone reiniciar_demo()).
+  ...Array.from({ length: 12 }, (_, i) => ({
+    usuario: `tecnico${i + 4}`,
+    nombre: `Técnico ${i + 4}`,
+    rol: 'tecnico',
+    contrasena: randomBytes(18).toString('base64url'),
+  })),
 ];
 
 const { data: lista, error: eLista } = await supabase.auth.admin.listUsers({ perPage: 1000 });
@@ -45,7 +53,10 @@ if (eLista) { console.error('No se pudo leer usuarios:', eLista.message); proces
 for (const c of cuentas) {
   const email = c.usuario + DOMINIO;
   const existente = lista.users.find((u) => u.email === email);
-  if (existente) {
+  const rapido = c.usuario === 'supervisor' || c.usuario === 'tecnico';
+  if (existente && !rapido) {
+    console.log(`· ${email} (ya existía)`);
+  } else if (existente) {
     const { error } = await supabase.auth.admin.updateUserById(existente.id, { password: c.contrasena });
     console.log(error ? `✗ ${email}: ${error.message}` : `↻ ${email} (contraseña actualizada)`);
   } else {

@@ -6,12 +6,14 @@
 -- datos de ejemplo con fechas relativas a hoy, para que el demo siempre se
 -- vea al día.
 --
--- Seguro: si en auth.users hay UN solo correo que no termine en
--- @demo.servitec.test, la función se niega a correr. En una base real nunca
--- pasa ese filtro.
+-- Seguro: solo corre si existe la marca del demo (la cuenta de la
+-- supervisora guardada en demo_accesos por crear-usuarios-demo.mjs) y hay a
+-- lo más 5 cuentas ajenas al dominio @demo.servitec.test. En una base real
+-- no pasa ninguno de los dos filtros. Las cuentas que creen los visitantes
+-- se borran en cada reinicio.
 --
 -- Usuarios: se crean antes con scripts/instalacion/crear-usuarios-demo.mjs
--- (supervisor, técnico y dos técnicos más que no inician sesión).
+-- (supervisora y 15 técnicos; solo «supervisor» y «tecnico» inician sesión).
 --
 -- Ejecutar completo en el SQL Editor del proyecto DEMO. Idempotente.
 -- Después: select public.reiniciar_demo();
@@ -36,7 +38,7 @@ declare
   dominio constant text := '@demo.servitec.test';
   hoy date := (now() at time zone 'America/Mexico_City')::date;
   t text;
-  v_sup uuid; v_tec uuid; v_tec2 uuid; v_tec3 uuid;
+  v_sup uuid; v_tec uuid; v_tec2 uuid; v_tec3 uuid; v_id uuid; v_s uuid; x record;
   c_plaza uuid := gen_random_uuid(); c_hosp uuid := gen_random_uuid();
   c_torre uuid := gen_random_uuid(); c_ind uuid := gen_random_uuid();
   c_cole uuid := gen_random_uuid(); c_hotel uuid := gen_random_uuid();
@@ -51,8 +53,19 @@ declare
   a record;
 begin
   -- ---------- Seguro ----------
-  if exists (select 1 from auth.users where lower(email) not like '%' || dominio) then
-    raise exception 'reiniciar_demo() solo corre en la instalación demo (todos los usuarios deben ser %)', dominio;
+  -- 1) La marca del demo: crear-usuarios-demo.mjs guarda aquí la cuenta de
+  --    la supervisora con la secret key del demo. En una base real esta
+  --    tabla está vacía (o no existe la cuenta) y no se toca nada.
+  if not exists (
+    select 1 from public.demo_accesos d join auth.users u on u.email = d.email
+    where d.email = 'supervisor' || dominio
+  ) then
+    raise exception 'reiniciar_demo() solo corre en la instalación demo (falta la marca en demo_accesos)';
+  end if;
+  -- 2) Un demo puede tener alguna cuenta creada por visitantes (se borran
+  --    abajo), pero una base con varias cuentas ajenas no es el demo.
+  if (select count(*) from auth.users where lower(email) not like '%' || dominio) > 5 then
+    raise exception 'reiniciar_demo(): hay demasiadas cuentas que no son %; esto no parece el demo', dominio;
   end if;
 
   select id into v_sup from auth.users where email = 'supervisor' || dominio;
@@ -96,6 +109,19 @@ begin
   -- reports y servicios se referencian entre sí: se vacían juntos.
   truncate table public.reports, public.servicios_programados, public.clientes cascade;
 
+  -- ---------- Cuentas creadas por visitantes ----------
+  -- Ya sin operación que las referencie. Si la base no deja borrar de
+  -- auth.users, se desactivan y el reinicio sigue.
+  begin
+    delete from public.profiles p using auth.users u
+      where u.id = p.id and lower(u.email) not like '%' || dominio;
+    delete from auth.users where lower(email) not like '%' || dominio;
+  exception when others then
+    raise notice 'No se pudieron borrar cuentas de visitantes: %', sqlerrm;
+    update public.profiles p set activo = false from auth.users u
+      where u.id = p.id and lower(u.email) not like '%' || dominio;
+  end;
+
   -- ---------- Personal ----------
   update public.profiles set full_name = 'Laura Méndez', role = 'supervisor', puesto = 'Coordinadora de servicio',
     telefono = '3310000001', activo = true, es_cuenta_prueba = false, credenciales_actualizadas = true,
@@ -114,6 +140,31 @@ begin
     telefono = '3310000004', activo = true, es_cuenta_prueba = false, credenciales_actualizadas = true,
     especialidades = array['Inst. eléctricas']
   where id = v_tec3;
+
+  -- Más técnicos (tecnico4…tecnico15) para que el supervisor vea la app con
+  -- una plantilla completa. No inician sesión; si alguno no existe, se omite.
+  for x in
+    select * from (values
+      (4, 'Luis Hernández', 'Técnico de campo', array['CCTV', 'Redes']),
+      (5, 'Carlos Mendoza', 'Técnico de campo', array['Control de acceso']),
+      (6, 'Fernando Aguilar', 'Técnico especialista', array['Red contra incendio', 'Supresión']),
+      (7, 'Ricardo Peña', 'Técnico de campo', array['Alarma intrusión', 'CCTV']),
+      (8, 'Óscar Villanueva', 'Técnico electricista', array['Inst. eléctricas', 'Paneles solares']),
+      (9, 'Héctor Salazar', 'Técnico de campo', array['CCTV']),
+      (10, 'Iván Castillo', 'Auxiliar técnico', array['Control de acceso']),
+      (11, 'Raúl Domínguez', 'Técnico de campo', array['Alarma&Det']),
+      (12, 'Sergio Paredes', 'Técnico especialista', array['Automatización']),
+      (13, 'Adrián Fuentes', 'Auxiliar técnico', array['CCTV']),
+      (14, 'Marco Rosales', 'Técnico de campo', array['Red contra incendio']),
+      (15, 'Emilio Carrillo', 'Auxiliar técnico', array['Inst. eléctricas'])
+    ) v(n, nombre, puesto, esp)
+  loop
+    update public.profiles p set full_name = x.nombre, role = 'tecnico', puesto = x.puesto,
+      telefono = '33100000' || lpad(x.n::text, 2, '0'), activo = true, es_cuenta_prueba = false,
+      credenciales_actualizadas = true, especialidades = x.esp
+    from auth.users u
+    where u.id = p.id and u.email = 'tecnico' || x.n || dominio;
+  end loop;
 
   insert into public.vehiculos (nombre, placas) values
     ('Nissan NP300 blanca', 'JLX-12-34'), ('Chevrolet Tornado roja', 'JMB-56-78');
@@ -164,6 +215,38 @@ begin
     (s6, v_tec2, null, null),
     (s7, v_tec, null, null),
     (s8, v_tec2, null, null);
+
+  -- Servicios del resto de la plantilla: hoy (en curso, en sitio y por
+  -- iniciar) y mañana. Tres técnicos quedan libres.
+  for x in
+    select * from (values
+      (4, c_plaza, 'Plaza Comercial Arboleda', 'Cambio de 2 detectores de humo en locales 8 y 11', 0, time '08:30', 'en_curso', 120),
+      (5, c_torre, 'Corporativo Torre Azul', 'Instalación de lectora en acceso a sótano 2', 0, time '09:30', 'en_curso', 180),
+      (6, c_ind, 'Industrias Metálicas del Bajío', 'Prueba anual de sistema de supresión en cuarto eléctrico', 0, time '10:00', 'en_sitio', 240),
+      (7, c_hotel, 'Hotel Real del Valle', 'Revisión de sensores de alarma en bodega', 0, time '12:00', 'programado', 90),
+      (8, c_cole, 'Colegio Los Pinos', 'Canalización eléctrica para cámaras del patio', 0, time '13:00', 'programado', 180),
+      (9, c_hosp, 'Hospital Santa Lucía', 'Reemplazo de cámara 14 en pasillo de urgencias', 0, time '16:00', 'programado', 60),
+      (10, c_torre, 'Corporativo Torre Azul', 'Mantenimiento de torniquetes de recepción', 1, time '09:00', 'programado', 180),
+      (11, c_plaza, 'Plaza Comercial Arboleda', 'Prueba de estaciones manuales y sirenas', 1, time '11:00', 'programado', 120),
+      (12, c_ind, 'Industrias Metálicas del Bajío', 'Ajuste de PLC en línea de pintura', 2, time '08:00', 'programado', 240)
+    ) v(n, cli, nombre, descr, dia, hora, est, dur)
+  loop
+    select id into v_id from auth.users where email = 'tecnico' || x.n || dominio;
+    continue when v_id is null;
+    v_s := gen_random_uuid();
+    insert into public.servicios_programados
+      (id, creado_por, proyecto, descripcion, fecha, duracion_estimada_min, hora_programada, estado, cliente_id)
+    values (v_s, v_sup, x.nombre, x.descr, hoy + x.dia, x.dur, x.hora, 'programado', x.cli);
+    insert into public.servicio_tecnicos (servicio_id, tecnico_id, visto_en, enterado_en)
+    values (v_s, v_id, case when x.dia = 0 then now() end, case when x.dia = 0 then now() end);
+    if x.est <> 'programado' then
+      update public.servicios_programados set
+        estado = x.est,
+        hora_llegada = ((hoy + x.hora) - interval '5 minutes') at time zone 'America/Mexico_City',
+        hora_inicio = case when x.est = 'en_curso' then ((hoy + x.hora) + interval '10 minutes') at time zone 'America/Mexico_City' end
+      where id = v_s;
+    end if;
+  end loop;
 
   -- El estado se pone después de asignar técnicos (la base no deja cambiar
   -- los técnicos de un servicio ya concluido).
@@ -262,9 +345,9 @@ begin
     (q3, 'CCTV', 2, 'Instalación, configuración y capacitación', 'Servicio', 1, 3500, 45, 5075.00, 5075.00);
 
   update public.cotizaciones c set
-    subtotal = x.sub, iva = round(x.sub * 0.16, 2), total = round(x.sub * 1.16, 2)
-  from (select cotizacion_id, sum(importe) sub from public.cotizacion_lineas group by cotizacion_id) x
-  where x.cotizacion_id = c.id;
+    subtotal = tot.sub, iva = round(tot.sub * 0.16, 2), total = round(tot.sub * 1.16, 2)
+  from (select cotizacion_id, sum(importe) sub from public.cotizacion_lineas group by cotizacion_id) tot
+  where tot.cotizacion_id = c.id;
 
   -- ---------- Almacén ----------
   select id into sis_cctv from public.almacen_sistemas where nombre ilike 'CCTV%' limit 1;

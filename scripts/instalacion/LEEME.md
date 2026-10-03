@@ -73,8 +73,9 @@ Variables extra en Vercel: `NEXT_PUBLIC_DEMO=1`,
 3. SQL Editor: `select public.reiniciar_demo();`
 
 Cada noche a las 3:00 se borra todo y se vuelven a cargar los datos de
-«ServiTec Integral» con fechas de hoy. La función se niega a correr si hay
-un usuario que no sea `@demo.servitec.test`.
+«ServiTec Integral» (1 supervisora, 15 técnicos) con fechas de hoy, y se
+borran las cuentas que hayan creado los visitantes. La función solo corre si
+existe la marca del demo en `demo_accesos` (la pone el script de usuarios).
 
 ## 5b. Si es un CLIENTE
 
