@@ -9,6 +9,7 @@ import LogoutButton from '@/components/LogoutButton';
 import ThemeToggle from '@/components/ThemeToggle';
 import Logo from '@/components/Logo';
 import { ChevronLeft, ChevronRight, BadgeCheck } from 'lucide-react';
+import { DEMO } from '@/lib/marca';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -81,7 +82,8 @@ export default async function PerfilPage() {
 
         <ProfileForm user={user} profile={profile} />
 
-        <CambiarContrasena email={user.email || ''} />
+        {/* En el demo las cuentas son compartidas: nadie cambia su contraseña. */}
+        {!DEMO.activo && <CambiarContrasena email={user.email || ''} />}
 
         {profile.role === 'supervisor' && (
           <Link

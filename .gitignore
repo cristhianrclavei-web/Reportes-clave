@@ -9,3 +9,7 @@ node_modules/
 
 # Cache de compilacion de TypeScript
 *.tsbuildinfo
+
+# Instalaciones nuevas: binarios locales y exportaciones de la base
+scripts/instalacion/.pg17/
+scripts/instalacion/salida/
