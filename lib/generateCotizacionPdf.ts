@@ -12,7 +12,7 @@ import { MARCA, MARCA_MAYUS } from './marca';
 // marca, datos del cliente, una tabla por sistema con su propio subtotal,
 // SUBTOTAL/IVA/TOTAL, y una segunda página con condiciones comerciales y
 // firma.
-const DIRECCION_EMPRESA = 'Tejedores 578 Col. La Paz Guadalajara Jalisco 44860 Tel: 3315781794';
+const DIRECCION_EMPRESA = MARCA.pieCotizacion;
 const TELS_CONTACTO = `Tels: ${MARCA.telefonos}`;
 const SITIO_WEB = MARCA.sitioWeb;
 

@@ -25,7 +25,7 @@ const mono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   title: `${MARCA.appNombre} · ${MARCA.nombre}`,
-  description: 'App de reportes de servicio CRM0851 para técnicos y supervisores',
+  description: `App de reportes de servicio ${MARCA.claveFormato} para técnicos y supervisores`,
   icons: {
     icon: '/icons/icon-192.png',
     apple: '/icons/icon-192.png',

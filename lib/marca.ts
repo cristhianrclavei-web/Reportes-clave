@@ -28,6 +28,8 @@ export const MARCA = {
   // mantenimiento, así que debe seguir funcionando mientras las etiquetas
   // estén pegadas (si se cambia de dominio, el anterior debe redirigir).
   appUrl: valor(process.env.NEXT_PUBLIC_MARCA_APP_URL, 'https://reportes-clave.vercel.app'),
+  // Pie de página del PDF de cotización (dirección y teléfono de la empresa).
+  pieCotizacion: valor(process.env.NEXT_PUBLIC_MARCA_PIE_COTIZACION, 'Tejedores 578 Col. La Paz Guadalajara Jalisco 44860 Tel: 3315781794'),
   // Letras dentro del escudo del logo y nombre corto al instalar la app.
   iniciales: valor(process.env.NEXT_PUBLIC_MARCA_INICIALES, 'CI').slice(0, 3),
   nombreCorto: valor(process.env.NEXT_PUBLIC_MARCA_NOMBRE_CORTO, 'Reportes CI'),
