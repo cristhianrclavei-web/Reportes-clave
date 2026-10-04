@@ -166,9 +166,9 @@ function SeccionLateral({
       {activo && (
         <motion.span layoutId="lateral-activo-fondo" transition={RESORTE} className="absolute inset-0 rounded-2xl bg-teal/12 ring-1 ring-teal/40 shadow-glow-teal" />
       )}
-      <span className="relative flex flex-col items-center justify-center gap-2 h-[84px] px-2 transition-transform duration-200 ease-out group-hover:-translate-y-[2px]">
-        <Icono size={25} strokeWidth={activo ? 2.4 : 2} />
-        <span className={`text-[12.5px] leading-none truncate max-w-full ${activo ? 'font-semibold' : 'font-medium'}`}>{etiqueta}</span>
+      <span className="relative flex flex-col items-center justify-center gap-1.5 h-[70px] px-2 transition-transform duration-200 ease-out group-hover:-translate-y-[2px]">
+        <Icono size={24} strokeWidth={activo ? 2.4 : 2} />
+        <span className={`text-[12px] leading-none truncate max-w-full ${activo ? 'font-semibold' : 'font-medium'}`}>{etiqueta}</span>
       </span>
     </Link>
   );
@@ -278,7 +278,10 @@ export default function DockNav({ userName, children }: { userName?: string; chi
 
         <p className="px-1 mb-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-faint">Secciones</p>
         <LayoutGroup id="lateral">
-          <nav aria-label="Secciones" className="grid grid-cols-2 gap-2.5">
+          {/* Margen parecido entre columnas (24 px) y entre filas (de 20 a
+              35 px según la altura de la pantalla): las filas se reparten en
+              la altura libre, con tope para que no queden desperdigadas. */}
+          <nav aria-label="Secciones" className="flex-1 min-h-[430px] max-h-[490px] grid grid-cols-2 gap-x-6 gap-y-4 content-between px-2 pb-1">
             {secciones.map((t) => (
               <SeccionLateral key={t.key} href={t.href} etiqueta={t.label} Icono={t.Icono} activo={t.key === activa} />
             ))}
