@@ -50,16 +50,22 @@ export default function AvisoSuscripcion() {
     case 'gracia':
       tono = 'red';
       Icono = AlertTriangle;
-      texto = sup
-        ? `${s.estado === 'prueba' ? 'La prueba demo' : 'La suscripción'} venció el ${fechaCorta(s.vence_en)} · ${dias(s.dias_gracia_restantes ?? 0)} para renovar antes de pasar a solo lectura`
-        : `${s.estado === 'prueba' ? 'La prueba demo' : 'La suscripción'} venció · avisa a tu supervisor`;
-      accion = sup ? 'Renovar' : null;
+      {
+        // Días de cortesía: el aviso va en rojo y cuenta hacia atrás.
+        const cortesia = s.dias_gracia_restantes ?? 0;
+        const queda = cortesia <= 1 ? 'último día de cortesía' : `quedan ${cortesia} días de cortesía`;
+        const que = s.estado === 'prueba' ? 'Tu prueba demo venció' : 'Tu suscripción venció';
+        texto = sup
+          ? `${que} · ${queda} · contacta para actualizar tu membresía`
+          : `${que} · ${queda} · avisa a tu supervisor`;
+      }
+      accion = sup ? 'Actualizar membresía' : null;
       break;
     case 'vencida':
       tono = 'red';
       Icono = Lock;
-      texto = 'Solo lectura · puedes consultar y descargar, pero no crear ni editar';
-      accion = sup ? 'Renovar' : null;
+      texto = `${s.estado === 'prueba' ? 'La prueba demo terminó' : 'La suscripción venció'} · la app está en solo lectura: se puede consultar y descargar, pero no crear ni editar`;
+      accion = sup ? 'Actualizar membresía' : null;
       break;
     default:
       return null;
