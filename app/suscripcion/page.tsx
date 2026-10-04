@@ -9,7 +9,7 @@ import {
   PLANES, PlanClave, MiPlan, PRECIO_USUARIO_EXTRA, MESES_PAGADOS_EN_ANUAL,
   VENTAS_WHATSAPP, VENTAS_CORREO, fechaCorta, dias, dinero,
 } from '@/lib/planesDatos';
-import { MARCA } from '@/lib/marca';
+import { MARCA, DEMO } from '@/lib/marca';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -34,7 +34,10 @@ const ESTADO: Record<string, { texto: string; cls: string }> = {
 };
 
 function enlaceContratar(plan: PlanClave, periodo: 'mensual' | 'anual'): string | null {
-  const mensaje = `Hola, soy de ${MARCA.nombre}. Quiero contratar el plan ${PLANES[plan].nombre} (${periodo}) de ${MARCA.appNombre}.`;
+  // En el demo quien escribe es un prospecto, no la empresa ficticia.
+  const mensaje = DEMO.activo
+    ? `Hola, vi el demo de ${MARCA.appNombre} y me interesa el plan ${PLANES[plan].nombre} (${periodo}).`
+    : `Hola, soy de ${MARCA.nombre}. Quiero contratar el plan ${PLANES[plan].nombre} (${periodo}) de ${MARCA.appNombre}.`;
   if (VENTAS_WHATSAPP) return `https://wa.me/${VENTAS_WHATSAPP.replace(/\D/g, '')}?text=${encodeURIComponent(mensaje)}`;
   if (VENTAS_CORREO) return `mailto:${VENTAS_CORREO}?subject=${encodeURIComponent(`Contratar plan ${PLANES[plan].nombre}`)}&body=${encodeURIComponent(mensaje)}`;
   return null;
