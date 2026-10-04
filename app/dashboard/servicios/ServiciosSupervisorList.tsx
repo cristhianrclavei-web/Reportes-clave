@@ -27,7 +27,7 @@ import {
   listarPlantillas, guardarPlantillaDeItems, actualizarPlantilla, eliminarPlantilla, listarChecklists, ResumenChecklist,
   eliminarChecklist, agregarInsumosIniciales,
 } from '@/lib/insumos';
-import { Plus, X, FileText, AlertTriangle, Timer, MapPin, Play, Check, Clock, FolderKanban, Bookmark, Pencil, Copy, Trash2, PackageCheck, TrendingUp, ChevronRight, Search, CalendarDays } from 'lucide-react';
+import { Plus, X, FileText, AlertTriangle, Timer, MapPin, Play, Check, Clock, FolderKanban, Bookmark, Pencil, Copy, Trash2, PackageCheck, TrendingUp, ChevronRight, ChevronDown, Search, CalendarDays } from 'lucide-react';
 import { calcularResultadoServicio } from '@/lib/resultadoServicio';
 import { ResultadoIconos } from '@/components/ResultadoServicioBadges';
 import { showToast } from '@/components/Toast';
@@ -1320,15 +1320,16 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
             // Confirmación solo de los días que aún no se trabajan.
             const confProgramados = g.dias.filter((d) => d.estado === 'programado').flatMap((d) => confirmaciones[d.id] || []);
             return (
-              <div key={g.grupoId} className="rounded-2xl border-l-4 border-teal bg-surface overflow-hidden transition-shadow duration-150 hover:shadow-diffuse">
+              <div key={g.grupoId} className="rounded-2xl border-l-4 border-l-teal border-y border-r border-y-line border-r-line bg-surface overflow-hidden transition-shadow duration-150 hover:shadow-diffuse">
                 <button
                   onClick={() => setGrupoAbierto(abierto ? null : g.grupoId)}
                   className="w-full text-left p-4 transition-transform duration-150 active:scale-[0.99]"
                 >
                   <div className="flex justify-between items-baseline gap-2.5">
                     <strong className="font-display font-bold text-[16px] leading-snug min-w-0 truncate">{g.proyecto}</strong>
-                    <span className="text-[12.5px] text-muted shrink-0 whitespace-nowrap">
+                    <span className="text-[12.5px] text-muted shrink-0 whitespace-nowrap flex items-center gap-1.5">
                       {diasConReporte}/{diasTotalesGrupo} con reporte
+                      <ChevronDown size={16} className={`self-center transition-transform ${abierto ? 'rotate-180' : ''}`} />
                     </span>
                   </div>
                   {pr && pr.total > 0 && (
@@ -1343,7 +1344,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
                   <p className="text-[13px] text-muted mt-2">
                     {diasTotalesGrupo === 1
                       ? formatFecha(g.dias[0].fecha)
-                      : `${diasTotalesGrupo} días · ${formatFecha(g.dias[0].fecha)} al ${formatFecha(g.dias[g.dias.length - 1].fecha)}`} · toca para {abierto ? 'ocultar' : 'ver'} el detalle
+                      : `${diasTotalesGrupo} días · ${formatFecha(g.dias[0].fecha)} al ${formatFecha(g.dias[g.dias.length - 1].fecha)}`}
                   </p>
                 </button>
 

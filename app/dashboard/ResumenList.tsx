@@ -124,7 +124,8 @@ export default function ResumenList({
           <Stat label="Esta semana" value={totalWeek} accent="amber" />
           <Stat label="Por facturar" value={porFacturar} accent="amber" />
           <Stat label="Personal activo" value={tecnicosActivos} accent="teal" />
-          <Stat label="Reportes totales" value={reports.length} accent="teal" />
+          {/* En celular ocupa el renglón completo: con cinco indicadores quedaba uno suelto. */}
+          <Stat label="Reportes totales" value={reports.length} accent="teal" className="col-span-2 lg:col-span-1" />
         </div>
 
         <AlertaSolicitudes />
@@ -286,10 +287,10 @@ export default function ResumenList({
   );
 }
 
-function Stat({ label, value, accent }: { label: string; value: number; accent: 'teal' | 'amber' | 'red' }) {
+function Stat({ label, value, accent, className = '' }: { label: string; value: number; accent: 'teal' | 'amber' | 'red'; className?: string }) {
   const dot = accent === 'teal' ? 'bg-teal' : accent === 'amber' ? 'bg-amber' : 'bg-red';
   return (
-    <div className="glass rounded-2xl px-3.5 py-3.5 lg:px-5 lg:py-5">
+    <div className={`glass rounded-2xl px-3.5 py-3.5 lg:px-5 lg:py-5 ${className}`}>
       <div className="flex items-center gap-1.5 mb-1">
         <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
         <div className="text-[11px] uppercase tracking-wider text-muted">{label}</div>
