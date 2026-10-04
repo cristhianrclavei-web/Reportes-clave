@@ -650,6 +650,14 @@ begin
       select u.id from auth.users u where u.email in ('tecnico9' || dominio, 'tecnico13' || dominio)))
   on conflict do nothing;
 
+  -- Suscripción: el demo vive siempre en «prueba» recién iniciada, para que
+  -- el prospecto vea la franja con los días restantes y la pantalla de
+  -- Suscripción como las vería en su propia prueba (y nunca caiga en solo
+  -- lectura por vencerse).
+  if to_regprocedure('public.iniciar_prueba(integer)') is not null then
+    perform public.iniciar_prueba(14);
+  end if;
+
   -- Los servicios de hoy, alrededor de la hora actual.
   perform public.demo_al_dia();
 
