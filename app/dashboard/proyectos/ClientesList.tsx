@@ -167,7 +167,7 @@ export default function ClientesList({ userName }: { userName?: string }) {
         </div>
         <button
           onClick={() => { setShowNuevo(true); setDatosNuevo(datosClienteVacios()); setMsg(null); }}
-          className="shrink-0 min-h-[48px] px-4 rounded-xl bg-teal text-inkOnAccent font-display font-semibold text-[13.5px] flex items-center gap-1.5 transition-all duration-150 hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0 active:scale-95 shadow-glow-teal"
+          className="shrink-0 min-h-[48px] px-4 rounded-xl bg-teal text-inkOnAccent font-semibold text-[14px] flex items-center gap-1.5 transition-all duration-150 hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0 active:scale-95 shadow-glow-teal"
         >
           <Plus size={17} strokeWidth={2.4} />
           <span className="hidden sm:inline">Nuevo cliente</span>

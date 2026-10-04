@@ -1,5 +1,6 @@
 'use client';
 
+import EstadoVacio from '@/components/EstadoVacio';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, AlertTriangle, PackageX, ClipboardList, Archive, ChevronDown, Search, X, ChevronRight } from 'lucide-react';
 import { showToast } from '@/components/Toast';
@@ -158,10 +159,11 @@ export default function Vales({ modo }: { modo: 'tecnico' | 'almacen' }) {
       ))}
 
       {vales && grupos.every((g) => g.vales.length === 0) && (
-        <div className="flex flex-col items-center py-10 text-center text-muted">
-          <ClipboardList size={28} className="mb-2" />
-          <p className="text-[14px]">{modo === 'tecnico' ? 'No tienes vales abiertos.' : 'No hay vales pendientes.'}</p>
-        </div>
+        <EstadoVacio
+          icono={<ClipboardList size={24} strokeWidth={1.8} />}
+          titulo={modo === 'tecnico' ? 'No tienes vales abiertos' : 'No hay vales pendientes'}
+          detalle={modo === 'tecnico' ? 'Usa «Pedir al almacén» cuando necesites material o herramienta.' : 'Aquí aparecen los vales que pide el personal para surtir.'}
+        />
       )}
 
       {cerrados.length > 0 && (

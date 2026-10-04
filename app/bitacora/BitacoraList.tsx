@@ -1,5 +1,7 @@
 'use client';
 
+import EmptyIllustration from '@/components/EmptyIllustration';
+import EstadoVacio from '@/components/EstadoVacio';
 import PerfilChip from '@/components/PerfilChip';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -185,7 +187,7 @@ export default function BitacoraList({ userName }: { userName: string }) {
         )}
 
         {!loading && actividades.length === 0 && (
-          <p className="text-center text-muted py-10 text-sm">Todavía no has registrado ninguna actividad.</p>
+          <EstadoVacio icono={<EmptyIllustration variante="historial" />} titulo="Todavía no hay actividades" detalle="Usa «Iniciar nueva actividad» para registrar lo que haces fuera de un servicio." />
         )}
       </div>
     </div>

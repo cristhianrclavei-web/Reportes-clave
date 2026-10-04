@@ -1,5 +1,6 @@
 'use client';
 
+import EstadoVacio from '@/components/EstadoVacio';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Clock, CalendarDays, Bell, Download, ChevronRight, Inbox } from 'lucide-react';
 import { AvatarTecnico } from '@/components/AvatarTecnico';
@@ -180,10 +181,11 @@ export default function Solicitudes({ nombre }: { nombre: string }) {
       {lista === null && <p className="text-[13px] text-muted text-center py-6">Cargando…</p>}
       {lista && visibles.length === 0 && !error && (
         vista === 'autorizar' ? (
-          <div className="flex flex-col items-center py-10 text-center text-muted">
-            <Inbox size={28} className="mb-2" />
-            <p className="text-[14px]">No hay solicitudes por autorizar.</p>
-          </div>
+          <EstadoVacio
+            icono={<Inbox size={24} strokeWidth={1.8} />}
+            titulo="No hay solicitudes por autorizar"
+            detalle="Las horas extra, vacaciones y permisos que pida el personal llegan aquí."
+          />
         ) : (
           <div className="rounded-2xl border border-dashed border-line-strong p-5">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-muted mb-3">Mis solicitudes</p>

@@ -1,5 +1,7 @@
 'use client';
 
+import EmptyIllustration from '@/components/EmptyIllustration';
+import EstadoVacio from '@/components/EstadoVacio';
 import { useEffect, useRef, useState } from 'react';
 import BotonEnterado from '@/components/BotonEnterado';
 import Link from 'next/link';
@@ -681,7 +683,9 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
           })}
         </div>
 
-        {tareas.length === 0 && <p className="text-muted text-[14px] text-center py-8">Este servicio no tiene tareas configuradas.</p>}
+        {tareas.length === 0 && (
+          <EstadoVacio className="py-8" icono={<EmptyIllustration variante="lista" />} titulo="Sin lista de tareas" detalle="Este servicio no trae tareas por pasos: al terminar, haz tu reporte como siempre." />
+        )}
 
         {servicio.estado === 'en_curso' && !showEvidenciaExtra && (
           <button

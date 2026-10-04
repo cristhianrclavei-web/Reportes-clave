@@ -9,7 +9,7 @@ export function BotonNuevo({ label, Icono, onClick }: { label: string; Icono: an
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="shrink-0 min-h-[48px] px-4 rounded-xl bg-teal text-inkOnAccent font-display font-semibold text-[13.5px] flex items-center gap-1.5 transition-all duration-150 hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0 active:scale-95 shadow-glow-teal"
+      className="shrink-0 min-h-[48px] px-4 rounded-xl bg-teal text-inkOnAccent font-semibold text-[14px] flex items-center gap-1.5 transition-all duration-150 hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0 active:scale-95 shadow-glow-teal"
     >
       <Icono size={17} strokeWidth={2.6} />
       <span className="hidden sm:inline">{label}</span>

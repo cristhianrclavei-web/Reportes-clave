@@ -187,6 +187,18 @@ export default function PlanSemana() {
 
       {error && <p className="text-[13px] text-red font-semibold mb-3">{error}</p>}
 
+      {/* Mientras llega la semana: renglones de espera, no la pantalla en blanco. */}
+      {!datos && !error && (
+        <div className="flex flex-col gap-2.5" aria-busy="true">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="rounded-2xl bg-surface border border-line p-4">
+              <div className="h-3.5 w-1/3 rounded-full skeleton-shimmer mb-2.5" />
+              <div className="h-2.5 w-2/3 rounded-full skeleton-shimmer" />
+            </div>
+          ))}
+        </div>
+      )}
+
       {datos && (
         <FiltroCuadrillas cuadrillas={cuadrillas} mapa={mapaCuad} ids={datos.tecnicos.map((t) => t.id)} valor={cuad} onCambiar={setCuad} className="mb-3" />
       )}

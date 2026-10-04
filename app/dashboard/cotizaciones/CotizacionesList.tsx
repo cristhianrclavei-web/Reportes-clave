@@ -14,6 +14,7 @@ import { hoyLocal } from '@/lib/fechaHoy';
 import { descartarBorradorFormulario } from '@/lib/useBorradorFormulario';
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
+import SubTabs from '@/components/SubTabs';
 import { Plus, Search, Receipt, Copy, X } from 'lucide-react';
 import SelectorSemana, { RangoSeleccionado } from '@/components/SelectorSemana';
 
@@ -146,26 +147,15 @@ export default function CotizacionesList({
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-2 mb-5">
-        <button
-          onClick={() => setSeccion('nueva')}
-          className={`min-h-[54px] px-2 rounded-2xl text-[13.5px] font-display font-semibold border transition-all duration-150 flex items-center justify-center gap-1.5 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.97] ${
-            seccion === 'nueva' ? 'bg-teal text-inkOnAccent border-teal shadow-glow-teal hover:brightness-110' : 'bg-surface-2 border-line-strong text-ink/80 hover:border-line-strong hover:text-ink'
-          }`}
-        >
-          <Plus size={17} strokeWidth={2.4} className="shrink-0" />
-          Nueva cotización
-        </button>
-        <button
-          onClick={() => setSeccion('cotizaciones')}
-          className={`min-h-[54px] px-2 rounded-2xl text-[13.5px] font-display font-semibold border transition-all duration-150 flex items-center justify-center gap-1.5 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.97] ${
-            seccion === 'cotizaciones' ? 'bg-teal text-inkOnAccent border-teal shadow-glow-teal hover:brightness-110' : 'bg-surface-2 border-line-strong text-ink/80 hover:border-line-strong hover:text-ink'
-          }`}
-        >
-          <Receipt size={17} strokeWidth={2.4} className="shrink-0" />
-          Cotizaciones
-        </button>
-      </div>
+      {/* Mismas pestañas que el resto de las secciones. */}
+      <SubTabs
+        activa={seccion}
+        onCambiar={setSeccion}
+        opciones={[
+          { k: 'cotizaciones', label: 'Cotizaciones', Icono: Receipt },
+          { k: 'nueva', label: 'Nueva cotización', Icono: Plus },
+        ]}
+      />
 
       {seccion === 'nueva' && (
         <>

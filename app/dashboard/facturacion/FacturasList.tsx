@@ -10,6 +10,7 @@ import EmptyIllustration from '@/components/EmptyIllustration';
 import FacturaForm from '@/components/FacturaForm';
 import { VistaCondicional } from '@/lib/vistaSupervisor';
 import { EstadoFactura, ESTADO_FACTURA_CLS, ESTADO_FACTURA_LABEL, MonedaFactura } from '@/lib/facturas';
+import SubTabs from '@/components/SubTabs';
 import { Plus, Search, ReceiptText } from 'lucide-react';
 
 type FilaFactura = {
@@ -99,10 +100,6 @@ export default function FacturasList({
     { header: 'Total', render: (f) => <span className="font-semibold">{money(f.total, f.moneda)}</span>, className: 'text-right' },
   ];
 
-  const tabCls = (activo: boolean) =>
-    `min-h-[54px] px-2 rounded-2xl text-[13.5px] font-display font-semibold border transition-all duration-150 flex items-center justify-center gap-1.5 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.97] ${
-      activo ? 'bg-teal text-inkOnAccent border-teal shadow-glow-teal hover:brightness-110' : 'bg-surface-2 border-line-strong text-ink/80 hover:text-ink'
-    }`;
 
   return (
     <SupervisorShell active="facturacion" title="Facturación" userName={userName}>
@@ -113,14 +110,15 @@ export default function FacturasList({
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-2 mb-5">
-        <button onClick={() => setSeccion('nueva')} className={tabCls(seccion === 'nueva')}>
-          <Plus size={17} strokeWidth={2.4} className="shrink-0" /> Nueva factura
-        </button>
-        <button onClick={() => setSeccion('facturas')} className={tabCls(seccion === 'facturas')}>
-          <ReceiptText size={17} strokeWidth={2.4} className="shrink-0" /> Facturas
-        </button>
-      </div>
+      {/* Mismas pestañas que el resto de las secciones. */}
+      <SubTabs
+        activa={seccion}
+        onCambiar={setSeccion}
+        opciones={[
+          { k: 'facturas', label: 'Facturas', Icono: ReceiptText },
+          { k: 'nueva', label: 'Nueva factura', Icono: Plus },
+        ]}
+      />
 
       {seccion === 'nueva' && <FacturaForm modo="crear" clienteInicial={clienteInicial} />}
 
