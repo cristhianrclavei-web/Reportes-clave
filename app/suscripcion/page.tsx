@@ -4,12 +4,9 @@ import { createClient } from '@/lib/supabaseServer';
 import Logo from '@/components/Logo';
 import PanelSupervisor from '@/components/PanelSupervisor';
 import ThemeToggle from '@/components/ThemeToggle';
-import { ChevronLeft, Check, MessageCircle, Mail, Users, CalendarClock } from 'lucide-react';
-import {
-  PLANES, PlanClave, MiPlan, PRECIO_USUARIO_EXTRA, MESES_PAGADOS_EN_ANUAL,
-  VENTAS_WHATSAPP, VENTAS_CORREO, fechaCorta, dias, dinero,
-} from '@/lib/planesDatos';
-import { MARCA, DEMO } from '@/lib/marca';
+import { ChevronLeft, Users, CalendarClock } from 'lucide-react';
+import PaquetesSuscripcion from '@/components/PaquetesSuscripcion';
+import { PLANES, PlanClave, MiPlan, fechaCorta, dias, dinero } from '@/lib/planesDatos';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -33,16 +30,6 @@ const ESTADO: Record<string, { texto: string; cls: string }> = {
   vencida: { texto: 'Vencida · solo lectura', cls: 'bg-red/12 text-red' },
 };
 
-function enlaceContratar(plan: PlanClave, periodo: 'mensual' | 'anual'): string | null {
-  // En el demo quien escribe es un prospecto, no la empresa ficticia.
-  const mensaje = DEMO.activo
-    ? `Hola, vi el demo de ${MARCA.appNombre} y me interesa el plan ${PLANES[plan].nombre} (${periodo}).`
-    : `Hola, soy de ${MARCA.nombre}. Quiero contratar el plan ${PLANES[plan].nombre} (${periodo}) de ${MARCA.appNombre}.`;
-  if (VENTAS_WHATSAPP) return `https://wa.me/${VENTAS_WHATSAPP.replace(/\D/g, '')}?text=${encodeURIComponent(mensaje)}`;
-  if (VENTAS_CORREO) return `mailto:${VENTAS_CORREO}?subject=${encodeURIComponent(`Contratar plan ${PLANES[plan].nombre}`)}&body=${encodeURIComponent(mensaje)}`;
-  return null;
-}
-
 export default async function SuscripcionPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -64,7 +51,6 @@ export default async function SuscripcionPage() {
   const estado = ESTADO[fase];
   const restantes = s?.dias_restantes ?? null;
   const conVencimiento = fase !== 'sin_vencimiento' && !!s?.vence_en;
-  const hayContacto = !!(VENTAS_WHATSAPP || VENTAS_CORREO);
 
   const { data: perfil } = await supabase.from('profiles').select('full_name').eq('id', user.id).single();
 
@@ -152,75 +138,7 @@ export default async function SuscripcionPage() {
         </div>
 
         {/* ---------- Paquetes ---------- */}
-        <h2 className="font-display font-bold text-[21px] tracking-wide mb-1">Paquetes</h2>
-        <p className="text-[13.5px] text-muted mb-4">
-          Precios en MXN al mes, más IVA. Pago anual: 12 meses por el precio de {MESES_PAGADOS_EN_ANUAL}.
-        </p>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5 mb-4">
-          {(Object.keys(PLANES) as PlanClave[]).map((clave) => {
-            const p = PLANES[clave];
-            const actual = clave === plan.plan && fase !== 'prueba';
-            const destacado = clave === 'profesional';
-            const mensual = enlaceContratar(clave, 'mensual');
-            const anual = enlaceContratar(clave, 'anual');
-            return (
-              <div
-                key={clave}
-                className={`rounded-2xl bg-surface border p-5 flex flex-col ${
-                  actual ? 'border-teal' : destacado ? 'border-amber/60' : 'border-line'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <p className="font-display font-bold text-[22px] tracking-wide">{p.nombre}</p>
-                  {actual ? (
-                    <span className="px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold bg-teal/12 text-teal">Tu plan</span>
-                  ) : destacado ? (
-                    <span className="px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold bg-amber/15 text-amber">Recomendado</span>
-                  ) : null}
-                </div>
-                <p className="text-[13px] text-muted mb-3">{p.lema}</p>
-                <p className="mb-0.5">
-                  <span className="font-display font-bold text-[32px] tabular-nums">{dinero(p.precioMensual)}</span>
-                  <span className="text-[13px] text-muted"> /mes</span>
-                </p>
-                <p className="text-[12.5px] text-muted mb-4 tabular-nums">
-                  o {dinero(p.precioMensual * MESES_PAGADOS_EN_ANUAL)} al año
-                </p>
-                <ul className="space-y-1.5 text-[13.5px] mb-5">
-                  <li className="flex gap-2"><Check size={16} className="text-teal shrink-0 mt-0.5" />Hasta {p.usuarios} usuarios</li>
-                  {p.incluye.map((i) => (
-                    <li key={i} className="flex gap-2"><Check size={16} className="text-teal shrink-0 mt-0.5" />{i}</li>
-                  ))}
-                </ul>
-                {mensual && anual && (
-                  <div className="mt-auto grid grid-cols-2 gap-2">
-                    <a
-                      href={mensual}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="min-h-[44px] rounded-xl bg-teal text-inkOnAccent font-semibold text-[13.5px] flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
-                    >
-                      {VENTAS_WHATSAPP ? <MessageCircle size={15} /> : <Mail size={15} />}
-                      {actual ? 'Renovar' : 'Mensual'}
-                    </a>
-                    <a
-                      href={anual}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="min-h-[44px] rounded-xl border border-line-strong font-semibold text-[13.5px] flex items-center justify-center active:scale-95 transition-transform"
-                    >
-                      Anual
-                    </a>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-        <p className="text-[13px] text-muted mb-8">
-          ¿Necesitas más usuarios sin cambiar de paquete? Cada usuario extra cuesta {dinero(PRECIO_USUARIO_EXTRA)} al mes.
-          {!hayContacto && ' Para contratar o renovar, contacta a tu proveedor de la app.'}
-        </p>
+        <PaquetesSuscripcion planActual={plan.plan} enPrueba={fase === 'prueba'} />
 
         {/* ---------- Pagos ---------- */}
         {pagos.length > 0 && (

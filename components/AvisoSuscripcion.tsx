@@ -79,7 +79,7 @@ export default function AvisoSuscripcion() {
         <Icono size={15} strokeWidth={2.4} className="shrink-0" />
         <span className="min-w-0">{texto}</span>
         {accion && (
-          <Link href="/suscripcion" className="shrink-0 underline underline-offset-2 decoration-2 ml-1">
+          <Link href="/suscripcion#paquetes" className="shrink-0 underline underline-offset-2 decoration-2 ml-1">
             {accion}
           </Link>
         )}
