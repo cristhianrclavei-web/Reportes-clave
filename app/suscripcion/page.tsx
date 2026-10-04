@@ -58,7 +58,7 @@ export default async function SuscripcionPage() {
   // computadora sobra el encabezado propio de esta página.
   return (
     <PanelSupervisor userName={perfil?.full_name || user.email || ''}>
-    <div className="max-w-2xl lg:max-w-6xl 2xl:max-w-[1400px] mx-auto pb-28 lg:pb-16 lg:px-8">
+    <div className="max-w-2xl lg:max-w-none mx-auto pb-28 lg:pb-16 lg:px-8 2xl:px-10">
       <div className="lg:hidden sticky top-0 z-20 glass-strong !bg-bg px-5 py-3.5 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
           <Link

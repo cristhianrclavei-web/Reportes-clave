@@ -135,7 +135,7 @@ export default function ReportesList({
       active="reportes"
       title="Reportes"
       userName={userName}
-      wrapperClassName="max-w-3xl lg:max-w-6xl 2xl:max-w-[1400px] mx-auto pb-10 px-0 lg:px-8"
+      wrapperClassName="max-w-3xl lg:max-w-none mx-auto pb-10 px-0 lg:px-8 2xl:px-10"
     >
         <SubTabs
           activa={subseccion}
@@ -250,7 +250,7 @@ export default function ReportesList({
               <VistaCondicional
                 tabla={<TablaLista columnas={columnas} filas={filtered} keyFn={(r) => r.id} onDetalle={(r) => setOpen(r)} />}
                 tarjetas={
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
                     {filtered.map((r) => (
                       <div
                         key={r.id}

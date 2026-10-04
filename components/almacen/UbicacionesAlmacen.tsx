@@ -148,7 +148,7 @@ export default function UbicacionesAlmacen({
         <input className={`${inputCls} mb-2`} value={nuevaDesc} onChange={(e) => setNuevaDesc(e.target.value)} placeholder="Qué se guarda ahí (opcional): herramienta eléctrica, equipo CCTV…" />
         <button type="button" onClick={crear} disabled={!nueva.trim()} className="w-full min-h-[44px] rounded-xl bg-teal text-inkOnAccent text-[14px] font-semibold disabled:opacity-50 flex items-center justify-center gap-2"><Plus size={16} /> Agregar ubicación</button>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-2.5">
         {ubicaciones.map((u) => (
           <button key={u.id} type="button" onClick={() => setSel(u.id)} className="rounded-2xl bg-surface border border-line p-3.5 text-left hover:border-teal/50 flex items-center gap-3">
             <span className="w-10 h-10 rounded-xl bg-teal/12 text-teal flex items-center justify-center shrink-0"><MapPin size={18} /></span>

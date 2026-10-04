@@ -39,7 +39,7 @@ export default function ProgresoProyectoView({ grupoId }: { grupoId: string }) {
   }, [grupoId]);
 
   return (
-    <div className="max-w-2xl lg:max-w-5xl mx-auto pb-16 lg:px-6">
+    <div className="max-w-2xl lg:max-w-none mx-auto pb-16 lg:px-8 2xl:px-10">
       <div className="sticky top-0 z-20 glass-strong px-5 py-3.5 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
           <Link href="/dashboard/servicios" aria-label="Volver" className="shrink-0 w-11 h-11 -ml-1.5 rounded-full flex items-center justify-center active:scale-90 transition-transform">

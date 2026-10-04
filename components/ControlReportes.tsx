@@ -209,7 +209,7 @@ export default function ControlReportes({ reportes, onAbrirReporte }: { reportes
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-2.5 items-start">
         {conPendientes.map((f) => {
           const abierto = abiertos.has(f.id);
           return (

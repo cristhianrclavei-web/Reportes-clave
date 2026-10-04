@@ -305,7 +305,7 @@ export default function DockNav({ userName, children }: { userName?: string; chi
           agrupadas, y la cuenta (perfil y salir). Mismo ancho que el
           contenido de las secciones para que todo quede alineado. */}
       <header className="hidden lg:block">
-        <div className="max-w-6xl 2xl:max-w-[1400px] mx-auto px-8 pt-7 pb-6 2xl:pb-2 flex items-center gap-8">
+        <div className="px-8 2xl:px-10 pt-7 pb-6 2xl:pb-2 flex items-center gap-8">
           <Link href="/dashboard" aria-label="Ir al resumen" className="2xl:hidden shrink-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/50">
             <Logo variante="completo" size={48} />
           </Link>
@@ -412,7 +412,7 @@ export default function DockNav({ userName, children }: { userName?: string; chi
         {/* Desvanecido bajo la barra: el contenido se pierde suave al pasar
             por debajo en vez de verse cortado en seco. */}
         <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-full h-6 bg-gradient-to-b from-bg to-transparent" />
-        <div className="max-w-6xl mx-auto px-8">
+        <div className="px-8">
           <LayoutGroup id="dock">
             <nav
               aria-label="Secciones"

@@ -174,7 +174,7 @@ export default function FacturasList({
             <VistaCondicional
               tabla={<TablaLista columnas={columnas} filas={filtradas} keyFn={(f) => f.id} hrefFn={(f) => `/dashboard/facturacion/${f.id}`} />}
               tarjetas={
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
                   {filtradas.map((f) => (
                     <Link
                       key={f.id}

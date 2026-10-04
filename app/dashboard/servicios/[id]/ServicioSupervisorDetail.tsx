@@ -383,7 +383,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
   const bloqueo = motivoNoEditable(servicio.estado);
 
   return (
-    <div className="max-w-2xl lg:max-w-6xl 2xl:max-w-[1400px] mx-auto pb-28 lg:pb-16 lg:px-8">
+    <div className="max-w-2xl lg:max-w-none mx-auto pb-28 lg:pb-16 lg:px-8 2xl:px-10">
       {/* Computadora: el panel ya trae marca, tema y salir; aquí solo el
           título con la flecha de regreso, como en las demás secciones. */}
       <div className="hidden lg:flex items-center gap-1.5 pt-8">

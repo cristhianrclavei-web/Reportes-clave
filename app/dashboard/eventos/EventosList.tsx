@@ -128,7 +128,7 @@ export default function EventosList({ userName }: { userName?: string }) {
       active="eventos"
       title="Actividad del equipo"
       userName={userName}
-      wrapperClassName="max-w-2xl lg:max-w-6xl 2xl:max-w-[1400px] mx-auto pb-28 lg:pb-16 lg:px-8"
+      wrapperClassName="max-w-2xl lg:max-w-none mx-auto pb-28 lg:pb-16 lg:px-8 2xl:px-10"
     >
         <p className="text-[12.5px] text-muted mb-4">
           Registro permanente de lo que hace el equipo, incluidas las eliminaciones.

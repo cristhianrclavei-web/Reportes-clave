@@ -152,7 +152,7 @@ export default function Vales({ modo }: { modo: 'tecnico' | 'almacen' }) {
       {grupos.filter((g) => g.vales.length > 0).map((g) => (
         <div key={g.titulo} className="mb-4">
           <p className="text-[12px] font-semibold uppercase tracking-wider text-muted mb-2">{g.titulo} ({g.vales.length})</p>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-2.5">
             {g.vales.map((v) => <Tarjeta key={`${g.titulo}-${v.id}`} v={v} verTecnico={modo === 'almacen'} onAbrir={() => setAbierto(v.id)} />)}
           </div>
         </div>

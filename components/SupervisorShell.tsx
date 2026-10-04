@@ -27,7 +27,7 @@ export default function SupervisorShell({
   mostrarAlmacen,
   acciones,
   volver,
-  wrapperClassName = 'max-w-2xl lg:max-w-6xl 2xl:max-w-[1400px] mx-auto pb-10 lg:px-8',
+  wrapperClassName = 'max-w-2xl lg:max-w-none mx-auto pb-10 lg:px-8 2xl:px-10',
   children,
 }: {
   active: DashboardTabKey;

@@ -316,7 +316,7 @@ export default function EntradaAlmacenWizard({
       {/* Barra inferior fija: mismo patrón que el resto de la app para
           acciones al alcance del pulgar. */}
       <div className="fixed bottom-0 left-0 right-0 z-40 glass-strong px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
-        <div className="max-w-2xl lg:max-w-6xl mx-auto">
+        <div className="max-w-2xl lg:max-w-none mx-auto">
           {paso < TOTAL_PASOS ? (
             <button
               onClick={() => setPaso((p) => p + 1)}

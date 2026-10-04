@@ -1160,7 +1160,7 @@ export default function NuevoReportePage() {
   }
 
   return (
-    <div className="max-w-2xl lg:max-w-6xl mx-auto pb-32">
+    <div className="max-w-2xl lg:max-w-none lg:px-6 mx-auto pb-32">
       <SavingOverlay show={saving} />
       {/* Header */}
       <div className="sticky top-0 z-20 glass-strong px-5 py-3.5 flex items-center justify-between gap-3">
@@ -1884,7 +1884,7 @@ export default function NuevoReportePage() {
         className="fixed bottom-0 inset-x-0 z-30 bg-bg border-t border-line px-4 pt-3"
         style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
       >
-        <div className="max-w-2xl lg:max-w-6xl lg:px-4 lg:justify-end mx-auto flex items-center gap-2.5">
+        <div className="max-w-2xl lg:max-w-none lg:px-6 lg:justify-end mx-auto flex items-center gap-2.5">
           {paso === 1 ? (
             <Link href="/mis-reportes" className="min-h-[50px] px-4 rounded-2xl border border-line-strong text-[14px] font-medium text-ink/80 flex items-center">
               Cancelar

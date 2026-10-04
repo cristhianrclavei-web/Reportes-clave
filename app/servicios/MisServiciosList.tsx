@@ -100,7 +100,7 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
   const concluidos = servicios.filter((s) => s.estado === 'concluido');
 
   return (
-    <div className="max-w-2xl lg:max-w-5xl 2xl:max-w-6xl mx-auto pb-16">
+    <div className="max-w-2xl lg:max-w-none lg:px-6 mx-auto pb-16">
       <div className="sticky top-0 z-20 bg-bg pb-2">
         <div
           className="barra-fija px-5 pb-3 flex items-center justify-between gap-3"
@@ -120,7 +120,7 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
         <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-wide mb-4">Mis servicios</h1>
 
         {loading && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3" aria-busy="true">
+          <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3" aria-busy="true">
             {[0, 1, 2].map((i) => (
               <div key={i} className="rounded-2xl border-l-4 border-line bg-surface p-4">
                 <div className="flex justify-between items-start gap-2.5 mb-2">
@@ -138,7 +138,7 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
         {!loading && pendientes.length > 0 && (
           <div className="mb-6">
             <div className="text-[13px] font-semibold text-muted mb-2.5">Pendientes</div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3">
               {pendientes.map((s) => {
                 const pr = progresoPorGrupo[s.grupo_id];
                 const ventana = evaluarVentanaServicio(s);
@@ -186,7 +186,7 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
         {!loading && concluidos.length > 0 && (
           <div>
             <div className="text-[13px] font-semibold text-muted mb-2.5">Concluidos</div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-2.5">
               {concluidos.map((s) => (
                 <Link key={s.id} href={`/servicios/${s.id}`} className="group block rounded-xl bg-surface-2 border border-line p-3.5 opacity-80 transition-all duration-150 hover:opacity-100 hover:-translate-y-0.5 hover:shadow-diffuse active:translate-y-0 active:scale-[0.99]">
                   <div className="flex justify-between items-center gap-2.5">

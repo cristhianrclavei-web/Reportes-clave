@@ -9,7 +9,7 @@ import Solicitudes from '@/components/solicitudes/Solicitudes';
 
 export default function SolicitudesTecnico({ userName }: { userName: string }) {
   return (
-    <div className="max-w-2xl lg:max-w-5xl 2xl:max-w-6xl mx-auto pb-10">
+    <div className="max-w-2xl lg:max-w-none lg:px-6 mx-auto pb-10">
       <div className="sticky top-0 z-20 bg-bg pb-2">
         <div className="barra-fija px-5 pb-3 flex items-center justify-between gap-3" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}>
           <Logo variante="completo" size={34} className="min-w-0" compactoEnMovil />

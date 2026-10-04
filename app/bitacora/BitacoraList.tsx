@@ -78,7 +78,7 @@ export default function BitacoraList({ userName }: { userName: string }) {
   const concluidas = actividades.filter((a) => a.estado === 'concluida');
 
   return (
-    <div className="max-w-2xl lg:max-w-5xl 2xl:max-w-6xl mx-auto pb-16">
+    <div className="max-w-2xl lg:max-w-none lg:px-6 mx-auto pb-16">
       <div className="sticky top-0 z-20 bg-bg pb-2">
         <div
           className="barra-fija px-5 pb-3 flex items-center justify-between gap-3"

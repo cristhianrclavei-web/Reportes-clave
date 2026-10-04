@@ -150,7 +150,7 @@ export default function MantenimientosRecurrentes() {
       {error && <p className="text-[13px] text-red font-semibold mb-3">{error}</p>}
       {lista && lista.length === 0 && !error && <EstadoVacio className="py-8" icono={<EmptyIllustration variante="agenda" />} titulo="Todavía no hay mantenimientos recurrentes" detalle="Programa aquí los que se repiten cada mes, trimestre o año y la app te avisa cuando toca agendarlos." />}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-2.5">
         {lista?.map((r) => (
           <div key={r.id} className={`rounded-2xl bg-surface border border-line p-3.5 ${r.activo ? '' : 'opacity-60'}`}>
             <div className="flex items-start justify-between gap-2">
