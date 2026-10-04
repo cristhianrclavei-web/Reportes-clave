@@ -276,6 +276,15 @@ begin
     where p.id = u.id;
   end if;
 
+  -- Último acceso de ejemplo: sin esto todo el personal sale como «Nunca ha
+  -- entrado» en Personal → Usuarios, porque solo dos cuentas inician sesión.
+  begin
+    update auth.users u set last_sign_in_at = now() - make_interval(hours => 2 + (abs(hashtext(u.email)) % 40))
+    where u.email like '%' || dominio and u.last_sign_in_at is null;
+  exception when others then
+    raise notice 'No se pudo poner el último acceso de ejemplo: %', sqlerrm;
+  end;
+
   -- ---------- Cuadrillas de ejemplo ----------
   -- El primero de cada lista queda de líder. Sergio Paredes (12) se deja sin
   -- cuadrilla para mostrar también ese caso.
@@ -321,6 +330,21 @@ begin
     (c_ind, 'Ing. Sofía Navarro', 'Seguridad e higiene', '3320000104', 'seguridad@imb.test'),
     (c_cole, 'Mtra. Elena Castro', 'Dirección administrativa', '3320000105', 'administracion@lospinos.test'),
     (c_hotel, 'Sr. Andrés Vega', 'Gerente de operaciones', '3320000106', 'operaciones@realdelvalle.test');
+
+  -- ---------- Proyectos por cliente ----------
+  insert into public.proyectos (cliente_id, sistema, nombre, descripcion, estado, created_by, concluido_en) values
+    (c_plaza, 'CCTV', 'CCTV de estacionamiento', '48 cámaras en dos niveles y caseta de vigilancia', 'concluido', v_sup, now() - interval '150 days'),
+    (c_plaza, 'Alarma&Det', 'Detección de humo en zona de comida', '16 estaciones manuales y 60 detectores', 'en_curso', v_sup, null),
+    (c_hosp, 'CCTV', 'CCTV de accesos y urgencias', '32 cámaras y 2 grabadores', 'concluido', v_sup, now() - interval '300 days'),
+    (c_hosp, 'Red contra incendio', 'Red contra incendio', 'Bombas, gabinetes y 24 extintores', 'en_curso', v_sup, null),
+    (c_torre, 'Control de acceso', 'Control de acceso del corporativo', '4 torniquetes y 12 puertas con tarjeta', 'concluido', v_sup, now() - interval '210 days'),
+    (c_torre, 'CCTV', 'Ampliación de CCTV en sótanos', '18 cámaras adicionales', 'propuesta', v_sup, null),
+    (c_ind, 'Alarma&Det', 'Alarma contra incendio de nave 1', 'Tablero direccionable y 40 dispositivos', 'concluido', v_sup, now() - interval '400 days'),
+    (c_ind, 'Automatización', 'Automatización de línea 2', 'Variadores y tablero de control', 'en_curso', v_sup, null),
+    (c_cole, 'CCTV', 'Cámaras en accesos y patio', '6 cámaras y grabador', 'en_curso', v_sup, null),
+    (c_cole, 'Inst. eléctricas', 'Tableros de laboratorios', 'Balanceo de cargas y protecciones', 'concluido', v_sup, now() - interval '90 days'),
+    (c_hotel, 'Control de acceso', 'Cerraduras electrónicas', '86 habitaciones en 4 pisos', 'concluido', v_sup, now() - interval '260 days'),
+    (c_hotel, 'CCTV', 'CCTV de lobby y pasillos', '28 cámaras', 'en_curso', v_sup, null);
 
   -- ---------- Servicios (agenda) ----------
   insert into public.servicios_programados

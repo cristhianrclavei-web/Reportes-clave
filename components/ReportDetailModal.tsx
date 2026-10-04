@@ -540,7 +540,7 @@ export default function ReportDetailModal({
             <Detail label="Clave de formato" value={report.data?.claveFormato} />
             <Detail label="Fecha" value={report.fecha} />
             <Detail label="Ing a cargo" value={report.data?.ingACargo} />
-            <Detail label="Personal adicional" value={(report.data?.personal || []).join(', ')} />
+            <Detail label="Personal en el servicio" value={(report.data?.personal || []).join(', ')} />
             <Detail label="Personal técnico (cuenta)" value={techName(report.profiles)} />
             <Detail
               label="Tipo"

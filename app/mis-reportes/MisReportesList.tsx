@@ -181,7 +181,7 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
                     </div>
                     <div className="text-right shrink-0">
                       <div className="text-[10px] uppercase tracking-wider text-muted mb-0.5">Folio</div>
-                      <span className="text-[13px] font-mono font-semibold text-teal">{r.data?.claveFormato || '—'}</span>
+                      <span className="text-[13px] font-mono font-semibold text-teal">{r.data?.claveFormato || r.id.slice(0, 8).toUpperCase()}</span>
                     </div>
                   </div>
                   <div className="flex justify-between items-end">

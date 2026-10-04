@@ -107,7 +107,7 @@ export default function ReportesList({
 
   const columnas: ColumnaTabla<Report>[] = [
     { header: 'Cliente / Empresa', render: (r) => <span className="font-semibold">{r.empresa_cliente}</span> },
-    { header: 'Folio', render: (r) => <span className="font-mono text-teal">{r.data?.claveFormato || '—'}</span> },
+    { header: 'Folio', render: (r) => <span className="font-mono text-teal">{r.data?.claveFormato || r.id.slice(0, 8).toUpperCase()}</span> },
     { header: 'Personal técnico', render: (r) => techName(r.profiles) },
     {
       header: 'Estado',
@@ -264,7 +264,7 @@ export default function ReportesList({
                           </div>
                           <div className="text-right shrink-0">
                             <div className="text-[10px] uppercase tracking-wider text-muted mb-0.5">Folio</div>
-                            <span className="text-[12px] font-mono font-semibold text-teal">{r.data?.claveFormato || '—'}</span>
+                            <span className="text-[12px] font-mono font-semibold text-teal">{r.data?.claveFormato || r.id.slice(0, 8).toUpperCase()}</span>
                           </div>
                         </div>
 
