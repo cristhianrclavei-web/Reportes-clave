@@ -698,7 +698,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
       active="servicios"
       title={seccion === 'agendar' ? 'Agendar servicio' : 'Servicios'}
       userName={userName}
-      wrapperClassName="max-w-2xl lg:max-w-6xl mx-auto pb-28 lg:pb-16 lg:px-8"
+      wrapperClassName="max-w-2xl lg:max-w-6xl 2xl:max-w-[1400px] mx-auto pb-28 lg:pb-16 lg:px-8"
     >
         {seccion === 'agendar' ? (
           <button

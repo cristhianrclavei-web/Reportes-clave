@@ -141,7 +141,42 @@ function SeccionDock({
   );
 }
 
-export default function DockNav({ userName }: { userName?: string }) {
+// Sección del menú lateral (pantallas grandes): ícono y nombre en renglón;
+// el fondo de la activa se desliza entre secciones, igual que en la barra.
+function SeccionLateral({
+  href,
+  etiqueta,
+  Icono,
+  activo,
+}: {
+  href: string;
+  etiqueta: string;
+  Icono: React.ComponentType<{ size?: number; strokeWidth?: number }>;
+  activo: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-current={activo ? 'page' : undefined}
+      className={`group relative flex items-center gap-3 h-11 px-3.5 rounded-xl text-[14.5px] transition-colors ${
+        activo ? 'text-teal font-semibold' : 'text-ink/70 font-medium hover:text-ink hover:bg-surface-2'
+      }`}
+    >
+      {activo && (
+        <>
+          <motion.span layoutId="lateral-activo-fondo" transition={RESORTE} className="absolute inset-0 rounded-xl bg-teal/12 ring-1 ring-teal/30" />
+          <motion.span layoutId="lateral-activo-marca" transition={RESORTE} className="absolute left-0 top-2.5 bottom-2.5 w-[3px] rounded-full bg-teal" />
+        </>
+      )}
+      <span className="relative flex items-center gap-3 min-w-0 transition-transform duration-200 ease-out group-hover:translate-x-[2px]">
+        <Icono size={19} strokeWidth={activo ? 2.5 : 2.1} />
+        <span className="truncate">{etiqueta}</span>
+      </span>
+    </Link>
+  );
+}
+
+export default function DockNav({ userName, children }: { userName?: string; children?: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const activa = seccionActiva(pathname);
@@ -213,18 +248,54 @@ export default function DockNav({ userName }: { userName?: string }) {
   const iniciales = (userName || '').trim().split(/\s+/).slice(0, 2).map((x) => x[0]).join('').toUpperCase();
 
   return (
-    <>
+    <div className="2xl:flex 2xl:items-start">
+      {/* Menú lateral: solo en pantallas grandes (2xl), donde antes quedaban
+          los costados vacíos. Marca arriba, secciones y la cuenta abajo. Se
+          queda fijo al hacer scroll; en pantallas menores sigue la barra de
+          secciones de arriba. */}
+      <aside className="hidden 2xl:flex sticky top-0 h-screen w-[264px] shrink-0 flex-col border-r border-line bg-surface/50 px-4 pt-7 pb-10">
+        <Link href="/dashboard" aria-label="Ir al resumen" className="px-1.5 mb-7 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/50">
+          <Logo variante="completo" size={42} />
+        </Link>
+        <LayoutGroup id="lateral">
+          <nav aria-label="Secciones" className="flex flex-col gap-1 overflow-y-auto no-scrollbar p-0.5 -m-0.5">
+            {secciones.map((t) => (
+              <SeccionLateral key={t.key} href={t.href} etiqueta={t.label} Icono={t.Icono} activo={t.key === activa} />
+            ))}
+          </nav>
+        </LayoutGroup>
+        <div className="mt-auto pt-4 border-t border-line flex items-center gap-2">
+          <Link href="/perfil" aria-label="Mi perfil" className="flex items-center gap-2.5 flex-1 min-w-0 p-1.5 rounded-xl hover:bg-surface-2 transition-colors">
+            {miFoto ? (
+              <img src={miFoto} alt="" className="w-10 h-10 rounded-full object-cover shrink-0" />
+            ) : (
+              <span className="w-10 h-10 rounded-full bg-teal text-inkOnAccent flex items-center justify-center text-[13px] font-display font-bold shrink-0">
+                {iniciales || 'S'}
+              </span>
+            )}
+            <span className="min-w-0 leading-tight">
+              <span className="block text-[13.5px] font-semibold truncate">{userName || 'Supervisor'}</span>
+              <span className="block text-[12px] text-muted truncate">{miPerfil?.puesto || 'Supervisor'}</span>
+            </span>
+          </Link>
+          <BotonDock etiqueta="Cerrar sesión">
+            <LogoutButton compacto className="w-10 h-10 rounded-full border border-line bg-surface flex items-center justify-center text-ink/65 hover:text-red hover:border-red/40 active:scale-90 transition disabled:opacity-60" />
+          </BotonDock>
+        </div>
+      </aside>
+
+      <div className="flex-1 min-w-0">
       {/* Encabezado de la computadora: se va con el scroll. Marca a la
           izquierda; a la derecha el buscador, las preferencias (tema y vista)
           agrupadas, y la cuenta (perfil y salir). Mismo ancho que el
           contenido de las secciones para que todo quede alineado. */}
       <header className="hidden lg:block">
-        <div className="max-w-6xl mx-auto px-8 pt-7 pb-6 flex items-center gap-8">
-          <Link href="/dashboard" aria-label="Ir al resumen" className="shrink-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/50">
+        <div className="max-w-6xl 2xl:max-w-[1400px] mx-auto px-8 pt-7 pb-6 2xl:pb-2 flex items-center gap-8">
+          <Link href="/dashboard" aria-label="Ir al resumen" className="2xl:hidden shrink-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/50">
             <Logo variante="completo" size={48} />
           </Link>
 
-          <div className="ml-auto flex items-center gap-4 xl:gap-5">
+          <div className="ml-auto 2xl:ml-0 2xl:flex-1 2xl:justify-between flex items-center gap-4 xl:gap-5">
             {/* Buscador siempre visible */}
             <div ref={cajaRef} className="relative">
               <Search size={17} strokeWidth={2.2} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
@@ -239,7 +310,7 @@ export default function DockNav({ userName }: { userName?: string }) {
                 }}
                 placeholder="Buscar sección o cliente"
                 aria-label="Buscar sección o cliente"
-                className="w-[230px] xl:w-[320px] h-12 pl-11 pr-16 rounded-full bg-surface border border-line hover:border-line-strong focus:border-teal focus:ring-4 focus:ring-teal/10 focus:outline-none text-[14px] placeholder:text-muted transition-colors"
+                className="w-[230px] xl:w-[320px] 2xl:w-[440px] h-12 pl-11 pr-16 rounded-full bg-surface border border-line hover:border-line-strong focus:border-teal focus:ring-4 focus:ring-teal/10 focus:outline-none text-[14px] placeholder:text-muted transition-colors"
               />
               {texto ? (
                 <button type="button" aria-label="Limpiar búsqueda" onClick={() => { setTexto(''); inputRef.current?.focus(); }}
@@ -294,10 +365,10 @@ export default function DockNav({ userName }: { userName?: string }) {
               </BotonDock>
             </div>
 
-            <span className="w-px h-9 bg-line-strong" aria-hidden="true" />
+            <span className="2xl:hidden w-px h-9 bg-line-strong" aria-hidden="true" />
 
             {/* Cuenta: perfil (nombre y rol) y salir */}
-            <div className="flex items-center gap-2">
+            <div className="2xl:hidden flex items-center gap-2">
               <Link href="/perfil" aria-label="Mi perfil"
                 className="flex items-center gap-3 p-1 xl:pr-4 rounded-full hover:bg-surface border border-transparent hover:border-line transition-colors">
                 {miFoto ? (
@@ -322,7 +393,7 @@ export default function DockNav({ userName }: { userName?: string }) {
 
       {/* Barra de secciones: fija arriba al hacer scroll, con ícono y nombre
           de cada sección. */}
-      <div className="hidden lg:block sticky top-0 z-30 bg-bg pt-2 pb-3">
+      <div className="hidden lg:block 2xl:hidden sticky top-0 z-30 bg-bg pt-2 pb-3">
         {/* Desvanecido bajo la barra: el contenido se pierde suave al pasar
             por debajo en vez de verse cortado en seco. */}
         <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-full h-6 bg-gradient-to-b from-bg to-transparent" />
@@ -339,6 +410,9 @@ export default function DockNav({ userName }: { userName?: string }) {
           </LayoutGroup>
         </div>
       </div>
-    </>
+
+      {children}
+      </div>
+    </div>
   );
 }

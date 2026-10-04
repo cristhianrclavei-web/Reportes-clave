@@ -1053,7 +1053,7 @@ function VistaEscritorio({
   // --- Vista por técnico: lista + detalle ---
   const vistaTecnico = (
     <div className="grid grid-cols-[320px_minmax(0,1fr)] gap-4 items-start">
-      <div className="rounded-2xl bg-surface border border-line overflow-hidden lg:sticky lg:top-[150px]">
+      <div className="rounded-2xl bg-surface border border-line overflow-hidden lg:sticky lg:top-[150px] 2xl:top-6">
         <div className="max-h-[calc(100vh-190px)] overflow-y-auto divide-y divide-line flex flex-col">
           {tecnicosLista.length === 0 && <p className="text-[13px] text-muted p-4">Nadie coincide.</p>}
           {gruposTec.map((g) => {

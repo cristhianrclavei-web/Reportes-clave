@@ -22,8 +22,7 @@ export default function PanelSupervisor({ userName, children }: { userName?: str
 
   return (
     <VistaSupervisorContext.Provider value={{ vista, setVista }}>
-      <DockNav userName={userName} />
-      {children}
+      <DockNav userName={userName}>{children}</DockNav>
     </VistaSupervisorContext.Provider>
   );
 }
