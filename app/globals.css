@@ -238,3 +238,60 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   background: rgb(var(--c-surface));
   border: 1px solid rgb(var(--c-line-rgb) / var(--c-line-a-strong));
 }
+
+
+/* ------------------------------------------------------------------
+   Fondo del inicio de sesión: sistema fotovoltaico que se arma
+   (components/FondoFotovoltaico.tsx). Cada pieza espera su turno con
+   animation-delay y se queda en su estado final (forwards).
+   ------------------------------------------------------------------ */
+.fv-dibujar {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: fv-dibujar 1s ease-out forwards;
+}
+.fv-aparecer {
+  opacity: 0;
+  animation: fv-aparecer 0.7s ease-out forwards;
+}
+.fv-panel {
+  opacity: 0;
+  transform-box: fill-box;
+  animation: fv-panel 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+.fv-brillo {
+  opacity: 0;
+  animation: fv-brillo 4.2s ease-in-out infinite;
+}
+.fv-sol {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: fv-girar 50s linear infinite;
+}
+.fv-led {
+  animation: fv-led 1.6s ease-in-out infinite;
+}
+.fv-flujo {
+  opacity: 0;
+  stroke-dasharray: 5 15;
+  animation: fv-aparecer 0.6s ease-out forwards, fv-flujo 0.9s linear infinite;
+}
+@keyframes fv-dibujar { to { stroke-dashoffset: 0; } }
+@keyframes fv-aparecer { to { opacity: 1; } }
+@keyframes fv-panel {
+  from { opacity: 0; transform: translateY(-34px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fv-brillo { 0%, 78%, 100% { opacity: 0; } 86% { opacity: 0.32; } }
+@keyframes fv-girar { to { transform: rotate(360deg); } }
+@keyframes fv-led { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+@keyframes fv-flujo { to { stroke-dashoffset: -20; } }
+@media (prefers-reduced-motion: reduce) {
+  .fv * {
+    animation: none !important;
+    opacity: 1 !important;
+    stroke-dashoffset: 0 !important;
+    transform: none !important;
+  }
+  .fv .fv-brillo { opacity: 0 !important; }
+}

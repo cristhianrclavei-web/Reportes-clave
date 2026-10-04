@@ -10,7 +10,7 @@ import { useTheme } from '@/lib/useTheme';
 import Logo from '@/components/Logo';
 import { DEMO, MARCA } from '@/lib/marca';
 import PortadaDemo, { ClaveAcceso, cuentaDemo } from '@/components/PortadaDemo';
-import { CalendarDays, FileSignature, PackageCheck, ShieldCheck } from 'lucide-react';
+import FondoFotovoltaico from '@/components/FondoFotovoltaico';
 
 function LoginForm() {
   const [email, setEmail] = useState('');
@@ -107,7 +107,7 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen relative overflow-hidden lg:grid lg:grid-cols-[1.08fr_1fr]">
+    <div className="min-h-screen relative overflow-hidden">
       {/* Dos acentos de luz descentrados, no uno solo al centro — es lo que
           hace que el fondo se sienta compuesto y no un degradado genérico. */}
       <div className="pointer-events-none absolute -bottom-32 -right-20 w-80 h-80 rounded-full bg-amber/15 blur-[100px]" />
@@ -117,56 +117,17 @@ function LoginForm() {
         <ThemeToggle />
       </div>
 
-      {/* Computadora: a la izquierda la marca y para qué sirve la app; el
-          acceso queda a la derecha. En celular solo se ve la tarjeta. */}
-      <aside className="hidden lg:flex relative z-10 flex-col justify-between p-12 xl:p-16 border-r border-line bg-gradient-to-br from-teal/[0.14] via-teal/[0.05] to-transparent">
-        <Logo variante="completo" size={64} />
-        <div className="max-w-xl">
-          <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-teal mb-3">{MARCA.nombre}</p>
-          <h1 className="font-display font-bold text-[44px] xl:text-[54px] leading-[1.04] tracking-wide">{MARCA.appNombre}</h1>
-          <p className="mt-4 text-[16.5px] text-muted leading-relaxed">
-            La operación de campo en un solo lugar: lo que se agenda, lo que se hace y lo que se entrega al cliente.
-          </p>
-          <ul className="mt-8 space-y-4">
-            {[
-              { Icono: CalendarDays, titulo: 'Servicios y agenda', texto: 'El tablero del día y la semana de todo el equipo.' },
-              { Icono: FileSignature, titulo: 'Reportes firmados', texto: 'Fotos, materiales y firma del cliente, con su PDF.' },
-              { Icono: PackageCheck, titulo: 'Cotizaciones y almacén', texto: 'Del presupuesto al material que sale a cada servicio.' },
-            ].map((f) => (
-              <li key={f.titulo} className="flex items-start gap-3.5">
-                <span className="w-10 h-10 rounded-xl bg-teal/15 border border-teal/25 text-teal flex items-center justify-center shrink-0">
-                  <f.Icono size={19} strokeWidth={2.1} />
-                </span>
-                <div>
-                  <p className="font-semibold text-[15px]">{f.titulo}</p>
-                  <p className="text-[13.5px] text-muted">{f.texto}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <p className="text-[12.5px] text-muted flex items-center gap-2">
-          <ShieldCheck size={15} className="text-teal shrink-0" />
-          Acceso solo para personal autorizado de {MARCA.nombre}.
-        </p>
-      </aside>
+      {/* Fondo animado: un sistema fotovoltaico que se arma. En computadora
+          ocupa el lado izquierdo; en celular queda tenue detrás de la tarjeta. */}
+      <FondoFotovoltaico className="absolute bottom-0 left-0 w-[150%] max-w-none opacity-30 sm:w-full lg:opacity-100 lg:w-[50%] xl:w-[56%] 2xl:w-[66%] lg:left-[2%] lg:bottom-[6%]" />
 
-      <div className="min-h-screen flex items-center justify-center p-5 relative z-10">
+      <div className="min-h-screen flex items-center justify-center lg:justify-end p-5 lg:pr-[8%] xl:pr-[11%] relative z-10">
 
       <form
         onSubmit={modoOlvido ? handleRecuperar : handleLogin}
-        className="ambient-glow edge-highlight relative z-10 w-full max-w-sm lg:max-w-[420px] glass-strong rounded-3xl p-8 lg:p-9 shadow-diffuse border-white/10"
+        className="ambient-glow edge-highlight relative z-10 w-full max-w-sm lg:max-w-[400px] glass-strong rounded-3xl p-8 shadow-diffuse border-white/10"
       >
-        {/* En computadora la marca ya está a la izquierda: aquí va el título. */}
-        <div className="hidden lg:block mb-7">
-          <h2 className="font-display font-bold text-[26px] tracking-wide leading-tight">
-            {modoOlvido ? 'Recuperar contraseña' : 'Inicia sesión'}
-          </h2>
-          <p className="text-[13.5px] text-muted mt-1">
-            {modoOlvido ? 'Escribe el correo de tu cuenta.' : 'Entra con el correo y la contraseña de tu cuenta.'}
-          </p>
-        </div>
-        <div className="flex flex-col items-center mb-8 lg:hidden">
+        <div className="flex flex-col items-center mb-8">
           <div className="relative mb-5">
             {theme === 'dark' && (
               <>
