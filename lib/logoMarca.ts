@@ -100,13 +100,15 @@ export const ICONOS_SERVICIO: IconoServicio[] = [
     nombre: 'Detección de humo',
     tono: 'fuerte',
     piezas: [
-      { d: 'M6 9c0-1.9 2.7-3.2 6-3.2s6 1.3 6 3.2Z' },
+      // Visto ligeramente desde abajo, como en el logotipo: la base ancha
+      // pegada al techo, la cámara con sus ranuras y la tapa inferior.
+      { d: 'M2.4 9.5c0-1.7 4.3-3 9.6-3s9.6 1.3 9.6 3v1.1c0 1.7-4.3 3-9.6 3s-9.6-1.3-9.6-3Z' },
       {
-        d: 'M2.6 11.6c0-1.1 4.2-1.9 9.4-1.9s9.4.8 9.4 1.9v2c0 1.5-4.2 2.7-9.4 2.7s-9.4-1.2-9.4-2.7Z'
+        d: 'M5.2 14.1c1.9.6 4.2.9 6.8.9s4.9-.3 6.8-.9l-1 2.7c-1.5.5-3.5.8-5.8.8s-4.3-.3-5.8-.8Z'
           // Ranuras (huecos).
-          + 'M6.6 12.9v1.5h2.4v-1.5Z' + 'M10.8 13.3v1.5h2.4v-1.5Z' + 'M15 12.9v1.5h2.4v-1.5Z',
+          + 'M7.7 15.7v1.3h1.3v-1.3Z' + 'M10.1 15.9v1.3h1.3v-1.3Z' + 'M12.6 15.9v1.3h1.3v-1.3Z' + 'M15 15.7v1.3h1.3v-1.3Z',
       },
-      { d: 'M8.4 17.5h7.2l-1 1.5H9.4Z' },
+      { d: 'M8.8 18.7c.9.2 2 .3 3.2.3s2.3-.1 3.2-.3c-.3 1-1.6 1.7-3.2 1.7s-2.9-.7-3.2-1.7Z' },
     ],
   },
 ];
