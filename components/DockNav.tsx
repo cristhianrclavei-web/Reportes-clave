@@ -29,8 +29,10 @@ import { AvatarTecnico } from '@/components/AvatarTecnico';
 
 const RESORTE = { type: 'spring', stiffness: 420, damping: 34 } as const;
 
-function seccionActiva(pathname: string): DashboardTabKey {
+function seccionActiva(pathname: string): DashboardTabKey | null {
   if (pathname === '/dashboard') return 'resumen';
+  // Fuera del panel (Mi perfil, Suscripción) ninguna sección queda marcada.
+  if (!pathname.startsWith('/dashboard/')) return null;
   const [, , seg] = pathname.split('/');
   const mapa: Record<string, DashboardTabKey> = {
     servicios: 'servicios', agenda: 'agenda', reportes: 'reportes', cotizaciones: 'cotizaciones',
@@ -167,7 +169,7 @@ function SeccionLateral({
       {activo && (
         <motion.span layoutId="lateral-activo-fondo" transition={RESORTE} className="absolute inset-0 rounded-2xl bg-teal/12 ring-1 ring-teal/40 shadow-glow-teal" />
       )}
-      <span className="relative flex flex-col items-center justify-center gap-1.5 h-[64px] px-2 transition-transform duration-200 ease-out group-hover:-translate-y-[2px]">
+      <span className="relative flex flex-col items-center justify-center gap-1.5 h-[64px] [@media(max-height:840px)]:h-[56px] px-2 transition-transform duration-200 ease-out group-hover:-translate-y-[2px]">
         <Icono size={23} strokeWidth={activo ? 2.4 : 2} />
         <span className={`text-[12px] leading-none truncate max-w-full ${activo ? 'font-semibold' : 'font-medium'}`}>{etiqueta}</span>
       </span>
@@ -261,7 +263,7 @@ export default function DockNav({ userName, children }: { userName?: string; chi
         {/* Cuenta: tarjeta con la foto grande al centro (o su avatar, si no
             ha subido foto), nombre y puesto, y debajo el acceso al perfil y
             el botón de salir. */}
-        <div className="mb-8 rounded-3xl bg-surface border border-line overflow-hidden shadow-diffuse">
+        <div className="mb-8 [@media(max-height:840px)]:mb-6 rounded-3xl bg-surface border border-line overflow-hidden shadow-diffuse">
           <div className="h-14 bg-gradient-to-br from-teal/35 via-teal/12 to-transparent" />
           <div className="px-3.5 pb-3.5 -mt-12 flex flex-col items-center text-center">
             <Link href="/perfil" aria-label="Mi perfil" className="rounded-full ring-4 ring-surface transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-teal/60">
@@ -287,7 +289,8 @@ export default function DockNav({ userName, children }: { userName?: string; chi
 
         <p className="px-1 mb-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-faint">Secciones</p>
         <LayoutGroup id="lateral">
-          {/* Márgenes fijos entre columnas (24 px) y filas (12 px). */}
+          {/* Márgenes fijos entre columnas (24 px) y filas (12 px). En pantallas
+              bajas los mosaicos se acortan para que quepan sin recortarse. */}
           <nav aria-label="Secciones" className="grid grid-cols-2 gap-x-6 gap-y-3 px-2 pb-1">
             {secciones.map((t) => (
               <SeccionLateral key={t.key} href={t.href} etiqueta={t.label} Icono={t.Icono} activo={t.key === activa} />

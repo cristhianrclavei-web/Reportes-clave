@@ -383,14 +383,25 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
 
   return (
     <div className="max-w-2xl lg:max-w-5xl mx-auto pb-28 lg:pb-16 lg:px-6">
-      <div className="sticky top-0 z-20 glass-strong px-5 py-3.5 flex items-center justify-between gap-3">
+      {/* Computadora: el panel ya trae marca, tema y salir; aquí solo el
+          título con la flecha de regreso, como en las demás secciones. */}
+      <div className="hidden lg:flex items-center gap-1.5 px-4 pt-8">
+        <Link href="/dashboard/servicios" aria-label="Regresar" className="shrink-0 w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-ink/70 hover:bg-surface-2 active:scale-90 transition-transform">
+          <ChevronLeft size={24} strokeWidth={2.4} />
+        </Link>
+        <div className="min-w-0">
+          <h1 className="font-display font-bold text-[34px] leading-tight tracking-wide truncate">{servicio.proyecto}</h1>
+          <p className="text-[13px] text-muted">Día {servicio.numero_dia} de {servicio.dias_totales}</p>
+        </div>
+      </div>
+      <div className="lg:hidden sticky top-0 z-20 glass-strong px-5 py-3.5 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
           <Link href="/dashboard/servicios" aria-label="Volver" className="shrink-0 w-11 h-11 -ml-1.5 rounded-full flex items-center justify-center active:scale-90 transition-transform">
             <ChevronLeft size={24} strokeWidth={2.4} />
           </Link>
           <Logo size={30} />
           <div className="min-w-0">
-            <h1 className="font-display font-semibold text-base tracking-wide truncate">{servicio.proyecto}</h1>
+            <p className="font-display font-semibold text-base tracking-wide truncate">{servicio.proyecto}</p>
             <p className="text-[11px] text-muted">Día {servicio.numero_dia} de {servicio.dias_totales}</p>
           </div>
         </div>

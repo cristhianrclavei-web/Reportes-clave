@@ -57,7 +57,7 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
   }, [reports, search, filterType, aliasClientes]);
 
   return (
-    <div className="max-w-2xl lg:max-w-4xl mx-auto pb-10">
+    <div className="max-w-2xl lg:max-w-5xl 2xl:max-w-6xl mx-auto pb-10">
       {/* Header */}
       <div className="sticky top-0 z-20 bg-bg pb-2">
         <div
@@ -106,10 +106,11 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
               </div>
             )}
 
-            {/* Botón principal: nuevo reporte */}
+            {/* Botón principal: nuevo reporte (en computadora ya está en la
+                barra de secciones) */}
             <Link
               href="/nuevo"
-              className="w-full min-h-[56px] mb-5 rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[16px] tracking-wide shadow-glow-teal flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+              className="lg:hidden w-full min-h-[56px] mb-5 rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[16px] tracking-wide shadow-glow-teal flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
             >
               <Plus size={20} strokeWidth={2.6} />
               Crear nuevo reporte
@@ -156,7 +157,7 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
               </p>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3">
               {filtered.map((r) => (
                 <div
                   key={r.id}

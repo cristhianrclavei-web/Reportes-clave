@@ -8,6 +8,7 @@ import AdminUsersSection from '@/components/AdminUsersSection';
 import LogoutButton from '@/components/LogoutButton';
 import ThemeToggle from '@/components/ThemeToggle';
 import Logo from '@/components/Logo';
+import PanelSupervisor from '@/components/PanelSupervisor';
 import { ChevronLeft, ChevronRight, BadgeCheck, UserCog } from 'lucide-react';
 import { DEMO } from '@/lib/marca';
 
@@ -44,7 +45,8 @@ export default async function PerfilPage() {
 
   // El permiso vive en la base (patch_gestion_usuarios.sql), no en una lista aqui.
   const esGestor = profile.can_manage_usuarios === true;
-  const volverA = profile.role === 'supervisor' ? '/dashboard' : '/mis-reportes';
+  const esSupervisor = profile.role === 'supervisor';
+  const volverA = esSupervisor ? '/dashboard' : '/mis-reportes';
 
   let usuarios: UsuarioLista[] = [];
   if (esGestor) {
@@ -55,9 +57,12 @@ export default async function PerfilPage() {
     usuarios = data || [];
   }
 
-  return (
-    <div className="max-w-2xl lg:max-w-6xl 2xl:max-w-[1400px] mx-auto pb-28 lg:pb-16 lg:px-4">
-      <div className="sticky top-0 z-20 glass-strong px-5 py-3.5 flex items-center justify-between gap-3">
+  // Quien supervisa ve su perfil dentro del panel (barra de secciones y
+  // buscador), como cualquier otra sección; en computadora sobra entonces el
+  // encabezado propio de esta página.
+  const contenido = (
+    <div className={`max-w-2xl lg:max-w-6xl 2xl:max-w-[1400px] mx-auto pb-28 lg:pb-16 ${esSupervisor ? 'lg:px-8' : 'lg:px-4'}`}>
+      <div className={`sticky top-0 z-20 glass-strong px-5 py-3.5 flex items-center justify-between gap-3 ${esSupervisor ? 'lg:hidden' : ''}`}>
         <div className="flex items-center gap-2.5 min-w-0">
           <Link
             href={volverA}
@@ -74,8 +79,8 @@ export default async function PerfilPage() {
         </div>
       </div>
 
-      <div className="px-4 pt-5">
-        <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-wide mb-1.5">Mi perfil</h1>
+      <div className={`px-4 pt-5 ${esSupervisor ? 'lg:px-0 lg:pt-8' : ''}`}>
+        <h1 className={`font-display font-bold text-2xl tracking-wide mb-1.5 ${esSupervisor ? 'lg:text-[34px] lg:leading-tight' : 'lg:text-3xl'}`}>Mi perfil</h1>
         <p className="text-[15px] text-muted font-medium mb-5">Cómo te ven los demás, tus datos de contacto y tu cuenta</p>
 
         {/* Las secciones que no son del formulario de perfil van dentro, al
@@ -128,4 +133,6 @@ export default async function PerfilPage() {
       </div>
     </div>
   );
+
+  return esSupervisor ? <PanelSupervisor userName={profile.full_name || user.email || ''}>{contenido}</PanelSupervisor> : contenido;
 }

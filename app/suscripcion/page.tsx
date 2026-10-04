@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabaseServer';
 import Logo from '@/components/Logo';
+import PanelSupervisor from '@/components/PanelSupervisor';
 import ThemeToggle from '@/components/ThemeToggle';
 import { ChevronLeft, Check, MessageCircle, Mail, Users, CalendarClock } from 'lucide-react';
 import {
@@ -62,9 +63,14 @@ export default async function SuscripcionPage() {
   const conVencimiento = fase !== 'sin_vencimiento' && !!s?.vence_en;
   const hayContacto = !!(VENTAS_WHATSAPP || VENTAS_CORREO);
 
+  const { data: perfil } = await supabase.from('profiles').select('full_name').eq('id', user.id).single();
+
+  // Dentro del panel del supervisor, como cualquier otra sección; en
+  // computadora sobra el encabezado propio de esta página.
   return (
-    <div className="max-w-2xl lg:max-w-5xl mx-auto pb-28 lg:pb-16">
-      <div className="sticky top-0 z-20 glass-strong px-5 py-3.5 flex items-center justify-between gap-3">
+    <PanelSupervisor userName={perfil?.full_name || user.email || ''}>
+    <div className="max-w-2xl lg:max-w-6xl 2xl:max-w-[1400px] mx-auto pb-28 lg:pb-16 lg:px-8">
+      <div className="lg:hidden sticky top-0 z-20 glass-strong px-5 py-3.5 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
           <Link
             href="/dashboard"
@@ -78,8 +84,8 @@ export default async function SuscripcionPage() {
         <ThemeToggle />
       </div>
 
-      <div className="px-4 pt-5">
-        <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-wide mb-1.5">Suscripción</h1>
+      <div className="px-4 pt-5 lg:px-0 lg:pt-8">
+        <h1 className="font-display font-bold text-2xl lg:text-[34px] lg:leading-tight tracking-wide mb-1.5">Suscripción</h1>
         <p className="text-[15px] text-muted font-medium mb-5">Tu plan, los días que quedan y los paquetes disponibles</p>
 
         {/* ---------- Plan actual ---------- */}
@@ -238,5 +244,6 @@ export default async function SuscripcionPage() {
         )}
       </div>
     </div>
+    </PanelSupervisor>
   );
 }
