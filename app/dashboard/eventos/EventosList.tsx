@@ -14,7 +14,7 @@ const ACCION_CFG: Record<AccionGlobal, { Icono: any; label: string; tono: 'teal'
   aviso_servicio: { Icono: AlertTriangle, label: 'Avisó de un problema', tono: 'amber' },
   resolvio_aviso: { Icono: CalendarClock, label: 'Resolvió un aviso', tono: 'teal' },
   edito_servicio: { Icono: Pencil, label: 'Editó servicio', tono: 'amber' },
-  reasigno_tecnicos: { Icono: Users, label: 'Reasignó técnicos', tono: 'amber' },
+  reasigno_tecnicos: { Icono: Users, label: 'Reasignó personal', tono: 'amber' },
   amplio_proyecto: { Icono: Plus, label: 'Amplió proyecto', tono: 'teal' },
   reprogramo_dia: { Icono: CalendarClock, label: 'Reprogramó una fecha', tono: 'amber' },
   cambio_en_dia: { Icono: CalendarClock, label: 'Cambio en el día', tono: 'amber' },

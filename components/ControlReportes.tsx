@@ -150,7 +150,7 @@ export default function ControlReportes({ reportes, onAbrirReporte }: { reportes
   return (
     <div className="px-4 lg:px-0 pt-2">
       <p className="text-[13px] text-muted mb-4 leading-relaxed max-w-2xl">
-        Lo que cada técnico debe entregar: servicios ya pasados sin reporte y días hábiles sin reporte ni justificación (últimos 30 días). La puntualidad cuenta los reportes hechos el mismo día del servicio.
+        Lo que cada persona debe entregar: servicios ya pasados sin reporte y días hábiles sin reporte ni justificación (últimos 30 días). La puntualidad cuenta los reportes hechos el mismo día del servicio.
       </p>
 
       <FiltroCuadrillas cuadrillas={cuadrillas} mapa={mapaCuad} ids={filas.map((f) => f.id)} valor={cuad} onCambiar={setCuad} className="mb-3" />
@@ -162,7 +162,7 @@ export default function ControlReportes({ reportes, onAbrirReporte }: { reportes
         </div>
         <div className="rounded-2xl px-3 py-2.5 border bg-surface border-line">
           <p className="text-[22px] font-bold tabular-nums leading-none">{totales.conPend}<span className="text-[13px] text-muted">/{filasVista.length}</span></p>
-          <p className="text-[11.5px] font-semibold mt-1 text-muted">Técnicos con pendientes</p>
+          <p className="text-[11.5px] font-semibold mt-1 text-muted">Personas con pendientes</p>
         </div>
         <div className="rounded-2xl px-3 py-2.5 border bg-surface border-line">
           <p className="text-[22px] font-bold tabular-nums leading-none">{totales.pct === null ? '—' : `${totales.pct}%`}</p>
@@ -278,7 +278,7 @@ export default function ControlReportes({ reportes, onAbrirReporte }: { reportes
 
       {datos && conPendientes.length === 0 && (
         <div className="rounded-2xl bg-teal/10 border border-teal/25 px-4 py-4 text-center text-[14px] text-teal font-semibold flex items-center justify-center gap-2">
-          <CheckCircle2 size={18} /> Todos los técnicos están al día
+          <CheckCircle2 size={18} /> Todo el personal está al día
         </div>
       )}
 
@@ -358,9 +358,9 @@ function LigarReporte({ servicio, onClose, onListo, onAbrir }: {
           <h2 className="font-display font-bold text-[19px] tracking-wide">Ligar reporte</h2>
           <button onClick={onClose} aria-label="Cerrar" className="w-10 h-10 -mr-1 -mt-1 flex items-center justify-center text-muted"><X size={19} /></button>
         </div>
-        <p className="text-[13px] text-muted mb-4">{servicio.proyecto} · {fechaCorta(servicio.fecha)}. Reportes de sus técnicos de 2 días antes a 2 después que no están ligados a otro servicio.</p>
+        <p className="text-[13px] text-muted mb-4">{servicio.proyecto} · {fechaCorta(servicio.fecha)}. Reportes de su personal de 2 días antes a 2 después que no están ligados a otro servicio.</p>
         {opciones === null && <p className="text-[13px] text-muted">Buscando…</p>}
-        {opciones && opciones.length === 0 && <p className="text-[13px] text-muted">No hay reportes para ligar: el técnico todavía no lo hace.</p>}
+        {opciones && opciones.length === 0 && <p className="text-[13px] text-muted">No hay reportes para ligar: todavía no se ha hecho.</p>}
         <div className="flex flex-col gap-2">
           {opciones?.map((r) => (
             <div key={r.id} className="rounded-xl border border-line bg-surface-2/60 p-3">

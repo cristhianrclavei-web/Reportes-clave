@@ -123,7 +123,7 @@ export default function ResumenList({
           <Stat label="Hoy" value={totalToday} accent="red" />
           <Stat label="Esta semana" value={totalWeek} accent="amber" />
           <Stat label="Por facturar" value={porFacturar} accent="amber" />
-          <Stat label="Técnicos activos" value={tecnicosActivos} accent="teal" />
+          <Stat label="Personal activo" value={tecnicosActivos} accent="teal" />
           <Stat label="Reportes totales" value={reports.length} accent="teal" />
         </div>
 
@@ -157,10 +157,10 @@ export default function ResumenList({
             Icono={CalendarClock}
             cuenta={diasVencidos.length}
             titulo={diasVencidos.length === 1 ? 'Día programado vencido' : 'Días programados vencidos'}
-            resumen="Hay que reprogramarlos para que el técnico pueda iniciarlos"
+            resumen="Hay que reprogramarlos para que se puedan iniciar"
           >
             <p className="text-[13px] text-ink/80 leading-relaxed mb-2">
-              Los técnicos no pueden iniciarlos hasta que se reprogramen.
+              No se pueden iniciar hasta que se reprogramen.
             </p>
             <ul className="divide-y divide-line rounded-xl border border-line bg-surface-2/40 mb-3">
               {diasVencidos.slice(0, 6).map((d) => (
@@ -216,7 +216,7 @@ export default function ResumenList({
                     {s.cantidad} {s.unidad} de {s.descripcion}
                   </p>
                   <p className="text-[12.5px] text-muted mt-0.5">
-                    {s.solicitante || 'Un técnico'}{s.proyecto ? ` · ${s.proyecto}` : ''}
+                    {s.solicitante || 'Alguien del equipo'}{s.proyecto ? ` · ${s.proyecto}` : ''}
                     {s.motivo_solicitud ? ` — ${s.motivo_solicitud}` : ''}
                   </p>
                   {s.articulo_id && (

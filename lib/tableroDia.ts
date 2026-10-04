@@ -48,7 +48,7 @@ export async function cargarTableroDia(fecha: string): Promise<TableroDia> {
     const { servicio_tecnicos, ...resto } = s;
     const asignados: AsignacionDia[] = (servicio_tecnicos || []).map((st: any) => ({
       tecnico_id: st.tecnico_id,
-      nombre: (Array.isArray(st.profiles) ? st.profiles[0]?.full_name : st.profiles?.full_name) || 'Técnico',
+      nombre: (Array.isArray(st.profiles) ? st.profiles[0]?.full_name : st.profiles?.full_name) || 'Personal técnico',
       visto_en: st.visto_en,
       enterado_en: st.enterado_en,
     }));
@@ -78,7 +78,7 @@ export async function cargarTableroDia(fecha: string): Promise<TableroDia> {
   }
 
   return {
-    tecnicos: ((tec.data as any[]) || []).filter((t) => t.activo !== false).map((t) => ({ id: t.id, nombre: t.full_name || 'Técnico' })),
+    tecnicos: ((tec.data as any[]) || []).filter((t) => t.activo !== false).map((t) => ({ id: t.id, nombre: t.full_name || 'Personal técnico' })),
     servicios,
   };
 }
@@ -99,12 +99,12 @@ export async function cargarSemana(lunes: string, domingo: string): Promise<{ te
   if (tec.error) throw tec.error;
   if (sv.error) throw sv.error;
   return {
-    tecnicos: ((tec.data as any[]) || []).filter((t) => t.activo !== false).map((t) => ({ id: t.id, nombre: t.full_name || 'Técnico' })),
+    tecnicos: ((tec.data as any[]) || []).filter((t) => t.activo !== false).map((t) => ({ id: t.id, nombre: t.full_name || 'Personal técnico' })),
     servicios: ((sv.data as any[]) || []).map(({ servicio_tecnicos, ...resto }) => ({
       ...(resto as Servicio),
       asignados: (servicio_tecnicos || []).map((st: any) => ({
         tecnico_id: st.tecnico_id,
-        nombre: (Array.isArray(st.profiles) ? st.profiles[0]?.full_name : st.profiles?.full_name) || 'Técnico',
+        nombre: (Array.isArray(st.profiles) ? st.profiles[0]?.full_name : st.profiles?.full_name) || 'Personal técnico',
         visto_en: st.visto_en,
         enterado_en: st.enterado_en,
       })),
@@ -216,7 +216,7 @@ export async function registrarCambioDia(input: {
         hora: input.destino.hora,
         tecnicoIds: input.tecnicoIds,
       });
-      partes.push(`técnicos enviados a «${input.destino.proyecto.trim()}» (nuevo)`);
+      partes.push(`personal enviado a «${input.destino.proyecto.trim()}» (nuevo)`);
     } else {
       const destinoId = input.destino.servicioId;
       const { data: actuales, error } = await supabase
@@ -224,8 +224,8 @@ export async function registrarCambioDia(input: {
       if (error) throw error;
       const ids = [...new Set([...(actuales || []).map((r: any) => r.tecnico_id as string), ...input.tecnicoIds])];
       const { data: dest } = await supabase.from('servicios_programados').select('proyecto').eq('id', destinoId).single();
-      await reasignarTecnicos(destinoId, ids, `Llegan técnicos de «${s.proyecto}» (${motivo.trim()})`);
-      partes.push(`técnicos enviados a «${dest?.proyecto || 'otro servicio'}»`);
+      await reasignarTecnicos(destinoId, ids, `Llega personal de «${s.proyecto}» (${motivo.trim()})`);
+      partes.push(`personal enviado a «${dest?.proyecto || 'otro servicio'}»`);
     }
   }
 

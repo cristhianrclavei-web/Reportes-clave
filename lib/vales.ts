@@ -93,7 +93,7 @@ function mapear(r: any): Vale {
   const { profiles, almacen_vale_items, ...resto } = r;
   return {
     ...resto,
-    tecnico: (Array.isArray(profiles) ? profiles[0]?.full_name : profiles?.full_name) || 'Técnico',
+    tecnico: (Array.isArray(profiles) ? profiles[0]?.full_name : profiles?.full_name) || 'Personal técnico',
     items: ((almacen_vale_items as any[]) || [])
       .map(({ almacen_articulos, ...i }) => ({ ...i, articulo: almacen_articulos }))
       .sort((a, b) => a.orden - b.orden),
@@ -127,7 +127,7 @@ export async function listarAltasPendientes(): Promise<AltaSolicitada[]> {
     .eq('estado', 'pendiente')
     .order('created_at', { ascending: false });
   if (error) throw error;
-  return ((data as any[]) || []).map(({ profiles, ...a }) => ({ ...a, tecnico: profiles?.full_name || 'Técnico' }));
+  return ((data as any[]) || []).map(({ profiles, ...a }) => ({ ...a, tecnico: profiles?.full_name || 'Personal técnico' }));
 }
 
 // Catálogo con existencias para el formulario del técnico.
@@ -218,7 +218,7 @@ export async function devolverVale(vale: Vale, items: { id: string; cantidad: nu
     destino: 'almacen',
     tipo: 'vale_almacen',
     titulo: `Vale ${vale.folio}: devolución por confirmar`,
-    mensaje: `${vale.tecnico || 'El técnico'} devolvió lo del vale de ${vale.cliente_nombre}. Confirma lo que recibiste.`,
+    mensaje: `${vale.tecnico || 'Quien lo llevó'} devolvió lo del vale de ${vale.cliente_nombre}. Confirma lo que recibiste.`,
     url: '/dashboard/almacen?sub=vales',
     tag: `vale-${vale.id}`,
   });
@@ -231,7 +231,7 @@ export async function pedirMasDias(vale: Vale, dias: number, motivo: string): Pr
     destino: 'almacen',
     tipo: 'vale_almacen',
     titulo: `Vale ${vale.folio}: piden ${dias} día(s) más`,
-    mensaje: `${vale.tecnico || 'El técnico'}: ${motivo}`,
+    mensaje: `${vale.tecnico || 'Personal técnico'}: ${motivo}`,
     url: '/dashboard/almacen?sub=vales',
     tag: `vale-${vale.id}`,
   });
@@ -323,7 +323,7 @@ export type Traspaso = {
 
 const SELECT_TRASPASO = '*, de:profiles!almacen_traspasos_de_tecnico_fkey(full_name), a:profiles!almacen_traspasos_a_tecnico_fkey(full_name)';
 
-export const nombreCorto = (n?: string | null) => (n || '').split(' ').slice(0, 2).join(' ') || 'Técnico';
+export const nombreCorto = (n?: string | null) => (n || '').split(' ').slice(0, 2).join(' ') || 'Personal técnico';
 
 // Préstamos que me quieren hacer (pendientes de aceptar). [] si falta el SQL.
 export async function traspasosParaMi(): Promise<Traspaso[]> {
@@ -376,7 +376,7 @@ export async function aceptarTraspaso(t: Traspaso, firma: string): Promise<void>
   const quien = nombreCorto(t.a?.full_name);
   await Promise.all([
     notificar({ usuarios: [t.de_tecnico], traspaso: t.id, tipo: 'vale_almacen', titulo: `${quien} recibió el préstamo ${t.folio}`, mensaje: 'Ya quedó a su nombre; tu vale bajó esas cantidades.', url: '/checklists', tag: `traspaso-${t.id}` }),
-    notificar({ destino: 'almacen', tipo: 'vale_almacen', titulo: `Préstamo ${t.folio} entre técnicos`, mensaje: `${nombreCorto(t.de?.full_name)} → ${quien}. Ahora lo tiene ${quien}.`, url: '/dashboard/almacen?sub=vales', tag: `traspaso-${t.id}` }),
+    notificar({ destino: 'almacen', tipo: 'vale_almacen', titulo: `Préstamo ${t.folio} entre compañeros`, mensaje: `${nombreCorto(t.de?.full_name)} → ${quien}. Ahora lo tiene ${quien}.`, url: '/dashboard/almacen?sub=vales', tag: `traspaso-${t.id}` }),
   ]);
 }
 

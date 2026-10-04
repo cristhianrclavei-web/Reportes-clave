@@ -198,7 +198,7 @@ export default function TableroDia({ onAgendar }: {
     const libro = new ExcelJS.Workbook();
     const hoja = libro.addWorksheet('Día');
     hoja.columns = [
-      { header: 'Técnico', key: 'tecnico', width: 24 },
+      { header: 'Personal técnico', key: 'tecnico', width: 24 },
       { header: 'Servicio', key: 'servicio', width: 34 },
       { header: 'Hora acordada', key: 'hora', width: 12 },
       { header: 'Estado', key: 'estado', width: 22 },
@@ -345,7 +345,7 @@ export default function TableroDia({ onAgendar }: {
 
       {resumen.avisos > 0 && (
         <div className="rounded-2xl px-4 py-2.5 mb-3 bg-red/10 border border-red/30 text-[13px] text-red font-semibold flex items-center gap-2">
-          <AlertTriangle size={16} /> {resumen.avisos} aviso(s) de técnicos sin atender. Revisa los servicios marcados.
+          <AlertTriangle size={16} /> {resumen.avisos} aviso(s) del personal sin atender. Revisa los servicios marcados.
         </div>
       )}
 
@@ -469,7 +469,7 @@ export default function TableroDia({ onAgendar }: {
       )}
 
       {datos && visibles.length === 0 && filas.length > 0 && <p className="text-[13px] text-muted text-center py-6">Nada con este filtro.</p>}
-      {datos && filas.length === 0 && <p className="text-[13px] text-muted text-center py-8">No hay técnicos activos.</p>}
+      {datos && filas.length === 0 && <p className="text-[13px] text-muted text-center py-8">No hay personal técnico activo.</p>}
 
       {asignar && datos && (
         <AsignarRapido
@@ -614,7 +614,7 @@ export function AsignarRapido({
 
   async function guardar() {
     if (!proyecto.trim()) { setError('Escribe el cliente o proyecto.'); return; }
-    if (ids.length === 0) { setError('Elige al menos un técnico.'); return; }
+    if (ids.length === 0) { setError('Elige al menos a una persona.'); return; }
     setGuardando(true);
     setError(null);
     try {
@@ -645,7 +645,7 @@ export function AsignarRapido({
         <input className={`${inputCls} mb-3`} value={descripcion} onChange={(e) => setDescripcion(e.target.value)} placeholder="Ej. Mantenimiento preventivo CCTV" />
         <label className={labelCls}>Hora de llegada (opcional)</label>
         <input type="time" className={`${inputCls} mb-3`} value={horaP} onChange={(e) => setHoraP(e.target.value)} />
-        <label className={labelCls}>Técnicos</label>
+        <label className={labelCls}>Personal técnico</label>
         <SelectorTecnicos tecnicos={tecnicos} seleccion={ids} onCambiar={setIds} ocupados={ocupados} />
         {error && <p className="text-[13px] text-red font-semibold mt-2">{error}</p>}
         <button type="button" onClick={guardar} disabled={guardando}
@@ -704,7 +704,7 @@ export function CambioDia({
         tecnicoIds: ids,
         avisosAtendidos: s.avisosPendientes.map((a) => a.id),
       });
-      showToast('Cambio registrado; los técnicos ya tienen el aviso', 'success');
+      showToast('Cambio registrado; el personal ya tiene el aviso', 'success');
       onListo();
     } catch (e: any) {
       setError(e?.message || 'No se pudo registrar el cambio.');
@@ -734,16 +734,16 @@ export function CambioDia({
         )}
         <span className={chip(accion === 'nada')} onClick={() => setAccion('nada')}>Dejarlo como está</span>
         {accion === 'cancelar' && (
-          <p className="text-[12px] text-muted mt-1">Ya no se hará: queda en el historial con el motivo, deja de exigir reporte y a los técnicos les llega el aviso.</p>
+          <p className="text-[12px] text-muted mt-1">Ya no se hará: queda en el historial con el motivo, deja de exigir reporte y al personal asignado le llega el aviso.</p>
         )}
         {(accion === 'reprogramar' || accion === 'continuar') && (
           <input type="date" className={`${inputCls} mt-1`} value={nuevaFecha} min={hoy} onChange={(e) => setNuevaFecha(e.target.value)} />
         )}
         {empezado && (
-          <p className="text-[12px] text-muted mt-1.5">Ya se empezó: los técnicos deben hacer hoy su reporte de avance (servicio no concluido).</p>
+          <p className="text-[12px] text-muted mt-1.5">Ya se empezó: el personal debe hacer hoy su reporte de avance (servicio no concluido).</p>
         )}
 
-        <label className={`${labelCls} mt-4`}>¿A dónde van los técnicos?</label>
+        <label className={`${labelCls} mt-4`}>¿A dónde va el personal?</label>
         <span className={chip(destino === 'ninguno')} onClick={() => setDestino('ninguno')}>No se mueven</span>
         {otros.length > 0 && <span className={chip(destino === 'existente')} onClick={() => setDestino('existente')}>A otro servicio del mismo día</span>}
         <span className={chip(destino === 'nuevo')} onClick={() => setDestino('nuevo')}>A un servicio nuevo</span>
@@ -766,7 +766,7 @@ export function CambioDia({
               </>
             )}
             <div>
-              <label className={labelCls}>Técnicos que se mueven</label>
+              <label className={labelCls}>Personal que se mueve</label>
               <SelectorTecnicos tecnicos={s.asignados.map((a) => ({ id: a.tecnico_id, nombre: a.nombre }))} seleccion={ids} onCambiar={setIds} />
             </div>
           </div>
@@ -796,7 +796,7 @@ function estadoGlobal(s: ServicioDia): { texto: string; cls: string } {
     return { texto: e.texto, cls: e.cls };
   }
   const n = s.asignados.length;
-  if (n === 0) return { texto: 'Sin técnico', cls: 'bg-red/12 text-red' };
+  if (n === 0) return { texto: 'Sin asignar', cls: 'bg-red/12 text-red' };
   const enterados = s.asignados.filter((a) => a.enterado_en).length;
   const sinVer = s.asignados.filter((a) => !a.visto_en && !a.enterado_en).length;
   if (enterados === n) return { texto: n > 1 ? `Enterados ${n}/${n}` : 'Enterado', cls: 'bg-surface-2 text-ink/80' };
@@ -919,7 +919,7 @@ function VistaEscritorio({
     <div className="flex items-center gap-3 mb-4">
       <div className="relative w-[280px] shrink-0">
         <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar técnico o servicio"
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar persona o servicio"
           className="w-full h-10 pl-10 pr-9 rounded-full bg-surface border border-line focus:border-teal focus:outline-none text-[14px] placeholder:text-muted" />
         {q && (
           <button type="button" onClick={() => setQ('')} aria-label="Limpiar" className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full flex items-center justify-center text-muted hover:bg-surface-2"><X size={14} /></button>
@@ -927,7 +927,7 @@ function VistaEscritorio({
       </div>
       <div className="flex items-center gap-1.5 flex-wrap">{chips}</div>
       <div className="ml-auto flex items-center p-1 rounded-full bg-surface border border-line shrink-0">
-        {([['servicio', 'Por servicio', ListIcon], ['tecnico', 'Por técnico', Users]] as const).map(([k, l, I]) => (
+        {([['servicio', 'Por servicio', ListIcon], ['tecnico', 'Por persona', Users]] as const).map(([k, l, I]) => (
           <button key={k} type="button" onClick={() => cambiarVista(k)}
             className={`h-8 px-3.5 rounded-full text-[13px] font-semibold flex items-center gap-1.5 transition-colors ${vista === k ? 'bg-teal text-inkOnAccent' : 'text-ink/70 hover:text-ink'}`}>
             <I size={14} /> {l}
@@ -968,7 +968,7 @@ function VistaEscritorio({
       {filtro !== 'sin' && (
         <div className="rounded-2xl bg-surface border border-line overflow-hidden">
           <div className={`${COLS} px-4 py-2.5 border-b border-line bg-surface-2/60 text-[11px] font-semibold uppercase tracking-wider text-muted`}>
-            <span>Hora</span><span>Servicio</span><span>Técnicos</span><span>Estado</span><span>Tiempos</span><span>Reporte</span><span />
+            <span>Hora</span><span>Servicio</span><span>Personal</span><span>Estado</span><span>Tiempos</span><span>Reporte</span><span />
           </div>
           {grupos.every((g) => g.items.length === 0) && (
             <p className="text-[13.5px] text-muted text-center py-10">{servicios.length === 0 ? 'No hay servicios este día.' : 'Nada coincide con la búsqueda o el filtro.'}</p>
@@ -1026,7 +1026,7 @@ function VistaEscritorio({
                     </button>
                     {open && (
                       <div className="px-4 pb-4 grid grid-cols-2 xl:grid-cols-3 gap-3">
-                        {sv.asignados.length === 0 && <p className="text-[13px] text-muted">Este servicio no tiene técnico asignado.</p>}
+                        {sv.asignados.length === 0 && <p className="text-[13px] text-muted">Este servicio no tiene personal asignado.</p>}
                         {sv.asignados.map((a) => (
                           <div key={a.tecnico_id} className="rounded-xl bg-surface border border-line pt-2.5">
                             <div className="flex items-center gap-2 px-3 mb-1">
@@ -1094,7 +1094,7 @@ function VistaEscritorio({
       </div>
       <div className="rounded-2xl bg-surface border border-line p-5 min-h-[240px]">
         {!tecActual ? (
-          <p className="text-[13.5px] text-muted text-center py-10">Elige un técnico.</p>
+          <p className="text-[13.5px] text-muted text-center py-10">Elige a una persona.</p>
         ) : (
           <>
             <div className="flex items-center gap-3 mb-4">

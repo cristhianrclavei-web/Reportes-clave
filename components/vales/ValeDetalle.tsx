@@ -112,7 +112,7 @@ export default function ValeDetalle({
 
         {traspasos.length > 0 && (
           <div className="mt-3 rounded-xl border border-line p-3">
-            <p className={labelCls}>Préstamos entre técnicos</p>
+            <p className={labelCls}>Préstamos entre compañeros</p>
             <div className="flex flex-col gap-1.5">
               {traspasos.map((t) => {
                 const salida = t.vale_origen_id === vale.id;
@@ -416,7 +416,7 @@ function Entregar({ vale, guardando, ejecutar }: { vale: Vale; guardando: boolea
       })}
       <input className={inputCls} placeholder="Nota (opcional)" value={nota} onChange={(e) => setNota(e.target.value)} />
       <button type="button" disabled={guardando}
-        onClick={() => ejecutar(() => entregarVale(vale, vale.items.map((i) => ({ id: i.id, cantidad: Number(cant[i.id]) || 0 })), nota), 'Entregado; el técnico debe firmar')}
+        onClick={() => ejecutar(() => entregarVale(vale, vale.items.map((i) => ({ id: i.id, cantidad: Number(cant[i.id]) || 0 })), nota), 'Entregado; falta la firma de quien recibe')}
         className="min-h-[46px] rounded-xl bg-teal text-inkOnAccent text-[14px] font-semibold flex items-center justify-center gap-2 disabled:opacity-50">
         <Check size={16} /> Entregar y descontar del inventario
       </button>

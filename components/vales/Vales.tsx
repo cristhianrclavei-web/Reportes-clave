@@ -264,7 +264,7 @@ function HistorialVales({
           <div className="flex flex-col lg:flex-row lg:items-center gap-2.5 mb-3">
             <div className="relative lg:w-[300px]">
               <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
-              <input value={q} onChange={(e) => { setQ(e.target.value); setLimite(20); }} placeholder="Folio, cliente, técnico o artículo"
+              <input value={q} onChange={(e) => { setQ(e.target.value); setLimite(20); }} placeholder="Folio, cliente, persona o artículo"
                 className="w-full h-10 pl-10 pr-9 rounded-full bg-surface-2 border border-line focus:border-teal focus:outline-none text-[14px] placeholder:text-muted" />
               {q && <button type="button" onClick={() => setQ('')} aria-label="Limpiar" className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full flex items-center justify-center text-muted"><X size={14} /></button>}
             </div>

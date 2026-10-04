@@ -19,7 +19,7 @@ function fecha(iso: string | null) {
   const [y, m, d] = iso.slice(0, 10).split('-');
   return `${d}/${m}/${y}`;
 }
-const nombreTec = (e: EquipoInstalado) => e.tecnico?.full_name?.split(' ').slice(0, 2).join(' ') || 'Técnico';
+const nombreTec = (e: EquipoInstalado) => e.tecnico?.full_name?.split(' ').slice(0, 2).join(' ') || 'Personal técnico';
 
 export default function EquiposSinRegistro({
   articulos, sistemas, ubicaciones, onCatalogoActualizado, onCambio,
@@ -48,7 +48,7 @@ export default function EquiposSinRegistro({
   return (
     <div>
       <p className="text-[13px] text-muted mb-3 leading-relaxed">
-        Equipo que un técnico anotó como instalado en su reporte y que no está en el almacén. Ligándolo a un artículo queda el historial de dónde se instaló.
+        Equipo que alguien anotó como instalado en su reporte y que no está en el almacén. Ligándolo a un artículo queda el historial de dónde se instaló.
       </p>
       {error && <p className="text-[13px] text-red font-semibold mb-3">{error}</p>}
       {pendientes === null && <p className="text-[13px] text-muted">Cargando…</p>}
@@ -185,7 +185,7 @@ function Resolver({
               <span className="block text-[12px] text-muted">El inventario no cambia, pero el historial del artículo dice que se instaló en este servicio.</span>
             </span>
           </label>
-          <input className={`${inputCls} mb-3`} value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Nota (opcional): lo compró el técnico en la ferretería…" />
+          <input className={`${inputCls} mb-3`} value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Nota (opcional): se compró en la ferretería…" />
         </>
       ) : (
         <input className={`${inputCls} mb-3`} value={nota} onChange={(e) => setNota(e.target.value)} placeholder="¿Por qué? Lo puso el cliente, garantía…" />

@@ -210,7 +210,7 @@ function Historial({ articuloId, unidad }: { articuloId: string; unidad: string 
           ))}
         </div>
       ) : (
-        <p className="text-[13px] text-muted mb-2">Ningún técnico lo tiene ahora.</p>
+        <p className="text-[13px] text-muted mb-2">Nadie lo tiene ahora.</p>
       )}
       <button type="button" onClick={() => setVer((v) => !v)} className="text-[12.5px] font-semibold text-teal flex items-center gap-1.5 min-h-[30px]">
         <History size={13} /> {ver ? 'Ocultar historial' : `Ver historial (${h.eventos.length})`}

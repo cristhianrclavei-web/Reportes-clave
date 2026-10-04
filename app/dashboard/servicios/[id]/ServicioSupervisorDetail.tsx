@@ -325,8 +325,8 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
     try {
       const nombresAntes = tecnicosAsignados.map((t) => nombre(t.profiles)).join(', ');
       const nombresDespues = todosTecnicos.filter((t) => tecnicoIdsSel.includes(t.id)).map((t) => t.full_name).join(', ');
-      await reasignarTecnicos(servicioId, tecnicoIdsSel, `Técnicos reasignados: "${nombresAntes}" → "${nombresDespues}"`);
-      showToast('Técnicos actualizados', 'success');
+      await reasignarTecnicos(servicioId, tecnicoIdsSel, `Personal reasignado: "${nombresAntes}" → "${nombresDespues}"`);
+      showToast('Personal actualizado', 'success');
       setEditandoTecnicos(false);
       await cargar();
     } catch (e: any) {
@@ -543,7 +543,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
                 </div>
                 <input value={motivoCancelar} onChange={(e) => setMotivoCancelar(e.target.value)} placeholder="Otro motivo"
                   className="w-full px-3 min-h-[44px] mb-2.5 rounded-lg bg-surface border border-line text-[14.5px]" />
-                <p className="text-[12.5px] text-muted mb-2.5">Queda en el historial, deja de exigir reporte y a los técnicos les llega el aviso.</p>
+                <p className="text-[12.5px] text-muted mb-2.5">Queda en el historial, deja de exigir reporte y al personal asignado le llega el aviso.</p>
                 <div className="flex gap-2">
                   <button onClick={() => setShowCancelar(false)} className="flex-1 min-h-[46px] border border-line-strong text-ink/80 rounded-xl text-[14px]">Volver</button>
                   <button onClick={handleCancelar} disabled={cancelando || !motivoCancelar.trim()} className="flex-1 min-h-[46px] bg-red text-white rounded-xl text-[14px] font-semibold disabled:opacity-60">
@@ -611,7 +611,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
                   {agregandoDias ? 'Agregando...' : 'Agregar días'}
                 </button>
               </div>
-              <p className="text-[12.5px] text-muted mt-2 leading-relaxed">Los días nuevos copian los mismos técnicos del último día — el checklist es uno solo para todo el proyecto, así que verán las tareas que sigan pendientes.</p>
+              <p className="text-[12.5px] text-muted mt-2 leading-relaxed">Los días nuevos copian el mismo personal del último día — el checklist es uno solo para todo el proyecto, así que verán las tareas que sigan pendientes.</p>
             </div>
           )}
         </div>
@@ -619,14 +619,14 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
         {/* Técnicos asignados */}
         <div className="glass rounded-2xl p-4 mb-4">
           <div className="flex justify-between items-center mb-2.5">
-            <div className="text-[11px] uppercase tracking-wider text-muted">Técnicos asignados</div>
+            <div className="text-[11px] uppercase tracking-wider text-muted">Personal asignado</div>
             {!bloqueo && (
               <button onClick={abrirEditorTecnicos} className="text-teal text-[12px] font-medium">Reasignar</button>
             )}
           </div>
           {!editandoTecnicos ? (
             <div className="flex flex-wrap gap-2">
-              {tecnicosAsignados.length === 0 && <p className="text-muted text-[13px]">Sin técnicos asignados.</p>}
+              {tecnicosAsignados.length === 0 && <p className="text-muted text-[13px]">Sin personal asignado.</p>}
               {servicio.estado === 'programado' ? (
                 <ConfirmacionTecnicos
                   items={tecnicosAsignados.map((t) => ({ tecnico_id: t.tecnico_id, nombre: nombre(t.profiles), visto_en: t.visto_en ?? null, enterado_en: t.enterado_en ?? null }))}
@@ -695,7 +695,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
               <ResumenDato label="Material" valor={String(resumenInsumos.material)} />
               <ResumenDato label="Equipo" valor={String(resumenInsumos.equipo)} />
               <ResumenDato
-                label="Entrega al técnico"
+                label="Entrega al personal"
                 valor={resumenInsumos.entregadoEn
                   ? new Date(resumenInsumos.entregadoEn).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })
                   : 'Pendiente'}
@@ -873,7 +873,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
               Cerrar el día {servicio.numero_dia} de {servicio.dias_totales} manualmente
             </p>
             <p className="text-[13px] text-muted mb-3.5 leading-relaxed">
-              Úsalo cuando el técnico ya entregó el reporte pero nunca marcó llegada ni inicio a tiempo —
+              Úsalo cuando ya se entregó el reporte pero nunca marcó llegada ni inicio a tiempo —
               normalmente porque ya había pasado la fecha programada. El día pasa a "Concluido". Queda
               registrado en Actividad con tu nombre.
             </p>
@@ -882,7 +882,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
             <textarea
               value={motivoCerrar}
               onChange={(e) => setMotivoCerrar(e.target.value)}
-              placeholder="El técnico olvidó marcar llegada/inicio; el reporte se hizo al día siguiente y ya está vinculado…"
+              placeholder="Se olvidó marcar llegada/inicio; el reporte se hizo al día siguiente y ya está vinculado…"
               className="w-full px-3 py-2.5 mb-4 rounded-xl bg-surface border border-line focus:border-teal focus:outline-none text-[14px] min-h-[90px]"
             />
 
@@ -922,7 +922,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
                 </button>
               </div>
               <p className="text-[12.5px] text-muted leading-relaxed">
-                {servicio.proyecto} · Día {servicio.numero_dia}. La lista es del proyecto; la verificación de salida y retorno la hace el técnico cada día.
+                {servicio.proyecto} · Día {servicio.numero_dia}. La lista es del proyecto; la verificación de salida y retorno la hace el personal asignado cada día.
               </p>
             </div>
 

@@ -147,7 +147,7 @@ export default function CoberturaReportes({
       tag: `pendiente-${f.fecha}`,
     });
     setAvisados((prev) => new Set(prev).add(clave));
-    showToast(`Recordatorio enviado a ${f.tecnico || 'el técnico'}`, 'success');
+    showToast(`Recordatorio enviado a ${f.tecnico || 'la persona'}`, 'success');
   }
 
   if (!lunes) return null;
@@ -155,7 +155,7 @@ export default function CoberturaReportes({
   return (
     <div className="px-4 lg:px-0 pt-2">
       <p className="text-[13px] text-muted mb-4 leading-relaxed max-w-2xl">
-        Cada técnico debe tener cubierto con un reporte o una justificación cada día hábil, y los fines de semana en que tuvo servicio programado. Los festivos no se exigen.
+        Cada persona debe tener cubierto con un reporte o una justificación cada día hábil, y los fines de semana en que tuvo servicio programado. Los festivos no se exigen.
       </p>
 
       {/* Semana */}
@@ -197,7 +197,7 @@ export default function CoberturaReportes({
         <table className="w-full border-collapse min-w-[340px]">
           <thead>
             <tr>
-              <th className="text-left text-[10.5px] uppercase tracking-wider text-muted font-semibold px-3 py-2.5 sticky left-0 bg-surface">Técnico</th>
+              <th className="text-left text-[10.5px] uppercase tracking-wider text-muted font-semibold px-3 py-2.5 sticky left-0 bg-surface">Personal técnico</th>
               {dias.map((d, i) => (
                 <th key={d} className={`text-[10.5px] font-semibold px-0.5 py-2.5 text-center ${d === hoy ? 'text-teal' : 'text-muted'}`}>
                   <span className="block uppercase tracking-wider">{DIAS[i]}</span>
@@ -241,7 +241,7 @@ export default function CoberturaReportes({
               );
             })}
             {!cargando && tecnicos.length === 0 && (
-              <tr><td colSpan={9} className="px-3 py-8 text-center text-[13px] text-muted">No hay técnicos activos.</td></tr>
+              <tr><td colSpan={9} className="px-3 py-8 text-center text-[13px] text-muted">No hay personal técnico activo.</td></tr>
             )}
           </tbody>
         </table>

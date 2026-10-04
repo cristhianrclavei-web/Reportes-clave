@@ -133,7 +133,7 @@ export default function AgendaList({ userName }: { userName?: string }) {
             onChange={(e) => setFiltroTecnico(e.target.value)}
             className="w-full px-3.5 min-h-[48px] mb-4 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]"
           >
-            <option value="">Todos los técnicos</option>
+            <option value="">Todo el personal</option>
             {tecnicosUnicos.map((n) => (
               <option key={n} value={n}>{n}</option>
             ))}
@@ -214,7 +214,7 @@ export default function AgendaList({ userName }: { userName?: string }) {
 
                       {bloque.clave === 'vencidos' && (
                         <p className="text-[12.5px] text-red font-medium mt-1">
-                          {atraso === 1 ? 'Venció ayer' : `Venció hace ${atraso} días`} — el técnico no puede iniciarlo hasta que se reprograme
+                          {atraso === 1 ? 'Venció ayer' : `Venció hace ${atraso} días`} — no se puede iniciar hasta que se reprograme
                         </p>
                       )}
 

@@ -68,7 +68,7 @@ export default function AvisosPendientes() {
       tono="amber"
       Icono={TriangleAlert}
       cuenta={avisos.length}
-      titulo={avisos.length === 1 ? 'Aviso de un técnico sobre un día programado' : 'Avisos de técnicos sobre días programados'}
+      titulo={avisos.length === 1 ? 'Aviso del personal sobre un día programado' : 'Avisos del personal sobre días programados'}
       resumen="Atenderlos ahora evita el viaje perdido"
     >
       <p className="text-[12.5px] text-ink/70 mb-3">

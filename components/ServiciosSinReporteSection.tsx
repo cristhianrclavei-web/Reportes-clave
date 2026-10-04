@@ -84,7 +84,7 @@ export default function ServiciosSinReporteSection() {
       resumen={servicios.slice(0, 2).map((x) => x.proyecto).join(', ') + (servicios.length > 2 ? '…' : '')}
     >
       <p className="text-[12.5px] text-ink/70 mb-3">
-        Si el técnico ya lo hizo pero no lo ligó al programarlo, búscalo aquí y vincúlalo.
+        Si ya se hizo pero no se ligó al programarlo, búscalo aquí y vincúlalo.
       </p>
 
       <div className="space-y-3">
@@ -98,7 +98,7 @@ export default function ServiciosSinReporteSection() {
               </div>
               <p className="text-[12.5px] text-muted">
                 {s.dias_totales > 1 ? `Día ${s.numero_dia} de ${s.dias_totales} · ` : ''}
-                {s.tecnicos.map((t) => t.nombre).join(', ') || 'Sin técnico asignado'}
+                {s.tecnicos.map((t) => t.nombre).join(', ') || 'Sin personal asignado'}
               </p>
 
               <button
@@ -114,7 +114,7 @@ export default function ServiciosSinReporteSection() {
                   {buscando && <p className="text-[12.5px] text-muted text-center py-3">Buscando…</p>}
                   {!buscando && candidatos.length === 0 && (
                     <p className="text-[12.5px] text-muted text-center py-3 leading-relaxed">
-                      No hay reportes sueltos de sus técnicos cerca de esa fecha.
+                      No hay reportes sueltos de su personal cerca de esa fecha.
                     </p>
                   )}
                   <div className="space-y-2">

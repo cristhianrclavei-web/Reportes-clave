@@ -41,7 +41,7 @@ export async function generateValePdf(v: Vale & { entregadoPor?: string | null; 
   y -= 18;
 
   const datos: [string, string][] = [
-    ['Técnico', v.tecnico || '—'],
+    ['Personal técnico', v.tecnico || '—'],
     ['Cliente / servicio', v.cliente_nombre],
     ['Solicitado', fecha(v.created_at)],
     ['Entregado', `${fecha(v.entregado_en)}${v.entregadoPor ? ` · por ${v.entregadoPor}` : ''}`],

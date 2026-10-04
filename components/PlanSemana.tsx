@@ -104,7 +104,7 @@ export default function PlanSemana() {
   const filas = useMemo(() => {
     if (!datos) return [];
     const base = datos.tecnicos.filter((t) => enCuadrilla(cuad, mapaCuad, t.id)).map((t) => ({ id: t.id, nombre: t.nombre }));
-    if (cuad === TODAS && datos.servicios.some((s) => s.asignados.length === 0)) base.push({ id: SIN_TECNICO, nombre: 'Sin técnico' });
+    if (cuad === TODAS && datos.servicios.some((s) => s.asignados.length === 0)) base.push({ id: SIN_TECNICO, nombre: 'Sin asignar' });
     return base;
   }, [datos, cuad, mapaCuad]);
 
@@ -181,7 +181,7 @@ export default function PlanSemana() {
       <PorProgramar />
 
       <p className="text-[12.5px] text-muted mb-3">
-        Toca «+» para asignar un servicio a ese técnico y día; toca un servicio para copiarlo a otro día, cambiarlo o cancelarlo.
+        Toca «+» para asignar un servicio a esa persona y día; toca un servicio para copiarlo a otro día, cambiarlo o cancelarlo.
         {datos ? ` ${datos.servicios.filter((s) => s.estado !== 'cancelado').length} servicio(s) esta semana.` : ''}
       </p>
 
@@ -232,7 +232,7 @@ export default function PlanSemana() {
         <table className="w-full border-collapse table-fixed min-w-[900px]">
           <thead>
             <tr>
-              <th className="w-[150px] text-left text-[11px] uppercase tracking-wider text-muted font-semibold px-3 py-2.5">Técnico</th>
+              <th className="w-[150px] text-left text-[11px] uppercase tracking-wider text-muted font-semibold px-3 py-2.5">Personal técnico</th>
               {dias.map((d) => {
                 const fe = festivo(d);
                 return (
@@ -274,7 +274,7 @@ export default function PlanSemana() {
                 <p className="text-[12.5px] text-muted mt-0.5">
                   {DIAS[fechaLocal(acciones.fecha).getDay()]} {fechaLocal(acciones.fecha).getDate()} {MESES[fechaLocal(acciones.fecha).getMonth()]}
                   {acciones.hora_programada ? ` · ${acciones.hora_programada.slice(0, 5)}` : ''}
-                  {acciones.asignados.length ? ` · ${acciones.asignados.map((a) => nombreCorto(a.nombre)).join(', ')}` : ' · sin técnico'}
+                  {acciones.asignados.length ? ` · ${acciones.asignados.map((a) => nombreCorto(a.nombre)).join(', ')}` : ' · sin asignar'}
                 </p>
                 {acciones.estado === 'cancelado' && <p className="text-[12.5px] text-red mt-1">Cancelado: {acciones.cancelado_motivo || 'sin motivo'}</p>}
               </div>
@@ -291,7 +291,7 @@ export default function PlanSemana() {
               {acciones.estado !== 'concluido' && acciones.estado !== 'cancelado' && (
                 <button type="button" onClick={() => { setCambio(acciones); setAcciones(null); }}
                   className="min-h-[44px] rounded-xl bg-teal text-inkOnAccent text-[13.5px] font-semibold flex items-center justify-center gap-2">
-                  <ArrowRightLeft size={15} /> Reprogramar, cancelar o mover técnicos
+                  <ArrowRightLeft size={15} /> Reprogramar, cancelar o mover personal
                 </button>
               )}
             </div>
@@ -353,7 +353,7 @@ function CopiarServicio({ servicio, hoy, tecnicos, onClose, onListo }: {
         <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted mb-1.5">Fecha</label>
         <input type="date" min={hoy} value={fecha} onChange={(e) => setFecha(e.target.value)}
           className="w-full px-3.5 py-2.5 rounded-xl bg-surface-2 border border-line text-[15px] mb-3" />
-        <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted mb-1.5">Técnicos</label>
+        <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted mb-1.5">Personal técnico</label>
         <SelectorTecnicos tecnicos={tecnicos} seleccion={ids} onCambiar={setIds} />
         {error && <p className="text-[13px] text-red font-semibold mt-2">{error}</p>}
         <button type="button" onClick={guardar} disabled={guardando}

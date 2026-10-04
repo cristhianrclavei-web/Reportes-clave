@@ -20,7 +20,7 @@ import { Plus, X, Check, Square, PackageCheck, PackageX, PackagePlus, AlertTrian
 function nombreDe(r: { profiles?: any }): string {
   const p = r.profiles;
   const nombre = Array.isArray(p) ? p[0]?.full_name : p?.full_name;
-  return nombre || 'el técnico';
+  return nombre || 'la persona';
 }
 
 function fmtFecha(iso: string): string {
@@ -699,7 +699,7 @@ export default function InsumosChecklist({
                     </div>
 
                     {i.es_del_tecnico && (
-                      <p className="text-[11.5px] text-amber font-semibold mt-1 ml-[42px]">Lo agregó el técnico</p>
+                      <p className="text-[11.5px] text-amber font-semibold mt-1 ml-[42px]">Se agregó en campo</p>
                     )}
 
                     {/* Segunda fila: acciones, solo cuando hay algo que hacer */}

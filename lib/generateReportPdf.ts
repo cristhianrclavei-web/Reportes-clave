@@ -758,7 +758,7 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
     espacio(notaL.length * 9 + 8 + firmasH);
     notaL.forEach((l) => { page.drawText(l, { x: MARGIN, y, size: 7, font, color: GRAY_TEXT }); y -= 9; });
     y -= 14;
-    await drawSignature(MARGIN, 'Técnico responsable', data.firmaIngNombre, data.firmaIngData);
+    await drawSignature(MARGIN, 'Responsable técnico', data.firmaIngNombre, data.firmaIngData);
     await drawFirmaCliente(MARGIN + sigW + 16, 'Cliente / responsable del sitio');
     y -= 18 + 60;
     pie();

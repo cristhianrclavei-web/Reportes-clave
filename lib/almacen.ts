@@ -609,7 +609,7 @@ export async function historialArticulo(articuloId: string): Promise<HistorialAr
     .map((r) => {
       const v = Array.isArray(r.almacen_vales) ? r.almacen_vales[0] : r.almacen_vales;
       const p = Array.isArray(v?.profiles) ? v.profiles[0] : v?.profiles;
-      return { folio: v?.folio, tecnico: p?.full_name || 'Técnico', cantidad: Number(r.cantidad_entregada), desde: v?.entregado_en, limite: v?.fecha_limite, cliente: v?.cliente_nombre };
+      return { folio: v?.folio, tecnico: p?.full_name || 'Personal técnico', cantidad: Number(r.cantidad_entregada), desde: v?.entregado_en, limite: v?.fecha_limite, cliente: v?.cliente_nombre };
     });
 
   const etiqueta: Record<string, string> = { entrada: 'Entrada', salida: 'Salida', retorno: 'Regresó', ajuste: 'Ajuste +', merma: 'Merma −' };

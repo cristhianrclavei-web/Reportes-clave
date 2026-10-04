@@ -192,7 +192,7 @@ async function generarAncha(d: DatosEtiqueta): Promise<Blob> {
     ['Cliente', d.cliente || '—'],
     ['Realizado', fechaDMA(d.fecha)],
     ['Próximo', proximo ? fechaDMA(proximo) : '—'],
-    ['Técnico', d.tecnico || '—'],
+    ['Atendió', d.tecnico || '—'],
   ];
   if (d.folio) filas.push(['Folio', d.folio]);
   const altoFila = filas.length > 4 ? 74 : 84;

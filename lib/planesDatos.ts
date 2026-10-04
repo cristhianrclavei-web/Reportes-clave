@@ -26,7 +26,7 @@ export const PLANES: Record<PlanClave, {
     usuarios: 5,
     precioMensual: 1490,
     lema: 'Para empezar a ordenar el trabajo en campo',
-    incluye: ['Reportes con fotos y firmas', 'Agenda y servicios', 'Ubicación de técnicos', 'Clientes'],
+    incluye: ['Reportes con fotos y firmas', 'Agenda y servicios', 'Ubicación del personal en campo', 'Clientes'],
   },
   profesional: {
     nombre: 'Profesional',

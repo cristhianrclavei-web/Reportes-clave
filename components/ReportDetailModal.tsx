@@ -42,9 +42,9 @@ export type ReportDetail = {
 };
 
 export function techName(profiles: any): string {
-  if (!profiles) return 'Técnico';
-  if (Array.isArray(profiles)) return profiles[0]?.full_name || 'Técnico';
-  return profiles.full_name || 'Técnico';
+  if (!profiles) return 'Personal técnico';
+  if (Array.isArray(profiles)) return profiles[0]?.full_name || 'Personal técnico';
+  return profiles.full_name || 'Personal técnico';
 }
 
 export default function ReportDetailModal({
@@ -128,7 +128,7 @@ export default function ReportDetailModal({
   }
 
   async function handleHabilitarCorreccion() {
-    if (!confirm('¿Autorizar al técnico a corregir este reporte?\n\nSolo podrá agregar fotos y cambiar el servicio vinculado. Quedará registrado en Actividad con tu nombre.')) return;
+    if (!confirm('¿Autorizar la corrección de este reporte?\n\nQuien lo hizo solo podrá agregar fotos y cambiar el servicio vinculado. Quedará registrado en Actividad con tu nombre.')) return;
     setProcesandoCorreccion(true);
     try {
       await habilitarCorreccion(report);
@@ -416,7 +416,7 @@ export default function ReportDetailModal({
           <div className="mb-5 p-4 rounded-2xl bg-amber/12 border-2 border-amber/40">
             <p className="font-display font-semibold text-[15px] text-amber mb-1 flex items-center gap-2">
               <MessageSquareWarning size={18} strokeWidth={2.5} />
-              {techName(report.profiles) || 'El técnico'} pidió corregir este reporte
+              {techName(report.profiles) || 'Su autor'} pidió corregir este reporte
             </p>
             {report.correccion_solicitada_en && (
               <p className="text-[12.5px] text-muted mb-2">
@@ -541,7 +541,7 @@ export default function ReportDetailModal({
             <Detail label="Fecha" value={report.fecha} />
             <Detail label="Ing a cargo" value={report.data?.ingACargo} />
             <Detail label="Personal adicional" value={(report.data?.personal || []).join(', ')} />
-            <Detail label="Técnico (cuenta)" value={techName(report.profiles)} />
+            <Detail label="Personal técnico (cuenta)" value={techName(report.profiles)} />
             <Detail
               label="Tipo"
               value={`${report.tipo_servicio || '—'}${report.sub_tipo_servicio ? ' · ' + report.sub_tipo_servicio : ''}${report.tipo_servicio === 'Otro' && report.data?.tipoServicioOtroTexto ? ' · ' + report.data.tipoServicioOtroTexto : ''}`}
@@ -807,7 +807,7 @@ export default function ReportDetailModal({
               Corrección autorizada
             </p>
             <p className="text-[13px] text-muted leading-relaxed mb-3">
-              El permiso se cierra solo cuando el técnico aplique los cambios.
+              El permiso se cierra solo cuando se apliquen los cambios.
             </p>
             <button
               onClick={handleCancelarCorreccion}

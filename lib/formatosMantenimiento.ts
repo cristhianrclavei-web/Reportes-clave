@@ -1007,7 +1007,7 @@ const PRUEBAS_DETECTORES: PlantillaFormato = {
     { key: 'monitoreo', label: 'Central de monitoreo', placeholder: 'Nombre y teléfono, o «Sin monitoreo»' },
     { key: 'equipoPrueba', label: 'Equipo de prueba utilizado', placeholder: 'Ej. Aerosol Solo A3 lote 2412, calor Solo 461, filtros de photobeam, pértiga' },
     { key: 'autorizo', label: 'Persona del cliente que autorizó las pruebas', placeholder: 'Nombre y puesto' },
-    { key: 'calificacion', label: 'Calificación del técnico', placeholder: 'Ej. Certificación del fabricante / NICET nivel II' },
+    { key: 'calificacion', label: 'Calificación de quien realizó la prueba', placeholder: 'Ej. Certificación del fabricante / NICET nivel II' },
   ],
   dispositivos: true,
   puntos: [

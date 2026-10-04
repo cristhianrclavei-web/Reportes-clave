@@ -21,9 +21,9 @@ export default function AutorReporte({ id, nombre, variante = 'compacto' }: { id
   if (variante === 'compacto') {
     return (
       <span className="flex items-center gap-2 min-w-0">
-        <span className="rounded-full ring-2 ring-teal/25 shrink-0"><AvatarTecnico id={id || undefined} nombre={nombre || 'Técnico'} size={34} /></span>
+        <span className="rounded-full ring-2 ring-teal/25 shrink-0"><AvatarTecnico id={id || undefined} nombre={nombre || 'Personal técnico'} size={34} /></span>
         <span className="min-w-0 leading-tight text-left">
-          <span className="block text-[13px] font-semibold truncate max-w-[150px]" title={nombre}>{corto(nombre || 'Técnico')}</span>
+          <span className="block text-[13px] font-semibold truncate max-w-[150px]" title={nombre}>{corto(nombre || 'Personal técnico')}</span>
           <span className="block text-[11px] text-muted truncate max-w-[150px]">{puesto}</span>
         </span>
       </span>
@@ -32,11 +32,11 @@ export default function AutorReporte({ id, nombre, variante = 'compacto' }: { id
 
   return (
     <div className="mb-5 rounded-2xl border border-line bg-surface-2/40 p-4 flex items-center gap-4">
-      <span className="rounded-full ring-4 ring-teal/20 shrink-0"><AvatarTecnico id={id || undefined} nombre={nombre || 'Técnico'} size={60} /></span>
+      <span className="rounded-full ring-4 ring-teal/20 shrink-0"><AvatarTecnico id={id || undefined} nombre={nombre || 'Personal técnico'} size={60} /></span>
       <div className="min-w-0 flex-1">
         <p className="text-[10.5px] uppercase tracking-wider text-muted mb-0.5">Elaborado por</p>
         <p className="font-display font-semibold text-[17px] leading-tight truncate">
-          {nombre || 'Técnico'}
+          {nombre || 'Personal técnico'}
           {perfil?.apodo && <span className="text-[13px] text-muted font-sans font-medium"> · «{perfil.apodo}»</span>}
         </p>
         <p className="text-[12.5px] text-muted">{puesto}</p>

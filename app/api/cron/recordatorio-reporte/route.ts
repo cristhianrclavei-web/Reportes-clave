@@ -91,14 +91,14 @@ export async function POST(request: NextRequest) {
     const atrasados = [...porTecnico].filter(([, fechas]) => fechas.length >= UMBRAL_ESCALAMIENTO);
     if (atrasados.length > 0) {
       const { data: perfiles } = await admin.from('profiles').select('id, full_name').in('id', atrasados.map(([id]) => id));
-      const nombre = (id: string) => ((perfiles as any[]) || []).find((p) => p.id === id)?.full_name?.split(' ')[0] || 'Técnico';
+      const nombre = (id: string) => ((perfiles as any[]) || []).find((p) => p.id === id)?.full_name?.split(' ')[0] || 'Personal técnico';
       const lista = atrasados
         .sort((a, b) => b[1].length - a[1].length)
         .map(([id, f]) => `${nombre(id)} (${f.length} días)`);
       const { data: sup } = await admin.rpc('destinatarios_notificacion_tipo', { p_destino: 'supervisores', p_tipo: 'reportes_atrasados' });
       const supIds = ((sup as any[]) || []).map((r) => (typeof r === 'string' ? r : r.destinatarios_notificacion_tipo));
       const carga = JSON.stringify({
-        titulo: atrasados.length === 1 ? `Reportes atrasados: ${lista[0]}` : `${atrasados.length} técnicos con reportes atrasados`,
+        titulo: atrasados.length === 1 ? `Reportes atrasados: ${lista[0]}` : `${atrasados.length} personas con reportes atrasados`,
         cuerpo: atrasados.length === 1 ? 'Ya recibió sus avisos y sigue sin entregar.' : lista.join(', '),
         url: '/dashboard/reportes?sub=control',
         tag: 'reportes-atrasados',
@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
     if (lista.length > 0) {
       const { data: alm } = await admin.rpc('destinatarios_notificacion_tipo', { p_destino: 'almacen', p_tipo: 'vale_almacen' });
       const ids = ((alm as any[]) || []).map((r) => (typeof r === 'string' ? r : r.destinatarios_notificacion_tipo));
-      const nombres = [...new Set(lista.map((v) => (Array.isArray(v.profiles) ? v.profiles[0]?.full_name : v.profiles?.full_name)?.split(' ')[0] || 'Técnico'))];
+      const nombres = [...new Set(lista.map((v) => (Array.isArray(v.profiles) ? v.profiles[0]?.full_name : v.profiles?.full_name)?.split(' ')[0] || 'Personal técnico'))];
       const carga = JSON.stringify({
         titulo: `${lista.length} vale(s) de almacén vencidos`,
         cuerpo: `Fuera del almacén con plazo vencido: ${nombres.join(', ')}.`,

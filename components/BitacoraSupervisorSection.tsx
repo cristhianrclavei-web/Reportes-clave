@@ -16,9 +16,9 @@ type ActividadConTecnico = {
 };
 
 function nombreTecnico(profiles: ActividadConTecnico['profiles']): string {
-  if (!profiles) return 'Técnico';
-  if (Array.isArray(profiles)) return profiles[0]?.full_name || 'Técnico';
-  return profiles.full_name || 'Técnico';
+  if (!profiles) return 'Personal técnico';
+  if (Array.isArray(profiles)) return profiles[0]?.full_name || 'Personal técnico';
+  return profiles.full_name || 'Personal técnico';
 }
 
 function tiempoTranscurrido(desde: string): string {
@@ -109,7 +109,7 @@ export default function BitacoraSupervisorSection() {
   if (error) {
     return (
       <div className="mb-6 p-4 rounded-2xl bg-red/10 border border-red/30">
-        <p className="text-red text-sm font-medium">No se pudo cargar la bitácora de técnicos.</p>
+        <p className="text-red text-sm font-medium">No se pudo cargar la bitácora del personal.</p>
         <p className="text-red/80 text-xs mt-1">{error}</p>
       </div>
     );
@@ -119,14 +119,14 @@ export default function BitacoraSupervisorSection() {
   return (
     <div className="mb-6">
       <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
-        <h2 className="font-display font-semibold text-[15px] tracking-wide">Bitácora de técnicos en campo</h2>
+        <h2 className="font-display font-semibold text-[15px] tracking-wide">Bitácora del personal en campo</h2>
         <div className="flex items-center gap-2">
           <select
             value={tecnicoFiltro}
             onChange={(e) => setTecnicoFiltro(e.target.value)}
             className="px-3 py-1.5 rounded-full bg-surface-2 border border-line text-[12px] focus:border-teal focus:outline-none"
           >
-            <option value="todos">Todos los técnicos</option>
+            <option value="todos">Todo el personal</option>
             {tecnicos.map((t) => (
               <option key={t} value={t}>{t}</option>
             ))}

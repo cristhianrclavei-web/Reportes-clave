@@ -614,7 +614,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
       return;
     }
     if (tecnicoIds.length === 0) {
-      setError('Selecciona al menos un técnico.');
+      setError('Selecciona al menos a una persona.');
       return;
     }
     const tareasLimpias = tareas.map((t) => t.trim()).filter(Boolean);
@@ -1038,7 +1038,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
               {ubicError && <p className="text-[12px] text-red mt-2">{ubicError}</p>}
             </div>
             <p className="text-[11px] text-faint">
-              Con esto el técnico puede marcar llegada solo, comparando su GPS contra este punto.
+              Con esto se puede marcar la llegada desde el sitio, comparando su GPS contra este punto.
             </p>
             </div>
 
@@ -1059,10 +1059,10 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
             </div>
 
             <div className={cardCls}>
-              <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Técnicos asignados</p>
+              <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Personal asignado</p>
               <ElegirCuadrilla disponibles={tecnicos.map((t) => t.id)} seleccion={tecnicoIds} onCambiar={setTecnicoIds} className="mb-3 pb-3 border-b border-line" />
               <div className="flex flex-wrap gap-2">
-                {tecnicos.length === 0 && <p className="text-muted text-[12px]">No hay técnicos registrados.</p>}
+                {tecnicos.length === 0 && <p className="text-muted text-[12px]">No hay personal técnico registrado.</p>}
                 {tecnicos.map((t) => (
                   <span
                     key={t.id}
@@ -1103,7 +1103,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
                   supervisor sabe qué se necesita para el trabajo. */}
               <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Herramienta, material y equipo</p>
               <p className="text-[12.5px] text-muted mb-2.5">
-                El técnico la verifica al salir y al regresar.
+                Se verifica al salir y al regresar.
               </p>
 
               {plantillas.length > 0 && (

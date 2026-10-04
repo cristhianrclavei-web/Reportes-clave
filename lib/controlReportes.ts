@@ -45,7 +45,7 @@ export async function cargarControl(desde: string, hasta: string): Promise<{
   if (cob.error) throw cob.error;
   if (sv.error) throw sv.error;
   return {
-    tecnicos: ((tec.data as any[]) || []).filter((t) => t.activo !== false).map((t) => ({ id: t.id, nombre: t.full_name || 'Técnico' })),
+    tecnicos: ((tec.data as any[]) || []).filter((t) => t.activo !== false).map((t) => ({ id: t.id, nombre: t.full_name || 'Personal técnico' })),
     cobertura: (cob.data as FilaCobertura[]) || [],
     servicios: ((sv.data as any[]) || []).map(({ servicio_tecnicos, ...s }) => ({
       ...s,

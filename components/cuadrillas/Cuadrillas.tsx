@@ -198,7 +198,7 @@ function EditorCuadrilla({
 
         <label className={labelCls}>Integrantes · {miembros.length}</label>
         <div className="rounded-2xl border border-line divide-y divide-line mb-4 max-h-[38vh] overflow-y-auto">
-          {tecnicos.length === 0 && <p className="text-[13px] text-muted p-3">No hay técnicos activos.</p>}
+          {tecnicos.length === 0 && <p className="text-[13px] text-muted p-3">No hay personal técnico activo.</p>}
           {tecnicos.map((t) => {
             const sel = miembros.includes(t.id);
             const otra = mapa.get(t.id);

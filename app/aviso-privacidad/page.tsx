@@ -41,7 +41,7 @@ export default function AvisoPrivacidadPage() {
         </p>
 
         <h2 className={h2}>Datos personales que recabamos</h2>
-        <p className={p}>Del personal que usa la app (técnicos y supervisores):</p>
+        <p className={p}>Del personal que usa la app (personal técnico y de supervisión):</p>
         <ul className="list-disc pl-5 mb-3">
           <li className={li}>Nombre completo, correo electrónico y teléfono.</li>
           <li className={li}>Firma (autógrafa digitalizada o electrónica) en reportes y formatos.</li>

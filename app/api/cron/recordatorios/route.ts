@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
         recordados.push(f.id);
       }
     } else if (!f.escalado_enterado_en && tocaAvisarSupervisores({ recordatorioEn: f.recordatorio_enterado_en, horaMin: horaActualMin, ahoraMs })) {
-      const nombre = (Array.isArray(f.profiles) ? f.profiles[0]?.full_name : f.profiles?.full_name) || 'Un técnico';
+      const nombre = (Array.isArray(f.profiles) ? f.profiles[0]?.full_name : f.profiles?.full_name) || 'Alguien del equipo';
       const g = porEscalar.get(sv.id) || { proyecto: sv.proyecto as string, fecha: fechaTxt, nombres: [] as string[], filas: [] as string[] };
       g.nombres.push(nombre);
       g.filas.push(f.id);

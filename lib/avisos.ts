@@ -115,7 +115,7 @@ export async function crearAviso(input: {
   await notificar({
     tipo: 'aviso_servicio',
     titulo: `Aviso sobre ${sv?.proyecto || 'un servicio'}`,
-    mensaje: `${perfil?.full_name || 'Un técnico'}: ${etiquetaCausa(input.causa)}${
+    mensaje: `${perfil?.full_name || 'Alguien del equipo'}: ${etiquetaCausa(input.causa)}${
       sv?.fecha ? ` · ${sv.fecha}` : ''
     }`,
     url: '/dashboard/servicios',
@@ -148,7 +148,7 @@ export async function listarAvisosPendientes(): Promise<AvisoPendiente[]> {
   return ((data as any[]) || []).map((a) => ({
     ...a,
     servicio: a.servicios_programados || null,
-    tecnico: a.profiles?.full_name || 'Técnico',
+    tecnico: a.profiles?.full_name || 'Personal técnico',
   }));
 }
 

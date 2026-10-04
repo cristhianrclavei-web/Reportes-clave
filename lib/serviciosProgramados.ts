@@ -195,7 +195,7 @@ export async function crearServicio(input: {
     'programo_servicio',
     'servicio',
     diasCreados[0].id,
-    `Programó «${input.proyecto}» — ${diasTotales} día(s), ${input.tecnicoIds.length} técnico(s), ${input.tareas.length} tarea(s). Fechas: ${fechas.join(', ')}`
+    `Programó «${input.proyecto}» — ${diasTotales} día(s), ${input.tecnicoIds.length} persona(s), ${input.tareas.length} tarea(s). Fechas: ${fechas.join(', ')}`
   );
 
   // Avisar a quienes quedaron asignados: es el dato que hoy tienen que
@@ -444,7 +444,7 @@ export async function listarConfirmacionesPorServicio(): Promise<Record<string, 
   (data || []).forEach((r: any) => {
     const nombre = Array.isArray(r.profiles) ? r.profiles[0]?.full_name : r.profiles?.full_name;
     if (!mapa[r.servicio_id]) mapa[r.servicio_id] = [];
-    mapa[r.servicio_id].push({ tecnico_id: r.tecnico_id, nombre: nombre || 'Técnico', visto_en: r.visto_en, enterado_en: r.enterado_en });
+    mapa[r.servicio_id].push({ tecnico_id: r.tecnico_id, nombre: nombre || 'Personal técnico', visto_en: r.visto_en, enterado_en: r.enterado_en });
   });
   return mapa;
 }
@@ -491,7 +491,7 @@ export async function confirmarServicio(servicio: Pick<Servicio, 'id' | 'proyect
       destino: 'supervisores',
       tipo: 'servicio_confirmado',
       titulo: 'Servicio confirmado',
-      mensaje: `${perfil?.full_name || 'Un técnico'} está enterado de «${servicio.proyecto}» (${servicio.dias_totales > 1 ? `${n} día(s) desde el ` : ''}${d}/${m}/${y})`,
+      mensaje: `${perfil?.full_name || 'Alguien del equipo'} está enterado de «${servicio.proyecto}» (${servicio.dias_totales > 1 ? `${n} día(s) desde el ` : ''}${d}/${m}/${y})`,
       url: `/dashboard/servicios/${servicio.id}`,
       tag: `servicio-confirmado-${servicio.id}`,
     });
@@ -575,7 +575,7 @@ export async function avisarTecnicoFueraDeSitio(servicioId: string): Promise<voi
   await notificar({
     destino: 'supervisores',
     tipo: 'tecnico_fuera_de_sitio',
-    titulo: 'Técnico en sitio sin asignar',
+    titulo: 'Personal en sitio sin asignar',
     mensaje: `${quien} está en un sitio programado donde no tiene servicio asignado.`,
     url: `/dashboard/servicios/${servicioId}`,
     tag: 'anomalia-sitio',
@@ -693,7 +693,7 @@ export async function obtenerServicioCompleto(id: string) {
 // base lo impide de todos modos (patch_bloquear_edicion_servicio.sql); esto es
 // para dar un mensaje legible en vez de un error de Postgres.
 export function motivoNoEditable(estado: Servicio['estado']): string | null {
-  if (estado === 'en_curso') return 'El técnico ya empezó este servicio. Para cambiarlo hay que esperar a que cierre o pedirle que lo detenga.';
+  if (estado === 'en_curso') return 'Este servicio ya empezó. Para cambiarlo hay que esperar a que cierre o pedirle que lo detenga.';
   if (estado === 'concluido') return 'Este servicio ya está concluido. Lo registrado es el respaldo de lo que se hizo y no se modifica.';
   return null;
 }
@@ -741,7 +741,7 @@ export async function reasignarTecnicos(id: string, tecnicoIds: string[], descri
     .from('servicios_programados').select('estado').eq('id', id).single();
   if (eSv) throw eSv;
   if (motivoNoEditable(svActual.estado)) {
-    throw new Error('No se pueden cambiar los técnicos de un servicio que ya empezó. Quien hizo el trabajo debe seguir apareciendo en él.');
+    throw new Error('No se puede cambiar el personal de un servicio que ya empezó. Quien hizo el trabajo debe seguir apareciendo en él.');
   }
 
   // Solo se quitan los que salen y se agregan los que entran: quien sigue
@@ -968,9 +968,9 @@ export async function marcarLlegada(servicioId: string) {
 async function nombreDelUsuario(): Promise<string> {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return 'Un técnico';
+  if (!user) return 'Alguien del equipo';
   const { data } = await supabase.from('profiles').select('full_name').eq('id', user.id).single();
-  return data?.full_name || 'Un técnico';
+  return data?.full_name || 'Alguien del equipo';
 }
 
 export async function iniciarServicio(servicioId: string) {
@@ -1348,7 +1348,7 @@ export async function listarServiciosSinReporte(): Promise<ServicioSinReporte[]>
   (asignaciones || []).forEach((r: any) => {
     const nombre = Array.isArray(r.profiles) ? r.profiles[0]?.full_name : r.profiles?.full_name;
     if (!tecnicosPorServicio[r.servicio_id]) tecnicosPorServicio[r.servicio_id] = [];
-    tecnicosPorServicio[r.servicio_id].push({ id: r.tecnico_id, nombre: nombre || 'Técnico' });
+    tecnicosPorServicio[r.servicio_id].push({ id: r.tecnico_id, nombre: nombre || 'Personal técnico' });
   });
 
   return (servicios as any[]).map((s) => ({ ...s, tecnicos: tecnicosPorServicio[s.id] || [] }));
@@ -1417,7 +1417,7 @@ export async function buscarReportesParaVincular(servicioId: string): Promise<Re
       empresa_cliente: r.empresa_cliente,
       fecha: r.fecha,
       claveFormato: r.data?.claveFormato || '—',
-      tecnico: Array.isArray(r.profiles) ? r.profiles[0]?.full_name : r.profiles?.full_name || 'Técnico',
+      tecnico: Array.isArray(r.profiles) ? r.profiles[0]?.full_name : r.profiles?.full_name || 'Personal técnico',
     }));
 }
 

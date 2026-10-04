@@ -22,7 +22,7 @@ export async function GET(_request: NextRequest, props: { params: Promise<{ id: 
   const r: any = data;
   const vale = {
     ...r,
-    tecnico: r.tecnico?.full_name || 'Técnico',
+    tecnico: r.tecnico?.full_name || 'Personal técnico',
     entregadoPor: r.entrega?.full_name || null,
     recibidoPor: r.recibe?.full_name || null,
     items: (r.almacen_vale_items || []).map(({ almacen_articulos, ...i }: any) => ({ ...i, articulo: almacen_articulos })).sort((a: any, b: any) => a.orden - b.orden),

@@ -45,7 +45,7 @@ export async function crearActividad(proyecto: string, titulo: string): Promise<
     destino: 'supervisores',
     tipo: 'bitacora_inicio',
     titulo: 'Actividad iniciada',
-    mensaje: `${perfil?.full_name || 'Un técnico'} abrió «${titulo}»${proyecto ? ` en ${proyecto}` : ''}`,
+    mensaje: `${perfil?.full_name || 'Alguien del equipo'} abrió «${titulo}»${proyecto ? ` en ${proyecto}` : ''}`,
     url: '/dashboard',
     tag: 'bitacora',
   });
@@ -130,7 +130,7 @@ async function cambiarEstado(actividadId: string, tipo: 'pausa' | 'reanudacion' 
       destino: 'supervisores',
       tipo: 'bitacora_fin',
       titulo: 'Actividad concluida',
-      mensaje: `${perfil?.full_name || 'Un técnico'} terminó «${act?.titulo || 'una actividad'}»${act?.proyecto ? ` en ${act.proyecto}` : ''}`,
+      mensaje: `${perfil?.full_name || 'Alguien del equipo'} terminó «${act?.titulo || 'una actividad'}»${act?.proyecto ? ` en ${act.proyecto}` : ''}`,
       url: '/dashboard',
       tag: 'bitacora',
     });

@@ -108,7 +108,7 @@ export default function ReportesList({
   const columnas: ColumnaTabla<Report>[] = [
     { header: 'Cliente / Empresa', render: (r) => <span className="font-semibold">{r.empresa_cliente}</span> },
     { header: 'Folio', render: (r) => <span className="font-mono text-teal">{r.data?.claveFormato || '—'}</span> },
-    { header: 'Técnico', render: (r) => techName(r.profiles) },
+    { header: 'Personal técnico', render: (r) => techName(r.profiles) },
     {
       header: 'Estado',
       render: (r) => (
@@ -238,7 +238,7 @@ export default function ReportesList({
                 </p>
                 <p className="text-[13px] text-muted leading-relaxed max-w-[280px]">
                   {reports.length === 0
-                    ? 'Aparecerán aquí conforme los técnicos completen servicios.'
+                    ? 'Aparecerán aquí conforme se completen servicios.'
                     : search
                     ? 'Sin resultados para esa búsqueda.'
                     : 'No hay reportes en estas fechas. Cambia de semana o toca «Toda la semana».'}

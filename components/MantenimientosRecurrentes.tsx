@@ -161,7 +161,7 @@ export default function MantenimientosRecurrentes() {
                 </p>
                 {r.descripcion && <p className="text-[12.5px] mt-0.5 truncate">{r.descripcion}</p>}
                 <p className="text-[12px] text-muted mt-0.5">
-                  {r.tecnico_ids.length ? r.tecnico_ids.map(nombreTec).join(', ') : 'Sin técnicos predefinidos'}
+                  {r.tecnico_ids.length ? r.tecnico_ids.map(nombreTec).join(', ') : 'Sin personal predefinido'}
                   {r.ultima_programacion ? ` · último: ${fechaBonita(r.ultima_programacion)}` : ''}
                 </p>
               </div>
@@ -264,7 +264,7 @@ function FormRecurrente({ inicial, tecnicos, onClose, onListo }: {
             </select>
           </>
         )}
-        <label className={labelCls}>Técnicos de siempre (opcional)</label>
+        <label className={labelCls}>Personal de siempre (opcional)</label>
         <SelectorTecnicos tecnicos={tecnicos} seleccion={ids} onCambiar={setIds} />
         <label className={`${labelCls} mt-2`}>Notas (opcional)</label>
         <input className={`${inputCls} mb-3`} value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Ej. Avisar a mantenimiento 2 días antes" />
