@@ -1,5 +1,6 @@
 'use client';
 
+import { coincideBusqueda } from '@/lib/busqueda';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
@@ -187,6 +188,33 @@ export default function TableroDia({ onAgendar }: {
       || (sv.estado === 'concluido' && !sv.report_id)
       || (e.corto === 'Sin ver' && fecha <= hoy);
   }
+
+  // ---- Celular: la gente por grupos según lo que está pasando ----
+  const [busca, setBusca] = useState('');
+  // Plegados al abrir: lo que no pide atención.
+  const [plegadosMovil, setPlegadosMovil] = useState<Set<string>>(new Set(['concluidos', 'libres']));
+  const alternarGrupoMovil = (k: string) => setPlegadosMovil((p) => { const n = new Set(p); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+  const gruposMovil = (() => {
+    const q = busca.trim();
+    const lista = (q
+      ? filas.filter((f) => coincideBusqueda(`${f.nombre} ${f.servicios.map((sv) => sv.proyecto).join(' ')}`, q))
+      : filas
+    ).slice().sort((x, y) => x.nombre.localeCompare(y.nombre));
+    const de = (f: (typeof filas)[number]) => {
+      if (f.servicios.length === 0) return 'libres';
+      if (f.servicios.some((sv) => alertaDe(sv, f.id))) return 'atencion';
+      if (f.servicios.some((sv) => sv.estado === 'en_sitio' || sv.estado === 'en_curso')) return 'campo';
+      if (f.servicios.every((sv) => sv.estado === 'concluido' || sv.estado === 'cancelado')) return 'concluidos';
+      return 'porIniciar';
+    };
+    return [
+      { k: 'atencion', titulo: 'Requieren atención', tono: 'text-red', punto: 'bg-red' },
+      { k: 'campo', titulo: 'En campo', tono: 'text-teal', punto: 'bg-teal' },
+      { k: 'porIniciar', titulo: 'Por iniciar', tono: '', punto: 'bg-amber' },
+      { k: 'concluidos', titulo: 'Ya concluyeron', tono: '', punto: 'bg-line-strong' },
+      { k: 'libres', titulo: 'Disponibles', tono: '', punto: 'bg-line-strong' },
+    ].map((g) => ({ ...g, gente: lista.filter((f) => de(f) === g.k) }));
+  })();
 
   const visibles = filas.filter((f) => {
     if (filtro === 'sin') return f.servicios.length === 0;
@@ -399,49 +427,94 @@ export default function TableroDia({ onAgendar }: {
         </div>
       )}
 
-      <div className="lg:hidden flex items-center gap-1.5 mb-2 overflow-x-auto -mx-1 px-1 [&>span]:shrink-0 [&>span]:mb-0 [&>span]:mr-0 [&>span]:text-[12px] [&>span]:px-2.5 [&>span]:py-1" style={{ scrollbarWidth: 'none' }}>
-        {([
-          ['todos', `Todos ${filas.length}`],
-          ['alertas', `Alertas ${filas.filter((f) => f.servicios.some((sv) => alertaDe(sv, f.id))).length}`],
-          ['campo', `En campo ${filas.filter((f) => f.servicios.some((sv) => sv.estado === 'en_sitio' || sv.estado === 'en_curso')).length}`],
-          ['sin', `Disponibles ${filas.filter((f) => f.servicios.length === 0).length}`],
-        ] as [Filtro, string][]).map(([k, l]) => (
-          <span key={k} className={chip(filtro === k)} onClick={() => setFiltro(k)}>{l}</span>
-        ))}
-      </div>
+      {/* Celular: buscador y la gente agrupada por lo que está pasando, en
+          secciones que se pliegan. Con mucho personal la lista plana se
+          saturaba: ahora se ve primero lo que hay que atender y quién está en
+          campo; quienes ya concluyeron o están disponibles quedan plegados. */}
+      {datos && filas.length > 0 && (
+        <div className="lg:hidden">
+          <div className="relative mb-2.5">
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+            <input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar persona o servicio"
+              className="w-full h-11 pl-10 pr-10 rounded-full bg-surface border border-line focus:border-teal focus:outline-none text-[14px] placeholder:text-muted"
+            />
+            {busca && (
+              <button type="button" onClick={() => setBusca('')} aria-label="Borrar búsqueda" className="absolute right-1.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center text-muted">
+                <X size={16} />
+              </button>
+            )}
+          </div>
 
-      {/* Celular: la gente de la cuadrilla elegida (o todos), en lista. Cada
-          renglón se despliega con sus servicios; primero lo que hay que atender. */}
-      {visibles.length > 0 && (
-        <div className="lg:hidden rounded-2xl bg-surface border border-line divide-y divide-line overflow-hidden">
-          {[...visibles].sort((a, b) => pesoFila(a) - pesoFila(b) || a.nombre.localeCompare(b.nombre)).map((f) => {
-            const abierto = selId === f.id;
-            const enCurso = f.servicios.find((sv) => sv.estado === 'en_sitio' || sv.estado === 'en_curso');
-            const resumenFila = f.servicios.length === 0 ? 'Disponible'
-              : enCurso ? `${enCurso.estado === 'en_curso' ? 'En curso' : 'En sitio'} · ${enCurso.proyecto}`
-              : `${f.servicios.length} servicio${f.servicios.length > 1 ? 's' : ''} · ${f.servicios.filter((sv) => sv.estado === 'concluido').length} concluido(s)`;
-            return (
-              <div key={f.id}>
-                <button type="button" onClick={() => setSelId(abierto ? null : f.id)} aria-expanded={abierto}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 text-left transition-colors ${abierto ? 'bg-teal/8' : 'active:bg-surface-2/60'}`}>
-                  <AvatarTecnico id={f.id} nombre={f.nombre} size={36} estado={estadoTecnico(f)} indice={indiceTec(f.id)} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[14.5px] font-semibold truncate">{f.nombre}</span>
-                    <span className={`block text-[12.5px] truncate ${f.servicios.length === 0 ? 'text-faint' : 'text-muted'}`}>{resumenFila}</span>
-                  </span>
-                  {f.servicios.length > 0 && (
-                    <span className="text-[12px] font-bold tabular-nums w-6 h-6 rounded-full bg-surface-2 flex items-center justify-center shrink-0">{f.servicios.length}</span>
+          {gruposMovil.every((g) => g.gente.length === 0) && (
+            <p className="text-[13px] text-muted text-center py-6">Nadie coincide con «{busca}».</p>
+          )}
+
+          <div className="flex flex-col gap-2.5">
+            {gruposMovil.filter((g) => g.gente.length > 0).map((g) => {
+              const abiertoGrupo = busca.trim() !== '' || !plegadosMovil.has(g.k);
+              return (
+                <section key={g.k} className="rounded-2xl bg-surface border border-line overflow-hidden">
+                  <button type="button" onClick={() => alternarGrupoMovil(g.k)} aria-expanded={abiertoGrupo}
+                    className="w-full flex items-center gap-2.5 px-3.5 min-h-[44px] text-left">
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${g.punto}`} />
+                    <span className={`text-[13.5px] font-semibold flex-1 ${g.tono}`}>{g.titulo}</span>
+                    <span className="text-[12.5px] font-bold tabular-nums text-muted">{g.gente.length}</span>
+                    <ChevronDown size={16} className={`text-muted shrink-0 transition-transform duration-200 ${abiertoGrupo ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {/* Disponibles: no hay nada que ver de cada quien, así que
+                      van como botones compactos para asignarles un servicio. */}
+                  {abiertoGrupo && g.k === 'libres' && (
+                    <div className="flex flex-wrap gap-1.5 px-3 pb-3 border-t border-line pt-2.5">
+                      {g.gente.map((f) => (
+                        <button key={f.id} type="button" onClick={() => pedirAsignar([f.id])}
+                          className="pl-1 pr-2.5 h-9 rounded-full bg-surface-2 border border-line text-[13px] font-medium flex items-center gap-1.5 active:scale-95">
+                          <AvatarTecnico id={f.id} nombre={f.nombre} size={26} indice={indiceTec(f.id)} />
+                          {f.nombre.split(' ')[0]} {f.nombre.split(' ')[1]?.[0] ? `${f.nombre.split(' ')[1][0]}.` : ''}
+                          <Plus size={14} className="text-teal" />
+                        </button>
+                      ))}
+                    </div>
                   )}
-                  <ChevronDown size={17} className={`text-muted shrink-0 transition-transform duration-200 ${abierto ? 'rotate-180' : ''}`} />
-                </button>
-                {abierto && (
-                  <div className="px-2.5 pb-2.5 pt-0.5 bg-teal/8">
-                    {f.servicios.length > 0 ? tarjeta(f, false) : sinServicio(f)}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+
+                  {abiertoGrupo && g.k !== 'libres' && (
+                    <div className="divide-y divide-line border-t border-line">
+                      {g.gente.map((f) => {
+                        const abierto = selId === f.id;
+                        const enCurso = f.servicios.find((sv) => sv.estado === 'en_sitio' || sv.estado === 'en_curso');
+                        const primero = enCurso || f.servicios[0];
+                        const resumenFila = enCurso
+                          ? `${enCurso.estado === 'en_curso' ? 'En curso' : 'En sitio'} · ${enCurso.proyecto}`
+                          : g.k === 'concluidos'
+                            ? `${f.servicios.length} concluido${f.servicios.length > 1 ? 's' : ''} · ${primero.proyecto}`
+                            : `${primero.hora_programada ? `${String(primero.hora_programada).slice(0, 5)} · ` : ''}${primero.proyecto}`;
+                        return (
+                          <div key={f.id}>
+                            <button type="button" onClick={() => setSelId(abierto ? null : f.id)} aria-expanded={abierto}
+                              className={`w-full flex items-center gap-2.5 px-3.5 py-2 text-left transition-colors ${abierto ? 'bg-teal/8' : 'active:bg-surface-2/60'}`}>
+                              <AvatarTecnico id={f.id} nombre={f.nombre} size={32} estado={estadoTecnico(f)} indice={indiceTec(f.id)} />
+                              <span className="min-w-0 flex-1">
+                                <span className="block text-[14px] font-semibold leading-tight truncate">{f.nombre}</span>
+                                <span className="block text-[12.5px] text-muted truncate">{resumenFila}</span>
+                              </span>
+                              {f.servicios.length > 1 && (
+                                <span className="text-[11.5px] font-bold tabular-nums px-1.5 h-5 rounded-full bg-surface-2 flex items-center justify-center shrink-0">{f.servicios.length}</span>
+                              )}
+                              <ChevronDown size={16} className={`text-muted shrink-0 transition-transform duration-200 ${abierto ? 'rotate-180' : ''}`} />
+                            </button>
+                            {abierto && <div className="px-2.5 pb-2.5 pt-0.5 bg-teal/8">{tarjeta(f, false)}</div>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+              );
+            })}
+          </div>
         </div>
       )}
 
