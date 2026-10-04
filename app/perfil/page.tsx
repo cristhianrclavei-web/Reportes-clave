@@ -8,7 +8,7 @@ import AdminUsersSection from '@/components/AdminUsersSection';
 import LogoutButton from '@/components/LogoutButton';
 import ThemeToggle from '@/components/ThemeToggle';
 import Logo from '@/components/Logo';
-import { ChevronLeft, ChevronRight, BadgeCheck } from 'lucide-react';
+import { ChevronLeft, ChevronRight, BadgeCheck, UserCog } from 'lucide-react';
 import { DEMO } from '@/lib/marca';
 
 export const dynamic = 'force-dynamic';
@@ -100,7 +100,23 @@ export default async function PerfilPage() {
             </Link>
           )}
 
-          {esGestor && <AdminUsersSection initialUsers={usuarios} />}
+          {/* Usuarios: quien supervisa los administra en Personal → Usuarios
+              (alta, rol, permisos, baja). El gestor que no es supervisor
+              conserva aquí la lista sencilla. */}
+          {esGestor && profile.role === 'supervisor' && (
+            <Link
+              href="/dashboard/personal?sub=usuarios"
+              className="rounded-2xl bg-surface border border-line p-5 flex items-center gap-3 hover:border-teal/50 active:scale-[0.99] transition-all"
+            >
+              <UserCog size={20} strokeWidth={2.4} className="text-teal shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="font-display font-bold text-[19px] tracking-wide">Usuarios</p>
+                <p className="text-[13px] text-muted">Altas, roles, permisos y bajas</p>
+              </div>
+              <ChevronRight size={20} className="text-muted shrink-0" />
+            </Link>
+          )}
+          {esGestor && profile.role !== 'supervisor' && <AdminUsersSection initialUsers={usuarios} />}
         </PersonalizarPerfil>
 
         <Link

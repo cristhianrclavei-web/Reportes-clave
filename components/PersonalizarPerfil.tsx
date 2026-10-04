@@ -1,7 +1,8 @@
 'use client';
 
 import { ReactNode, useRef, useState } from 'react';
-import { Camera, Images, Trash2, Check, HeartPulse, Shirt, Sparkles, BriefcaseBusiness, Eye } from 'lucide-react';
+import { Camera, Images, Trash2, Check, HeartPulse, Shirt, Sparkles, BriefcaseBusiness, Eye, ChevronDown } from 'lucide-react';
+import SelectorOpciones from '@/components/SelectorOpciones';
 import { showToast } from '@/components/Toast';
 import { AvatarTecnico, UNIFORMES, ESTILOS_AVATAR } from '@/components/AvatarTecnico';
 import { ESPECIALIDADES, TIPOS_SANGRE, TALLAS_CAMISA, guardarMiPerfil, subirMiFoto, quitarMiFoto, urlFoto } from '@/lib/perfiles';
@@ -204,16 +205,14 @@ export default function PersonalizarPerfil({ profile, children }: { profile: any
             </div>
           </div>
           <label className={labelCls}>Especialidades</label>
-          <div className="flex flex-wrap gap-1.5">
-            {ESPECIALIDADES.map((e) => {
-              const sel = esp.includes(e);
-              return (
-                <button key={e} type="button" aria-pressed={sel} onClick={() => setEsp((prev) => (prev.includes(e) ? prev.filter((x) => x !== e) : [...prev, e]))} className={chipCls(sel)}>
-                  {sel && '✓ '}{e}
-                </button>
-              );
-            })}
-          </div>
+          <SelectorOpciones
+            opciones={ESPECIALIDADES}
+            valor={esp}
+            onCambiar={setEsp}
+            placeholder="Escribe para buscar: CCTV, incendio, eléctrico…"
+            etiquetaOtra="otra especialidad"
+          />
+          <p className="text-[12px] text-faint mt-1.5">Elige todas las que apliquen. Si la tuya no está, escríbela y agrégala.</p>
         </Seccion>
 
         <Seccion Icono={HeartPulse} titulo="En caso de emergencia" nota="Opcional. Solo lo ven tú y los supervisores, por si te pasa algo en campo.">
@@ -225,10 +224,12 @@ export default function PersonalizarPerfil({ profile, children }: { profile: any
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
             <div>
               <label className={labelCls}>Tipo de sangre</label>
-              <div className="flex flex-wrap gap-1.5">
-                {TIPOS_SANGRE.map((t) => (
-                  <button key={t} type="button" aria-pressed={sangre === t} onClick={() => setSangre(sangre === t ? '' : t)} className={`${chipCls(sangre === t)} min-w-[52px] tabular-nums`}>{t}</button>
-                ))}
+              <div className="relative">
+                <select value={sangre} onChange={(e) => setSangre(e.target.value)} className={`${inputCls} appearance-none pr-10`}>
+                  <option value="">Sin especificar</option>
+                  {TIPOS_SANGRE.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+                <ChevronDown size={17} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
               </div>
             </div>
             <div>

@@ -39,7 +39,11 @@ export type AccionGlobal =
   | 'marco_festivo'
   | 'quito_festivo'
   | 'unio_clientes'
-  | 'cambio_en_dia';
+  | 'cambio_en_dia'
+  // Administración de usuarios (las registra el servidor, /api/usuarios).
+  | 'creo_usuario'
+  | 'edito_usuario'
+  | 'elimino_usuario';
 
 export type EntradaAuditoria = {
   id: string;

@@ -1,5 +1,6 @@
 'use client';
 
+import SelectorOpciones from '@/components/SelectorOpciones';
 import { reducirFoto } from '@/lib/reducirFoto';
 import { ContactoCatalogo, catalogoEnCache, normalizar as normalizarNombre } from '@/lib/clientesCatalogo';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
@@ -48,6 +49,8 @@ const TIPOS = ['Instalación nueva', 'Mantenimiento', 'Otro'];
 const SUBTIPOS = ['Correctivo', 'Preventivo'];
 const SEGURIDAD_OPTS = ['CCTV', 'Automatización', 'Alarma&Det', 'Control de acceso', 'Alarma intrusión', 'Red contra incendio', 'Supresión', 'Inst. eléctricas', 'Paneles solares', 'Otra'];
 
+// Sistemas del catálogo (sin «Otra», que ahora se escribe en el propio selector).
+const SISTEMAS_CATALOGO = SEGURIDAD_OPTS.filter((x) => x !== 'Otra');
 const inputCls =
   'w-full px-3.5 py-2.5 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal-glow text-[15px] transition-colors placeholder:text-faint';
 const labelCls = 'block text-[11px] font-semibold uppercase tracking-wider text-muted mb-1.5';
@@ -1468,16 +1471,28 @@ export default function NuevoReportePage() {
         {/* Tipo de servicio */}
         <div className={cardCls}>
           <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Tipo de servicio</p>
-          {TIPOS.map((t) => (
-            <span key={t} className={chipCls(tipoServicio === t)} onClick={() => { setTipoServicio(t); if (t !== 'Mantenimiento') setSubTipo(null); }}>{t}</span>
-          ))}
-          {tipoServicio === 'Mantenimiento' && (
-            <div className="mt-1">
-              {SUBTIPOS.map((s) => (
-                <span key={s} className={chipCls(subTipo === s)} onClick={() => setSubTipo(s)}>{s}</span>
+          {/* Menú desplegable: el mantenimiento se elige ya con su tipo. */}
+          <div className="relative">
+            <select
+              value={tipoServicio === 'Mantenimiento' ? `Mantenimiento|${subTipo || ''}` : tipoServicio || ''}
+              onChange={(e) => {
+                const [t, sub] = e.target.value.split('|');
+                setTipoServicio(t || null);
+                setSubTipo(t === 'Mantenimiento' ? sub || null : null);
+              }}
+              className={`${inputCls} appearance-none pr-10 min-h-[48px]`}
+            >
+              <option value="">Elige el tipo de servicio…</option>
+              <option value="Instalación nueva">Instalación nueva</option>
+              {SUBTIPOS.map((sub) => (
+                <option key={sub} value={`Mantenimiento|${sub}`}>Mantenimiento {sub.toLowerCase()}</option>
               ))}
-            </div>
-          )}
+              {/* Reportes viejos pueden traer «Mantenimiento» sin tipo. */}
+              {tipoServicio === 'Mantenimiento' && !subTipo && <option value="Mantenimiento|">Mantenimiento (elige preventivo o correctivo)</option>}
+              <option value="Otro">Otro (especificar)</option>
+            </select>
+            <ChevronDown size={17} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+          </div>
           {tipoServicio === 'Otro' && (
             <div className="mt-2">
               <label className={labelCls}>Especifica</label>
@@ -1487,17 +1502,27 @@ export default function NuevoReportePage() {
         </div>
 
         {/* Sistema de seguridad */}
-        <div className={cardCls}>
+        {/* z-20: la lista desplegable debe quedar encima de las tarjetas de abajo. */}
+        <div className={`${cardCls} relative z-20`}>
           <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Sistema de seguridad</p>
-          {SEGURIDAD_OPTS.map((s) => (
-            <span key={s} className={chipCls(seguridad.includes(s))} onClick={() => toggleSeguridad(s)}>{s}</span>
-          ))}
-          {seguridad.includes('Otra') && (
-            <div className="mt-2">
-              <label className={labelCls}>Especifica</label>
-              <input type="text" className={inputCls} value={seguridadOtraTexto} onChange={(e) => setSeguridadOtraTexto(e.target.value)} />
-            </div>
-          )}
+          {/* Se guarda igual que antes: los sistemas del catálogo en la lista
+              y lo que no está en él como «Otra» + su texto. */}
+          <SelectorOpciones
+            opciones={SISTEMAS_CATALOGO}
+            valor={[
+              ...seguridad.filter((x) => x !== 'Otra'),
+              ...(seguridad.includes('Otra') ? seguridadOtraTexto.split(',').map((x) => x.trim()).filter(Boolean) : []),
+            ]}
+            onCambiar={(lista) => {
+              const conocidos = lista.filter((x) => SISTEMAS_CATALOGO.includes(x));
+              const otros = lista.filter((x) => !SISTEMAS_CATALOGO.includes(x));
+              setSeguridad(otros.length > 0 ? [...conocidos, 'Otra'] : conocidos);
+              setSeguridadOtraTexto(otros.join(', '));
+            }}
+            placeholder="Escribe para buscar: CCTV, incendio, acceso…"
+            etiquetaOtra="otro sistema"
+          />
+          <p className="text-[12px] text-faint mt-1.5">Puedes elegir varios. Si no está en la lista, escríbelo y agrégalo.</p>
         </div>
 
         {esPreventivo && (
