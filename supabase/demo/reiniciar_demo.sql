@@ -136,6 +136,164 @@ $$;
 
 revoke all on function public.demo_al_dia(timestamp) from public, anon, authenticated;
 
+-- ============================================================
+-- Pulso del demo: eventos en vivo mientras alguien lo está viendo
+-- ============================================================
+-- Cada minuto, si alguien entró al demo en la última media hora, pasa UNA
+-- cosa, como en un día real: alguien llega a su servicio, lo inicia, lo
+-- concluye, entrega su reporte, o se le asigna un servicio nuevo a quien
+-- quedó libre. Con las tablas publicadas en tiempo real (patch_tiempo_real)
+-- el visitante lo ve llegar a su pantalla sin recargar.
+--
+-- Cuesta casi nada: sin visitantes es una sola consulta y no escribe; con
+-- visitantes escribe una o dos filas por minuto. Todo se borra en el reinicio
+-- nocturno. Fuera de la jornada (antes de las 7:00 o desde las 18:00) solo
+-- van llegando los reportes que quedaron pendientes.
+-- p_forzar = true lo corre aunque no haya visitantes (para probar).
+create or replace function public.demo_pulso(p_forzar boolean default false)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  zona constant text := 'America/Mexico_City';
+  dominio constant text := '@demo.servitec.test';
+  ahora timestamp := now() at time zone zona;
+  hoy date := (now() at time zone zona)::date;
+  en_jornada boolean := ahora::time >= time '07:00' and ahora::time < time '18:00';
+  s record;
+  v_tec uuid; v_nom text; v_sup uuid; v_cli record; v_id uuid; v_r uuid;
+  v_contacto text; v_puesto text; v_f1 text; v_f2 text;
+  opciones text[] := '{}';
+  accion text;
+  trabajos constant text[] := array[
+    'Revisión de cámara sin imagen en acceso principal', 'Ajuste de lectora de tarjetas en puerta de servicio',
+    'Cambio de detector de humo con falla', 'Revisión de sirena que no activa en prueba',
+    'Reubicación de cámara por cambio de mobiliario', 'Respaldo y limpieza de grabador',
+    'Revisión de fuente de respaldo del tablero', 'Alta de tarjetas de acceso para personal nuevo'];
+  sistemas constant text[] := array['CCTV', 'Control de acceso', 'Alarma&Det', 'Alarma&Det', 'CCTV', 'CCTV', 'Alarma&Det', 'Control de acceso'];
+  n integer;
+begin
+  if not exists (select 1 from public.demo_accesos) then
+    raise exception 'demo_pulso() solo corre en la instalación demo';
+  end if;
+
+  -- ¿Hay alguien viendo el demo? (entró con una de las cuentas de acceso
+  -- rápido en la última media hora)
+  if not p_forzar and not exists (
+    select 1 from auth.users u
+    where u.email in ('supervisor' || dominio, 'tecnico' || dominio)
+      and u.last_sign_in_at > now() - interval '30 minutes'
+  ) then
+    return 'sin visitantes';
+  end if;
+
+  -- Qué puede pasar ahora mismo.
+  if exists (select 1 from public.servicios_programados where fecha = hoy and estado = 'concluido' and report_id is null) then
+    opciones := opciones || array['reporte', 'reporte'];
+  end if;
+  if en_jornada then
+    if exists (select 1 from public.servicios_programados where fecha = hoy and estado = 'en_curso' and report_id is null
+               and hora_inicio < now() - interval '4 minutes') then
+      opciones := opciones || array['concluir'];
+    end if;
+    if exists (select 1 from public.servicios_programados where fecha = hoy and estado = 'en_sitio') then
+      opciones := opciones || array['iniciar'];
+    end if;
+    if exists (select 1 from public.servicios_programados where fecha = hoy and estado = 'programado') then
+      opciones := opciones || array['llegar'];
+    end if;
+    -- Servicio nuevo: solo si queda gente libre y el día no está ya lleno.
+    if (select count(*) from public.servicios_programados where fecha = hoy) < 40
+       and (select count(*) from public.servicios_programados where fecha = hoy and estado in ('programado', 'en_sitio', 'en_curso')) < 9 then
+      opciones := opciones || array['asignar'];
+    end if;
+  end if;
+  if coalesce(array_length(opciones, 1), 0) = 0 then
+    return 'nada que mover';
+  end if;
+  accion := opciones[1 + floor(random() * array_length(opciones, 1))::int];
+
+  if accion = 'llegar' then
+    select id, proyecto into s from public.servicios_programados
+      where fecha = hoy and estado = 'programado' order by hora_programada, id limit 1;
+    update public.servicios_programados set hora_programada = ahora::time where id = s.id;
+    update public.servicios_programados set estado = 'en_sitio', hora_llegada = now() where id = s.id;
+    update public.servicio_tecnicos set visto_en = coalesce(visto_en, now()), enterado_en = coalesce(enterado_en, now()) where servicio_id = s.id;
+    return 'llegó a ' || s.proyecto;
+
+  elsif accion = 'iniciar' then
+    select id, proyecto into s from public.servicios_programados
+      where fecha = hoy and estado = 'en_sitio' order by hora_llegada, id limit 1;
+    update public.servicios_programados set estado = 'en_curso', hora_inicio = now() where id = s.id;
+    return 'inició en ' || s.proyecto;
+
+  elsif accion = 'concluir' then
+    select id, proyecto into s from public.servicios_programados
+      where fecha = hoy and estado = 'en_curso' and report_id is null and hora_inicio < now() - interval '4 minutes'
+      order by hora_inicio, id limit 1;
+    update public.servicios_programados set estado = 'concluido', hora_fin = now() where id = s.id;
+    return 'concluyó ' || s.proyecto;
+
+  elsif accion = 'reporte' then
+    select sp.id, sp.proyecto, sp.descripcion, sp.cliente_id, sp.hora_llegada, sp.hora_fin into s
+      from public.servicios_programados sp
+      where sp.fecha = hoy and sp.estado = 'concluido' and sp.report_id is null
+      order by sp.hora_fin nulls first, sp.id limit 1;
+    select st.tecnico_id, p.full_name into v_tec, v_nom
+      from public.servicio_tecnicos st join public.profiles p on p.id = st.tecnico_id
+      where st.servicio_id = s.id limit 1;
+    if v_tec is null then return 'servicio sin personal'; end if;
+    select c.nombre, c.puesto into v_contacto, v_puesto from public.cliente_contactos c where c.cliente_id = s.cliente_id limit 1;
+    -- Rúbricas de ejemplo: las de cualquier reporte ya firmado.
+    select r.data->>'firmaIngData', r.data->>'firmaClienteData' into v_f1, v_f2
+      from public.reports r where r.data->>'firmaClienteData' is not null limit 1;
+    v_r := gen_random_uuid();
+    n := 1 + floor(random() * array_length(sistemas, 1))::int;
+    insert into public.reports (id, created_by, empresa_cliente, cliente_id, fecha, tipo_servicio, sub_tipo_servicio, data)
+    values (v_r, v_tec, s.proyecto, s.cliente_id, hoy, 'Mantenimiento', 'Correctivo',
+      jsonb_build_object(
+        'ingACargo', v_nom, 'personal', jsonb_build_array(v_nom),
+        'horaLlegada', to_char(coalesce(s.hora_llegada, now() - interval '1 hour') at time zone zona, 'HH24:MI'),
+        'horaSalida', to_char(coalesce(s.hora_fin, now()) at time zone zona, 'HH24:MI'),
+        'contactoUsuario', v_contacto, 'puestoArea', v_puesto,
+        'sistemaSeguridad', jsonb_build_array(sistemas[n]),
+        'actividades', jsonb_build_array(coalesce(s.descripcion, 'Servicio realizado'), 'Pruebas de funcionamiento con el cliente'),
+        'observaciones', '',
+        'equipos', jsonb_build_array(), 'tuberias', jsonb_build_array(), 'cables', jsonb_build_array(), 'soporteria', jsonb_build_array(),
+        'fotos', jsonb_build_array(), 'firmaIngNombre', v_nom, 'firmaIngData', v_f1,
+        'firmaClienteNombre', v_contacto, 'firmaClienteData', v_f2,
+        'servicioConcluido', true, 'fechaConcluido', hoy,
+        'facturaEstado', 'pendiente', 'revisionEstado', 'pendiente', 'servicioProgramadoId', s.id));
+    update public.servicios_programados set report_id = v_r where id = s.id;
+    return 'reporte de ' || s.proyecto;
+
+  else  -- asignar
+    select id into v_sup from auth.users where email = 'supervisor' || dominio;
+    -- Alguien sin servicio pendiente hoy (se deja siempre a algunos libres).
+    select p.id into v_tec from public.profiles p join auth.users u on u.id = p.id
+      where p.role = 'tecnico' and coalesce(p.activo, true) and u.email like '%' || dominio
+        and not exists (
+          select 1 from public.servicio_tecnicos st join public.servicios_programados sp on sp.id = st.servicio_id
+          where st.tecnico_id = p.id and sp.fecha = hoy and sp.estado in ('programado', 'en_sitio', 'en_curso'))
+      order by random() limit 1;
+    if v_tec is null then return 'nadie libre'; end if;
+    select id, nombre into v_cli from public.clientes order by random() limit 1;
+    n := 1 + floor(random() * array_length(trabajos, 1))::int;
+    v_id := gen_random_uuid();
+    insert into public.servicios_programados
+      (id, grupo_id, creado_por, proyecto, descripcion, fecha, duracion_estimada_min, hora_programada, estado, cliente_id)
+    values (v_id, v_id, v_sup, v_cli.nombre, trabajos[n], hoy, 60 + 30 * floor(random() * 3)::int,
+      least(ahora + interval '20 minutes', hoy::timestamp + interval '23 hours 50 minutes')::time, 'programado', v_cli.id);
+    insert into public.servicio_tecnicos (servicio_id, tecnico_id, visto_en, enterado_en) values (v_id, v_tec, now(), now());
+    return 'servicio nuevo en ' || v_cli.nombre;
+  end if;
+end;
+$$;
+
+revoke all on function public.demo_pulso(boolean) from public, anon, authenticated;
+
 create or replace function public.reiniciar_demo()
 returns text
 language plpgsql
@@ -742,6 +900,13 @@ begin
   -- Los servicios de hoy, alrededor de la hora actual.
   perform public.demo_al_dia();
 
+  -- El pulso corre cada minuto: se poda su historial para que no crezca.
+  begin
+    delete from cron.job_run_details where end_time < now() - interval '2 days';
+  exception when others then
+    raise notice 'No se pudo podar el historial del cron: %', sqlerrm;
+  end;
+
   return format('Demo reiniciado: %s clientes, %s servicios, %s reportes, %s cotizaciones, %s artículos',
     (select count(*) from public.clientes), (select count(*) from public.servicios_programados),
     (select count(*) from public.reports), (select count(*) from public.cotizaciones),
@@ -760,3 +925,7 @@ select cron.schedule('reiniciar-demo', '5 6 * * *', 'select public.reiniciar_dem
 -- Cada 15 minutos, los servicios de hoy se reacomodan alrededor de la hora actual.
 select cron.unschedule('demo-al-dia') where exists (select 1 from cron.job where jobname = 'demo-al-dia');
 select cron.schedule('demo-al-dia', '*/15 * * * *', 'select public.demo_al_dia()');
+
+-- Cada minuto, un evento en vivo si hay alguien viendo el demo.
+select cron.unschedule('demo-pulso') where exists (select 1 from cron.job where jobname = 'demo-pulso');
+select cron.schedule('demo-pulso', '* * * * *', 'select public.demo_pulso()');
