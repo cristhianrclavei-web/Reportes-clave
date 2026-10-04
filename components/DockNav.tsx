@@ -255,15 +255,15 @@ export default function DockNav({ userName, children }: { userName?: string; chi
           los costados vacíos. Marca arriba, secciones y la cuenta abajo. Se
           queda fijo al hacer scroll; en pantallas menores sigue la barra de
           secciones de arriba. */}
-      <aside className="hidden 2xl:flex sticky top-0 h-screen w-[272px] shrink-0 flex-col border-r border-line bg-surface/50 px-4 pt-6 pb-6 overflow-y-auto no-scrollbar">
-        <Link href="/dashboard" aria-label="Ir al resumen" className="self-center mb-5 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/50">
+      <aside className="hidden 2xl:flex sticky top-0 h-screen w-[272px] shrink-0 flex-col border-r border-line bg-surface/50 px-4 pt-6 [@media(max-height:840px)]:pt-4 pb-6 overflow-y-auto no-scrollbar">
+        <Link href="/dashboard" aria-label="Ir al resumen" className="self-center mb-5 [@media(max-height:840px)]:mb-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/50">
           <Logo variante="completo" size={44} />
         </Link>
 
         {/* Cuenta: tarjeta con la foto grande al centro (o su avatar, si no
             ha subido foto), nombre y puesto, y debajo el acceso al perfil y
             el botón de salir. */}
-        <div className="mb-8 [@media(max-height:840px)]:mb-6 rounded-3xl bg-surface border border-line overflow-hidden shadow-diffuse">
+        <div className="mb-8 [@media(max-height:840px)]:mb-4 rounded-3xl bg-surface border border-line overflow-hidden shadow-diffuse">
           <div className="h-14 bg-gradient-to-br from-teal/35 via-teal/12 to-transparent" />
           <div className="px-3.5 pb-3.5 -mt-12 flex flex-col items-center text-center">
             <Link href="/perfil" aria-label="Mi perfil" className="rounded-full ring-4 ring-surface transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-teal/60">
@@ -291,7 +291,7 @@ export default function DockNav({ userName, children }: { userName?: string; chi
         <LayoutGroup id="lateral">
           {/* Márgenes fijos entre columnas (24 px) y filas (12 px). En pantallas
               bajas los mosaicos se acortan para que quepan sin recortarse. */}
-          <nav aria-label="Secciones" className="grid grid-cols-2 gap-x-6 gap-y-3 px-2 pb-1">
+          <nav aria-label="Secciones" className="grid grid-cols-2 gap-x-6 gap-y-3 [@media(max-height:840px)]:gap-y-2 px-2 pb-1">
             {secciones.map((t) => (
               <SeccionLateral key={t.key} href={t.href} etiqueta={t.label} Icono={t.Icono} activo={t.key === activa} />
             ))}
