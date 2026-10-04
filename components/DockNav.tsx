@@ -261,7 +261,7 @@ export default function DockNav({ userName, children }: { userName?: string; chi
         {/* Cuenta: tarjeta con la foto grande al centro (o su avatar, si no
             ha subido foto), nombre y puesto, y debajo el acceso al perfil y
             el botón de salir. */}
-        <div className="mb-5 rounded-3xl bg-surface border border-line overflow-hidden shadow-diffuse">
+        <div className="mb-8 rounded-3xl bg-surface border border-line overflow-hidden shadow-diffuse">
           <div className="h-14 bg-gradient-to-br from-teal/35 via-teal/12 to-transparent" />
           <div className="px-3.5 pb-3.5 -mt-12 flex flex-col items-center text-center">
             <Link href="/perfil" aria-label="Mi perfil" className="rounded-full ring-4 ring-surface transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-teal/60">
