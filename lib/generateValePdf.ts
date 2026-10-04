@@ -1,7 +1,7 @@
 import { PDFDocument, rgb } from 'pdf-lib';
 import {
   NAVY, TEAL_DARK, GRAY_LINE, GRAY_TEXT, WHITE, VERDE, ROJO, MARGIN, PAGE_W, PAGE_H,
-  embedBrandFonts, drawBadge,
+  embedBrandFonts, drawBadge, drawWordmark,
 } from './pdfBranding';
 import { MARCA, MARCA_MAYUS } from './marca';
 import type { Vale } from './vales';
@@ -33,7 +33,7 @@ export async function generateValePdf(v: Vale & { entregadoPor?: string | null; 
   let y = PAGE_H - MARGIN;
 
   drawBadge(page, display, MARGIN, y, 38);
-  page.drawText(MARCA_MAYUS, { x: MARGIN + 48, y: y - 15, size: 13, font: display, color: NAVY });
+  drawWordmark(page, display, MARGIN + 48, y - 15, 13);
   page.drawText(`VALE DE ALMACÉN ${v.folio}`, { x: PAGE_W - MARGIN - 210, y: y - 12, size: 14, font: display, color: NAVY });
   page.drawText(ESTADO[v.estado] || v.estado, { x: PAGE_W - MARGIN - 210, y: y - 26, size: 8.5, font, color: GRAY_TEXT });
   y -= 56;

@@ -137,11 +137,12 @@ function LoginForm() {
             )}
             {theme === 'light' && (
               <>
-                <div className="absolute inset-0 rounded-full blur-3xl opacity-60 scale-125 animate-pulse" style={{ backgroundColor: '#3B82F6' }} />
-                <div className="absolute inset-0 rounded-full blur-2xl scale-110" style={{ backgroundColor: 'rgba(59,130,246,0.35)' }} />
+                <div className="absolute inset-0 bg-teal rounded-full blur-3xl opacity-30 scale-125 animate-pulse" />
+                <div className="absolute inset-0 bg-teal/20 rounded-full blur-2xl scale-110" />
               </>
             )}
-            <Logo variante="completo" size={56} />
+            {/* relative: el logo va encima del resplandor, no teñido por él. */}
+            <Logo variante="completo" size={56} className="relative" />
           </div>
           <p className="text-xs text-muted">
             {modoOlvido ? 'Recuperar contraseña' : MARCA.appNombre}

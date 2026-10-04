@@ -1,6 +1,7 @@
 import { ImageResponse } from 'next/og';
 import { MARCA, COLORES } from '@/lib/marca';
 import { BARLOW_CONDENSED_BOLD_BASE64 } from '@/lib/brandFonts';
+import { ESCUDO_CONTORNO, ESCUDO_RAMAL, ESCUDO_TRAZO, ESCUDO_NODOS } from '@/lib/logoMarca';
 
 // Ícono de la app (pestaña y app instalada) dibujado con las iniciales de la
 // marca: el mismo escudo de components/Logo.tsx sobre el fondo oscuro de la
@@ -58,18 +59,16 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tam: st
         }}
       >
         <svg width={escudo} height={escudo} viewBox="0 0 100 100" fill="none">
-          <path d="M50 8 L84 26 V64 L50 92 L16 64 V26 Z" stroke={VERDE} strokeWidth="6" strokeLinejoin="round" />
-          <circle cx="50" cy="8" r="7" fill={VERDE} />
-          <circle cx="16" cy="45" r="7" fill={VERDE} />
-          <circle cx="50" cy="92" r="7" fill={VERDE} />
-          <path d="M16 45 L50 92" stroke={VERDE} strokeWidth="5" strokeLinecap="round" />
+          <path d={ESCUDO_CONTORNO} stroke={VERDE} strokeWidth={ESCUDO_TRAZO} strokeLinecap="round" strokeLinejoin="round" />
+          <path d={ESCUDO_RAMAL} stroke={VERDE} strokeWidth={ESCUDO_TRAZO} strokeLinecap="round" />
+          {ESCUDO_NODOS.map(([cx, cy, r]) => <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r={r} fill={VERDE} />)}
         </svg>
         <div
           style={{
             position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: '#FFFFFF', fontFamily: 'Barlow', fontWeight: 700,
-            fontSize: escudo * (MARCA.iniciales.length > 2 ? 0.3 : 0.38),
+            fontSize: escudo * (MARCA.iniciales.length > 2 ? 0.35 : 0.46),
             letterSpacing: escudo * 0.01,
           }}
         >

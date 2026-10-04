@@ -5,6 +5,7 @@
 /* ---------- Dark theme (default) ---------- */
 :root,
 .dark {
+  --logo-escudo: #4C9A62;     /* verde del logotipo, sobre fondo oscuro */
   --c-bg: 10 18 28;           /* #0A121C */
   --c-surface: 15 27 41;      /* #0F1B29 */
   --c-surface-2: 20 31 46;    /* #141F2E */
@@ -29,6 +30,7 @@
 
 /* ---------- Light theme ---------- */
 .light {
+  --logo-escudo: #2F7D5C;     /* más profundo para que no se pierda sobre claro */
   --c-bg: 244 243 240;        /* soft paper background */
   --c-surface: 255 255 255;
   --c-surface-2: 237 236 232;

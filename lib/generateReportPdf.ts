@@ -5,7 +5,7 @@ import { comprimirFoto } from './pdfFotos';
 import {
   NAVY, TEAL_DARK, GRAY_LINE, GRAY_TEXT, WHITE, VERDE, ROJO, LINEA_MARCA,
   MARGIN, PAGE_W, PAGE_H,
-  embedBrandFonts, drawBadge, drawIconStrip, drawWatermark,
+  embedBrandFonts, drawBadge, drawWordmark, drawIconStrip, drawWatermark,
 } from './pdfBranding';
 import { MARCA, MARCA_MAYUS } from './marca';
 import QRCode from 'qrcode';
@@ -103,8 +103,7 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
 
   const wordX = MARGIN + badgeSize + 12;
   const wordSize = 15;
-  page.drawText(MARCA_MAYUS, { x: wordX, y: headerTop - 15, size: wordSize, font: display, color: NAVY });
-  const wordmarkW = display.widthOfTextAtSize(MARCA_MAYUS, wordSize);
+  const wordmarkW = drawWordmark(page, display, wordX, headerTop - 15, wordSize);
   const lineY = headerTop - 24;
   page.drawLine({ start: { x: wordX, y: lineY }, end: { x: wordX + wordmarkW, y: lineY }, thickness: 1, color: LINEA_MARCA });
   drawIconStrip(page, wordX, lineY - 8, 14, GRAY_TEXT);
@@ -591,7 +590,7 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
     // mismo de la etiqueta) en la esquina.
     const top = y;
     drawBadge(page, display, MARGIN, top, 34);
-    page.drawText(MARCA_MAYUS, { x: MARGIN + 44, y: top - 13, size: 12, font: display, color: NAVY });
+    drawWordmark(page, display, MARGIN + 44, top - 13, 12);
     const qrW = qrImg ? 40 : 0;
     const tituloX = PAGE_W - MARGIN - 250 - (qrImg ? qrW + 8 : 0);
     page.drawText('FORMATO DE MANTENIMIENTO PREVENTIVO', { x: tituloX, y: top - 10, size: 12.5, font: display, color: NAVY });

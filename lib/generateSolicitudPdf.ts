@@ -1,7 +1,7 @@
 import { PDFDocument, PDFPage, PDFFont, rgb } from 'pdf-lib';
 import {
   NAVY, GRAY_LINE, GRAY_TEXT, VERDE, ROJO, MARGIN, PAGE_W, PAGE_H,
-  embedBrandFonts, drawBadge,
+  embedBrandFonts, drawBadge, drawWordmark,
 } from './pdfBranding';
 import { MARCA, MARCA_MAYUS } from './marca';
 import type { Solicitud } from './solicitudesPersonal';
@@ -67,7 +67,7 @@ export async function generateSolicitudPdf(s: Solicitud, fotos: Uint8Array[]): P
   let y = PAGE_H - MARGIN;
 
   drawBadge(page, display, MARGIN, y, 38);
-  page.drawText(MARCA_MAYUS, { x: MARGIN + 48, y: y - 15, size: 13, font: display, color: NAVY });
+  drawWordmark(page, display, MARGIN + 48, y - 15, 13);
   const titulo = `${TITULO[s.tipo]} ${s.folio}`;
   page.drawText(titulo, { x: PAGE_W - MARGIN - display.widthOfTextAtSize(titulo, 13), y: y - 12, size: 13, font: display, color: NAVY });
   const est = ESTADO[s.estado] || s.estado;

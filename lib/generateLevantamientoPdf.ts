@@ -3,7 +3,7 @@ import { comprimirFoto } from './pdfFotos';
 import {
   NAVY, GRAY_LINE, GRAY_TEXT,
   MARGIN, PAGE_W, PAGE_H,
-  embedBrandFonts, drawBadge, drawIconStrip, drawWatermark,
+  embedBrandFonts, drawBadge, drawWordmark, drawIconStrip, drawWatermark,
 } from './pdfBranding';
 import { Levantamiento, SistemaLevantamiento } from './levantamientos';
 import { MARCA, MARCA_MAYUS } from './marca';
@@ -84,8 +84,7 @@ export async function generateLevantamientoPdf(
 
   const wordX = MARGIN + badgeSize + 12;
   const wordSize = 15;
-  page.drawText(MARCA_MAYUS, { x: wordX, y: headerTop - 15, size: wordSize, font: display, color: NAVY });
-  const wordmarkW = display.widthOfTextAtSize(MARCA_MAYUS, wordSize);
+  const wordmarkW = drawWordmark(page, display, wordX, headerTop - 15, wordSize);
   const lineY = headerTop - 24;
   page.drawLine({ start: { x: wordX, y: lineY }, end: { x: wordX + wordmarkW, y: lineY }, thickness: 1, color: NAVY });
   drawIconStrip(page, wordX, lineY - 8, 14, GRAY_TEXT);
