@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { BellRing, BellOff, Bell } from 'lucide-react';
+import { BellRing, BellOff, Bell, X } from 'lucide-react';
 import {
   pushSoportado, permisoActual, activarNotificaciones,
   desactivarNotificaciones, tieneSuscripcionActiva,
@@ -9,6 +9,8 @@ import {
 } from '@/lib/push';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { showToast } from '@/components/Toast';
+
+const CLAVE_POSPUESTO = 'notificaciones-pospuesto';
 
 // Interruptor de notificaciones. Se muestra donde el usuario ya está
 // atendiendo su trabajo, no como un aviso al entrar: pedir el permiso de golpe
@@ -19,8 +21,14 @@ export default function NotificacionesToggle({ esTecnico = false }: { esTecnico?
   const [prefs, setPrefs] = useState<Record<string, boolean>>({});
   const [cargando, setCargando] = useState(true);
   const [bloqueado, setBloqueado] = useState(false);
+  const [pospuesto, setPospuesto] = useState(false);
 
   useEffect(() => {
+    // «Ahora no»: la invitación se guarda una semana y luego vuelve.
+    try {
+      const t = Number(localStorage.getItem(CLAVE_POSPUESTO));
+      if (t && Date.now() - t < 7 * 24 * 60 * 60 * 1000) setPospuesto(true);
+    } catch { /* sin almacenamiento */ }
     if (!pushSoportado()) {
       setCargando(false);
       return;
@@ -126,19 +134,37 @@ export default function NotificacionesToggle({ esTecnico = false }: { esTecnico?
     );
   }
 
+  if (pospuesto) return null;
+
+  function posponer() {
+    setPospuesto(true);
+    try { localStorage.setItem(CLAVE_POSPUESTO, String(Date.now())); } catch { /* no crítico */ }
+  }
+
+  // Invitación en un solo renglón: se ve, pero no le gana al contenido de la
+  // pantalla, y se puede posponer.
   return (
-    <button
-      onClick={alternar}
-      disabled={cargando}
-      className="w-full mb-4 p-4 rounded-2xl border bg-teal/10 border-teal/30 text-left flex items-center gap-3 active:scale-[0.99] transition-transform disabled:opacity-60"
-    >
-      <span className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-teal">
-        <Bell size={19} strokeWidth={2.4} className="text-inkOnAccent" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="text-[14px] font-semibold mb-0.5">Activar notificaciones</p>
-        <p className="text-[12.5px] text-muted leading-relaxed">Recibe avisos en el celular aunque la app esté cerrada.</p>
-      </div>
-    </button>
+    <div className="mb-4 rounded-2xl bg-surface-2 border border-line flex items-center gap-2.5 pl-4 pr-1.5 min-h-[50px]">
+      <Bell size={16} strokeWidth={2.4} className="text-teal shrink-0" />
+      <p className="flex-1 min-w-0 text-[13.5px] font-medium leading-snug py-2">
+        Activa las notificaciones
+        <span className="hidden sm:inline text-muted font-normal"> · recibe avisos aunque la app esté cerrada</span>
+      </p>
+      <button
+        onClick={alternar}
+        disabled={cargando}
+        className="shrink-0 px-3.5 min-h-[36px] rounded-full bg-teal text-inkOnAccent text-[13px] font-semibold active:scale-95 transition-transform disabled:opacity-60"
+      >
+        Activar
+      </button>
+      <button
+        onClick={posponer}
+        aria-label="Ahora no"
+        title="Ahora no"
+        className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-muted hover:text-ink hover:bg-surface active:scale-90 transition"
+      >
+        <X size={16} strokeWidth={2.4} />
+      </button>
+    </div>
   );
 }

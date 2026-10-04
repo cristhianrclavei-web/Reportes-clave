@@ -1160,7 +1160,7 @@ export default function NuevoReportePage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto pb-32">
+    <div className="max-w-2xl lg:max-w-6xl mx-auto pb-32">
       <SavingOverlay show={saving} />
       {/* Header */}
       <div className="sticky top-0 z-20 glass-strong px-5 py-3.5 flex items-center justify-between gap-3">
@@ -1253,7 +1253,7 @@ export default function NuevoReportePage() {
           </div>
         )}
 
-        <div className={pasoKey === 'datos' ? 'flex flex-col gap-4' : 'hidden'}>
+        <div className={pasoKey === 'datos' ? 'flex flex-col gap-4 lg:grid lg:grid-cols-2 lg:items-start' : 'hidden'}>
         {/* Datos del servicio — va primero: elegir el servicio asignado
             autocompleta cliente y personal del resto del formulario */}
         <div className={cardCls}>
@@ -1476,7 +1476,11 @@ export default function NuevoReportePage() {
 
         </div>
 
-        <div className={pasoKey === 'trabajo' ? 'flex flex-col gap-4' : 'hidden'}>
+        <div className={pasoKey === 'trabajo' ? 'flex flex-col gap-4 lg:grid lg:grid-cols-2 lg:items-start' : 'hidden'}>
+        {/* En computadora el paso va en dos columnas: a la izquierda qué se
+            hizo, a la derecha los materiales. En celular estos grupos no
+            existen (display: contents) y todo sigue en una sola columna. */}
+        <div className="contents lg:flex lg:flex-col lg:gap-4">
         {/* Tipo de servicio */}
         <div className={cardCls}>
           <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Tipo de servicio</p>
@@ -1545,6 +1549,8 @@ export default function NuevoReportePage() {
           />
         )}
 
+        </div>
+        <div className="contents lg:flex lg:flex-col lg:gap-4 lg:row-span-2">
         {/* Lo que salió del almacén para este servicio: se carga en las
             secciones de abajo con un toque. */}
         {servicioSeleccionadoId && (
@@ -1596,6 +1602,8 @@ export default function NuevoReportePage() {
           </button>
         </Plegable>
 
+        </div>
+        <div className="contents lg:flex lg:flex-col lg:gap-4">
         {/* Descripción de actividades realizadas */}
         <div className={cardCls}>
           <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Descripción de actividades realizadas</p>
@@ -1633,6 +1641,7 @@ export default function NuevoReportePage() {
         </div>
 
         </div>
+        </div>
 
         {conFormato && (
           <div className={pasoKey === 'formato' ? 'flex flex-col gap-4' : 'hidden'}>
@@ -1640,7 +1649,7 @@ export default function NuevoReportePage() {
           </div>
         )}
 
-        <div className={pasoKey === 'evidencia' ? 'flex flex-col gap-4' : 'hidden'}>
+        <div className={pasoKey === 'evidencia' ? 'flex flex-col gap-4 lg:grid lg:grid-cols-[2fr_1fr] lg:items-start' : 'hidden'}>
         {/* Fotos de evidencia */}
         <div className={cardCls}>
           <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Fotos de evidencia</p>
@@ -1755,7 +1764,7 @@ export default function NuevoReportePage() {
         </div>
 
         {firmasMontadas && (
-        <div className={pasoKey === 'firmas' ? 'flex flex-col gap-4' : 'hidden'}>
+        <div className={pasoKey === 'firmas' ? 'flex flex-col gap-4 lg:w-full lg:max-w-3xl lg:mx-auto' : 'hidden'}>
         {/* Firmas */}
         <div className={cardCls}>
           <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Firmas</p>
@@ -1875,7 +1884,7 @@ export default function NuevoReportePage() {
         className="fixed bottom-0 inset-x-0 z-30 bg-bg border-t border-line px-4 pt-3"
         style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
       >
-        <div className="max-w-2xl mx-auto flex items-center gap-2.5">
+        <div className="max-w-2xl lg:max-w-6xl lg:px-4 lg:justify-end mx-auto flex items-center gap-2.5">
           {paso === 1 ? (
             <Link href="/mis-reportes" className="min-h-[50px] px-4 rounded-2xl border border-line-strong text-[14px] font-medium text-ink/80 flex items-center">
               Cancelar
@@ -1889,7 +1898,7 @@ export default function NuevoReportePage() {
             <button
               type="button"
               onClick={siguientePaso}
-              className="flex-1 min-h-[50px] rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15px] tracking-wide shadow-glow-teal active:scale-95 transition-transform"
+              className="flex-1 lg:flex-none lg:px-12 min-h-[50px] rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15px] tracking-wide shadow-glow-teal active:scale-95 transition-transform"
             >
               Siguiente: {ETIQUETA_PASO[PASOS[paso]]}
             </button>
@@ -1898,7 +1907,7 @@ export default function NuevoReportePage() {
               type="button"
               onClick={handleSave}
               disabled={saving || faltantes.length > 0}
-              className="flex-1 min-h-[50px] rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15px] tracking-wide shadow-glow-teal active:scale-95 transition-transform disabled:opacity-50"
+              className="flex-1 lg:flex-none lg:px-12 min-h-[50px] rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15px] tracking-wide shadow-glow-teal active:scale-95 transition-transform disabled:opacity-50"
             >
               {saving ? 'Guardando...' : editarId ? 'Guardar corrección' : 'Guardar reporte'}
             </button>

@@ -383,10 +383,10 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
   const bloqueo = motivoNoEditable(servicio.estado);
 
   return (
-    <div className="max-w-2xl lg:max-w-5xl mx-auto pb-28 lg:pb-16 lg:px-6">
+    <div className="max-w-2xl lg:max-w-6xl 2xl:max-w-[1400px] mx-auto pb-28 lg:pb-16 lg:px-8">
       {/* Computadora: el panel ya trae marca, tema y salir; aquí solo el
           título con la flecha de regreso, como en las demás secciones. */}
-      <div className="hidden lg:flex items-center gap-1.5 px-4 pt-8">
+      <div className="hidden lg:flex items-center gap-1.5 pt-8">
         <Link href="/dashboard/servicios" aria-label="Regresar" className="shrink-0 w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-ink/70 hover:bg-surface-2 active:scale-90 transition-transform">
           <ChevronLeft size={24} strokeWidth={2.4} />
         </Link>
@@ -412,7 +412,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
         </div>
       </div>
 
-      <div className="px-4 pt-5">
+      <div className="px-4 lg:px-0 pt-5">
         {servicio.report_id && (
           <button
             onClick={() => window.open(`/api/reports/${servicio.report_id}/pdf?t=${Date.now()}`, '_blank', 'noopener,noreferrer')}
@@ -422,6 +422,10 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
             <span className="text-[#3B82F6] font-semibold underline">{folioReporte || 'Ver PDF'}</span>
           </button>
         )}
+        {/* Computadora: datos y personal a la izquierda; material, tareas e
+            historial a la derecha. */}
+        <div className="lg:grid lg:grid-cols-2 lg:gap-4 lg:items-start">
+        <div>
         {/* Info general */}
         <div className="glass rounded-2xl p-4 mb-4">
           <div className="flex justify-between items-start mb-3">
@@ -510,10 +514,10 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
             !showReprogramar ? (
               <button
                 onClick={() => { setShowReprogramar(true); setNuevaFecha(servicio.fecha); }}
-                className="text-amber text-[14px] font-medium mt-3 min-h-[44px] flex items-center gap-1.5"
+                className="inline-flex items-center gap-1.5 mt-3 mr-2 px-3.5 min-h-[40px] rounded-full border text-[13.5px] font-semibold transition-colors border-amber/40 bg-amber/10 text-amber hover:bg-amber/20"
               >
                 <CalendarClock size={16} strokeWidth={2.4} />
-                Cambiar la fecha de este día
+                Cambiar fecha
               </button>
             ) : (
               <div className="mt-3 p-3.5 rounded-xl bg-amber/10 border border-amber/30">
@@ -541,8 +545,8 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
           {servicio.estado === 'programado' && (
             !showCancelar ? (
               <button onClick={() => { setShowCancelar(true); setMotivoCancelar(''); }}
-                className="text-red text-[14px] font-medium mt-1 min-h-[44px] flex items-center gap-1.5">
-                <X size={16} strokeWidth={2.4} /> Cancelar este servicio
+                className="inline-flex items-center gap-1.5 mt-3 mr-2 px-3.5 min-h-[40px] rounded-full border text-[13.5px] font-semibold transition-colors border-red/35 bg-red/5 text-red hover:bg-red/10">
+                <X size={16} strokeWidth={2.4} /> Cancelar servicio
               </button>
             ) : (
               <div className="mt-3 p-3.5 rounded-xl bg-red/5 border border-red/30">
@@ -591,9 +595,9 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
           )}
 
           {!showAgregarDias ? (
-            <button onClick={() => setShowAgregarDias(true)} className="text-teal text-[14px] font-medium mt-3 min-h-[44px] flex items-center gap-1.5">
+            <button onClick={() => setShowAgregarDias(true)} className="inline-flex items-center gap-1.5 mt-3 mr-2 px-3.5 min-h-[40px] rounded-full border text-[13.5px] font-semibold transition-colors border-teal/40 bg-teal/10 text-teal hover:bg-teal/15">
               <Plus size={16} strokeWidth={2.6} />
-              Ampliar este proyecto a más días
+              Ampliar a más días
             </button>
           ) : (
             <div className="mt-3 p-3 rounded-xl bg-surface-2 border border-line">
@@ -687,6 +691,8 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
           </Link>
         )}
 
+        </div>
+        <div>
         {/* Lista de carga: resumen en una fila. El checklist completo se abre
             aparte para no saturar el detalle del servicio. */}
         <button
@@ -727,8 +733,11 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
             <div className="text-[11px] uppercase tracking-wider text-muted">
               Lista de tareas{servicio.dias_totales > 1 ? ' (compartida entre los días del proyecto)' : ''}
             </div>
-            <span className={`text-[13px] font-display font-bold ${progreso.pct >= 100 ? 'text-teal' : 'text-amber'}`}>{progreso.pct}%</span>
+            {progreso.total > 0 && (
+              <span className={`text-[13px] font-display font-bold ${progreso.pct >= 100 ? 'text-teal' : 'text-amber'}`}>{progreso.pct}%</span>
+            )}
           </div>
+          {tareas.length === 0 && <p className="text-[13px] text-muted">Este servicio no lleva lista de tareas por pasos.</p>}
           {progreso.total > 0 && (
             <div className="mb-3">
               <ProgressBar pct={progreso.pct} />
@@ -819,6 +828,9 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
             </div>
           </div>
         )}
+
+        </div>
+        </div>
 
         {/* Zona de peligro */}
         <div className="mt-5 pt-4 border-t border-dashed border-red/30">
