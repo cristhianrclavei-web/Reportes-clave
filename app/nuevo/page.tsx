@@ -1170,8 +1170,11 @@ export default function NuevoReportePage() {
               <path d="M15 6l-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </Link>
-          <Logo variante="completo" size={30} className="min-w-0" compactoEnMovil />
-          <div className="min-w-0">
+          {/* En celular solo el emblema: con el nombre completo de la marca
+              el título no cabía y salía cortado. */}
+          <Logo size={30} className="sm:hidden" />
+          <Logo variante="completo" size={30} className="min-w-0 hidden sm:flex" />
+          <div className="min-w-0 sm:ml-2">
             <h1 className="font-display font-semibold text-base tracking-wide leading-tight truncate">{editarId ? 'Corregir reporte' : 'Nuevo reporte'}</h1>
             <p className="text-[11px] text-muted truncate">{userName || userEmail}</p>
           </div>
@@ -1261,10 +1264,11 @@ export default function NuevoReportePage() {
           {serviciosAsignados.length > 0 && (
             <div className="mb-4 p-3.5 rounded-xl bg-teal/[0.07] border border-teal/25">
               <label className={labelCls}>¿Este reporte es de un servicio que te asignaron?</label>
+              <div className="relative">
               <select
                 value={servicioSeleccionadoId || ''}
                 onChange={(e) => handleSeleccionServicio(e.target.value)}
-                className={inputCls}
+                className={`${inputCls} appearance-none pr-10 min-h-[48px]`}
               >
                 <option value="">No aplica — llenar manualmente</option>
                 {serviciosVinculables.map((s) => (
@@ -1273,6 +1277,8 @@ export default function NuevoReportePage() {
                   </option>
                 ))}
               </select>
+              <ChevronDown size={17} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+              </div>
               <p className="text-[12.5px] text-muted mt-1.5">
                 Llena el cliente y el personal; puedes cambiarlos.
               </p>
@@ -1349,6 +1355,7 @@ export default function NuevoReportePage() {
           <div className="mb-3">
             <label className={labelCls}>Vehículo</label>
             {vehiculos.length > 0 && (
+              <div className={`relative ${vehiculoOtro ? 'mb-2' : ''}`}>
               <select
                 value={vehiculoOtro ? 'otro' : (vehiculos.find((v) => v.placas === placas)?.id || '')}
                 onChange={(e) => {
@@ -1364,7 +1371,7 @@ export default function NuevoReportePage() {
                   setVehiculo(v?.nombre || '');
                   setPlacas(v?.placas || '');
                 }}
-                className={`${inputCls} ${vehiculoOtro ? 'mb-2' : ''}`}
+                className={`${inputCls} appearance-none pr-10 min-h-[48px]`}
               >
                 <option value="">Sin vehículo</option>
                 {vehiculos.map((v) => (
@@ -1372,6 +1379,8 @@ export default function NuevoReportePage() {
                 ))}
                 <option value="otro">Otro vehículo…</option>
               </select>
+              <ChevronDown size={17} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+              </div>
             )}
 
             {/* Texto libre cuando se usa uno prestado o rentado, y también
@@ -1519,7 +1528,7 @@ export default function NuevoReportePage() {
               setSeguridad(otros.length > 0 ? [...conocidos, 'Otra'] : conocidos);
               setSeguridadOtraTexto(otros.join(', '));
             }}
-            placeholder="Escribe para buscar: CCTV, incendio, acceso…"
+            placeholder="Busca o escribe un sistema"
             etiquetaOtra="otro sistema"
           />
           <p className="text-[12px] text-faint mt-1.5">Puedes elegir varios. Si no está en la lista, escríbelo y agrégalo.</p>
@@ -1863,7 +1872,7 @@ export default function NuevoReportePage() {
 
       {/* Barra inferior: moverse entre pasos y guardar al final */}
       <div
-        className="fixed bottom-0 inset-x-0 z-30 glass-strong border-t border-line px-4 pt-3"
+        className="fixed bottom-0 inset-x-0 z-30 bg-bg border-t border-line px-4 pt-3"
         style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
       >
         <div className="max-w-2xl mx-auto flex items-center gap-2.5">
