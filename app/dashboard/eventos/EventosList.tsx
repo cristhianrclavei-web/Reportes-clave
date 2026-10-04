@@ -125,7 +125,7 @@ export default function EventosList({ userName }: { userName?: string }) {
 
   return (
     <SupervisorShell
-      active="eventos" volver
+      active="eventos"
       title="Actividad del equipo"
       userName={userName}
       wrapperClassName="max-w-2xl lg:max-w-6xl 2xl:max-w-[1400px] mx-auto pb-28 lg:pb-16 lg:px-8"
@@ -138,7 +138,7 @@ export default function EventosList({ userName }: { userName?: string }) {
           <select
             value={filtroActor}
             onChange={(e) => setFiltroActor(e.target.value)}
-            className="flex-1 px-3 py-2.5 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[13px]"
+            className="flex-1 min-w-0 px-3 py-2.5 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[13px]"
           >
             <option value="">Todas las personas</option>
             {actores.map(([id, n]) => (
@@ -148,7 +148,7 @@ export default function EventosList({ userName }: { userName?: string }) {
           <select
             value={filtroAccion}
             onChange={(e) => setFiltroAccion(e.target.value)}
-            className="flex-1 px-3 py-2.5 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[13px]"
+            className="flex-1 min-w-0 px-3 py-2.5 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[13px]"
           >
             <option value="">Todas las acciones</option>
             {Object.entries(ACCION_CFG).map(([k, cfg]) => (

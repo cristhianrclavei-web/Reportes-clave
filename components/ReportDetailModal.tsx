@@ -1,5 +1,6 @@
 'use client';
 
+import { fechaDMA } from '@/lib/etiquetaMantenimiento';
 import { MARCA } from '@/lib/marca';
 import { tuberiasDe, cablesDe, soporteriaDe, textoTuberia, textoCable, textoSoporteria } from '@/lib/materialesReporte';
 import { reducirFoto } from '@/lib/reducirFoto';
@@ -538,7 +539,7 @@ export default function ReportDetailModal({
         <Section title="Datos generales">
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
             <Detail label="Clave de formato" value={report.data?.claveFormato} />
-            <Detail label="Fecha" value={report.fecha} />
+            <Detail label="Fecha" value={fechaDMA(report.fecha)} />
             <Detail label="Ing a cargo" value={report.data?.ingACargo} />
             <Detail label="Personal en el servicio" value={(report.data?.personal || []).join(', ')} />
             <Detail label="Personal técnico (cuenta)" value={techName(report.profiles)} />

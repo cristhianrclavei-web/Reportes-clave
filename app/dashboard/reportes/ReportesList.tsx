@@ -214,12 +214,12 @@ export default function ReportesList({
                 placeholder="Buscar en todos los reportes..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="flex-1 px-3.5 py-2.5 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal-glow text-[14px] placeholder:text-faint"
+                className="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal-glow text-[14px] placeholder:text-faint"
               />
               <select
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value)}
-                className="px-3 py-2.5 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[13px] shrink-0"
+                className="px-3 py-2.5 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[13px] min-w-0 max-w-[42%] sm:max-w-none sm:shrink-0"
               >
                 <option value="">Todos los tipos</option>
                 <option value="Instalación nueva">Instalación nueva</option>

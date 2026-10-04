@@ -1,5 +1,6 @@
 'use client';
 
+import { fechaDMA } from '@/lib/etiquetaMantenimiento';
 import ConfirmacionTecnicos from '@/components/ConfirmacionTecnicos';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -443,7 +444,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
             <>
               {servicio.descripcion && <p className="text-[13px] text-ink/85 mb-2">{servicio.descripcion}</p>}
               <div className="flex gap-4 text-[12px] text-muted flex-wrap">
-                <span>Fecha: <b className="text-ink">{servicio.fecha}</b></span>
+                <span>Fecha: <b className="text-ink">{fechaDMA(servicio.fecha)}</b></span>
                 <span>Duración estimada: <b className="text-ink">{servicio.duracion_estimada_min} min</b></span>
                 {servicio.hora_llegada && <span>Llegada: <b className="text-ink">{fmtHora(servicio.hora_llegada)}</b></span>}
                 {servicio.hora_fin && <span>Cierre: <b className="text-ink">{fmtHora(servicio.hora_fin)}</b></span>}

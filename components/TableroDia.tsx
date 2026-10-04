@@ -337,10 +337,11 @@ export default function TableroDia({ onAgendar }: {
       </div>
 
       <div className="grid grid-cols-4 mb-3 rounded-2xl bg-surface border border-line divide-x divide-line">
-        <Kpi n={`${resumen.conServicio}/${resumen.total}`} label="Con servicio" />
-        <Kpi n={resumen.enCampo} label="En sitio" tono="teal" />
-        <Kpi n={`${resumen.concluidos}/${resumen.servicios}`} label="Concluidos" />
-        <Kpi n={resumen.sinReporte} label="Sin reporte" tono={resumen.sinReporte ? 'red' : undefined} />
+        {/* Sin datos todavía: guiones, no ceros (parecería un día vacío). */}
+        <Kpi n={datos ? `${resumen.conServicio}/${resumen.total}` : '–'} label="Con servicio" />
+        <Kpi n={datos ? resumen.enCampo : '–'} label="En sitio" tono="teal" />
+        <Kpi n={datos ? `${resumen.concluidos}/${resumen.servicios}` : '–'} label="Concluidos" />
+        <Kpi n={datos ? resumen.sinReporte : '–'} label="Sin reporte" tono={resumen.sinReporte ? 'red' : undefined} />
       </div>
 
       {resumen.avisos > 0 && (
