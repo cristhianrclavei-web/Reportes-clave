@@ -59,6 +59,8 @@ Importar el mismo repo de GitHub. Variables de entorno:
 | `NEXT_PUBLIC_MARCA_ICONOS` | `0` (la tira de íconos es de Clave Inteligente) |
 | `NEXT_PUBLIC_EMISOR_*` | datos fiscales del cliente (prefactura) |
 | `NEXT_PUBLIC_VENTAS_WHATSAPP` | tu número para «Contratar» |
+| `NEXT_PUBLIC_VENTAS_CORREO` | correo de ventas (respaldo si no hay WhatsApp) |
+| `NEXT_PUBLIC_INICIO_COBERTURA` | primer día que se exige reporte diario, `AAAA-MM-DD` (el día que el cliente empieza a usar la app); sin ella queda la fecha de Clave Inteligente |
 
 Reemplazar las imágenes de `public/brand/` si el cliente tiene logo propio
 (pendiente: hacerlas configurables sin tocar el repo).

@@ -6,6 +6,8 @@ import ModalOverlay from '@/components/ModalOverlay';
 import SignaturePad, { SignaturePadHandle } from '@/components/SignaturePad';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
 import { showToast } from '@/components/Toast';
+import AvisoBorrador from '@/components/AvisoBorrador';
+import { useBorradorFormulario } from '@/lib/useBorradorFormulario';
 import { createClient } from '@/lib/supabaseClient';
 import { hoyLocal } from '@/lib/fechaHoy';
 import { listarFestivos, Festivo } from '@/lib/avisos';
@@ -66,6 +68,39 @@ export default function FormSolicitud({
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const firmaRef = useRef<SignaturePadHandle>(null);
+
+  // Borrador automático (solo en solicitudes nuevas): si la página se recarga
+  // o se cierra la ventana, lo capturado —fotos y firma incluidas— se recupera.
+  const datosBorrador = {
+    tipo, fecha, inicio, fin, actividades, cliente, clienteId, servicioId, proyecto,
+    fInicio, fFin, medioDia, dias, diasManual, goce, motivoTipo, motivo, cubre, nota, firma,
+    archivos: fotos.map((f) => f.file).filter((f): f is File => !!f),
+  };
+  function aplicarBorrador(d: typeof datosBorrador) {
+    setTipo(d.tipo); setFecha(d.fecha); setInicio(d.inicio); setFin(d.fin);
+    setActividades(d.actividades?.length ? d.actividades : ['']);
+    setCliente(d.cliente); setClienteId(d.clienteId); setServicioId(d.servicioId); setProyecto(d.proyecto);
+    setFInicio(d.fInicio); setFFin(d.fFin); setMedioDia(d.medioDia); setDias(d.dias); setDiasManual(d.diasManual);
+    setGoce(d.goce); setMotivoTipo(d.motivoTipo); setMotivo(d.motivo); setCubre(d.cubre); setNota(d.nota); setFirma(d.firma);
+    setFotos((d.archivos || []).map((file) => ({ file, url: URL.createObjectURL(file) })));
+  }
+  const borrador = useBorradorFormulario({
+    clave: s ? `solicitud:${s.id}` : `solicitud:${tipoInicial}`,
+    datos: datosBorrador,
+    hayDatos: !s && !guardando && Boolean(
+      actividades.some((a) => a.trim()) || motivo.trim() || nota.trim() || firma || fotos.length || inicio || fin || fInicio || fFin,
+    ),
+    aplicar: aplicarBorrador,
+  });
+  function descartarBorrador() {
+    aplicarBorrador({
+      tipo: esHoras ? 'horas_extra' : 'vacaciones', fecha: hoyLocal(), inicio: '', fin: '', actividades: [''],
+      cliente: '', clienteId: null, servicioId: null, proyecto: '', fInicio: '', fFin: '', medioDia: false,
+      dias: '', diasManual: false, goce: null, motivoTipo: esHoras ? '' : 'personal', motivo: '', cubre: '',
+      nota: '', firma: null, archivos: [],
+    });
+    borrador.limpiar();
+  }
   const camara = useRef<HTMLInputElement>(null);
   const galeria = useRef<HTMLInputElement>(null);
 
@@ -142,6 +177,7 @@ export default function FormSolicitud({
         showToast('Solicitud corregida y reenviada', 'success');
       } else {
         await crearSolicitud(datos, nombre);
+        await borrador.limpiar();
         showToast('Solicitud enviada para autorizar', 'success');
       }
       onListo();
@@ -163,6 +199,11 @@ export default function FormSolicitud({
           </div>
           <button type="button" onClick={onClose} disabled={guardando} aria-label="Cerrar" className="w-10 h-10 -mr-1 -mt-1 flex items-center justify-center text-muted"><X size={19} /></button>
         </div>
+        {borrador.recuperadoEn && (
+          <div className="mb-4">
+            <AvisoBorrador que="la solicitud" guardadoEn={borrador.recuperadoEn} onDescartar={descartarBorrador} />
+          </div>
+        )}
 
         {s?.estado === 'correccion' && s.comentario_revision && (
           <div className="mb-4 rounded-xl bg-amber/10 border border-amber/30 px-3.5 py-2.5 text-[13px]">

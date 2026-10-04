@@ -6,8 +6,11 @@ import { sumarDias } from './fechaHoy';
 // por una justificación. Aquí solo va lo que comparten el cron y la app.
 
 // Primer día que cuenta. Los días anteriores no se cobran: no había forma de
-// justificarlos cuando pasaron.
-export const INICIO_COBERTURA = '2026-09-28';
+// justificarlos cuando pasaron. Cada instalación pone el suyo (el día que
+// empieza a usar la app) en NEXT_PUBLIC_INICIO_COBERTURA, como AAAA-MM-DD;
+// sin la variable, o mal escrita, queda la fecha de Clave Inteligente.
+const INICIO_CONFIGURADO = (process.env.NEXT_PUBLIC_INICIO_COBERTURA || '').trim();
+export const INICIO_COBERTURA = /^\d{4}-\d{2}-\d{2}$/.test(INICIO_CONFIGURADO) ? INICIO_CONFIGURADO : '2026-09-28';
 
 // Hasta cuántos días atrás se sigue recordando un pendiente.
 export const DIAS_ATRAS_MAXIMO = 30;

@@ -1,7 +1,7 @@
 'use client';
 
 import SelectorPersona from '@/components/cuadrillas/SelectorPersona';
-import { useCuadrillas, cuadrillaPorTecnico, enCuadrilla, TODAS, SIN_CUADRILLA } from '@/lib/cuadrillas';
+import { useCuadrillas, cuadrillaPorTecnico, enCuadrilla, TODAS, SIN_CUADRILLA, MIAS } from '@/lib/cuadrillas';
 import { FiltroCuadrillas } from '@/components/cuadrillas/ChipsCuadrilla';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -96,7 +96,7 @@ export default function PlanSemana() {
   const mapaCuad = useMemo(() => cuadrillaPorTecnico(cuadrillas), [cuadrillas]);
   const [cuad, setCuad] = useState<string>(TODAS);
   useEffect(() => {
-    if (cuad !== TODAS && cuad !== SIN_CUADRILLA && !cuadrillas.some((c) => c.id === cuad)) setCuad(TODAS);
+    if (cuad !== TODAS && cuad !== SIN_CUADRILLA && !cuad.startsWith(MIAS) && !cuadrillas.some((c) => c.id === cuad)) setCuad(TODAS);
   }, [cuad, cuadrillas]);
 
   // Filas: técnicos activos (de la cuadrilla elegida) y, si hay, «Sin

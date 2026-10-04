@@ -122,6 +122,14 @@ input::placeholder, textarea::placeholder {
   border: 1px solid rgb(var(--c-line-rgb) / var(--c-line-a-strong));
 }
 
+/* Ventanas emergentes: el panel va opaco. Con el fondo translúcido de
+   .glass-strong se leía el texto de la pantalla de atrás a través del
+   formulario (sobre todo en tema oscuro y donde el desenfoque no aplica). */
+.modal-fondo > .glass-strong,
+.modal-fondo > .glass {
+  background: rgb(var(--c-surface));
+}
+
 /* Iluminación ambiental localizada: un resplandor de marca muy sutil
    anclado a una esquina de la tarjeta, para dar sensación de profundidad
    sin usar overflow:hidden (que rompería menús o modales que cuelguen de

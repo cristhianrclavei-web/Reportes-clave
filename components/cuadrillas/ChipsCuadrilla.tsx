@@ -1,7 +1,8 @@
 'use client';
 
 import { UNIFORMES } from '@/components/AvatarTecnico';
-import { Cuadrilla, SIN_CUADRILLA, TODAS, useCuadrillas } from '@/lib/cuadrillas';
+import { Cuadrilla, MIAS, SIN_CUADRILLA, TODAS, useCuadrillas } from '@/lib/cuadrillas';
+import { useMiId } from '@/lib/perfiles';
 
 const base = 'shrink-0 h-8 pl-2.5 pr-3 rounded-full text-[12.5px] font-semibold border flex items-center gap-1.5 transition-colors active:scale-95';
 const on = 'bg-ink text-bg border-ink';
@@ -24,10 +25,17 @@ export function FiltroCuadrillas({
   onCambiar: (k: string) => void;
   className?: string;
 }) {
+  const miId = useMiId();
   if (cuadrillas.length === 0) return null;
+  // «Mis cuadrillas»: solo para el supervisor que tiene alguna a su cargo.
+  const mias = miId ? cuadrillas.filter((c) => c.supervisor_id === miId) : [];
+  const idsMias = new Set(mias.map((c) => c.id));
   const sueltos = ids.filter((id) => !mapa.has(id)).length;
   const opciones = [
     { k: TODAS, nombre: 'Todas', color: null as number | null, n: ids.length },
+    ...(mias.length > 0 && mias.length < cuadrillas.length
+      ? [{ k: MIAS + miId, nombre: mias.length === 1 ? 'Mi cuadrilla' : 'Mis cuadrillas', color: null as number | null, n: ids.filter((id) => idsMias.has(mapa.get(id)?.id || '')).length }]
+      : []),
     ...cuadrillas.map((c) => ({ k: c.id, nombre: c.nombre, color: c.color as number | null, n: ids.filter((id) => mapa.get(id)?.id === c.id).length })),
     ...(sueltos > 0 ? [{ k: SIN_CUADRILLA, nombre: 'Sin cuadrilla', color: null as number | null, n: sueltos }] : []),
   ];

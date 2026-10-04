@@ -15,25 +15,40 @@ export type Cuadrilla = {
   // Índice en la paleta de uniformes (components/AvatarTecnico.tsx).
   color: number;
   lider_id: string | null;
+  // Supervisor a cargo (supabase/patch_cuadrillas_supervisor.sql); null si
+  // no tiene o si la instalación aún no corre ese patch.
+  supervisor_id: string | null;
   orden: number;
   miembros: string[];
 };
+
+// ¿La base ya tiene la columna del supervisor a cargo? Se sabe al listar.
+let conSupervisor = false;
+export function cuadrillasConSupervisor(): boolean {
+  return conSupervisor;
+}
 
 // Si la base aún no tiene las tablas (instalación sin el patch) se devuelve
 // una lista vacía: la app se comporta como si no hubiera cuadrillas.
 export async function listarCuadrillas(): Promise<Cuadrilla[]> {
   const supabase = createClient();
-  const { data, error } = await supabase
+  const consulta = (columnas: string) => supabase
     .from('cuadrillas')
-    .select('id, nombre, color, lider_id, orden, cuadrilla_miembros(tecnico_id)')
+    .select(columnas)
     .order('orden', { ascending: true })
     .order('nombre', { ascending: true });
+  // Primero con el supervisor a cargo; si la base no tiene esa columna
+  // (falta patch_cuadrillas_supervisor.sql) se lee como antes.
+  let { data, error } = await consulta('id, nombre, color, lider_id, supervisor_id, orden, cuadrilla_miembros(tecnico_id)');
+  conSupervisor = !error;
+  if (error) ({ data, error } = await consulta('id, nombre, color, lider_id, orden, cuadrilla_miembros(tecnico_id)'));
   if (error || !data) return [];
   return (data as any[]).map((c) => ({
     id: c.id,
     nombre: c.nombre,
     color: c.color ?? 0,
     lider_id: c.lider_id,
+    supervisor_id: c.supervisor_id ?? null,
     orden: c.orden ?? 0,
     miembros: ((c.cuadrilla_miembros as any[]) || []).map((m) => m.tecnico_id),
   }));
@@ -45,6 +60,8 @@ export async function guardarCuadrilla(c: {
   color: number;
   liderId: string | null;
   miembros: string[];
+  // undefined = no tocar (instalación sin el patch del supervisor a cargo).
+  supervisorId?: string | null;
 }): Promise<string> {
   const supabase = createClient();
   const { data, error } = await supabase.rpc('guardar_cuadrilla', {
@@ -57,6 +74,10 @@ export async function guardarCuadrilla(c: {
   if (error) {
     if (error.code === '23505') throw new Error('Ya hay una cuadrilla con ese nombre.');
     throw new Error(error.message);
+  }
+  if (c.supervisorId !== undefined && conSupervisor) {
+    const r = await supabase.from('cuadrillas').update({ supervisor_id: c.supervisorId }).eq('id', data as string);
+    if (r.error) throw new Error(r.error.message);
   }
   cache = null;
   return data as string;
@@ -98,12 +119,15 @@ export function cuadrillaPorTecnico(cuadrillas: Cuadrilla[]): Map<string, Cuadri
   return m;
 }
 
-// Clave para filtros: el id de la cuadrilla, o estos dos valores.
+// Clave para filtros: el id de la cuadrilla, o estos valores. «Mis
+// cuadrillas» lleva el id del supervisor: 'mias:<id>'.
 export const TODAS = 'todas';
 export const SIN_CUADRILLA = 'sin';
+export const MIAS = 'mias:';
 
 export function enCuadrilla(filtro: string, mapa: Map<string, Cuadrilla>, tecnicoId: string): boolean {
   if (filtro === TODAS) return true;
   const c = mapa.get(tecnicoId);
+  if (filtro.startsWith(MIAS)) return !!c?.supervisor_id && c.supervisor_id === filtro.slice(MIAS.length);
   return filtro === SIN_CUADRILLA ? !c : c?.id === filtro;
 }

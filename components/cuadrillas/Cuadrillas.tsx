@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Crown, Pencil, Plus, Trash2, Users, UserX, X } from 'lucide-react';
+import { Check, ChevronDown, Crown, Pencil, Plus, ShieldCheck, Trash2, Users, UserX, X } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
 import { AvatarTecnico, UNIFORMES } from '@/components/AvatarTecnico';
 import { showToast } from '@/components/Toast';
 import { createClient } from '@/lib/supabaseClient';
-import { Cuadrilla, cuadrillaPorTecnico, eliminarCuadrilla, guardarCuadrilla, useCuadrillas } from '@/lib/cuadrillas';
+import { Cuadrilla, cuadrillaPorTecnico, cuadrillasConSupervisor, eliminarCuadrilla, guardarCuadrilla, useCuadrillas } from '@/lib/cuadrillas';
 
 // Personal → Cuadrillas: el supervisor agrupa a los técnicos. Cada persona
 // está en una sola cuadrilla; las cuadrillas sirven para filtrar el tablero
@@ -20,6 +20,7 @@ const labelCls = 'block text-[11px] font-semibold uppercase tracking-wider text-
 export default function Cuadrillas() {
   const { cuadrillas, recargar } = useCuadrillas();
   const [tecnicos, setTecnicos] = useState<Tecnico[]>([]);
+  const [supervisores, setSupervisores] = useState<Tecnico[]>([]);
   const [cargado, setCargado] = useState(false);
   const [editar, setEditar] = useState<Cuadrilla | 'nueva' | null>(null);
 
@@ -30,7 +31,12 @@ export default function Cuadrillas() {
         setTecnicos(((data as any[]) || []).filter((t) => t.activo !== false).map((t) => ({ id: t.id, nombre: t.full_name })));
         setCargado(true);
       });
+    // Quién puede quedar a cargo de una cuadrilla.
+    createClient()
+      .from('profiles').select('id, full_name, activo').eq('role', 'supervisor').order('full_name')
+      .then(({ data }) => setSupervisores(((data as any[]) || []).filter((t) => t.activo !== false).map((t) => ({ id: t.id, nombre: t.full_name }))));
   }, []);
+  const nombreSupervisor = useMemo(() => new Map(supervisores.map((t) => [t.id, t.nombre])), [supervisores]);
 
   const nombreDe = useMemo(() => new Map(tecnicos.map((t) => [t.id, t.nombre])), [tecnicos]);
   const indiceDe = (id: string) => Math.max(0, tecnicos.findIndex((t) => t.id === id));
@@ -70,6 +76,11 @@ export default function Cuadrillas() {
                 <span className="text-[12.5px] text-muted tabular-nums shrink-0">{miembros.length} {miembros.length === 1 ? 'persona' : 'personas'}</span>
                 <Pencil size={15} className="text-muted shrink-0" />
               </div>
+              {c.supervisor_id && nombreSupervisor.has(c.supervisor_id) && (
+                <p className="text-[12.5px] text-muted flex items-center gap-1.5 -mt-1.5 mb-3">
+                  <ShieldCheck size={13} className="text-teal shrink-0" /> A cargo de {nombreSupervisor.get(c.supervisor_id)}
+                </p>
+              )}
               {miembros.length === 0 ? (
                 <p className="text-[13px] text-faint">Sin integrantes</p>
               ) : (
@@ -109,6 +120,7 @@ export default function Cuadrillas() {
           cuadrilla={editar === 'nueva' ? null : editar}
           cuadrillas={cuadrillas}
           tecnicos={tecnicos}
+          supervisores={cuadrillasConSupervisor() ? supervisores : []}
           indiceDe={indiceDe}
           onClose={() => setEditar(null)}
           onListo={() => { setEditar(null); recargar(); }}
@@ -119,11 +131,13 @@ export default function Cuadrillas() {
 }
 
 function EditorCuadrilla({
-  cuadrilla, cuadrillas, tecnicos, indiceDe, onClose, onListo,
+  cuadrilla, cuadrillas, tecnicos, supervisores, indiceDe, onClose, onListo,
 }: {
   cuadrilla: Cuadrilla | null;
   cuadrillas: Cuadrilla[];
   tecnicos: Tecnico[];
+  // Vacío si la instalación no tiene el patch del supervisor a cargo.
+  supervisores: Tecnico[];
   indiceDe: (id: string) => number;
   onClose: () => void;
   onListo: () => void;
@@ -134,6 +148,7 @@ function EditorCuadrilla({
   const [color, setColor] = useState(cuadrilla?.color ?? (libre >= 0 ? libre : 0));
   const [miembros, setMiembros] = useState<string[]>(cuadrilla?.miembros || []);
   const [lider, setLider] = useState<string | null>(cuadrilla?.lider_id || null);
+  const [supervisor, setSupervisor] = useState<string>(cuadrilla?.supervisor_id || '');
   const [guardando, setGuardando] = useState(false);
   const [confirmarBorrado, setConfirmarBorrado] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -150,7 +165,10 @@ function EditorCuadrilla({
     setGuardando(true);
     setError(null);
     try {
-      await guardarCuadrilla({ id: cuadrilla?.id, nombre, color, liderId: lider, miembros });
+      await guardarCuadrilla({
+        id: cuadrilla?.id, nombre, color, liderId: lider, miembros,
+        supervisorId: supervisores.length > 0 ? supervisor || null : undefined,
+      });
       showToast(cuadrilla ? 'Cuadrilla actualizada' : 'Cuadrilla creada', 'success');
       onListo();
     } catch (e: any) {
@@ -195,6 +213,20 @@ function EditorCuadrilla({
             </button>
           ))}
         </div>
+
+        {supervisores.length > 0 && (
+          <>
+            <label className={labelCls}>Supervisor a cargo</label>
+            <div className="relative mb-1.5">
+              <select value={supervisor} onChange={(e) => setSupervisor(e.target.value)} className={`${inputCls} appearance-none pr-10`}>
+                <option value="">Sin supervisor a cargo</option>
+                {supervisores.map((sp) => <option key={sp.id} value={sp.id}>{sp.nombre}</option>)}
+              </select>
+              <ChevronDown size={17} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+            </div>
+            <p className="text-[12px] text-faint mb-4">Quien queda a cargo ve el filtro «Mis cuadrillas» en el tablero, la agenda y el control de reportes.</p>
+          </>
+        )}
 
         <label className={labelCls}>Integrantes · {miembros.length}</label>
         <div className="rounded-2xl border border-line divide-y divide-line mb-4 max-h-[38vh] overflow-y-auto">

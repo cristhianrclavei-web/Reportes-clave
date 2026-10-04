@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
 import CampoNumero from '@/components/CampoNumero';
 import { showToast } from '@/components/Toast';
+import AvisoBorrador from '@/components/AvisoBorrador';
+import { useBorradorFormulario } from '@/lib/useBorradorFormulario';
 import { hoyLocal } from '@/lib/fechaHoy';
 import { catalogoEnCache } from '@/lib/clientesCatalogo';
 import { importeConLetra } from '@/lib/numeroALetras';
@@ -85,6 +87,43 @@ export default function FacturaForm({
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
 
+  // Borrador automático (solo al armar una prefactura nueva): lo capturado
+  // se guarda en el dispositivo y se recupera si la página se recarga.
+  const datosBorrador = {
+    clienteNombre, clienteId, receptorNombre, rfc, regimen, cp, usoCfdi, seleccionados, cotizacionId,
+    conceptos, fecha, moneda, tipoCambio, formaPago, metodoPago, condiciones, ivaPct, notas,
+  };
+  // Al recuperar un borrador no se vuelven a traer los datos fiscales del
+  // cliente: pisarían lo que ya se había corregido a mano.
+  const fiscalesDelBorrador = useRef(false);
+  function aplicarBorrador(d: typeof datosBorrador) {
+    fiscalesDelBorrador.current = true;
+    setClienteNombre(d.clienteNombre); setClienteId(d.clienteId);
+    setReceptorNombre(d.receptorNombre); setRfc(d.rfc); setRegimen(d.regimen); setCp(d.cp); setUsoCfdi(d.usoCfdi);
+    setSeleccionados(d.seleccionados); setCotizacionId(d.cotizacionId);
+    setConceptos(d.conceptos?.length ? d.conceptos : [conceptoVacio()]);
+    setFecha(d.fecha); setMoneda(d.moneda); setTipoCambio(d.tipoCambio);
+    setFormaPago(d.formaPago); setMetodoPago(d.metodoPago); setCondiciones(d.condiciones);
+    setIvaPct(d.ivaPct); setNotas(d.notas);
+  }
+  const borrador = useBorradorFormulario({
+    clave: modo === 'crear' ? `factura:nueva${clienteInicial?.id ? `:${clienteInicial.id}` : ''}` : `factura:${f0?.id || 'editar'}`,
+    datos: datosBorrador,
+    hayDatos: modo === 'crear' && !guardando && Boolean(clienteNombre.trim() || notas.trim() || conceptos.some((c) => c.descripcion.trim())),
+    aplicar: aplicarBorrador,
+  });
+  function descartarBorrador() {
+    aplicarBorrador({
+      clienteNombre: clienteInicial?.nombre || '', clienteId: clienteInicial?.id || null,
+      receptorNombre: '', rfc: '', regimen: '601', cp: '', usoCfdi: 'G03',
+      seleccionados: reportesIniciales, cotizacionId: null, conceptos: [conceptoVacio()],
+      fecha: hoyLocal(), moneda: 'MXN', tipoCambio: '', formaPago: '03', metodoPago: 'PUE',
+      condiciones: 'CONTADO', ivaPct: 16, notas: '',
+    });
+    fiscalesDelBorrador.current = false;
+    borrador.limpiar();
+  }
+
   // Nombre del cliente al editar (la factura guarda el id).
   useEffect(() => {
     if (clienteNombre || !clienteId) return;
@@ -110,7 +149,9 @@ export default function FacturaForm({
         setCotizaciones(v.cotizaciones);
       })
       .finally(() => vivo && setCargandoVinculos(false));
-    if (modo === 'crear') {
+    if (modo === 'crear' && fiscalesDelBorrador.current) {
+      fiscalesDelBorrador.current = false;
+    } else if (modo === 'crear') {
       datosFiscalesCliente(clienteId).then((d) => {
         if (!vivo || !d) return;
         setReceptorNombre(d.razon_social || d.nombre.toUpperCase());
@@ -190,6 +231,7 @@ export default function FacturaForm({
     try {
       if (modo === 'crear') {
         const id = await crearFactura(input);
+        await borrador.limpiar();
         showToast('Prefactura guardada', 'success');
         router.push(`/dashboard/facturacion/${id}`);
       } else if (f0) {
@@ -206,6 +248,9 @@ export default function FacturaForm({
 
   return (
     <div className="flex flex-col gap-4 pb-4">
+      {borrador.recuperadoEn && (
+        <AvisoBorrador que="la prefactura" guardadoEn={borrador.recuperadoEn} onDescartar={descartarBorrador} />
+      )}
       {/* 1. Cliente */}
       <div className={cardCls}>
         <Titulo n={1}>Cliente</Titulo>

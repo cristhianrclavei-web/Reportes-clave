@@ -36,7 +36,9 @@ revoke all on public.demo_accesos from anon, authenticated;
 -- Dos reglas de la base que hay que respetar: no se cambia la hora de un
 -- servicio en curso (se pasa un instante a «programado») y cambiar la hora
 -- borra el «visto» de los técnicos (se vuelve a marcar).
-create or replace function public.demo_al_dia()
+-- p_ahora solo sirve para probar otra hora; el cron la llama sin argumentos.
+drop function if exists public.demo_al_dia();
+create or replace function public.demo_al_dia(p_ahora timestamp default null)
 returns text
 language plpgsql
 security definer
@@ -44,8 +46,8 @@ set search_path = public
 as $$
 declare
   zona constant text := 'America/Mexico_City';
-  ahora timestamp := now() at time zone zona;
-  hoy date := (now() at time zone zona)::date;
+  ahora timestamp := coalesce(p_ahora, now() at time zone zona);
+  hoy date := coalesce(p_ahora, now() at time zone zona)::date;
   s record;
   n_campo integer := 0;
   n_prog integer := 0;
@@ -55,6 +57,38 @@ declare
 begin
   if not exists (select 1 from public.demo_accesos) then
     raise exception 'demo_al_dia() solo corre en la instalación demo';
+  end if;
+
+  -- Fin de la jornada: desde las 18:00 ya no hay nadie «en campo». Lo que
+  -- estaba en curso se da por concluido (su reporte queda pendiente, que es
+  -- justo lo que la app vigila) y lo que no se inició pasa a mañana.
+  if ahora::time >= time '18:00' then
+    for s in
+      select id, estado from public.servicios_programados
+      where fecha = hoy and estado in ('en_curso', 'en_sitio', 'programado') and report_id is null
+      order by case estado when 'programado' then 1 else 0 end, hora_programada, id
+    loop
+      if s.estado = 'programado' then
+        n_prog := n_prog + 1;
+        update public.servicios_programados
+          set fecha = hoy + 1, hora_programada = time '08:30' + make_interval(mins => n_prog * 45)
+        where id = s.id;
+      else
+        n_campo := n_campo + 1;
+        v_llegada := (hoy::timestamp + time '12:30' + make_interval(mins => n_campo * 20)) at time zone zona;
+        update public.servicios_programados set estado = 'programado' where id = s.id;
+        update public.servicios_programados set hora_programada = ((v_llegada at time zone zona) + interval '5 minutes')::time where id = s.id;
+        update public.servicios_programados set
+          estado = 'concluido',
+          hora_llegada = v_llegada,
+          hora_inicio = v_llegada + interval '10 minutes',
+          hora_fin = (hoy::timestamp + time '17:00' + make_interval(mins => n_campo * 10)) at time zone zona
+        where id = s.id;
+      end if;
+      update public.servicio_tecnicos set visto_en = now() - interval '6 hours', enterado_en = now() - interval '6 hours'
+      where servicio_id = s.id and visto_en is null;
+    end loop;
+    return format('fin de jornada: %s concluidos y %s pasados a mañana, al %s', n_campo, n_prog, to_char(ahora, 'HH24:MI'));
   end if;
 
   select count(*) into n_prog_total from public.servicios_programados
@@ -100,7 +134,7 @@ begin
 end;
 $$;
 
-revoke all on function public.demo_al_dia() from public, anon, authenticated;
+revoke all on function public.demo_al_dia(timestamp) from public, anon, authenticated;
 
 create or replace function public.reiniciar_demo()
 returns text
@@ -316,6 +350,12 @@ begin
       where id = v_s;
     end loop;
     i := 0;
+    -- Fase 3: la supervisora queda a cargo de dos cuadrillas, para que se
+    -- vea el filtro «Mis cuadrillas» (si la base ya tiene esa columna).
+    if exists (select 1 from information_schema.columns
+               where table_schema = 'public' and table_name = 'cuadrillas' and column_name = 'supervisor_id') then
+      execute 'update public.cuadrillas set supervisor_id = $1 where nombre in (''CCTV y accesos'', ''Incendio'')' using v_sup;
+    end if;
   end if;
 
   insert into public.vehiculos (nombre, placas) values

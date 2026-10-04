@@ -8,7 +8,8 @@ import {
 } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
 import { AvatarTecnico, TiraTecnicos, EstadoAvatar, UNIFORMES } from '@/components/AvatarTecnico';
-import { Cuadrilla, useCuadrillas, cuadrillaPorTecnico, enCuadrilla, TODAS, SIN_CUADRILLA } from '@/lib/cuadrillas';
+import { Cuadrilla, useCuadrillas, cuadrillaPorTecnico, enCuadrilla, TODAS, SIN_CUADRILLA, MIAS } from '@/lib/cuadrillas';
+import { useMiId } from '@/lib/perfiles';
 import { ElegirCuadrilla } from '@/components/cuadrillas/ChipsCuadrilla';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
 import { showToast } from '@/components/Toast';
@@ -137,10 +138,12 @@ export default function TableroDia({ onAgendar }: {
   // Cuadrillas (opcionales): filtran todo el tablero a un grupo de personas.
   const { cuadrillas } = useCuadrillas();
   const mapaCuad = useMemo(() => cuadrillaPorTecnico(cuadrillas), [cuadrillas]);
+  const miId = useMiId();
+  const misCuadrillas = useMemo(() => new Set(miId ? cuadrillas.filter((c) => c.supervisor_id === miId).map((c) => c.id) : []), [cuadrillas, miId]);
   const [cuad, setCuad] = useState<string>(TODAS);
   // Si la cuadrilla elegida se borró, se vuelve a «Todas».
   useEffect(() => {
-    if (cuad !== TODAS && cuad !== SIN_CUADRILLA && !cuadrillas.some((c) => c.id === cuad)) setCuad(TODAS);
+    if (cuad !== TODAS && cuad !== SIN_CUADRILLA && !cuad.startsWith(MIAS) && !cuadrillas.some((c) => c.id === cuad)) setCuad(TODAS);
   }, [cuad, cuadrillas]);
 
   // Técnicos con sus servicios del día; primero los que tienen servicio.
@@ -372,6 +375,10 @@ export default function TableroDia({ onAgendar }: {
         <div className="flex items-center gap-1.5 mb-2.5 overflow-x-auto -mx-1 px-1 lg:flex-wrap lg:overflow-visible" style={{ scrollbarWidth: 'none' }}>
           {[
             { k: TODAS, nombre: 'Todas', color: null as number | null, gente: filasTodas },
+            // «Mis cuadrillas»: solo para el supervisor que tiene alguna a su cargo.
+            ...(misCuadrillas.size > 0 && misCuadrillas.size < cuadrillas.length
+              ? [{ k: MIAS + miId, nombre: misCuadrillas.size === 1 ? 'Mi cuadrilla' : 'Mis cuadrillas', color: null as number | null, gente: filasTodas.filter((f) => misCuadrillas.has(mapaCuad.get(f.id)?.id || '')) }]
+              : []),
             ...cuadrillas.map((c) => ({ k: c.id, nombre: c.nombre, color: c.color as number | null, gente: filasTodas.filter((f) => mapaCuad.get(f.id)?.id === c.id) })),
             ...(filasTodas.some((f) => !mapaCuad.has(f.id))
               ? [{ k: SIN_CUADRILLA, nombre: 'Sin cuadrilla', color: null as number | null, gente: filasTodas.filter((f) => !mapaCuad.has(f.id)) }]

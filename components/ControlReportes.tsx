@@ -9,7 +9,7 @@ import { hoyLocal, sumarDias, fechaLocal } from '@/lib/fechaHoy';
 import { HORA_CORTE_MIN, inicioVentana, mensajePendiente, fechaCorta, MOTIVOS, MotivoJustificacion } from '@/lib/coberturaReportes';
 import { notificar } from '@/lib/push';
 import { cargarControl, ServicioPendiente, justificarPorTecnico } from '@/lib/controlReportes';
-import { useCuadrillas, cuadrillaPorTecnico, enCuadrilla, TODAS, SIN_CUADRILLA } from '@/lib/cuadrillas';
+import { useCuadrillas, cuadrillaPorTecnico, enCuadrilla, TODAS, SIN_CUADRILLA, MIAS } from '@/lib/cuadrillas';
 import { FiltroCuadrillas } from '@/components/cuadrillas/ChipsCuadrilla';
 import { UNIFORMES } from '@/components/AvatarTecnico';
 import { buscarReportesParaVincular, vincularReporteAServicio, ReporteParaVincular, cancelarServicio } from '@/lib/serviciosProgramados';
@@ -110,7 +110,7 @@ export default function ControlReportes({ reportes, onAbrirReporte }: { reportes
   const mapaCuad = useMemo(() => cuadrillaPorTecnico(cuadrillas), [cuadrillas]);
   const [cuad, setCuad] = useState<string>(TODAS);
   useEffect(() => {
-    if (cuad !== TODAS && cuad !== SIN_CUADRILLA && !cuadrillas.some((c) => c.id === cuad)) setCuad(TODAS);
+    if (cuad !== TODAS && cuad !== SIN_CUADRILLA && !cuad.startsWith(MIAS) && !cuadrillas.some((c) => c.id === cuad)) setCuad(TODAS);
   }, [cuad, cuadrillas]);
   const filasVista = useMemo(
     () => (cuad === TODAS ? filas : filas.filter((f) => enCuadrilla(cuad, mapaCuad, f.id))),
