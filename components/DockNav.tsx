@@ -16,7 +16,8 @@ import { coincideBusqueda } from '@/lib/busqueda';
 import { ClienteCatalogo, catalogoEnCache, listarCatalogoClientes } from '@/lib/clientesCatalogo';
 import { navegarConTransicion } from '@/lib/nativeViewTransition';
 import { useMiId, usePerfil, urlFoto } from '@/lib/perfiles';
-import { Search, X, LayoutGrid, Rows3, Building2 } from 'lucide-react';
+import { Search, X, LayoutGrid, Rows3, Building2, UserRound } from 'lucide-react';
+import { AvatarTecnico } from '@/components/AvatarTecnico';
 
 // Navegación de la computadora:
 //   · renglón del logo con buscador expandible (secciones y clientes), tema,
@@ -166,8 +167,8 @@ function SeccionLateral({
       {activo && (
         <motion.span layoutId="lateral-activo-fondo" transition={RESORTE} className="absolute inset-0 rounded-2xl bg-teal/12 ring-1 ring-teal/40 shadow-glow-teal" />
       )}
-      <span className="relative flex flex-col items-center justify-center gap-1.5 h-[70px] px-2 transition-transform duration-200 ease-out group-hover:-translate-y-[2px]">
-        <Icono size={24} strokeWidth={activo ? 2.4 : 2} />
+      <span className="relative flex flex-col items-center justify-center gap-1.5 h-[64px] px-2 transition-transform duration-200 ease-out group-hover:-translate-y-[2px]">
+        <Icono size={23} strokeWidth={activo ? 2.4 : 2} />
         <span className={`text-[12px] leading-none truncate max-w-full ${activo ? 'font-semibold' : 'font-medium'}`}>{etiqueta}</span>
       </span>
     </Link>
@@ -183,7 +184,8 @@ export default function DockNav({ userName, children }: { userName?: string; chi
   const puedeFacturar = usePuedeFacturar();
   const plan = usePlan();
   const secciones = seccionesVisibles(puedeAlmacen, puedeFacturar, plan.modulos);
-  const miPerfil = usePerfil(useMiId());
+  const miId = useMiId();
+  const miPerfil = usePerfil(miId);
 
   // --- Buscador expandible ---
   const [buscando, setBuscando] = useState(false);
@@ -251,37 +253,42 @@ export default function DockNav({ userName, children }: { userName?: string; chi
           los costados vacíos. Marca arriba, secciones y la cuenta abajo. Se
           queda fijo al hacer scroll; en pantallas menores sigue la barra de
           secciones de arriba. */}
-      <aside className="hidden 2xl:flex sticky top-0 h-screen w-[272px] shrink-0 flex-col border-r border-line bg-surface/50 px-4 pt-7 pb-8 overflow-y-auto no-scrollbar">
-        <Link href="/dashboard" aria-label="Ir al resumen" className="self-center mb-6 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/50">
+      <aside className="hidden 2xl:flex sticky top-0 h-screen w-[272px] shrink-0 flex-col border-r border-line bg-surface/50 px-4 pt-6 pb-6 overflow-y-auto no-scrollbar">
+        <Link href="/dashboard" aria-label="Ir al resumen" className="self-center mb-5 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/50">
           <Logo variante="completo" size={44} />
         </Link>
 
-        {/* Cuenta: arriba, como tarjeta. Perfil a la izquierda, salir a la derecha. */}
-        <div className="mb-6 rounded-2xl bg-surface border border-line p-2.5 flex items-center gap-2 shadow-diffuse">
-          <Link href="/perfil" aria-label="Mi perfil" className="flex items-center gap-3 flex-1 min-w-0 p-1 rounded-xl hover:bg-surface-2 transition-colors">
-            {miFoto ? (
-              <img src={miFoto} alt="" className="w-12 h-12 rounded-full object-cover shrink-0 ring-2 ring-teal/30" />
-            ) : (
-              <span className="w-12 h-12 rounded-full bg-teal text-inkOnAccent flex items-center justify-center text-[15px] font-display font-bold shrink-0 ring-2 ring-teal/30">
-                {iniciales || 'S'}
-              </span>
-            )}
-            <span className="min-w-0 leading-tight">
-              <span className="block text-[14px] font-semibold truncate">{userName || 'Supervisor'}</span>
-              <span className="block text-[12px] text-muted leading-snug line-clamp-2">{miPerfil?.puesto || 'Supervisión'}</span>
-            </span>
-          </Link>
-          <BotonDock etiqueta="Cerrar sesión">
-            <LogoutButton compacto className="w-10 h-10 rounded-full border border-line bg-surface-2 flex items-center justify-center text-ink/65 hover:text-red hover:border-red/40 active:scale-90 transition disabled:opacity-60" />
-          </BotonDock>
+        {/* Cuenta: tarjeta con la foto grande al centro (o su avatar, si no
+            ha subido foto), nombre y puesto, y debajo el acceso al perfil y
+            el botón de salir. */}
+        <div className="mb-5 rounded-3xl bg-surface border border-line overflow-hidden shadow-diffuse">
+          <div className="h-12 bg-gradient-to-br from-teal/35 via-teal/12 to-transparent" />
+          <div className="px-3.5 pb-3.5 -mt-9 flex flex-col items-center text-center">
+            <Link href="/perfil" aria-label="Mi perfil" className="rounded-full ring-4 ring-surface transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-teal/60">
+              {miFoto ? (
+                <img src={miFoto} alt="" className="w-[76px] h-[76px] rounded-full object-cover block" />
+              ) : (
+                <AvatarTecnico id={miId || undefined} nombre={userName || 'Supervisión'} size={76} />
+              )}
+            </Link>
+            <p className="mt-2.5 font-display font-bold text-[17px] leading-tight tracking-wide max-w-full truncate">{userName || 'Supervisión'}</p>
+            <p className="text-[12.5px] text-muted leading-snug line-clamp-2">{miPerfil?.puesto || 'Supervisión'}</p>
+            <div className="mt-3 w-full flex items-center gap-2">
+              <Link href="/perfil"
+                className="flex-1 h-9 rounded-full bg-surface-2 border border-line text-[12.5px] font-semibold text-ink/85 flex items-center justify-center gap-1.5 hover:border-teal/50 hover:text-teal transition-colors">
+                <UserRound size={14} strokeWidth={2.3} /> Mi perfil
+              </Link>
+              <BotonDock etiqueta="Cerrar sesión">
+                <LogoutButton compacto className="w-9 h-9 rounded-full border border-line bg-surface-2 flex items-center justify-center text-ink/65 hover:text-red hover:border-red/40 active:scale-90 transition disabled:opacity-60" />
+              </BotonDock>
+            </div>
+          </div>
         </div>
 
         <p className="px-1 mb-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-faint">Secciones</p>
         <LayoutGroup id="lateral">
-          {/* Margen parecido entre columnas (24 px) y entre filas (de 20 a
-              35 px según la altura de la pantalla): las filas se reparten en
-              la altura libre, con tope para que no queden desperdigadas. */}
-          <nav aria-label="Secciones" className="flex-1 min-h-[430px] max-h-[490px] grid grid-cols-2 gap-x-6 gap-y-4 content-between px-2 pb-1">
+          {/* Márgenes fijos entre columnas (24 px) y filas (12 px). */}
+          <nav aria-label="Secciones" className="grid grid-cols-2 gap-x-6 gap-y-3 px-2 pb-1">
             {secciones.map((t) => (
               <SeccionLateral key={t.key} href={t.href} etiqueta={t.label} Icono={t.Icono} activo={t.key === activa} />
             ))}
