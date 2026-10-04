@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import {
   ArrowRight, BellRing, CalendarDays, Check, ClipboardCheck, FileSignature, LayoutDashboard, Loader2,
-  MessageCircle, PackageCheck, Receipt, WifiOff, Wrench,
+  MessageCircle, PackageCheck, Receipt, WifiOff, Wrench, Palette, FileText, Stamp, Truck, Plug, Info,
 } from 'lucide-react';
 import Logo from '@/components/Logo';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -43,6 +43,16 @@ const FUNCIONES = [
   { Icono: BellRing, titulo: 'Control de reportes', texto: 'Avisa a quien no entregó su reporte y te muestra los días pendientes por persona.' },
 ];
 
+// Lo que se adapta a cada empresa. Son servicios opcionales: se cotizan
+// aparte según el alcance, y así se le dice al prospecto.
+const A_LA_MEDIDA = [
+  { Icono: Palette, titulo: 'Tu marca', texto: 'La app, los reportes y las cotizaciones con tu logotipo, tus colores y los datos de tu empresa.' },
+  { Icono: FileText, titulo: 'Tus documentos', texto: 'Adaptamos los formatos de reporte, cotización y mantenimiento a los que ya entregas a tus clientes.' },
+  { Icono: Stamp, titulo: 'Timbrado fiscal', texto: 'Conexión con un proveedor autorizado (PAC) para timbrar facturas y recibos de nómina desde la app.' },
+  { Icono: Truck, titulo: 'Almacén con proveedores', texto: 'Enlace con el catálogo de tus proveedores para consultar precios y existencias y surtir tu almacén.' },
+  { Icono: Plug, titulo: 'Integraciones a la medida', texto: 'Conexión con tu sistema contable, ERP u otras herramientas que ya usa tu empresa.' },
+];
+
 const PASOS = [
   { titulo: 'Recorre el demo', texto: 'Entra como supervisor o como técnico y prueba todo con datos de ejemplo.' },
   { titulo: 'Pide tu prueba', texto: '14 días con tu empresa, tu gente y tus clientes, con todos los módulos.' },
@@ -67,6 +77,7 @@ export default function PortadaDemo({
   const tema = useTheme();
   const sufijo = tema === 'light' ? 'claro' : 'oscuro';
   const hablar = enlaceVentas(`Hola, vi el demo de ${MARCA.appNombre} y quiero más información.`);
+  const medida = enlaceVentas(`Hola, vi el demo de ${MARCA.appNombre} y quiero cotizar una personalización o integración para mi empresa.`);
   const prueba = enlaceVentas(`Hola, vi el demo de ${MARCA.appNombre} y quiero una prueba de 14 días con los datos de mi empresa.`);
 
   return (
@@ -206,6 +217,49 @@ export default function PortadaDemo({
             <WifiOff size={15} className="text-teal shrink-0" />
             En campo funciona sin señal: el reporte se guarda en el celular y se sube solo al recuperar internet.
           </p>
+        </section>
+
+        {/* ---------- A la medida ---------- */}
+        <section className="pb-14 lg:pb-20">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-teal mb-2">A la medida</p>
+          <h2 className="font-display font-bold text-[26px] sm:text-[32px] leading-tight tracking-wide max-w-2xl">
+            Se adapta a la forma de trabajar de tu empresa
+          </h2>
+          <p className="mt-3 text-[15px] text-muted max-w-2xl leading-relaxed">
+            Además de lo que incluye cada paquete, podemos ajustar la app a tu operación. Cuéntanos qué necesitas
+            y te decimos cómo resolverlo.
+          </p>
+          <div className="mt-7 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-3.5">
+            {A_LA_MEDIDA.map((f) => (
+              <div key={f.titulo} className="rounded-2xl border border-line bg-surface/60 p-5">
+                <span className="w-10 h-10 rounded-xl bg-amber/15 text-amber flex items-center justify-center mb-3.5">
+                  <f.Icono size={20} strokeWidth={2.1} />
+                </span>
+                <p className="font-display font-bold text-[18px] tracking-wide mb-1">{f.titulo}</p>
+                <p className="text-[13.5px] text-muted leading-relaxed">{f.texto}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 rounded-2xl border border-line bg-surface-2 px-4 py-3.5 flex flex-col sm:flex-row sm:items-center gap-3">
+            <p className="flex-1 text-[13.5px] text-ink/85 leading-relaxed flex items-start gap-2.5">
+              <Info size={17} className="text-teal shrink-0 mt-0.5" />
+              <span>
+                Las personalizaciones e integraciones son opcionales y <b>pueden tener un costo adicional</b> al del paquete.
+                Antes de empezar recibes una cotización por escrito con el alcance, el precio y el tiempo de entrega; no se
+                cobra nada que no hayas aprobado.
+              </span>
+            </p>
+            {medida && (
+              <a
+                href={medida}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 min-h-[44px] px-4 rounded-xl border border-teal/50 text-teal font-semibold text-[13.5px] flex items-center justify-center gap-2 hover:bg-teal hover:text-inkOnAccent transition-colors"
+              >
+                <MessageCircle size={16} strokeWidth={2.3} /> Solicitar cotización
+              </a>
+            )}
+          </div>
         </section>
 
         {/* ---------- Cómo empezar ---------- */}
