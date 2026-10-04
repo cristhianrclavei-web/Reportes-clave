@@ -84,6 +84,13 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
     const lineY = topY - 24;
     pg.drawLine({ start: { x: wordX, y: lineY }, end: { x: wordX + wordmarkW, y: lineY }, thickness: 1, color: LINEA_MARCA });
     drawIconStrip(pg, wordX, lineY - 8, 14, GRAY_TEXT);
+    // Título y folio a la derecha, como en el reporte de servicio.
+    const titulo = 'COTIZACIÓN';
+    pg.drawText(titulo, { x: PAGE_W - MARGIN - display.widthOfTextAtSize(titulo, 14), y: topY - 13, size: 14, font: display, color: NAVY });
+    if (cot.folio) {
+      const fol = `Folio: ${cot.folio}`;
+      pg.drawText(fol, { x: PAGE_W - MARGIN - font.widthOfTextAtSize(fol, 8.5), y: topY - 27, size: 8.5, font, color: GRAY_TEXT });
+    }
     return topY - badgeSize - 20;
   }
 
@@ -267,13 +274,6 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
     y -= 16;
   }
 
-  // ================= Página de condiciones comerciales y firma =================
-  startPage();
-
-  y -= 8;
-  page.drawText('Condiciones comerciales de venta:', { x: MARGIN, y, size: 10, font: bold, color: NAVY });
-  y -= 16;
-
   const condiciones = [
     cot.moneda === 'USD'
       ? `Los precios se expresan en Dólares Americanos (USD), más IVA. Tipo de cambio de referencia: $${cot.tipo_cambio.toFixed(2)} MXN por dólar.`
@@ -286,6 +286,18 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
   ];
   if (cot.notas) condiciones.push(cot.notas);
 
+  // ================= Condiciones comerciales y firma =================
+  // Si caben completas debajo de los totales se quedan en la misma hoja
+  // (una cotización corta ya no deja media página en blanco); si no, van
+  // en hoja aparte como siempre.
+  const lineasCondiciones = condiciones.reduce((n, c) => n + c.split(/\r?\n/).reduce((m, p) => m + (p.trim() ? wrapText(p, font, 9.5, contentW).length : 0.5), 0), 0);
+  const altoCierre = 24 + 16 + lineasCondiciones * 14 + 60 + 5 * 14;
+  if (y - altoCierre < 46) startPage();
+  else y -= 16;
+
+  y -= 8;
+  page.drawText('Condiciones comerciales de venta:', { x: MARGIN, y, size: 10, font: bold, color: NAVY });
+  y -= 16;
   // Los campos de texto largo (garantía, tiempo de entrega, notas) pueden
   // traer varios párrafos: cada salto de línea se respeta y una línea vacía
   // deja un espacio entre párrafos.

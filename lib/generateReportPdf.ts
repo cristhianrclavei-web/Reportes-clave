@@ -1,4 +1,5 @@
 import { tuberiasDe, cablesDe, soporteriaDe, textoTuberia, textoCable, textoSoporteria } from './materialesReporte';
+import { fechaDMA } from './etiquetaMantenimiento';
 import { PDFDocument, rgb } from 'pdf-lib';
 import { comprimirFoto } from './pdfFotos';
 import {
@@ -129,7 +130,7 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
     color: NAVY,
     maxWidth: contentW,
   });
-  page.drawText(`Servicio del ${report.fecha || '—'}`, { x: MARGIN, y: clienteY - 14, size: 8.5, font, color: GRAY_TEXT });
+  page.drawText(`Servicio del ${fechaDMA(report.fecha)}`, { x: MARGIN, y: clienteY - 14, size: 8.5, font, color: GRAY_TEXT });
 
   y = clienteY - 26;
   page.drawLine({ start: { x: MARGIN, y }, end: { x: PAGE_W - MARGIN, y }, thickness: 1.5, color: NAVY });
@@ -147,7 +148,7 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
   const personalBoxH = 18 + personalLines.length * 13 + 10;
   const datosRows: [string, string][] = [
     ['Lista de conceptos', data.listaConceptos || '—'],
-    ['Fecha', report.fecha || '—'],
+    ['Fecha', fechaDMA(report.fecha)],
     ['Hora llegada', data.horaLlegada || '—'],
     ['Hora salida', data.horaSalida || '—'],
     ['Empresa / Cliente', report.empresa_cliente || '—'],
@@ -229,7 +230,9 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
   const tsRightW = contentW - tsLeftW - 12;
   const tsRightX = MARGIN + tsLeftW + 12;
   const tubH = 18 + Math.max(1, tuberiaLineas.reduce((n, l) => n + l.length, 0)) * 13 + 10;
-  const segH = 18 + SEG_OPTIONS.length * 14 + 8 + (segSelected.includes('Otra') && data.seguridadOtraTexto ? 13 : 0);
+  // Las casillas van en dos columnas para no gastar media hoja.
+  const segFilas = Math.ceil(SEG_OPTIONS.length / 2);
+  const segH = 18 + segFilas * 14 + 8 + (segSelected.includes('Otra') && data.seguridadOtraTexto ? 13 : 0);
   const tsRowH = Math.max(tubH, segH);
 
   ensureSpace(tsRowH + 10);
@@ -250,11 +253,11 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
   boxBorder(tsRightX, tsTop, tsRightW, tsRowH);
   boxTitle(tsRightX, tsRightW, tsTop, 18, 'Sistema de seguridad');
   SEG_OPTIONS.forEach((opt, i) => {
-    const cy = tsTop - 18 - 12 - i * 14;
-    checkbox(tsRightX + 8, cy - 6, segSelected.includes(opt), opt);
+    const cy = tsTop - 18 - 12 - (i % segFilas) * 14;
+    checkbox(tsRightX + 8 + (i >= segFilas ? tsRightW / 2 : 0), cy - 6, segSelected.includes(opt), opt);
   });
   if (segSelected.includes('Otra') && data.seguridadOtraTexto) {
-    const otraY = tsTop - 18 - 12 - SEG_OPTIONS.length * 14;
+    const otraY = tsTop - 18 - 12 - segFilas * 14;
     page.drawText(`Otra: ${data.seguridadOtraTexto}`, { x: tsRightX + 8, y: otraY, size: 8, font, color: NAVY, maxWidth: tsRightW - 16 });
   }
   y = tsTop - tsRowH - 10;
@@ -301,7 +304,7 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
   eqCols.forEach((c) => {
     page.drawText(c.label, { x: cx + 6, y: headerRowY - rowH + 5, size: 7, font: bold, color: GRAY_TEXT });
     cx += contentW * c.w;
-    page.drawLine({ start: { x: cx, y: headerRowY }, end: { x: cx, y: eqTop - eqH }, thickness: 0.5, color: GRAY_LINE });
+    page.drawLine({ start: { x: cx, y: headerRowY }, end: { x: cx, y: equipos.length === 0 ? headerRowY - rowH : eqTop - eqH }, thickness: 0.5, color: GRAY_LINE });
   });
   page.drawLine({ start: { x: MARGIN, y: headerRowY - rowH }, end: { x: MARGIN + contentW, y: headerRowY - rowH }, thickness: 0.5, color: GRAY_LINE });
 
@@ -536,7 +539,7 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
   if (data.firmaRevisionData) {
     const revY = y - 18 - sigBoxH - 14;
     page.drawText('REVISIÓN FINAL', { x: MARGIN, y: revY, size: 6.5, font: bold, color: GRAY_TEXT });
-    page.drawText(`Aprobado por ${data.firmaRevisionNombre || MARCA.revisor} · ${data.firmaRevisionFecha || ''}`, {
+    page.drawText(`Aprobado por ${data.firmaRevisionNombre || MARCA.revisor} · ${data.firmaRevisionFecha ? fechaDMA(String(data.firmaRevisionFecha).slice(0, 10)) : ''}`, {
       x: MARGIN + 100, y: revY, size: 8.5, font: bold, color: TEAL_DARK,
     });
   }
@@ -600,7 +603,7 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
     y = top - 48;
     page.drawText(f.titulo, { x: MARGIN, y, size: 15, font: display, color: NAVY, maxWidth: contentW });
     y -= 14;
-    page.drawText(`${report.empresa_cliente || '—'}  ·  Servicio del ${report.fecha || '—'}  ·  Visita ${ETIQUETA_FRECUENCIA[f.visita] || f.visita}`, {
+    page.drawText(`${report.empresa_cliente || '—'}  ·  Servicio del ${fechaDMA(report.fecha)}  ·  Visita ${ETIQUETA_FRECUENCIA[f.visita] || f.visita}`, {
       x: MARGIN, y, size: 8.5, font, color: GRAY_TEXT, maxWidth: contentW,
     });
     y -= 10;
