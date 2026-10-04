@@ -7,7 +7,7 @@
 export default function FondoFotovoltaico({ className = '' }: { className?: string }) {
   return (
     <svg
-      viewBox="0 0 1200 700"
+      viewBox="0 44 1200 568"
       preserveAspectRatio="xMidYMax meet"
       aria-hidden="true"
       className={`fv pointer-events-none select-none ${className}`}

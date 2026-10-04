@@ -117,11 +117,10 @@ function LoginForm() {
         <ThemeToggle />
       </div>
 
-      {/* Fondo animado: un sistema fotovoltaico que se arma. En computadora
-          ocupa el lado izquierdo; en celular queda tenue detrás de la tarjeta. */}
-      <FondoFotovoltaico className="absolute bottom-0 left-0 w-[150%] max-w-none opacity-30 sm:w-full lg:opacity-100 lg:w-[50%] xl:w-[56%] 2xl:w-[66%] lg:left-[2%] lg:bottom-[6%]" />
-
-      <div className="min-h-screen flex items-center justify-center lg:justify-end p-5 lg:pr-[8%] xl:pr-[11%] relative z-10">
+      {/* Animación: un sistema fotovoltaico que se arma. En celular va
+          completa arriba del formulario; en computadora, al lado izquierdo. */}
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3 px-5 pt-14 pb-6 lg:flex-row lg:justify-end lg:gap-0 lg:p-5 lg:pr-[8%] xl:pr-[11%] relative z-10">
+      <FondoFotovoltaico className="w-full max-w-md shrink-0 lg:absolute lg:max-w-none lg:w-[50%] xl:w-[56%] 2xl:w-[66%] lg:left-[2%] lg:bottom-[8%]" />
 
       <form
         onSubmit={modoOlvido ? handleRecuperar : handleLogin}
