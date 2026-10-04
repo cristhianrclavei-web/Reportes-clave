@@ -1,5 +1,6 @@
 'use client';
 
+import { useEnVivo } from '@/lib/useEnVivo';
 import { coincideBusqueda } from '@/lib/busqueda';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -135,6 +136,9 @@ export default function TableroDia({ onAgendar }: {
     document.addEventListener('visibilitychange', alVolver);
     return () => { clearInterval(t); document.removeEventListener('visibilitychange', alVolver); };
   }, [cargar]);
+  // Y al instante cuando alguien marca llegada, concluye o entrega su reporte
+  // (si la base publica esas tablas en tiempo real).
+  useEnVivo({ tablas: ['servicios_programados', 'servicio_tecnicos', 'reports'], alCambiar: () => cargar(true), cadaMs: 0 });
 
   // Cuadrillas (opcionales): filtran todo el tablero a un grupo de personas.
   const { cuadrillas } = useCuadrillas();

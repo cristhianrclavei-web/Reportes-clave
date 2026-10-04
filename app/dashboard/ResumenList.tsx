@@ -1,9 +1,11 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
+import { useEnVivo, huellaReportes } from '@/lib/useEnVivo';
 import AvisoPlegable from '@/components/AvisoPlegable';
 import AlertaEquiposSinRegistro from '@/components/AlertaEquiposSinRegistro';
 import AlertaSolicitudes from '@/components/AlertaSolicitudes';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabaseClient';
 import NotificacionesToggle from '@/components/NotificacionesToggle';
@@ -64,6 +66,16 @@ export default function ResumenList({
   // valor en servidor y primer render del cliente) y se corrige ya montado.
   const [ahora, setAhora] = useState<number | null>(null);
   useEffect(() => setAhora(Date.now()), []);
+
+  // En vivo: cuando llega un reporte (o cambia un servicio) el Resumen se
+  // vuelve a pedir al servidor, sin recargar la página.
+  const router = useRouter();
+  useEnVivo({ tablas: ['reports', 'servicios_programados'], huella: huellaReportes, alCambiar: () => router.refresh() });
+  const cuantos = useRef(reports.length);
+  useEffect(() => {
+    if (reports.length > cuantos.current) showToast('Llegó un reporte nuevo', 'success');
+    cuantos.current = reports.length;
+  }, [reports.length]);
 
   function marcarErrorAviso(descripcion: string) {
     setErroresAvisos((prev) => (prev.includes(descripcion) ? prev : [...prev, descripcion]));

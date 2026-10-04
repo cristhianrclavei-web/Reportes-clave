@@ -1,9 +1,11 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
+import { useEnVivo, huellaReportes } from '@/lib/useEnVivo';
 import { useAliasClientes } from '@/lib/useAliasClientes';
 import { coincideBusqueda } from '@/lib/busqueda';
 import SubTabs from '@/components/SubTabs';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabaseClient';
 import ReportDetailModal, { ReportDetail, techName } from '@/components/ReportDetailModal';
@@ -53,6 +55,17 @@ export default function ReportesList({
   // error de hidratación.
   const [ahora, setAhora] = useState<number | null>(null);
   useEffect(() => setAhora(Date.now()), []);
+
+  // En vivo: cuando llega un reporte se vuelve a pedir la lista al servidor
+  // y se muestra sin recargar la página.
+  const routerVivo = useRouter();
+  useEnVivo({ tablas: ['reports'], huella: huellaReportes, alCambiar: () => routerVivo.refresh() });
+  const cuantos = useRef(reportsIniciales.length);
+  useEffect(() => {
+    setReports(reportsIniciales);
+    if (reportsIniciales.length > cuantos.current) showToast('Llegó un reporte nuevo', 'success');
+    cuantos.current = reportsIniciales.length;
+  }, [reportsIniciales]);
 
   // Enlaces desde otras pantallas (p. ej. el detalle de un cliente):
   //   ?reporte=<id>  abre ese reporte;  ?q=<texto>  llena la búsqueda;
