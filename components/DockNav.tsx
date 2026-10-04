@@ -262,13 +262,13 @@ export default function DockNav({ userName, children }: { userName?: string; chi
             ha subido foto), nombre y puesto, y debajo el acceso al perfil y
             el botón de salir. */}
         <div className="mb-5 rounded-3xl bg-surface border border-line overflow-hidden shadow-diffuse">
-          <div className="h-12 bg-gradient-to-br from-teal/35 via-teal/12 to-transparent" />
-          <div className="px-3.5 pb-3.5 -mt-9 flex flex-col items-center text-center">
+          <div className="h-14 bg-gradient-to-br from-teal/35 via-teal/12 to-transparent" />
+          <div className="px-3.5 pb-3.5 -mt-12 flex flex-col items-center text-center">
             <Link href="/perfil" aria-label="Mi perfil" className="rounded-full ring-4 ring-surface transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-teal/60">
               {miFoto ? (
-                <img src={miFoto} alt="" className="w-[76px] h-[76px] rounded-full object-cover block" />
+                <img src={miFoto} alt="" className="w-[94px] h-[94px] rounded-full object-cover block" />
               ) : (
-                <AvatarTecnico id={miId || undefined} nombre={userName || 'Supervisión'} size={76} />
+                <AvatarTecnico id={miId || undefined} nombre={userName || 'Supervisión'} size={94} />
               )}
             </Link>
             <p className="mt-2.5 font-display font-bold text-[17px] leading-tight tracking-wide max-w-full truncate">{userName || 'Supervisión'}</p>
