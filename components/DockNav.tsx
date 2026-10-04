@@ -268,7 +268,7 @@ export default function DockNav({ userName, children }: { userName?: string; chi
             )}
             <span className="min-w-0 leading-tight">
               <span className="block text-[14px] font-semibold truncate">{userName || 'Supervisor'}</span>
-              <span className="block text-[12px] text-muted leading-snug line-clamp-2">{miPerfil?.puesto || 'Supervisor'}</span>
+              <span className="block text-[12px] text-muted leading-snug line-clamp-2">{miPerfil?.puesto || 'Supervisión'}</span>
             </span>
           </Link>
           <BotonDock etiqueta="Cerrar sesión">
@@ -385,7 +385,7 @@ export default function DockNav({ userName, children }: { userName?: string; chi
                 )}
                 <span className="hidden xl:block leading-tight text-left">
                   <span className="block text-[14px] font-semibold truncate max-w-[160px]">{userName || 'Supervisor'}</span>
-                  <span className="block text-[12px] text-muted truncate max-w-[160px]">{miPerfil?.puesto || 'Supervisor'}</span>
+                  <span className="block text-[12px] text-muted truncate max-w-[160px]">{miPerfil?.puesto || 'Supervisión'}</span>
                 </span>
               </Link>
               <BotonDock etiqueta="Cerrar sesión">

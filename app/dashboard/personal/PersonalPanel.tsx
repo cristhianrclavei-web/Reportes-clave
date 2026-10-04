@@ -2,36 +2,39 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { CalendarClock, Lock, Users } from 'lucide-react';
+import { CalendarClock, Contact, Lock, Users } from 'lucide-react';
 import SupervisorShell from '@/components/SupervisorShell';
 import SubTabs from '@/components/SubTabs';
 import Solicitudes from '@/components/solicitudes/Solicitudes';
 import Cuadrillas from '@/components/cuadrillas/Cuadrillas';
+import Directorio from '@/components/personal/Directorio';
 import { usePlan } from '@/lib/planes';
 import { tieneModulo } from '@/lib/planesDatos';
 
 // Personal: solicitudes (horas extra, vacaciones y permisos; quien autoriza
-// ve la bandeja de todos, los demás supervisores las suyas) y cuadrillas.
+// ve la bandeja de todos, los demás supervisores las suyas), la ficha del
+// equipo (contacto, emergencia, tallas) y cuadrillas.
 // Las cuadrillas son de los paquetes Profesional y Empresa: en Campo la
 // pestaña se queda, con la invitación a subir de paquete.
 export default function PersonalPanel({ userName }: { userName: string }) {
-  const [sub, setSub] = useState<'solicitudes' | 'cuadrillas'>('solicitudes');
+  const [sub, setSub] = useState<'solicitudes' | 'equipo' | 'cuadrillas'>('solicitudes');
   const plan = usePlan();
   const conCuadrillas = tieneModulo(plan, 'cuadrillas');
   const mostrarPestana = conCuadrillas || plan.plan === 'campo';
   return (
     <SupervisorShell active="personal" title="Personal" userName={userName}>
-      {mostrarPestana && (
-        <SubTabs
-          activa={sub}
-          onCambiar={setSub}
-          opciones={[
-            { k: 'solicitudes', label: 'Solicitudes', Icono: CalendarClock },
-            { k: 'cuadrillas', label: 'Cuadrillas', Icono: conCuadrillas ? Users : Lock },
-          ]}
-        />
-      )}
-      {sub === 'solicitudes' || !mostrarPestana ? (
+      <SubTabs
+        activa={sub}
+        onCambiar={setSub}
+        opciones={[
+          { k: 'solicitudes' as const, label: 'Solicitudes', Icono: CalendarClock },
+          { k: 'equipo' as const, label: 'Equipo', Icono: Contact },
+          ...(mostrarPestana ? [{ k: 'cuadrillas' as const, label: 'Cuadrillas', Icono: conCuadrillas ? Users : Lock }] : []),
+        ]}
+      />
+      {sub === 'equipo' ? (
+        <Directorio />
+      ) : sub === 'solicitudes' || !mostrarPestana ? (
         <Solicitudes nombre={userName} />
       ) : conCuadrillas ? (
         <Cuadrillas />

@@ -67,7 +67,7 @@ export default function SupervisorShell({
           <div className="flex items-center gap-0.5 shrink-0">
             <CommandPalette puedeAlmacen={puedeAlmacen} />
             <ThemeToggle />
-            <PerfilChip nombre={userName} respaldo="Supervisor" />
+            <PerfilChip nombre={userName} respaldo="Supervisión" />
             <LogoutButton compacto />
           </div>
         </div>

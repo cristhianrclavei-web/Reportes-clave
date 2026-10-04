@@ -219,24 +219,62 @@ begin
     select * from (values
       (4, 'Luis Hernández', 'Técnico de campo', array['CCTV', 'Redes']),
       (5, 'Carlos Mendoza', 'Técnico de campo', array['Control de acceso']),
-      (6, 'Fernando Aguilar', 'Técnico especialista', array['Red contra incendio', 'Supresión']),
-      (7, 'Ricardo Peña', 'Técnico de campo', array['Alarma intrusión', 'CCTV']),
+      (6, 'Fernando Aguilar', 'Especialista en incendio', array['Red contra incendio', 'Supresión']),
+      (7, 'Rebeca Peña', 'Técnico de campo', array['Alarma intrusión', 'CCTV']),
       (8, 'Óscar Villanueva', 'Técnico electricista', array['Inst. eléctricas', 'Paneles solares']),
       (9, 'Héctor Salazar', 'Técnico de campo', array['CCTV']),
-      (10, 'Iván Castillo', 'Auxiliar técnico', array['Control de acceso']),
+      (10, 'Ivonne Castillo', 'Auxiliar técnico', array['Control de acceso']),
       (11, 'Raúl Domínguez', 'Técnico de campo', array['Alarma&Det']),
       (12, 'Sergio Paredes', 'Técnico especialista', array['Automatización']),
-      (13, 'Adrián Fuentes', 'Auxiliar técnico', array['CCTV']),
+      (13, 'Adriana Fuentes', 'Auxiliar técnico', array['CCTV']),
       (14, 'Marco Rosales', 'Técnico de campo', array['Red contra incendio']),
       (15, 'Emilio Carrillo', 'Auxiliar técnico', array['Inst. eléctricas'])
     ) v(n, nombre, puesto, esp)
   loop
     update public.profiles p set full_name = x.nombre, role = 'tecnico', puesto = x.puesto,
-      telefono = '33100000' || lpad(x.n::text, 2, '0'), activo = true, es_cuenta_prueba = false,
+      telefono = '33100001' || lpad(x.n::text, 2, '0'), activo = true, es_cuenta_prueba = false,
       credenciales_actualizadas = true, especialidades = x.esp
     from auth.users u
     where u.id = p.id and u.email = 'tecnico' || x.n || dominio;
   end loop;
+
+  -- Figuras del avatar (si la base ya tiene patch_perfil_ampliado.sql): el
+  -- equipo de ejemplo tiene mujeres y hombres.
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'profiles' and column_name = 'avatar_estilo') then
+    update public.profiles p set avatar_estilo = v.estilo, avatar_color = v.color
+    from (values
+      ('supervisor', 2, 4), ('tecnico', 0, 1), ('tecnico2', 3, 2), ('tecnico3', 0, 5),
+      ('tecnico4', 0, 6), ('tecnico5', 3, 8), ('tecnico6', 0, 3), ('tecnico7', 1, 4),
+      ('tecnico8', 0, 7), ('tecnico9', 0, 0), ('tecnico10', 2, 3), ('tecnico11', 3, 9),
+      ('tecnico12', 0, 6), ('tecnico13', 1, 0), ('tecnico14', 0, 2), ('tecnico15', 0, 5)
+    ) v(usuario, estilo, color)
+    join auth.users u on u.email = v.usuario || dominio
+    where p.id = u.id;
+
+    -- Ficha de emergencia y tallas (datos ficticios). Dos personas quedan
+    -- sin registrar, para que se vea el aviso en Personal → Equipo.
+    update public.profiles p set
+      emergencia_nombre = v.contacto, emergencia_telefono = v.tel,
+      tipo_sangre = v.sangre, alergias = v.alergias, talla_camisa = v.camisa, talla_calzado = v.calzado
+    from (values
+      ('supervisor', 'Roberto Méndez (esposo)', '3350000001', 'O+', null, 'M', '24'),
+      ('tecnico', 'Ana Ramírez (esposa)', '3350000002', 'A+', null, 'G', '27'),
+      ('tecnico2', 'Lucía Torres (mamá)', '3350000003', 'O+', 'Alergia a la penicilina', 'M', '26.5'),
+      ('tecnico3', 'Pedro Ortiz (hermano)', '3350000004', 'B+', null, 'G', '28'),
+      ('tecnico4', 'Marta Hernández (esposa)', '3350000005', 'O-', null, 'XG', '27.5'),
+      ('tecnico5', 'José Mendoza (papá)', '3350000006', 'A+', null, 'M', '26'),
+      ('tecnico6', 'Elena Aguilar (esposa)', '3350000007', 'AB+', 'Diabetes tipo 2', 'G', '27'),
+      ('tecnico7', 'Raúl Peña (esposo)', '3350000008', 'O+', null, 'CH', '23.5'),
+      ('tecnico8', 'Carmen Villanueva (mamá)', '3350000009', 'A-', null, 'XG', '28.5'),
+      ('tecnico10', 'Sofía Castillo (hermana)', '3350000011', 'B+', 'Alergia al látex', 'M', '24'),
+      ('tecnico11', 'Laura Domínguez (esposa)', '3350000012', 'O+', null, 'G', '27'),
+      ('tecnico13', 'Marcos Fuentes (papá)', '3350000014', 'A+', null, 'CH', '23'),
+      ('tecnico14', 'Diana Rosales (esposa)', '3350000015', 'O+', null, 'G', '26.5'),
+      ('tecnico15', 'Irma Carrillo (mamá)', '3350000016', 'B-', null, 'M', '26')
+    ) v(usuario, contacto, tel, sangre, alergias, camisa, calzado)
+    join auth.users u on u.email = v.usuario || dominio
+    where p.id = u.id;
+  end if;
 
   -- ---------- Cuadrillas de ejemplo ----------
   -- El primero de cada lista queda de líder. Sergio Paredes (12) se deja sin

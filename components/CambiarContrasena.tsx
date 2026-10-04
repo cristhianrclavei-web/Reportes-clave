@@ -74,7 +74,7 @@ export default function CambiarContrasena({ email }: { email: string }) {
     }`;
 
   return (
-    <div className="rounded-2xl bg-surface border border-line p-5 mb-6">
+    <div className="rounded-2xl bg-surface border border-line p-5">
       <button
         onClick={() => { setAbierto((v) => !v); if (abierto) limpiar(); }}
         className="w-full min-h-[44px] flex items-center justify-between gap-3 text-left"

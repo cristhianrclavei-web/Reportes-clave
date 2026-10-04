@@ -13,10 +13,15 @@ export type PerfilPublico = {
   apodo: string | null;
   foto_path: string | null;
   avatar_color: number | null;
+  // Figura del avatar genérico (ESTILOS_AVATAR); ausente si falta patch_perfil_ampliado.sql.
+  avatar_estilo?: number | null;
   puesto: string | null;
   especialidades: string[];
   role: string | null;
 };
+
+export const TIPOS_SANGRE = ['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-'];
+export const TALLAS_CAMISA = ['CH', 'M', 'G', 'XG', 'XXG'];
 
 export const ESPECIALIDADES = [
   'CCTV', 'Detección de incendio', 'Supresión', 'Control de acceso', 'Alarma de intrusión',
@@ -101,7 +106,10 @@ async function prepararFoto(file: File): Promise<Blob> {
   return new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error('No se pudo procesar la foto'))), 'image/jpeg', 0.86));
 }
 
-export async function guardarMiPerfil(cambios: Partial<Omit<PerfilPublico, 'id' | 'full_name' | 'role'>> & { emergencia_nombre?: string | null; emergencia_telefono?: string | null }): Promise<void> {
+export async function guardarMiPerfil(cambios: Partial<Omit<PerfilPublico, 'id' | 'full_name' | 'role'>> & {
+  emergencia_nombre?: string | null; emergencia_telefono?: string | null;
+  tipo_sangre?: string | null; alergias?: string | null; talla_camisa?: string | null; talla_calzado?: string | null;
+}): Promise<void> {
   const { error } = await createClient().rpc('actualizar_mi_perfil', { p: cambios });
   if (error) throw new Error(error.message);
   await cargarPerfiles(true);

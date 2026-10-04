@@ -14,7 +14,7 @@ export default function SolicitudesTecnico({ userName }: { userName: string }) {
         <div className="barra-fija px-5 pb-3 flex items-center justify-between gap-3" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}>
           <Logo variante="completo" size={34} className="min-w-0" compactoEnMovil />
           <div className="flex items-center gap-1 shrink-0">
-            <PerfilChip nombre={userName} respaldo="Técnico" />
+            <PerfilChip nombre={userName} respaldo="Personal técnico" />
             <ThemeToggle />
             <LogoutButton compacto />
           </div>

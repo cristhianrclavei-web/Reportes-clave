@@ -108,7 +108,7 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
         >
         <Logo variante="completo" size={32} className="min-w-0" compactoEnMovil />
         <div className="flex items-center gap-1 shrink-0">
-          <PerfilChip nombre={userName} respaldo="Técnico" />
+          <PerfilChip nombre={userName} respaldo="Personal técnico" />
           <ThemeToggle />
           <LogoutButton compacto />
         </div>

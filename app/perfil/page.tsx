@@ -56,7 +56,7 @@ export default async function PerfilPage() {
   }
 
   return (
-    <div className="max-w-2xl lg:max-w-4xl mx-auto pb-28 lg:pb-16">
+    <div className="max-w-2xl lg:max-w-6xl 2xl:max-w-[1400px] mx-auto pb-28 lg:pb-16 lg:px-4">
       <div className="sticky top-0 z-20 glass-strong px-5 py-3.5 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
           <Link
@@ -76,30 +76,32 @@ export default async function PerfilPage() {
 
       <div className="px-4 pt-5">
         <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-wide mb-1.5">Mi perfil</h1>
-        <p className="text-[15px] text-muted font-medium mb-5">Tu foto, tus datos de contacto y tu contraseña</p>
+        <p className="text-[15px] text-muted font-medium mb-5">Cómo te ven los demás, tus datos de contacto y tu cuenta</p>
 
-        <PersonalizarPerfil profile={profile} />
+        {/* Las secciones que no son del formulario de perfil van dentro, al
+            final de la columna derecha, para compartir el mismo acomodo. */}
+        <PersonalizarPerfil profile={profile}>
+          <ProfileForm user={user} profile={profile} />
 
-        <ProfileForm user={user} profile={profile} />
+          {/* En el demo las cuentas son compartidas: nadie cambia su contraseña. */}
+          {!DEMO.activo && <CambiarContrasena email={user.email || ''} />}
 
-        {/* En el demo las cuentas son compartidas: nadie cambia su contraseña. */}
-        {!DEMO.activo && <CambiarContrasena email={user.email || ''} />}
+          {profile.role === 'supervisor' && (
+            <Link
+              href="/suscripcion"
+              className="rounded-2xl bg-surface border border-line p-5 flex items-center gap-3 hover:border-teal/50 active:scale-[0.99] transition-all"
+            >
+              <BadgeCheck size={20} strokeWidth={2.4} className="text-teal shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="font-display font-bold text-[19px] tracking-wide">Suscripción</p>
+                <p className="text-[13px] text-muted">Plan, días restantes y paquetes</p>
+              </div>
+              <ChevronRight size={20} className="text-muted shrink-0" />
+            </Link>
+          )}
 
-        {profile.role === 'supervisor' && (
-          <Link
-            href="/suscripcion"
-            className="mb-6 rounded-2xl bg-surface border border-line p-5 flex items-center gap-3 active:scale-[0.99] transition-transform"
-          >
-            <BadgeCheck size={20} strokeWidth={2.4} className="text-teal shrink-0" />
-            <div className="min-w-0 flex-1">
-              <p className="font-display font-bold text-[19px] tracking-wide">Suscripción</p>
-              <p className="text-[13px] text-muted">Plan, días restantes y paquetes</p>
-            </div>
-            <ChevronRight size={20} className="text-muted shrink-0" />
-          </Link>
-        )}
-
-        {esGestor && <AdminUsersSection initialUsers={usuarios} />}
+          {esGestor && <AdminUsersSection initialUsers={usuarios} />}
+        </PersonalizarPerfil>
 
         <Link
           href="/aviso-privacidad"

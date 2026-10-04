@@ -32,7 +32,15 @@ const PUNTO: Record<Exclude<EstadoAvatar, null>, string> = {
   listo: 'bg-teal',
 };
 
-export function AvatarTecnico({ nombre, size = 44, estado = null, indice, id }: { nombre: string; size?: number; estado?: EstadoAvatar; indice?: number; id?: string }) {
+// Figuras del avatar genérico: cada quien elige la que más se le parece.
+export const ESTILOS_AVATAR = ['Clásico', 'Cabello largo', 'Cabello recogido', 'Barba'] as const;
+const CABELLO = '#4a2f22';
+
+export function AvatarTecnico({ nombre, size = 44, estado = null, indice, id, estilo }: {
+  nombre: string; size?: number; estado?: EstadoAvatar; indice?: number; id?: string;
+  // Figura a dibujar (ESTILOS_AVATAR). Sin ella, la que eligió la persona en su perfil.
+  estilo?: number;
+}) {
   // Con `id`: foto de perfil si la subió, o el color de uniforme que eligió.
   const perfil = usePerfil(id);
   const [fallo, setFallo] = useState<string | null>(null);
@@ -41,6 +49,7 @@ export function AvatarTecnico({ nombre, size = 44, estado = null, indice, id }: 
   const foto = url && url !== fallo ? url : null;
   const uniforme = UNIFORMES[(perfil?.avatar_color ?? indice ?? hash(nombre)) % UNIFORMES.length];
   const piel = PIEL;
+  const figura = estilo ?? perfil?.avatar_estilo ?? 0;
   return (
     <span className="relative inline-block shrink-0" style={{ width: size, height: size }}>
       {foto ? (
@@ -48,12 +57,31 @@ export function AvatarTecnico({ nombre, size = 44, estado = null, indice, id }: 
       ) : (
       <svg viewBox="0 0 48 48" width={size} height={size} aria-hidden className="rounded-full block">
         <circle cx="24" cy="24" r="24" fill={FONDO} />
+        {/* cabello largo: cae detrás de los hombros */}
+        {figura === 1 && <path d="M14.9 19.5c-2 6.5-2 13.5.6 18.5h17c2.600-5 2.600-12 .6-18.5z" fill={CABELLO} />}
         {/* hombros / uniforme */}
         <path d="M8 48c1.5-9 8-13.5 16-13.5S38.5 39 40 48z" fill={uniforme} />
         <path d="M21 34.6h6l-3 5z" fill="#ffffff" opacity="0.85" />
         {/* cuello y cara */}
         <rect x="20.5" y="27" width="7" height="8" rx="3" fill={piel} />
         <circle cx="24" cy="22" r="8.2" fill={piel} />
+        {/* cabello largo: mechones a los lados de la cara */}
+        {figura === 1 && (
+          <>
+            <path d="M15.6 20.4c-.5 3.200-.2 6 .9 8.600.9-2.600 1.200-5.400 1.100-8.600z" fill={CABELLO} />
+            <path d="M32.4 20.4c.5 3.200.2 6-.9 8.600-.9-2.600-1.200-5.400-1.100-8.600z" fill={CABELLO} />
+          </>
+        )}
+        {/* cabello recogido: coleta a un lado y patillas */}
+        {figura === 2 && (
+          <>
+            <path d="M31.6 20.6c5 .6 7.200 6 4.600 11.400-.5-3.400-2-6-4.800-7.400z" fill={CABELLO} />
+            <path d="M15.8 20.4c-.2 2 .1 3.800.8 5.200.6-1.600.8-3.400.7-5.200z" fill={CABELLO} />
+            <path d="M32.2 20.4c.2 2-.1 3.800-.8 5.200-.6-1.600-.8-3.400-.7-5.200z" fill={CABELLO} />
+          </>
+        )}
+        {/* barba */}
+        {figura === 3 && <path d="M16.2 23.200c.3 4.800 3.600 7.400 7.800 7.400s7.500-2.600 7.800-7.400c-1.800 2.200-4.400 3.200-7.800 3.200s-6-1-7.800-3.200z" fill={CABELLO} />}
         <circle cx="21.2" cy="22.6" r="0.95" fill="#2b2b2b" />
         <circle cx="26.8" cy="22.6" r="0.95" fill="#2b2b2b" />
         <path d="M21.6 25.6c1.4 1.2 3.4 1.2 4.8 0" stroke="#2b2b2b" strokeWidth="0.9" strokeLinecap="round" fill="none" />

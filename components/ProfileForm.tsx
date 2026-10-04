@@ -63,7 +63,7 @@ export default function ProfileForm({ user, profile }: ProfileFormProps) {
   };
 
   return (
-    <div className="rounded-2xl bg-surface border border-line p-5 mb-6">
+    <div className="rounded-2xl bg-surface border border-line p-5">
       <div className="mb-5 pb-5 border-b border-line">
         <p className="text-[11px] uppercase tracking-wider text-faint mb-1.5">Nombre</p>
         <p className="font-display font-semibold text-[17px] tracking-wide">{profile?.full_name}</p>

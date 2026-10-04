@@ -142,7 +142,7 @@ export default function AdminUsersSection({ initialUsers = [] }: { initialUsers?
                       {u.full_name}
                     </p>
                     <p className="text-[12.5px] text-muted mt-0.5">
-                      {u.role === 'supervisor' ? 'Supervisor' : 'Técnico'}
+                      {u.role === 'supervisor' ? 'Supervisión' : 'Personal técnico'}
                       {dadoDeBaja && ' · dado de baja'}
                     </p>
                   </div>

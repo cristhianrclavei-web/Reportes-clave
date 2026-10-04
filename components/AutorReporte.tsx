@@ -16,7 +16,7 @@ function corto(n: string) {
 
 export default function AutorReporte({ id, nombre, variante = 'compacto' }: { id?: string | null; nombre: string; variante?: 'compacto' | 'recuadro' }) {
   const perfil = usePerfil(id);
-  const puesto = perfil?.puesto || (perfil?.role === 'supervisor' ? 'Supervisor' : 'Técnico');
+  const puesto = perfil?.puesto || (perfil?.role === 'supervisor' ? 'Supervisión' : 'Personal técnico');
 
   if (variante === 'compacto') {
     return (
