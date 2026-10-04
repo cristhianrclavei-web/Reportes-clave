@@ -1,5 +1,6 @@
 'use client';
 
+import BotonAyuda from '@/components/BotonAyuda';
 import { ReactNode } from 'react';
 import Logo from './Logo';
 import PerfilChip from './PerfilChip';
@@ -66,6 +67,8 @@ export default function SupervisorShell({
           <Logo variante="completo" size={32} className="min-w-0" compactoEnMovil />
           <div className="flex items-center gap-0.5 shrink-0">
             <CommandPalette puedeAlmacen={puedeAlmacen} />
+            {/* En teléfonos angostos no cabe: ahí el manual se abre desde Mi perfil. */}
+            <BotonAyuda className="hidden min-[400px]:flex w-9 h-9 rounded-full items-center justify-center text-ink/60 active:scale-90 transition shrink-0" />
             <ThemeToggle />
             <PerfilChip nombre={userName} respaldo="Supervisión" />
             <LogoutButton compacto />

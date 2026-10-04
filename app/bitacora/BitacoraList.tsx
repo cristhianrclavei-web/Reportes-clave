@@ -1,5 +1,6 @@
 'use client';
 
+import BotonAyuda from '@/components/BotonAyuda';
 import EmptyIllustration from '@/components/EmptyIllustration';
 import EstadoVacio from '@/components/EstadoVacio';
 import PerfilChip from '@/components/PerfilChip';
@@ -87,6 +88,7 @@ export default function BitacoraList({ userName }: { userName: string }) {
         <Logo variante="completo" size={32} className="min-w-0" compactoEnMovil />
         <div className="flex items-center gap-1 shrink-0">
           <PerfilChip nombre={userName} respaldo="Personal técnico" />
+          <BotonAyuda />
           <ThemeToggle />
           <LogoutButton compacto />
         </div>

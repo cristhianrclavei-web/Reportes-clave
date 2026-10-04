@@ -1,5 +1,6 @@
 'use client';
 
+import BotonAyuda from '@/components/BotonAyuda';
 import { useAliasClientes } from '@/lib/useAliasClientes';
 import { coincideBusqueda } from '@/lib/busqueda';
 import SubTabs from '@/components/SubTabs';
@@ -67,6 +68,7 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
         <Logo variante="completo" size={34} className="min-w-0" compactoEnMovil />
         <div className="flex items-center gap-1 shrink-0">
           <PerfilChip nombre={userName} respaldo="Personal técnico" />
+          <BotonAyuda />
           <ThemeToggle />
           <LogoutButton compacto />
         </div>

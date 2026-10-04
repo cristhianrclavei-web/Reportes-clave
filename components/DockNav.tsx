@@ -1,5 +1,6 @@
 'use client';
 
+import BotonAyuda from '@/components/BotonAyuda';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
@@ -365,6 +366,9 @@ export default function DockNav({ userName, children }: { userName?: string; chi
 
             {/* Preferencias: tema y vista, en una sola cápsula */}
             <div className="flex items-center gap-1 p-1 rounded-full bg-surface border border-line">
+              <BotonDock etiqueta="Manual de uso">
+                <BotonAyuda className="w-10 h-10 rounded-full flex items-center justify-center text-ink/70 hover:text-ink hover:bg-surface-2 active:scale-90 transition" />
+              </BotonDock>
               <BotonDock etiqueta="Tema claro / oscuro">
                 <ThemeToggle className="w-10 h-10 rounded-full flex items-center justify-center text-ink/70 hover:text-ink hover:bg-surface-2 active:scale-90 transition" />
               </BotonDock>

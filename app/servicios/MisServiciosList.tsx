@@ -1,5 +1,6 @@
 'use client';
 
+import BotonAyuda from '@/components/BotonAyuda';
 import PerfilChip from '@/components/PerfilChip';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -109,6 +110,7 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
         <Logo variante="completo" size={32} className="min-w-0" compactoEnMovil />
         <div className="flex items-center gap-1 shrink-0">
           <PerfilChip nombre={userName} respaldo="Personal técnico" />
+          <BotonAyuda />
           <ThemeToggle />
           <LogoutButton compacto />
         </div>

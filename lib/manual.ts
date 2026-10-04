@@ -1,0 +1,298 @@
+// Contenido del manual de uso (/ayuda). Texto plano por tema, separado por
+// rol: se edita aquí sin tocar la pantalla. Cada tema es una lista de pasos
+// cortos; `nota` es una aclaración que va al final.
+
+export type TemaManual = { titulo: string; resumen: string; pasos: string[]; nota?: string };
+export type SeccionManual = { titulo: string; temas: TemaManual[] };
+
+export const MANUAL_TECNICO: SeccionManual[] = [
+  {
+    titulo: 'Tu día',
+    temas: [
+      {
+        titulo: 'Ver tus servicios',
+        resumen: 'Lo que tienes asignado hoy y los próximos días.',
+        pasos: [
+          'Entra a «Servicios». Arriba salen los pendientes y abajo los concluidos.',
+          'Cuando te asignan uno nuevo, toca «Enterado» para que tu supervisor sepa que ya lo viste.',
+          'Toca un servicio para ver la dirección, la descripción, el material y la lista de tareas.',
+        ],
+      },
+      {
+        titulo: 'Llegar, iniciar y concluir',
+        resumen: 'Así queda registrado a qué hora llegaste y cuánto duró el trabajo.',
+        pasos: [
+          'Al llegar al sitio toca «Marcar llegada».',
+          'Cuando empieces a trabajar toca «Iniciar».',
+          'Si tienes que detenerte (falta material, no hay acceso), usa «Pausar» y después «Reanudar».',
+          'Marca las tareas conforme las termines; algunas piden foto.',
+          'Al terminar toca «Concluir» y haz tu reporte.',
+        ],
+        nota: 'Un servicio solo se puede iniciar el día que está programado. Si la fecha está mal, avísale a tu supervisor para que la cambie.',
+      },
+    ],
+  },
+  {
+    titulo: 'Reportes',
+    temas: [
+      {
+        titulo: 'Hacer un reporte',
+        resumen: 'Son cuatro pasos: Datos, Trabajo, Evidencia y Firmas.',
+        pasos: [
+          'Toca «Nuevo reporte». Si el reporte es de un servicio asignado, elígelo arriba y se llenan solos el cliente y el personal.',
+          'Datos: cliente, contacto, horas de llegada y salida, vehículo y quién fue.',
+          'Trabajo: tipo de servicio, sistema, materiales usados y la descripción de lo que hiciste.',
+          'Evidencia: toma o elige las fotos y marca si el servicio ya quedó concluido.',
+          'Firmas: firma tú y pide la firma del cliente. Revisa la vista previa y toca «Guardar reporte».',
+        ],
+        nota: 'Lo que vas llenando se guarda solo en el teléfono: si se cierra la app o se recarga la página, al volver lo recuperas.',
+      },
+      {
+        titulo: 'Si no hay señal',
+        resumen: 'Puedes hacer el reporte sin internet.',
+        pasos: [
+          'Llena y guarda el reporte como siempre.',
+          'Queda guardado en el teléfono y se sube solo cuando regresa la señal.',
+          'Mientras tanto verás un aviso de «pendiente por sincronizar». No borres los datos del navegador hasta que desaparezca.',
+        ],
+      },
+      {
+        titulo: 'Si el cliente no está para firmar',
+        resumen: 'El reporte se puede guardar y la firma se pide después.',
+        pasos: [
+          'En Firmas elige «El cliente no está» y anota el motivo.',
+          'Guarda el reporte. Queda como pendiente de firma.',
+          'Desde el reporte puedes mandar por WhatsApp un enlace para que el cliente firme desde su teléfono.',
+        ],
+      },
+      {
+        titulo: 'Corregir un reporte',
+        resumen: 'Cuando tu supervisor te pide un cambio.',
+        pasos: [
+          'En «Reportes» el reporte aparece marcado para corrección, con la nota de qué hay que cambiar.',
+          'Ábrelo, corrige y guarda. Conserva el mismo folio y vuelve a revisión.',
+        ],
+        nota: 'Por tu cuenta solo puedes editar un reporte durante los primeros 30 minutos después de guardarlo.',
+      },
+      {
+        titulo: 'Días sin reporte',
+        resumen: 'Cada día hábil debe tener un reporte o una justificación.',
+        pasos: [
+          'Si te falta el de algún día, verás un aviso arriba en «Reportes».',
+          'Toca «Hacer reporte» o «Justificar» y elige el motivo (no saliste a servicio, vacaciones, etc.).',
+        ],
+      },
+    ],
+  },
+  {
+    titulo: 'Material, bitácora y solicitudes',
+    temas: [
+      {
+        titulo: 'Pedir material al almacén',
+        resumen: 'En «Insumos» pides lo que necesitas para un servicio.',
+        pasos: [
+          'Toca «Pedir al almacén», elige los artículos y la cantidad.',
+          'Cuando el almacén lo surte, firmas de recibido.',
+          'La herramienta prestada se devuelve desde ahí mismo al terminar.',
+        ],
+      },
+      {
+        titulo: 'Bitácora',
+        resumen: 'Para registrar lo que haces fuera de un servicio (oficina, taller, traslados).',
+        pasos: ['Toca «Iniciar nueva actividad», describe qué harás y ve agregando avances o fotos.', 'Al terminar, ciérrala.'],
+      },
+      {
+        titulo: 'Horas extra, vacaciones y permisos',
+        resumen: 'Se piden y se autorizan desde «Solicitudes».',
+        pasos: [
+          'Elige el tipo de solicitud, llena las fechas u horas y firma.',
+          'Le llega a quien autoriza. Te avisamos cuando la aprueben, la rechacen o pidan una corrección.',
+        ],
+      },
+    ],
+  },
+  {
+    titulo: 'Tu cuenta',
+    temas: [
+      {
+        titulo: 'Tu perfil',
+        resumen: 'Foto o avatar, puesto, especialidades y datos de emergencia.',
+        pasos: ['Toca tu nombre o tus iniciales arriba para abrir «Mi perfil».', 'Cambia lo que necesites y toca «Guardar perfil».'],
+      },
+      {
+        titulo: 'Notificaciones',
+        resumen: 'Avisos en el teléfono aunque la app esté cerrada.',
+        pasos: ['Toca «Activar» en el aviso de notificaciones y acepta el permiso del navegador.', 'En iPhone primero hay que agregar la app a la pantalla de inicio.'],
+      },
+      {
+        titulo: 'Instalar la app en el teléfono',
+        resumen: 'Para abrirla como cualquier otra app.',
+        pasos: ['Android (Chrome): menú ⋮ → «Agregar a pantalla principal».', 'iPhone (Safari): botón Compartir → «Agregar a inicio».'],
+      },
+    ],
+  },
+];
+
+export const MANUAL_SUPERVISOR: SeccionManual[] = [
+  {
+    titulo: 'El día a día',
+    temas: [
+      {
+        titulo: 'Resumen',
+        resumen: 'Lo primero que conviene ver al entrar.',
+        pasos: [
+          'Arriba: reportes de hoy y de la semana, lo que falta por facturar y los avisos que piden una decisión.',
+          'Abajo: las gráficas de la semana y el desempeño operativo. El botón ⓘ de cada tarjeta explica cómo se calcula.',
+          'La pantalla se actualiza sola cuando llega un reporte.',
+        ],
+      },
+      {
+        titulo: 'Tablero del día',
+        resumen: 'Servicios → Hoy: quién está en dónde, en vivo.',
+        pasos: [
+          'En computadora puedes verlo por servicio o por persona. En celular la gente va agrupada: requieren atención, en campo, por iniciar, concluyeron y disponibles.',
+          'Toca a una persona o un servicio para ver el detalle y hacer un cambio en el día.',
+          'Usa los botones de cuadrilla para ver solo a un grupo, o «Mis cuadrillas» si tienes alguna a tu cargo.',
+          '«Asignar servicio» agenda uno rápido para hoy.',
+        ],
+      },
+      {
+        titulo: 'Agendar servicios',
+        resumen: 'Desde Servicios → Agendados o desde la Agenda.',
+        pasos: [
+          'Toca «Agendar», elige el cliente, la fecha, la hora y a quién va (personas o una cuadrilla completa).',
+          'Puedes cargar una rutina de tareas y una lista de herramienta y material.',
+          'Los servicios de varios días se agendan como un solo proyecto.',
+          'En la Agenda ves la semana de todo el equipo; con «+» asignas a una persona en un día.',
+        ],
+        nota: 'En Agenda → Recurrentes dejas programados los mantenimientos periódicos: la app te avisa 14 días antes para agendarlos.',
+      },
+      {
+        titulo: 'Cambiar, cancelar o ampliar un servicio',
+        resumen: 'Todo desde el detalle del servicio.',
+        pasos: [
+          '«Cambiar fecha» lo mueve de día; «Cancelar servicio» lo deja en el historial con el motivo.',
+          '«Reasignar» cambia al personal y «Ampliar a más días» lo convierte en proyecto.',
+          'Cada cambio queda registrado en Actividad.',
+        ],
+      },
+    ],
+  },
+  {
+    titulo: 'Reportes',
+    temas: [
+      {
+        titulo: 'Revisar y aprobar',
+        resumen: 'Un reporte está completo cuando lleva la firma de revisión.',
+        pasos: [
+          'En Reportes abre uno para ver datos, fotos y firmas, y descargar su PDF.',
+          'En la pestaña «Revisión» lo apruebas con tu firma o pides una corrección con una nota para el técnico.',
+          'Marca la factura cuando ya esté facturado.',
+        ],
+      },
+      {
+        titulo: 'Control y cobertura',
+        resumen: 'Quién entregó su reporte y quién no.',
+        pasos: [
+          '«Control» muestra por persona los días pendientes y qué tan puntual entrega.',
+          '«Cobertura» es el calendario: cada día hábil debe tener reporte o justificación.',
+          'Puedes justificar un día por alguien y marcar días festivos.',
+        ],
+        nota: 'La app le recuerda al técnico a las 6 de la tarde y a las 9 de la mañana siguiente si le falta un reporte.',
+      },
+      {
+        titulo: 'Firma del cliente a distancia',
+        resumen: 'Cuando el cliente no estaba en el sitio.',
+        pasos: ['Abre el reporte pendiente de firma y toca «Compartir».', 'Se manda un enlace por WhatsApp; el cliente firma desde su teléfono y el reporte se actualiza solo.'],
+      },
+    ],
+  },
+  {
+    titulo: 'Clientes, cotizaciones y facturación',
+    temas: [
+      {
+        titulo: 'Clientes y proyectos',
+        resumen: 'El expediente de cada cliente.',
+        pasos: [
+          'En Clientes ves sus datos, contactos, proyectos por sistema y todos sus reportes.',
+          'Si un técnico escribe un cliente nuevo queda «Por revisar»: confírmalo o únelo con uno existente desde «Duplicados».',
+        ],
+      },
+      {
+        titulo: 'Cotizaciones',
+        resumen: 'Armarlas, compartirlas y darles seguimiento.',
+        pasos: [
+          'En «Nueva cotización» agrega las partidas por grupo; el total con IVA se calcula solo.',
+          'Descarga el PDF o compártelo. Cambia el estado conforme avance: enviada, aprobada, rechazada.',
+          'Puedes copiar una cotización existente para no empezar de cero.',
+        ],
+      },
+      {
+        titulo: 'Facturación',
+        resumen: 'Disponible para quien tiene ese permiso.',
+        pasos: [
+          'Arma la prefactura con los reportes y conceptos a facturar.',
+          'Cuando se timbre fuera de la app, registra aquí el folio fiscal y, después, el pago.',
+        ],
+        nota: 'La app no timbra por sí sola: lleva el control de lo facturado y lo pendiente.',
+      },
+    ],
+  },
+  {
+    titulo: 'Almacén y personal',
+    temas: [
+      {
+        titulo: 'Almacén',
+        resumen: 'Existencias, vales y equipo instalado.',
+        pasos: [
+          '«Vales»: lo que pide el personal para sus servicios; se surte y se firma de recibido.',
+          '«Existencias» y «Movimientos»: lo que hay y lo que entró o salió. «Entrada» da de alta material nuevo.',
+          '«Ubicaciones» y «Conteo» sirven para ordenar el almacén y hacer inventario con etiquetas QR.',
+          '«Instalados» guarda qué equipo quedó en cada cliente.',
+        ],
+      },
+      {
+        titulo: 'Personal y cuadrillas',
+        resumen: 'El equipo, sus grupos y sus solicitudes.',
+        pasos: [
+          '«Equipo» muestra a cada persona con su puesto y especialidades.',
+          '«Cuadrillas» agrupa al personal; cada una puede tener un líder y un supervisor a cargo.',
+          '«Solicitudes» es donde autorizas horas extra, vacaciones y permisos.',
+        ],
+      },
+      {
+        titulo: 'Usuarios',
+        resumen: 'Altas, roles, permisos y bajas (con permiso de administrar usuarios).',
+        pasos: [
+          '«Nuevo usuario» crea la cuenta con una contraseña temporal; la persona la cambia al entrar.',
+          'Desde su ficha cambias el rol, los permisos o la das de baja.',
+          'Una cuenta con historial no se elimina: se da de baja para conservar sus reportes.',
+        ],
+      },
+    ],
+  },
+  {
+    titulo: 'Tu cuenta',
+    temas: [
+      {
+        titulo: 'Buscar rápido',
+        resumen: 'Para saltar a una sección o a un cliente.',
+        pasos: ['Usa el buscador de arriba (Ctrl + K en computadora) y escribe el nombre.'],
+      },
+      {
+        titulo: 'Tema, vista y notificaciones',
+        resumen: 'Ajustes personales.',
+        pasos: [
+          'El botón de sol o luna cambia entre tema claro y oscuro.',
+          'En computadora, el botón de al lado cambia las listas entre tarjetas y tabla.',
+          'Activa las notificaciones para recibir avisos aunque la app esté cerrada.',
+        ],
+      },
+      {
+        titulo: 'Suscripción',
+        resumen: 'Tu paquete y los días que quedan.',
+        pasos: ['En Mi perfil → Suscripción ves el plan actual, los paquetes y los pagos registrados.'],
+      },
+    ],
+  },
+];

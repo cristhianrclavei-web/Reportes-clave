@@ -9,7 +9,7 @@ import LogoutButton from '@/components/LogoutButton';
 import ThemeToggle from '@/components/ThemeToggle';
 import Logo from '@/components/Logo';
 import PanelSupervisor from '@/components/PanelSupervisor';
-import { ChevronLeft, ChevronRight, BadgeCheck, UserCog } from 'lucide-react';
+import { ChevronLeft, ChevronRight, BadgeCheck, UserCog, CircleHelp } from 'lucide-react';
 import { DEMO } from '@/lib/marca';
 
 export const dynamic = 'force-dynamic';
@@ -123,6 +123,18 @@ export default async function PerfilPage() {
           )}
           {esGestor && profile.role !== 'supervisor' && <AdminUsersSection initialUsers={usuarios} />}
         </PersonalizarPerfil>
+
+        <Link
+          href="/ayuda"
+          className="mt-4 rounded-2xl bg-surface border border-line p-4 flex items-center gap-3 hover:border-teal/50 active:scale-[0.99] transition-all"
+        >
+          <CircleHelp size={20} strokeWidth={2.2} className="text-teal shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold text-[15px]">Manual de uso</p>
+            <p className="text-[13px] text-muted">Cómo se usa la app, paso a paso</p>
+          </div>
+          <ChevronRight size={20} className="text-muted shrink-0" />
+        </Link>
 
         <Link
           href="/aviso-privacidad"

@@ -64,6 +64,7 @@ export const config = {
     // habia exposicion, pero la redireccion a /login no ocurria en el
     // borde como en las demas rutas.
     '/checklists/:path*',
+    '/ayuda',
     '/login',
   ],
 };
