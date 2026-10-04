@@ -10,7 +10,6 @@ import ModalOverlay from '@/components/ModalOverlay';
 import { AvatarTecnico, TiraTecnicos, EstadoAvatar, UNIFORMES } from '@/components/AvatarTecnico';
 import { Cuadrilla, useCuadrillas, cuadrillaPorTecnico, enCuadrilla, TODAS, SIN_CUADRILLA } from '@/lib/cuadrillas';
 import { ElegirCuadrilla } from '@/components/cuadrillas/ChipsCuadrilla';
-import SelectorPersona from '@/components/cuadrillas/SelectorPersona';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
 import { showToast } from '@/components/Toast';
 import { hoyLocal, sumarDias, fechaLocal } from '@/lib/fechaHoy';
@@ -266,6 +265,12 @@ export default function TableroDia({ onAgendar }: {
     return null;
   }
 
+  // Orden de la lista del celular: alertas, en campo, programados, listos y disponibles.
+  function pesoFila(f: (typeof filas)[number]): number {
+    const e = estadoTecnico(f);
+    return e === 'alerta' ? 0 : e === 'campo' ? 1 : f.servicios.length === 0 ? 4 : e === 'listo' ? 3 : 2;
+  }
+
   function tarjeta(f: (typeof filas)[number], conNombre = true) {
     return (
       <div key={f.id} className="rounded-2xl bg-surface border border-line px-3.5 py-3">
@@ -363,7 +368,7 @@ export default function TableroDia({ onAgendar }: {
 
       {/* Cuadrillas: reducen el tablero a un grupo. Solo si existen. */}
       {cuadrillas.length > 0 && datos && (
-        <div className="hidden lg:flex items-center gap-1.5 mb-2.5 flex-wrap">
+        <div className="flex items-center gap-1.5 mb-2.5 overflow-x-auto -mx-1 px-1 lg:flex-wrap lg:overflow-visible" style={{ scrollbarWidth: 'none' }}>
           {[
             { k: TODAS, nombre: 'Todas', color: null as number | null, gente: filasTodas },
             ...cuadrillas.map((c) => ({ k: c.id, nombre: c.nombre, color: c.color as number | null, gente: filasTodas.filter((f) => mapaCuad.get(f.id)?.id === c.id) })),
@@ -397,30 +402,38 @@ export default function TableroDia({ onAgendar }: {
         ))}
       </div>
 
-      {/* Celular: un técnico a la vez, con tira para cambiar entre ellos. */}
+      {/* Celular: la gente de la cuadrilla elegida (o todos), en lista. Cada
+          renglón se despliega con sus servicios; primero lo que hay que atender. */}
       {visibles.length > 0 && (
-        <div className="lg:hidden">
-          {/* Menú desplegable agrupado por cuadrilla (en vez de la tira de avatares). */}
-          <SelectorPersona
-            items={visibles.map((f) => ({ id: f.id, nombre: f.nombre, cuenta: f.servicios.length, estado: estadoTecnico(f), indice: indiceTec(f.id) }))}
-            cuadrillas={cuadrillas}
-            mapa={mapaCuad}
-            valor={seleccionado?.id}
-            onCambiar={setSelId}
-          />
-          {seleccionado && (
-            <div
-              onTouchStart={(e) => { toqueX.current = e.touches[0].clientX; }}
-              onTouchEnd={(e) => {
-                const dx = e.changedTouches[0].clientX - toqueX.current;
-                if (Math.abs(dx) > 60) mover(dx < 0 ? 1 : -1);
-              }}
-            >
-              <div className="mt-2">
-                {seleccionado.servicios.length > 0 ? tarjeta(seleccionado, false) : sinServicio(seleccionado)}
+        <div className="lg:hidden rounded-2xl bg-surface border border-line divide-y divide-line overflow-hidden">
+          {[...visibles].sort((a, b) => pesoFila(a) - pesoFila(b) || a.nombre.localeCompare(b.nombre)).map((f) => {
+            const abierto = selId === f.id;
+            const enCurso = f.servicios.find((sv) => sv.estado === 'en_sitio' || sv.estado === 'en_curso');
+            const resumenFila = f.servicios.length === 0 ? 'Disponible'
+              : enCurso ? `${enCurso.estado === 'en_curso' ? 'En curso' : 'En sitio'} · ${enCurso.proyecto}`
+              : `${f.servicios.length} servicio${f.servicios.length > 1 ? 's' : ''} · ${f.servicios.filter((sv) => sv.estado === 'concluido').length} concluido(s)`;
+            return (
+              <div key={f.id}>
+                <button type="button" onClick={() => setSelId(abierto ? null : f.id)} aria-expanded={abierto}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 text-left transition-colors ${abierto ? 'bg-teal/8' : 'active:bg-surface-2/60'}`}>
+                  <AvatarTecnico id={f.id} nombre={f.nombre} size={36} estado={estadoTecnico(f)} indice={indiceTec(f.id)} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[14.5px] font-semibold truncate">{f.nombre}</span>
+                    <span className={`block text-[12.5px] truncate ${f.servicios.length === 0 ? 'text-faint' : 'text-muted'}`}>{resumenFila}</span>
+                  </span>
+                  {f.servicios.length > 0 && (
+                    <span className="text-[12px] font-bold tabular-nums w-6 h-6 rounded-full bg-surface-2 flex items-center justify-center shrink-0">{f.servicios.length}</span>
+                  )}
+                  <ChevronDown size={17} className={`text-muted shrink-0 transition-transform duration-200 ${abierto ? 'rotate-180' : ''}`} />
+                </button>
+                {abierto && (
+                  <div className="px-2.5 pb-2.5 pt-0.5 bg-teal/8">
+                    {f.servicios.length > 0 ? tarjeta(f, false) : sinServicio(f)}
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })}
         </div>
       )}
 

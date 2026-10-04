@@ -115,14 +115,9 @@ export default function PlanSemana() {
   const cuenta = useCallback((tecnicoId: string) =>
     dias.reduce((n, d) => n + serviciosDe(tecnicoId, d).filter((s) => s.estado !== 'cancelado').length, 0), [dias, serviciosDe]);
 
-  // Celular: el menú ya agrupa por cuadrilla, así que lista a todos.
-  const filasMovil = useMemo(() => {
-    if (!datos) return [];
-    const base = datos.tecnicos.map((t) => ({ id: t.id, nombre: t.nombre }));
-    if (datos.servicios.some((s) => s.asignados.length === 0)) base.push({ id: SIN_TECNICO, nombre: 'Sin técnico' });
-    return base;
-  }, [datos]);
-  const seleccionado = filasMovil.find((f) => f.id === selId) || filas.find((f) => f.id === selId) || filasMovil[0];
+  // Celular: el menú lista a la gente de la cuadrilla elegida (o a todos).
+  const filasMovil = filas;
+  const seleccionado = filasMovil.find((f) => f.id === selId) || filasMovil[0];
 
   useEffect(() => {
     const cont = document.querySelector<HTMLElement>('[data-tira="semana"]');
@@ -193,7 +188,7 @@ export default function PlanSemana() {
       {error && <p className="text-[13px] text-red font-semibold mb-3">{error}</p>}
 
       {datos && (
-        <FiltroCuadrillas cuadrillas={cuadrillas} mapa={mapaCuad} ids={datos.tecnicos.map((t) => t.id)} valor={cuad} onCambiar={setCuad} className="hidden lg:flex mb-3" />
+        <FiltroCuadrillas cuadrillas={cuadrillas} mapa={mapaCuad} ids={datos.tecnicos.map((t) => t.id)} valor={cuad} onCambiar={setCuad} className="mb-3" />
       )}
 
       {/* Celular: un técnico a la vez con sus 7 días */}
