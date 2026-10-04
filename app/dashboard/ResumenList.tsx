@@ -19,7 +19,7 @@ import ServiciosSinReporteSection from '@/components/ServiciosSinReporteSection'
 import { listarServiciosSupervisor, Servicio } from '@/lib/serviciosProgramados';
 import BitacoraSupervisorSection from '@/components/BitacoraSupervisorSection';
 import SupervisorShell from '@/components/SupervisorShell';
-import { CalendarClock, MessageSquareWarning, PackagePlus, AlertTriangle, PackageOpen, ChevronRight } from 'lucide-react';
+import { CalendarClock, MessageSquareWarning, PackagePlus, AlertTriangle, PackageOpen, ChevronRight, CalendarCheck, BarChart3, Receipt, Users, FileText } from 'lucide-react';
 import { listarSolicitudesPendientes, resolverSolicitudInsumo } from '@/lib/insumos';
 import { mapaDeExistencias, listarBajoMinimo, ArticuloBajoMinimo } from '@/lib/almacen';
 import { showToast } from '@/components/Toast';
@@ -122,6 +122,13 @@ export default function ResumenList({
   const totalWeek = weekAgo ? reports.filter((r) => new Date(r.created_at) >= weekAgo).length : 0;
   const tecnicosActivos = new Set(reports.map((r) => techName(r.profiles))).size;
   const porFacturar = reports.filter((r) => r.data?.servicioConcluido && r.data?.facturaEstado !== 'facturado').length;
+  const concluidos = reports.filter((r) => r.data?.servicioConcluido).length;
+  const ayer = ahora !== null ? hoyLocal(new Date(ahora - 864e5)) : '';
+  const totalAyer = ahora !== null ? reports.filter((r) => r.fecha === ayer).length : 0;
+  // Reportes de cada uno de los últimos 7 días (para las mini columnas).
+  const porDia = ahora !== null
+    ? Array.from({ length: 7 }, (_, i) => { const f = hoyLocal(new Date(ahora - (6 - i) * 864e5)); return reports.filter((r) => r.fecha === f).length; })
+    : [0, 0, 0, 0, 0, 0, 0];
 
   return (
     <SupervisorShell active="resumen" title="Resumen" userName={userName}>
@@ -132,12 +139,24 @@ export default function ResumenList({
 
         {/* Lo de hoy, arriba: es lo primero que el supervisor busca */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
-          <Stat label="Hoy" value={totalToday} accent="red" />
-          <Stat label="Esta semana" value={totalWeek} accent="amber" />
-          <Stat label="Por facturar" value={porFacturar} accent="amber" />
-          <Stat label="Personal activo" value={tecnicosActivos} accent="teal" />
+          <Stat label="Hoy" value={totalToday} Icono={CalendarCheck} tono="teal"
+            nota={ahora === null ? '' : totalAyer === totalToday ? 'Igual que ayer' : `${totalToday > totalAyer ? '+' : '−'}${Math.abs(totalToday - totalAyer)} que ayer`}
+            notaTono={totalToday > totalAyer ? 'teal' : undefined} />
+          <Stat label="Esta semana" value={totalWeek} Icono={BarChart3} tono="teal" nota="Últimos 7 días">
+            {/* Mini columnas: un vistazo al ritmo de la semana. */}
+            <div className="flex items-end gap-[3px] h-7" aria-hidden="true">
+              {porDia.map((n, i) => (
+                <span key={i} className={`w-[5px] rounded-t-[2px] ${i === porDia.length - 1 ? 'bg-teal' : 'bg-teal/45'}`}
+                  style={{ height: `${Math.max(8, (n / Math.max(1, ...porDia)) * 100)}%` }} />
+              ))}
+            </div>
+          </Stat>
+          <Stat label="Por facturar" value={porFacturar} Icono={Receipt} tono="amber"
+            nota={concluidos > 0 ? `de ${concluidos} concluidos` : 'Sin servicios concluidos'}
+            barra={concluidos > 0 ? porFacturar / concluidos : undefined} />
+          <Stat label="Personal activo" value={tecnicosActivos} Icono={Users} tono="teal" nota="Con reportes entregados" />
           {/* En celular ocupa el renglón completo: con cinco indicadores quedaba uno suelto. */}
-          <Stat label="Reportes totales" value={reports.length} accent="teal" className="col-span-2 lg:col-span-1" />
+          <Stat label="Reportes totales" value={reports.length} Icono={FileText} tono="teal" nota="Desde que se usa la app" className="col-span-2 lg:col-span-1" />
         </div>
 
         <AlertaSolicitudes />
@@ -299,15 +318,41 @@ export default function ResumenList({
   );
 }
 
-function Stat({ label, value, accent, className = '' }: { label: string; value: number; accent: 'teal' | 'amber' | 'red'; className?: string }) {
-  const dot = accent === 'teal' ? 'bg-teal' : accent === 'amber' ? 'bg-amber' : 'bg-red';
+// Indicador de la fila de arriba: ícono, cifra grande, una nota de contexto
+// y, si aplica, una gráfica mínima (columnas o barra de proporción).
+function Stat({
+  label, value, Icono, tono, nota, notaTono, barra, children, className = '',
+}: {
+  label: string;
+  value: number;
+  Icono: any;
+  tono: 'teal' | 'amber';
+  nota?: string;
+  notaTono?: 'teal';
+  // Proporción 0–1 para una barra bajo la cifra.
+  barra?: number;
+  children?: React.ReactNode;
+  className?: string;
+}) {
+  const chip = tono === 'teal' ? 'bg-teal/12 text-teal' : 'bg-amber/15 text-amber';
   return (
-    <div className={`glass rounded-2xl px-3.5 py-3.5 lg:px-5 lg:py-5 ${className}`}>
-      <div className="flex items-center gap-1.5 mb-1">
-        <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
-        <div className="text-[11px] uppercase tracking-wider text-muted">{label}</div>
+    <div className={`glass rounded-2xl px-3.5 py-3.5 lg:px-5 lg:py-4 ${className}`}>
+      <div className="flex items-center gap-2 mb-2">
+        <span className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${chip}`}>
+          <Icono size={15} strokeWidth={2.2} />
+        </span>
+        <div className="text-[11px] uppercase tracking-wider text-muted leading-tight">{label}</div>
       </div>
-      <div className="font-display text-[28px] lg:text-[34px] font-bold leading-none">{value}</div>
+      <div className="flex items-end justify-between gap-2">
+        <div className="font-display text-[30px] lg:text-[36px] font-bold leading-none tabular-nums">{value}</div>
+        {children}
+      </div>
+      {barra !== undefined && (
+        <div className="h-1.5 rounded-r-[3px] bg-surface-2 overflow-hidden mt-2">
+          <div className={`h-full rounded-r-[3px] ${tono === 'teal' ? 'bg-teal' : 'bg-amber'} transition-all duration-500`} style={{ width: `${Math.min(100, barra * 100)}%` }} />
+        </div>
+      )}
+      {nota !== undefined && <p className={`text-[11.5px] mt-1.5 min-h-[16px] ${notaTono === 'teal' ? 'text-teal font-semibold' : 'text-muted'}`}>{nota}</p>}
     </div>
   );
 }
