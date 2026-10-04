@@ -1,5 +1,6 @@
 'use client';
 
+import { ElegirCuadrilla } from '@/components/cuadrillas/ChipsCuadrilla';
 import CampoNumero from '@/components/CampoNumero';
 import { coincideBusqueda } from '@/lib/busqueda';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
@@ -1059,6 +1060,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
 
             <div className={cardCls}>
               <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Técnicos asignados</p>
+              <ElegirCuadrilla disponibles={tecnicos.map((t) => t.id)} seleccion={tecnicoIds} onCambiar={setTecnicoIds} className="mb-3 pb-3 border-b border-line" />
               <div className="flex flex-wrap gap-2">
                 {tecnicos.length === 0 && <p className="text-muted text-[12px]">No hay técnicos registrados.</p>}
                 {tecnicos.map((t) => (

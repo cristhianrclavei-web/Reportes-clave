@@ -1,5 +1,7 @@
 'use client';
 
+import { useCuadrillas, cuadrillaPorTecnico, enCuadrilla, TODAS, SIN_CUADRILLA } from '@/lib/cuadrillas';
+import { FiltroCuadrillas } from '@/components/cuadrillas/ChipsCuadrilla';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -88,13 +90,22 @@ export default function PlanSemana() {
 
   useEffect(() => { cargar(); }, [cargar]);
 
-  // Filas: técnicos activos y, si hay, «Sin técnico» al final.
+  // Cuadrillas (opcionales): reducen la semana a un grupo de personas.
+  const { cuadrillas } = useCuadrillas();
+  const mapaCuad = useMemo(() => cuadrillaPorTecnico(cuadrillas), [cuadrillas]);
+  const [cuad, setCuad] = useState<string>(TODAS);
+  useEffect(() => {
+    if (cuad !== TODAS && cuad !== SIN_CUADRILLA && !cuadrillas.some((c) => c.id === cuad)) setCuad(TODAS);
+  }, [cuad, cuadrillas]);
+
+  // Filas: técnicos activos (de la cuadrilla elegida) y, si hay, «Sin
+  // técnico» al final cuando se ven todos.
   const filas = useMemo(() => {
     if (!datos) return [];
-    const base = datos.tecnicos.map((t) => ({ id: t.id, nombre: t.nombre }));
-    if (datos.servicios.some((s) => s.asignados.length === 0)) base.push({ id: SIN_TECNICO, nombre: 'Sin técnico' });
+    const base = datos.tecnicos.filter((t) => enCuadrilla(cuad, mapaCuad, t.id)).map((t) => ({ id: t.id, nombre: t.nombre }));
+    if (cuad === TODAS && datos.servicios.some((s) => s.asignados.length === 0)) base.push({ id: SIN_TECNICO, nombre: 'Sin técnico' });
     return base;
-  }, [datos]);
+  }, [datos, cuad, mapaCuad]);
 
   const serviciosDe = useCallback((tecnicoId: string, fecha: string) =>
     (datos?.servicios || []).filter((s) => s.fecha === fecha && (tecnicoId === SIN_TECNICO ? s.asignados.length === 0 : s.asignados.some((a) => a.tecnico_id === tecnicoId))),
@@ -172,6 +183,10 @@ export default function PlanSemana() {
       </p>
 
       {error && <p className="text-[13px] text-red font-semibold mb-3">{error}</p>}
+
+      {datos && (
+        <FiltroCuadrillas cuadrillas={cuadrillas} mapa={mapaCuad} ids={datos.tecnicos.map((t) => t.id)} valor={cuad} onCambiar={setCuad} className="mb-3" />
+      )}
 
       {/* Celular: un técnico a la vez con sus 7 días */}
       <div className={`lg:hidden ${cargando ? 'opacity-60' : ''}`}>

@@ -171,6 +171,32 @@ begin
     where u.id = p.id and u.email = 'tecnico' || x.n || dominio;
   end loop;
 
+  -- ---------- Cuadrillas de ejemplo ----------
+  -- El primero de cada lista queda de líder. Sergio Paredes (12) se deja sin
+  -- cuadrilla para mostrar también ese caso.
+  if to_regclass('public.cuadrillas') is not null then
+    delete from public.cuadrillas;
+    for x in
+      select * from (values
+        ('CCTV y accesos', 1, array[1, 3, 4, 5, 9]),
+        ('Incendio', 2, array[2, 6, 11, 14]),
+        ('Seguridad electrónica', 3, array[7, 10, 13]),
+        ('Eléctrico', 7, array[8, 15])
+      ) v(nombre, color, nums)
+    loop
+      i := i + 1;
+      insert into public.cuadrillas (nombre, color, orden) values (x.nombre, x.color, i) returning id into v_s;
+      insert into public.cuadrilla_miembros (tecnico_id, cuadrilla_id)
+      select u.id, v_s from unnest(x.nums) n
+      join auth.users u on u.email = 'tecnico' || case when n = 1 then '' else n::text end || dominio;
+      update public.cuadrillas set lider_id = (
+        select u.id from auth.users u
+        where u.email = 'tecnico' || case when x.nums[1] = 1 then '' else x.nums[1]::text end || dominio)
+      where id = v_s;
+    end loop;
+    i := 0;
+  end if;
+
   insert into public.vehiculos (nombre, placas) values
     ('Nissan NP300 blanca', 'JLX-12-34'), ('Chevrolet Tornado roja', 'JMB-56-78');
 

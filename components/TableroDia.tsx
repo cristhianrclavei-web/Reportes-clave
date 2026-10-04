@@ -7,7 +7,9 @@ import {
   Search, Users, List as ListIcon,
 } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
-import { AvatarTecnico, TiraTecnicos, EstadoAvatar } from '@/components/AvatarTecnico';
+import { AvatarTecnico, TiraTecnicos, EstadoAvatar, UNIFORMES } from '@/components/AvatarTecnico';
+import { Cuadrilla, useCuadrillas, cuadrillaPorTecnico, enCuadrilla, TODAS, SIN_CUADRILLA } from '@/lib/cuadrillas';
+import { ElegirCuadrilla } from '@/components/cuadrillas/ChipsCuadrilla';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
 import { showToast } from '@/components/Toast';
 import { hoyLocal, sumarDias, fechaLocal } from '@/lib/fechaHoy';
@@ -132,8 +134,17 @@ export default function TableroDia({ onAgendar }: {
     return () => { clearInterval(t); document.removeEventListener('visibilitychange', alVolver); };
   }, [cargar]);
 
+  // Cuadrillas (opcionales): filtran todo el tablero a un grupo de personas.
+  const { cuadrillas } = useCuadrillas();
+  const mapaCuad = useMemo(() => cuadrillaPorTecnico(cuadrillas), [cuadrillas]);
+  const [cuad, setCuad] = useState<string>(TODAS);
+  // Si la cuadrilla elegida se borró, se vuelve a «Todas».
+  useEffect(() => {
+    if (cuad !== TODAS && cuad !== SIN_CUADRILLA && !cuadrillas.some((c) => c.id === cuad)) setCuad(TODAS);
+  }, [cuad, cuadrillas]);
+
   // Técnicos con sus servicios del día; primero los que tienen servicio.
-  const filas = useMemo(() => {
+  const filasTodas = useMemo(() => {
     if (!datos) return [];
     return datos.tecnicos
       .map((t) => ({
@@ -142,16 +153,25 @@ export default function TableroDia({ onAgendar }: {
       }))
       .sort((a, b) => (a.servicios.length === 0 ? 1 : 0) - (b.servicios.length === 0 ? 1 : 0));
   }, [datos]);
+  const filas = useMemo(
+    () => (cuad === TODAS ? filasTodas : filasTodas.filter((f) => enCuadrilla(cuad, mapaCuad, f.id))),
+    [filasTodas, cuad, mapaCuad],
+  );
+  // Servicios del día de la cuadrilla elegida (los que llevan a alguien de ella).
+  const serviciosDia = useMemo(() => {
+    const todos = datos?.servicios || [];
+    return cuad === TODAS ? todos : todos.filter((sv) => sv.asignados.some((a) => enCuadrilla(cuad, mapaCuad, a.tecnico_id)));
+  }, [datos, cuad, mapaCuad]);
 
   const resumen = useMemo(() => {
-    const servicios = datos?.servicios || [];
+    const servicios = serviciosDia;
     const conServicio = filas.filter((f) => f.servicios.length > 0).length;
     const enCampo = servicios.filter((s) => s.estado === 'en_sitio' || s.estado === 'en_curso').length;
     const concluidos = servicios.filter((s) => s.estado === 'concluido').length;
     const sinReporte = servicios.filter((s) => s.estado === 'concluido' && !s.report_id).length;
     const avisos = servicios.reduce((n, s) => n + s.avisosPendientes.length, 0);
     return { conServicio, total: filas.length, enCampo, concluidos, sinReporte, avisos, servicios: servicios.length };
-  }, [datos, filas]);
+  }, [serviciosDia, filas]);
 
 
   // Algo que el supervisor debe atender en este servicio.
@@ -340,6 +360,31 @@ export default function TableroDia({ onAgendar }: {
 
       {error && <p className="text-[13px] text-red font-semibold mb-3">{error}</p>}
 
+      {/* Cuadrillas: reducen el tablero a un grupo. Solo si existen. */}
+      {cuadrillas.length > 0 && datos && (
+        <div className="flex items-center gap-1.5 mb-2.5 overflow-x-auto -mx-1 px-1 lg:flex-wrap lg:overflow-visible" style={{ scrollbarWidth: 'none' }}>
+          {[
+            { k: TODAS, nombre: 'Todas', color: null as number | null, gente: filasTodas },
+            ...cuadrillas.map((c) => ({ k: c.id, nombre: c.nombre, color: c.color as number | null, gente: filasTodas.filter((f) => mapaCuad.get(f.id)?.id === c.id) })),
+            ...(filasTodas.some((f) => !mapaCuad.has(f.id))
+              ? [{ k: SIN_CUADRILLA, nombre: 'Sin cuadrilla', color: null as number | null, gente: filasTodas.filter((f) => !mapaCuad.has(f.id)) }]
+              : []),
+          ].map((g) => {
+            const sel = cuad === g.k;
+            const conAlerta = g.k !== TODAS && g.gente.some((f) => f.servicios.some((sv) => alertaDe(sv, f.id)));
+            return (
+              <button key={g.k} type="button" onClick={() => setCuad(g.k)} aria-pressed={sel}
+                className={`shrink-0 h-8 pl-2.5 pr-3 rounded-full text-[12.5px] font-semibold border flex items-center gap-1.5 transition-colors active:scale-95 ${sel ? 'bg-ink text-bg border-ink' : 'bg-surface border-line text-ink/80'}`}>
+                {g.color !== null && <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: UNIFORMES[g.color % UNIFORMES.length] }} />}
+                {g.nombre}
+                <span className={`tabular-nums font-medium ${sel ? 'opacity-70' : 'text-muted'}`}>{g.gente.length}</span>
+                {conAlerta && <span className="w-1.5 h-1.5 rounded-full bg-red shrink-0" aria-label="Con alertas" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div className="lg:hidden flex items-center gap-1.5 mb-2 overflow-x-auto -mx-1 px-1 [&>span]:shrink-0 [&>span]:mb-0 [&>span]:mr-0 [&>span]:text-[12px] [&>span]:px-2.5 [&>span]:py-1" style={{ scrollbarWidth: 'none' }}>
         {([
           ['todos', `Todos ${filas.length}`],
@@ -382,7 +427,9 @@ export default function TableroDia({ onAgendar }: {
         <div className="hidden lg:block">
           <VistaEscritorio
             filas={filas}
-            servicios={datos.servicios}
+            servicios={serviciosDia}
+            cuadrillas={cuad === TODAS ? cuadrillas : []}
+            mapaCuad={mapaCuad}
             filtro={filtro}
             hoy={hoy}
             minutos={minutos}
@@ -499,6 +546,7 @@ export function SelectorTecnicos({
 }) {
   return (
     <div>
+      <ElegirCuadrilla disponibles={tecnicos.map((t) => t.id)} seleccion={seleccion} onCambiar={onCambiar} className="mb-2.5 pb-2.5 border-b border-line" />
       {tecnicos.map((t) => {
         const sel = seleccion.includes(t.id);
         return (
@@ -744,8 +792,12 @@ const KEY_VISTA_DIA = 'tablero-dia-vista';
 
 function VistaEscritorio({
   filas, servicios, filtro, hoy, minutos, fecha, alertaDe, estadoTecnico, indiceTec, pedirAsignar, onCambio, chips,
+  cuadrillas, mapaCuad,
 }: {
   chips: React.ReactNode;
+  // Con cuadrillas, la lista «Por técnico» sale agrupada y plegable.
+  cuadrillas: Cuadrilla[];
+  mapaCuad: Map<string, Cuadrilla>;
   filas: FilaTec[];
   servicios: ServicioDia[];
   filtro: Filtro;
@@ -816,6 +868,33 @@ function VistaEscritorio({
     return peso(a) - peso(b) || a.nombre.localeCompare(b.nombre);
   });
   const tecActual = tecnicosLista.find((f) => f.id === tecSel) || tecnicosLista[0] || null;
+
+  // Agrupación por cuadrilla de la lista «Por técnico». El orden visual se
+  // da con `order` (flex): encabezado y luego su gente, conservando dentro
+  // de cada grupo el orden por urgencia de `tecnicosLista`.
+  const agrupar = cuadrillas.length > 0;
+  const claveGrupo = (id: string) => (agrupar ? mapaCuad.get(id)?.id || 'sin' : '');
+  const ordenGrupo = (id: string) => {
+    const c = mapaCuad.get(id);
+    return c ? cuadrillas.findIndex((x) => x.id === c.id) + 1 : cuadrillas.length + 1;
+  };
+  const gruposTec = !agrupar ? [] : [
+    ...cuadrillas.map((c, i) => ({ k: c.id as string | null, titulo: c.nombre, color: c.color as number | null, orden: i + 1, items: tecnicosLista.filter((f) => mapaCuad.get(f.id)?.id === c.id) })),
+    { k: 'sin' as string | null, titulo: 'Sin cuadrilla', color: null as number | null, orden: cuadrillas.length + 1, items: tecnicosLista.filter((f) => !mapaCuad.has(f.id)) },
+  ].filter((g) => g.items.length > 0);
+
+  // Al abrir, las cuadrillas sin nada que atender quedan plegadas: con mucha
+  // gente, la lista arranca mostrando solo donde hay alertas. Se hace una
+  // vez; después manda lo que el supervisor abra o cierre.
+  const plegadoInicial = useRef(false);
+  useEffect(() => {
+    if (plegadoInicial.current || !agrupar || filas.length === 0) return;
+    plegadoInicial.current = true;
+    const tranquilas = gruposTec.filter((g) => !g.items.some((f) => estadoTecnico(f) === 'alerta')).map((g) => `c:${g.k}`);
+    // Si ninguna tiene alertas no se pliega nada (no habría qué destacar).
+    if (tranquilas.length > 0 && tranquilas.length < gruposTec.length) setPlegados((p) => new Set([...p, ...tranquilas]));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agrupar, filas.length]);
 
   const plegar = (k: string) => setPlegados((p) => { const n = new Set(p); if (n.has(k)) n.delete(k); else n.add(k); return n; });
 
@@ -959,16 +1038,32 @@ function VistaEscritorio({
   const vistaTecnico = (
     <div className="grid grid-cols-[320px_minmax(0,1fr)] gap-4 items-start">
       <div className="rounded-2xl bg-surface border border-line overflow-hidden lg:sticky lg:top-[150px]">
-        <div className="max-h-[calc(100vh-190px)] overflow-y-auto divide-y divide-line">
+        <div className="max-h-[calc(100vh-190px)] overflow-y-auto divide-y divide-line flex flex-col">
           {tecnicosLista.length === 0 && <p className="text-[13px] text-muted p-4">Nadie coincide.</p>}
-          {tecnicosLista.map((f) => {
+          {gruposTec.map((g) => {
+            if (g.k === null) return null;
+            const cerrado = plegados.has(`c:${g.k}`);
+            const conServicio = g.items.filter((f) => f.servicios.length > 0).length;
+            const alertas = g.items.filter((f) => estadoTecnico(f) === 'alerta').length;
+            return (
+              <button key={`h:${g.k}`} type="button" onClick={() => plegar(`c:${g.k}`)} style={{ order: g.orden * 1000 }}
+                className="w-full flex items-center gap-2 px-3.5 py-2 bg-bg/60 text-left">
+                <ChevronDown size={14} className={`text-muted transition-transform ${cerrado ? '-rotate-90' : ''}`} />
+                {g.color !== null && <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: UNIFORMES[g.color % UNIFORMES.length] }} />}
+                <span className="text-[12.5px] font-bold flex-1 min-w-0 truncate">{g.titulo}</span>
+                <span className="text-[11.5px] text-muted tabular-nums shrink-0">{conServicio}/{g.items.length} con servicio</span>
+                {alertas > 0 && <span className="text-[11px] font-bold text-red tabular-nums shrink-0">{alertas} ⚠</span>}
+              </button>
+            );
+          })}
+          {tecnicosLista.filter((f) => !plegados.has(`c:${claveGrupo(f.id)}`)).map((f) => {
             const activo = tecActual?.id === f.id;
             const enCurso = f.servicios.find((s) => s.estado === 'en_sitio' || s.estado === 'en_curso');
             const resumen = f.servicios.length === 0 ? 'Disponible'
               : enCurso ? `${enCurso.estado === 'en_curso' ? 'En curso' : 'En sitio'} · ${enCurso.proyecto}`
               : `${f.servicios.length} servicio${f.servicios.length > 1 ? 's' : ''} · ${f.servicios.filter((s) => s.estado === 'concluido').length} concluido(s)`;
             return (
-              <button key={f.id} type="button" onClick={() => setTecSel(f.id)}
+              <button key={f.id} type="button" onClick={() => setTecSel(f.id)} style={agrupar ? { order: ordenGrupo(f.id) * 1000 + 1 } : undefined}
                 className={`w-full flex items-center gap-3 px-3.5 py-2.5 text-left transition-colors ${activo ? 'bg-teal/10' : 'hover:bg-surface-2/60'}`}>
                 <AvatarTecnico id={f.id} nombre={f.nombre} size={34} estado={estadoTecnico(f)} indice={indiceTec(f.id)} />
                 <span className="min-w-0 flex-1">
