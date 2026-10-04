@@ -28,6 +28,73 @@ create table if not exists public.demo_accesos (
 alter table public.demo_accesos enable row level security;
 revoke all on public.demo_accesos from anon, authenticated;
 
+-- Mantiene «vivo» el día de hoy: quien abra el demo a cualquier hora ve
+-- servicios que empezaron hace un rato y otros por iniciar en un rato, en
+-- vez de servicios de la mañana ya excedidos por horas. Corre cada 15
+-- minutos y al final de cada reinicio.
+--
+-- Dos reglas de la base que hay que respetar: no se cambia la hora de un
+-- servicio en curso (se pasa un instante a «programado») y cambiar la hora
+-- borra el «visto» de los técnicos (se vuelve a marcar).
+create or replace function public.demo_al_dia()
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  zona constant text := 'America/Mexico_City';
+  ahora timestamp := now() at time zone zona;
+  hoy date := (now() at time zone zona)::date;
+  s record;
+  n_campo integer := 0;
+  n_prog integer := 0;
+  v_hora time;
+  v_llegada timestamptz;
+begin
+  if not exists (select 1 from public.demo_accesos) then
+    raise exception 'demo_al_dia() solo corre en la instalación demo';
+  end if;
+
+  for s in
+    select id, estado from public.servicios_programados
+    where fecha = hoy and estado in ('en_curso', 'en_sitio', 'programado') and report_id is null
+    order by case estado when 'en_curso' then 0 when 'en_sitio' then 1 else 2 end, hora_programada, id
+  loop
+    if s.estado in ('en_curso', 'en_sitio') then
+      n_campo := n_campo + 1;
+      -- Empezaron hace entre 35 y 95 minutos, escalonados (nunca antes de hoy).
+      v_llegada := greatest(ahora - make_interval(mins => 20 + n_campo * 15), hoy::timestamp + interval '5 minutes') at time zone zona;
+      v_hora := ((v_llegada at time zone zona) + interval '5 minutes')::time;
+      update public.servicios_programados set estado = 'programado' where id = s.id;
+      update public.servicios_programados set hora_programada = v_hora where id = s.id;
+      update public.servicios_programados set
+        estado = s.estado,
+        hora_llegada = v_llegada,
+        hora_inicio = case when s.estado = 'en_curso' then v_llegada + interval '10 minutes' end
+      where id = s.id;
+    else
+      n_prog := n_prog + 1;
+      -- Por iniciar: cada 40 minutos a partir de dentro de 40 (tope 23:50).
+      v_hora := least(ahora + make_interval(mins => n_prog * 40), hoy::timestamp + interval '23 hours 50 minutes')::time;
+      update public.servicios_programados set hora_programada = v_hora where id = s.id;
+    end if;
+    -- Todos enterados, menos el último por iniciar: queda un «Sin ver» de ejemplo.
+    update public.servicio_tecnicos set visto_en = now() - interval '30 minutes', enterado_en = now() - interval '25 minutes'
+    where servicio_id = s.id;
+  end loop;
+
+  update public.servicio_tecnicos set visto_en = null, enterado_en = null
+  where servicio_id = (
+    select id from public.servicios_programados
+    where fecha = hoy and estado = 'programado' order by hora_programada desc, id limit 1);
+
+  return format('%s en campo y %s por iniciar, al %s', n_campo, n_prog, to_char(ahora, 'HH24:MI'));
+end;
+$$;
+
+revoke all on function public.demo_al_dia() from public, anon, authenticated;
+
 create or replace function public.reiniciar_demo()
 returns text
 language plpgsql
@@ -501,6 +568,21 @@ begin
     select id, 'entrada', a.existencia, 'general', 'Inventario inicial', 'Carga inicial del demo', v_sup, a.costo from nuevo;
   end loop;
 
+  -- ---------- Cobertura de reportes ----------
+  -- Los días hábiles sin reporte se dan por justificados para que el Control
+  -- de reportes y la pantalla del técnico no arranquen llenos de pendientes.
+  -- Se dejan dos personas con un día pendiente, como ejemplo de la función.
+  insert into public.justificaciones_dia (tecnico_id, fecha, motivo, detalle, registrado_por)
+  select c.tecnico_id, c.fecha, 'sin_servicio', null, v_sup
+  from public.cobertura_dias(hoy - 30, hoy - 1) c
+  where c.estado = 'sin_reporte'
+    and not (c.fecha = hoy - 1 and c.tecnico_id in (
+      select u.id from auth.users u where u.email in ('tecnico9' || dominio, 'tecnico13' || dominio)))
+  on conflict do nothing;
+
+  -- Los servicios de hoy, alrededor de la hora actual.
+  perform public.demo_al_dia();
+
   return format('Demo reiniciado: %s clientes, %s servicios, %s reportes, %s cotizaciones, %s artículos',
     (select count(*) from public.clientes), (select count(*) from public.servicios_programados),
     (select count(*) from public.reports), (select count(*) from public.cotizaciones),
@@ -513,3 +595,7 @@ revoke all on function public.reiniciar_demo() from public, anon, authenticated;
 -- Reinicio cada noche a las 3:00 de Guadalajara (9:00 UTC).
 select cron.unschedule('reiniciar-demo') where exists (select 1 from cron.job where jobname = 'reiniciar-demo');
 select cron.schedule('reiniciar-demo', '0 9 * * *', 'select public.reiniciar_demo()');
+
+-- Cada 15 minutos, los servicios de hoy se reacomodan alrededor de la hora actual.
+select cron.unschedule('demo-al-dia') where exists (select 1 from cron.job where jobname = 'demo-al-dia');
+select cron.schedule('demo-al-dia', '*/15 * * * *', 'select public.demo_al_dia()');

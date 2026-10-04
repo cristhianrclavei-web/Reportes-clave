@@ -4,7 +4,7 @@
 -- Base para vender la app por paquetes (ver «Plan comercial»):
 --
 --   campo        reportes, servicios/agenda, ubicación, clientes
---   profesional  campo + cotizaciones + almacén + formatos de mantenimiento
+--   profesional  campo + cotizaciones + almacén + formatos de mantenimiento + cuadrillas
 --   empresa      todo: + facturación + asistente IA
 --
 -- Una sola fila (esta instalación = una empresa). «extras» agrega módulos
@@ -46,8 +46,8 @@ as $$
       select unnest(
         case p.plan
           when 'campo' then array['reportes', 'servicios', 'ubicacion', 'clientes']
-          when 'profesional' then array['reportes', 'servicios', 'ubicacion', 'clientes', 'cotizaciones', 'almacen', 'formatos']
-          else array['reportes', 'servicios', 'ubicacion', 'clientes', 'cotizaciones', 'almacen', 'formatos', 'facturacion', 'ia']
+          when 'profesional' then array['reportes', 'servicios', 'ubicacion', 'clientes', 'cotizaciones', 'almacen', 'formatos', 'cuadrillas']
+          else array['reportes', 'servicios', 'ubicacion', 'clientes', 'cotizaciones', 'almacen', 'formatos', 'cuadrillas', 'facturacion', 'ia']
         end || p.extras
       ) as m
       from public.empresa_plan p

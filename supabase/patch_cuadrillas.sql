@@ -13,8 +13,33 @@
 --     cuadrilla no altera servicios ni reportes ya hechos.
 --   · Es opcional: sin cuadrillas, la app se ve igual que antes.
 --
--- Las ven todos los usuarios con sesión; solo los supervisores las editan.
+-- Requiere patch_planes.sql. Las ven todos los usuarios con sesión; solo los
+-- supervisores las editan, y solo si el paquete incluye cuadrillas.
 -- Ejecutar completo en el SQL Editor de Supabase. Idempotente.
+
+-- ---------- Paquetes: las cuadrillas van en Profesional y Empresa ----------
+-- Misma lista que supabase/patch_planes.sql y lib/planesDatos.ts. Un paquete
+-- Campo puede tenerlas como extra: update empresa_plan set extras = extras || '{cuadrillas}'.
+create or replace function public.modulos_activos()
+returns text[]
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select array(
+    select distinct m from (
+      select unnest(
+        case p.plan
+          when 'campo' then array['reportes', 'servicios', 'ubicacion', 'clientes']
+          when 'profesional' then array['reportes', 'servicios', 'ubicacion', 'clientes', 'cotizaciones', 'almacen', 'formatos', 'cuadrillas']
+          else array['reportes', 'servicios', 'ubicacion', 'clientes', 'cotizaciones', 'almacen', 'formatos', 'cuadrillas', 'facturacion', 'ia']
+        end || p.extras
+      ) as m
+      from public.empresa_plan p
+    ) x
+  );
+$$;
 
 create table if not exists public.cuadrillas (
   id uuid primary key default gen_random_uuid(),
@@ -46,8 +71,8 @@ create policy cuadrillas_leer on public.cuadrillas for select
 drop policy if exists cuadrillas_supervisor on public.cuadrillas;
 create policy cuadrillas_supervisor on public.cuadrillas for all
   to authenticated
-  using (public.get_my_role() = 'supervisor')
-  with check (public.get_my_role() = 'supervisor');
+  using (public.get_my_role() = 'supervisor' and public.modulo_activo('cuadrillas'))
+  with check (public.get_my_role() = 'supervisor' and public.modulo_activo('cuadrillas'));
 
 drop policy if exists cuadrilla_miembros_leer on public.cuadrilla_miembros;
 create policy cuadrilla_miembros_leer on public.cuadrilla_miembros for select
@@ -56,8 +81,8 @@ create policy cuadrilla_miembros_leer on public.cuadrilla_miembros for select
 drop policy if exists cuadrilla_miembros_supervisor on public.cuadrilla_miembros;
 create policy cuadrilla_miembros_supervisor on public.cuadrilla_miembros for all
   to authenticated
-  using (public.get_my_role() = 'supervisor')
-  with check (public.get_my_role() = 'supervisor');
+  using (public.get_my_role() = 'supervisor' and public.modulo_activo('cuadrillas'))
+  with check (public.get_my_role() = 'supervisor' and public.modulo_activo('cuadrillas'));
 
 revoke all on public.cuadrillas from anon;
 revoke all on public.cuadrilla_miembros from anon;
@@ -84,6 +109,9 @@ declare
 begin
   if public.get_my_role() is distinct from 'supervisor' then
     raise exception 'Solo un supervisor puede editar cuadrillas';
+  end if;
+  if not public.modulo_activo('cuadrillas') then
+    raise exception 'Las cuadrillas están incluidas en los paquetes Profesional y Empresa';
   end if;
   if exists (select 1 from public.profiles where id = any(v_miembros) and role <> 'tecnico') then
     raise exception 'Las cuadrillas se forman con personal técnico';
@@ -135,5 +163,5 @@ begin
   end if;
 end $$;
 
--- Verificación: debe devolver 0 la primera vez.
-select count(*) as cuadrillas from public.cuadrillas;
+-- Verificación: el módulo debe salir activo (true) en paquetes Profesional y Empresa.
+select public.modulo_activo('cuadrillas') as cuadrillas_en_el_plan, (select count(*) from public.cuadrillas) as cuadrillas;

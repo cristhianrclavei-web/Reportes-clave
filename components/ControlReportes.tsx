@@ -9,6 +9,9 @@ import { hoyLocal, sumarDias, fechaLocal } from '@/lib/fechaHoy';
 import { HORA_CORTE_MIN, inicioVentana, mensajePendiente, fechaCorta, MOTIVOS, MotivoJustificacion } from '@/lib/coberturaReportes';
 import { notificar } from '@/lib/push';
 import { cargarControl, ServicioPendiente, justificarPorTecnico } from '@/lib/controlReportes';
+import { useCuadrillas, cuadrillaPorTecnico, enCuadrilla, TODAS, SIN_CUADRILLA } from '@/lib/cuadrillas';
+import { FiltroCuadrillas } from '@/components/cuadrillas/ChipsCuadrilla';
+import { UNIFORMES } from '@/components/AvatarTecnico';
 import { buscarReportesParaVincular, vincularReporteAServicio, ReporteParaVincular, cancelarServicio } from '@/lib/serviciosProgramados';
 
 // Control de reportes: por técnico, lo que debe entregar y qué tan puntual
@@ -100,13 +103,35 @@ export default function ControlReportes({ reportes, onAbrirReporte }: { reportes
     }).sort((a, b) => b.pendientes.length - a.pendientes.length || b.masAntiguo - a.masAntiguo || a.nombre.localeCompare(b.nombre, 'es'));
   }, [datos, reportes, hoy, periodo, vencido]);
 
-  const totales = useMemo(() => {
-    const pend = filas.reduce((n, f) => n + f.pendientes.length, 0);
-    const conPend = filas.filter((f) => f.pendientes.length).length;
-    const ent = filas.reduce((n, f) => n + f.entregados, 0);
-    const mismo = filas.reduce((n, f) => n + Math.round(((f.pctMismoDia || 0) / 100) * f.entregados), 0);
+  // Cuadrillas (opcionales): el control se puede ver de un grupo a la vez, y
+  // con «Todas» sale un resumen por cuadrilla para ver de un vistazo cuál
+  // trae rezago.
+  const { cuadrillas } = useCuadrillas();
+  const mapaCuad = useMemo(() => cuadrillaPorTecnico(cuadrillas), [cuadrillas]);
+  const [cuad, setCuad] = useState<string>(TODAS);
+  useEffect(() => {
+    if (cuad !== TODAS && cuad !== SIN_CUADRILLA && !cuadrillas.some((c) => c.id === cuad)) setCuad(TODAS);
+  }, [cuad, cuadrillas]);
+  const filasVista = useMemo(
+    () => (cuad === TODAS ? filas : filas.filter((f) => enCuadrilla(cuad, mapaCuad, f.id))),
+    [filas, cuad, mapaCuad],
+  );
+
+  const sumar = useCallback((lista: typeof filas) => {
+    const pend = lista.reduce((n, f) => n + f.pendientes.length, 0);
+    const conPend = lista.filter((f) => f.pendientes.length).length;
+    const ent = lista.reduce((n, f) => n + f.entregados, 0);
+    const mismo = lista.reduce((n, f) => n + Math.round(((f.pctMismoDia || 0) / 100) * f.entregados), 0);
     return { pend, conPend, pct: ent ? Math.round((mismo / ent) * 100) : null, ent };
-  }, [filas]);
+  }, []);
+  const totales = useMemo(() => sumar(filasVista), [filasVista, sumar]);
+  const porCuadrilla = useMemo(() => {
+    if (cuadrillas.length === 0) return [];
+    const grupos = cuadrillas.map((c) => ({ k: c.id, nombre: c.nombre, color: c.color as number | null, gente: filas.filter((f) => mapaCuad.get(f.id)?.id === c.id) }));
+    const sueltos = filas.filter((f) => !mapaCuad.has(f.id));
+    if (sueltos.length > 0) grupos.push({ k: SIN_CUADRILLA, nombre: 'Sin cuadrilla', color: null, gente: sueltos });
+    return grupos.filter((g) => g.gente.length > 0).map((g) => ({ ...g, ...sumar(g.gente) }));
+  }, [cuadrillas, filas, mapaCuad, sumar]);
 
   async function recordar(f: (typeof filas)[number]) {
     const fechas = [...new Set(f.pendientes.map((p) => p.fecha))];
@@ -119,8 +144,8 @@ export default function ControlReportes({ reportes, onAbrirReporte }: { reportes
   const alternar = (id: string) => setAbiertos((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   if (!hoy) return null;
-  const conPendientes = filas.filter((f) => f.pendientes.length > 0);
-  const alDia = filas.filter((f) => f.pendientes.length === 0);
+  const conPendientes = filasVista.filter((f) => f.pendientes.length > 0);
+  const alDia = filasVista.filter((f) => f.pendientes.length === 0);
 
   return (
     <div className="px-4 lg:px-0 pt-2">
@@ -128,13 +153,15 @@ export default function ControlReportes({ reportes, onAbrirReporte }: { reportes
         Lo que cada técnico debe entregar: servicios ya pasados sin reporte y días hábiles sin reporte ni justificación (últimos 30 días). La puntualidad cuenta los reportes hechos el mismo día del servicio.
       </p>
 
+      <FiltroCuadrillas cuadrillas={cuadrillas} mapa={mapaCuad} ids={filas.map((f) => f.id)} valor={cuad} onCambiar={setCuad} className="mb-3" />
+
       <div className="grid grid-cols-3 gap-2 mb-4">
         <div className={`rounded-2xl px-3 py-2.5 border ${totales.pend ? 'bg-red/10 border-red/25' : 'bg-teal/10 border-teal/25'}`}>
           <p className={`text-[22px] font-bold tabular-nums leading-none ${totales.pend ? 'text-red' : 'text-teal'}`}>{totales.pend}</p>
           <p className="text-[11.5px] font-semibold mt-1 text-muted">Pendientes</p>
         </div>
         <div className="rounded-2xl px-3 py-2.5 border bg-surface border-line">
-          <p className="text-[22px] font-bold tabular-nums leading-none">{totales.conPend}<span className="text-[13px] text-muted">/{filas.length}</span></p>
+          <p className="text-[22px] font-bold tabular-nums leading-none">{totales.conPend}<span className="text-[13px] text-muted">/{filasVista.length}</span></p>
           <p className="text-[11.5px] font-semibold mt-1 text-muted">Técnicos con pendientes</p>
         </div>
         <div className="rounded-2xl px-3 py-2.5 border bg-surface border-line">
@@ -155,6 +182,32 @@ export default function ControlReportes({ reportes, onAbrirReporte }: { reportes
 
       {error && <p className="text-[13px] text-red font-semibold mb-3">{error}</p>}
       {cargando && !datos && <p className="text-[13px] text-muted py-6 text-center">Cargando…</p>}
+
+      {/* Resumen por cuadrilla: toca una para ver solo a su gente. */}
+      {cuad === TODAS && porCuadrilla.length > 0 && (
+        <div className="mb-4">
+          <p className="text-[12px] font-semibold uppercase tracking-wider text-muted mb-2">Por cuadrilla</p>
+          <div className="rounded-2xl bg-surface border border-line divide-y divide-line overflow-hidden">
+            {porCuadrilla.map((g) => (
+              <button key={g.k} type="button" onClick={() => setCuad(g.k)}
+                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left active:bg-surface-2/60 hover:bg-surface-2/40 transition-colors">
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: g.color !== null ? UNIFORMES[g.color % UNIFORMES.length] : 'rgb(var(--c-faint))' }} />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13.5px] font-semibold truncate">{g.nombre}</span>
+                  <span className="block text-[12px] text-muted truncate">
+                    {g.gente.length} {g.gente.length === 1 ? 'persona' : 'personas'}
+                    {g.conPend > 0 ? ` · ${g.conPend} con pendientes` : ''}
+                    {g.pct !== null ? ` · ${g.pct}% el mismo día` : ''}
+                  </span>
+                </span>
+                <span className={`shrink-0 text-[12px] font-bold px-2 py-0.5 rounded-full tabular-nums ${g.pend ? 'bg-red/12 text-red' : 'bg-teal/12 text-teal'}`}>
+                  {g.pend ? `${g.pend} pendiente${g.pend > 1 ? 's' : ''}` : 'Al día'}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 items-start">
         {conPendientes.map((f) => {

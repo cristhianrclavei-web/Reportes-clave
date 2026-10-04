@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { createClient } from './supabaseClient';
+import { usePlan } from './planes';
+import { tieneModulo } from './planesDatos';
 
 // Cuadrillas: agrupan al personal técnico (ver supabase/patch_cuadrillas.sql).
 // Son opcionales y son una plantilla: los servicios siguen guardando a las
@@ -67,11 +69,17 @@ export async function eliminarCuadrilla(id: string): Promise<void> {
   cache = null;
 }
 
+const VACIO: Cuadrilla[] = [];
+
 // Una sola consulta por pantalla aunque varios componentes las usen.
 let cache: Promise<Cuadrilla[]> | null = null;
 
-export function useCuadrillas(): { cuadrillas: Cuadrilla[]; recargar: () => void } {
-  const [cuadrillas, setCuadrillas] = useState<Cuadrilla[]>([]);
+// Las cuadrillas son de los paquetes Profesional y Empresa: sin el módulo en
+// el plan, la app se comporta como si no existieran.
+export function useCuadrillas(): { cuadrillas: Cuadrilla[]; recargar: () => void; incluidas: boolean } {
+  const plan = usePlan();
+  const incluidas = tieneModulo(plan, 'cuadrillas');
+  const [todas, setCuadrillas] = useState<Cuadrilla[]>([]);
   const cargar = useCallback((forzar = false) => {
     if (forzar || !cache) cache = listarCuadrillas();
     let vivo = true;
@@ -79,7 +87,8 @@ export function useCuadrillas(): { cuadrillas: Cuadrilla[]; recargar: () => void
     return () => { vivo = false; };
   }, []);
   useEffect(() => cargar(), [cargar]);
-  return { cuadrillas, recargar: () => { cargar(true); } };
+  const cuadrillas = incluidas ? todas : VACIO;
+  return { cuadrillas, recargar: () => { cargar(true); }, incluidas };
 }
 
 // Mapa técnico → su cuadrilla.

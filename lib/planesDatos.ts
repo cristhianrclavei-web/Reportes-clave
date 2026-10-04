@@ -5,7 +5,7 @@
 // plan deben coincidir con modulos_activos()).
 export type Modulo =
   | 'reportes' | 'servicios' | 'ubicacion' | 'clientes'
-  | 'cotizaciones' | 'almacen' | 'formatos' | 'facturacion' | 'ia';
+  | 'cotizaciones' | 'almacen' | 'formatos' | 'cuadrillas' | 'facturacion' | 'ia';
 
 export type PlanClave = 'campo' | 'profesional' | 'empresa';
 
@@ -30,15 +30,15 @@ export const PLANES: Record<PlanClave, {
   },
   profesional: {
     nombre: 'Profesional',
-    modulos: ['reportes', 'servicios', 'ubicacion', 'clientes', 'cotizaciones', 'almacen', 'formatos'],
+    modulos: ['reportes', 'servicios', 'ubicacion', 'clientes', 'cotizaciones', 'almacen', 'formatos', 'cuadrillas'],
     usuarios: 10,
     precioMensual: 2990,
     lema: 'El más completo para integradores',
-    incluye: ['Todo lo de Campo', 'Cotizaciones', 'Almacén y vales', 'Formatos de mantenimiento con etiqueta QR'],
+    incluye: ['Todo lo de Campo', 'Cotizaciones', 'Almacén y vales', 'Formatos de mantenimiento con etiqueta QR', 'Cuadrillas para equipos grandes'],
   },
   empresa: {
     nombre: 'Empresa',
-    modulos: ['reportes', 'servicios', 'ubicacion', 'clientes', 'cotizaciones', 'almacen', 'formatos', 'facturacion', 'ia'],
+    modulos: ['reportes', 'servicios', 'ubicacion', 'clientes', 'cotizaciones', 'almacen', 'formatos', 'cuadrillas', 'facturacion', 'ia'],
     usuarios: 25,
     precioMensual: 5490,
     lema: 'Toda la operación y la cobranza',
