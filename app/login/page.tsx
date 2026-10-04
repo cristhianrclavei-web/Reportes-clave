@@ -9,7 +9,7 @@ import ThemeToggle from '@/components/ThemeToggle';
 import { useTheme } from '@/lib/useTheme';
 import Logo from '@/components/Logo';
 import { DEMO, MARCA } from '@/lib/marca';
-import { ArrowRight, Check, LayoutDashboard, Loader2, Wrench } from 'lucide-react';
+import PortadaDemo, { ClaveAcceso, cuentaDemo } from '@/components/PortadaDemo';
 
 function LoginForm() {
   const [email, setEmail] = useState('');
@@ -19,7 +19,7 @@ function LoginForm() {
   const [modoOlvido, setModoOlvido] = useState(false);
   const [enviado, setEnviado] = useState(false);
   // Demo: cuál de los dos accesos se está abriendo (para su indicador).
-  const [entrando, setEntrando] = useState<'supervisor' | 'tecnico' | null>(null);
+  const [entrando, setEntrando] = useState<ClaveAcceso | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const theme = useTheme();
@@ -96,116 +96,13 @@ function LoginForm() {
   // Las cuentas de ejemplo son públicas y compartidas, así que pedir correo
   // y contraseña solo estorba: se entra eligiendo el papel.
   if (DEMO.activo) {
-    const accesos = [
-      {
-        clave: 'supervisor' as const,
-        Icono: LayoutDashboard,
-        titulo: 'Supervisor',
-        lema: 'Coordina y da seguimiento a la operación',
-        cuenta: DEMO.supervisor,
-        puntos: ['Tablero del día', 'Agenda, reportes y cotizaciones', 'Clientes, almacén y facturación'],
-      },
-      {
-        clave: 'tecnico' as const,
-        Icono: Wrench,
-        titulo: 'Técnico',
-        lema: 'El trabajo del día, desde el celular',
-        cuenta: DEMO.tecnico,
-        puntos: ['Sus servicios de hoy, paso a paso', 'Reporte con fotos y firma del cliente', 'Funciona desde el celular, aun sin señal'],
-      },
-    ];
-    async function abrir(a: (typeof accesos)[number]) {
-      setEntrando(a.clave);
-      await entrar(a.cuenta.correo, a.cuenta.contrasena);
+    async function abrir(clave: ClaveAcceso) {
+      const cuenta = cuentaDemo(clave);
+      setEntrando(clave);
+      await entrar(cuenta.correo, cuenta.contrasena);
       setEntrando(null);
     }
-    return (
-      <div className="min-h-screen flex items-center justify-center px-5 py-5 sm:py-10 relative overflow-hidden">
-        <div className="pointer-events-none absolute -bottom-40 -right-24 w-[26rem] h-[26rem] rounded-full bg-teal/15 blur-[120px]" />
-        <div className="pointer-events-none absolute -top-32 -left-24 w-[22rem] h-[22rem] rounded-full bg-teal/10 blur-[110px]" />
-        <div className="pointer-events-none absolute top-1/3 right-1/4 w-56 h-56 rounded-full bg-amber/10 blur-[100px]" />
-
-        <div className="relative z-10 w-full max-w-3xl">
-          {/* El cambio de tema va en su propio renglón, alineado a la orilla
-              de las tarjetas: así no flota encima del logo en el celular. */}
-          <div className="flex justify-end mb-4 sm:mb-2">
-            <ThemeToggle variante="interruptor" />
-          </div>
-          <div className="flex flex-col items-center text-center mb-8">
-            <Logo variante="completo" size={60} />
-            <span className="mt-6 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal/12 border border-teal/30 text-teal text-[12px] font-semibold tracking-wide">
-              <span className="w-1.5 h-1.5 rounded-full bg-teal animate-pulse" />
-              Demo en vivo · sin registro
-            </span>
-            <h1 className="mt-4 font-display font-bold text-[32px] sm:text-[44px] leading-[1.05] tracking-wide">
-              Tu operación de campo,<br /> en una sola app
-            </h1>
-            <p className="mt-3 text-[15px] sm:text-base text-muted max-w-xl">
-              Elige cómo quieres entrar y recorre la app con datos de ejemplo:
-              agenda, reportes firmados, cotizaciones y almacén.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {accesos.map((a) => {
-              const cargando = entrando === a.clave;
-              return (
-                <button
-                  key={a.clave}
-                  type="button"
-                  disabled={loading}
-                  onClick={() => abrir(a)}
-                  className="group edge-highlight text-left glass-strong rounded-3xl p-6 border border-line hover:border-teal/60 hover:-translate-y-1 active:translate-y-0 active:scale-[0.98] disabled:opacity-70 disabled:hover:translate-y-0 transition-all duration-200 shadow-diffuse"
-                >
-                  <div className="flex items-center gap-3.5 mb-4">
-                    <span className="w-12 h-12 rounded-2xl bg-teal/15 border border-teal/30 text-teal flex items-center justify-center shrink-0 group-hover:bg-teal group-hover:text-inkOnAccent transition-colors duration-200">
-                      <a.Icono size={24} strokeWidth={2.2} />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="font-display font-bold text-[24px] leading-tight tracking-wide">{a.titulo}</p>
-                      <p className="text-[12.5px] text-muted truncate">{a.lema}</p>
-                    </div>
-                  </div>
-                  <ul className="space-y-2 mb-5">
-                    {a.puntos.map((t) => (
-                      <li key={t} className="flex gap-2 text-[14px] text-ink/85">
-                        <Check size={16} strokeWidth={2.6} className="text-teal shrink-0 mt-0.5" />
-                        {t}
-                      </li>
-                    ))}
-                  </ul>
-                  <span className="flex items-center justify-center gap-2 min-h-[48px] rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15.5px] tracking-wide shadow-glow-teal">
-                    {cargando ? (
-                      <>
-                        <Loader2 size={18} className="animate-spin" />
-                        Entrando…
-                      </>
-                    ) : (
-                      <>
-                        Entrar como {a.titulo.toLowerCase()}
-                        <ArrowRight size={18} strokeWidth={2.4} className="group-hover:translate-x-1 transition-transform duration-200" />
-                      </>
-                    )}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {error && <p className="text-red text-[13.5px] text-center mt-4">{error}</p>}
-
-          <p className="text-center text-[12.5px] text-muted mt-6">
-            Los datos son ficticios y se reinician cada noche: puedes crear, editar y borrar con confianza.
-          </p>
-          <Link
-            href="/aviso-privacidad"
-            className="block text-center text-[12px] text-faint hover:text-muted mt-2 active:scale-95 transition-all duration-150"
-          >
-            Aviso de privacidad
-          </Link>
-        </div>
-      </div>
-    );
+    return <PortadaDemo onEntrar={abrir} entrando={entrando} ocupado={loading} error={error} />;
   }
 
   return (
