@@ -141,8 +141,9 @@ function SeccionDock({
   );
 }
 
-// Sección del menú lateral (pantallas grandes): ícono y nombre en renglón;
-// el fondo de la activa se desliza entre secciones, igual que en la barra.
+// Sección del menú lateral (pantallas grandes): mosaico con el ícono grande
+// y el nombre centrado debajo. Van en dos columnas para llenar el ancho de
+// la barra; el fondo de la activa se desliza entre mosaicos.
 function SeccionLateral({
   href,
   etiqueta,
@@ -158,19 +159,16 @@ function SeccionLateral({
     <Link
       href={href}
       aria-current={activo ? 'page' : undefined}
-      className={`group relative flex items-center gap-3 h-11 px-3.5 rounded-xl text-[14.5px] transition-colors ${
-        activo ? 'text-teal font-semibold' : 'text-ink/70 font-medium hover:text-ink hover:bg-surface-2'
+      className={`group relative rounded-2xl border transition-colors ${
+        activo ? 'text-teal border-transparent' : 'text-ink/70 border-line/70 bg-surface/40 hover:text-ink hover:bg-surface-2 hover:border-line-strong'
       }`}
     >
       {activo && (
-        <>
-          <motion.span layoutId="lateral-activo-fondo" transition={RESORTE} className="absolute inset-0 rounded-xl bg-teal/12 ring-1 ring-teal/30" />
-          <motion.span layoutId="lateral-activo-marca" transition={RESORTE} className="absolute left-0 top-2.5 bottom-2.5 w-[3px] rounded-full bg-teal" />
-        </>
+        <motion.span layoutId="lateral-activo-fondo" transition={RESORTE} className="absolute inset-0 rounded-2xl bg-teal/12 ring-1 ring-teal/40 shadow-glow-teal" />
       )}
-      <span className="relative flex items-center gap-3 min-w-0 transition-transform duration-200 ease-out group-hover:translate-x-[2px]">
-        <Icono size={19} strokeWidth={activo ? 2.5 : 2.1} />
-        <span className="truncate">{etiqueta}</span>
+      <span className="relative flex flex-col items-center justify-center gap-2 h-[84px] px-2 transition-transform duration-200 ease-out group-hover:-translate-y-[2px]">
+        <Icono size={25} strokeWidth={activo ? 2.4 : 2} />
+        <span className={`text-[12.5px] leading-none truncate max-w-full ${activo ? 'font-semibold' : 'font-medium'}`}>{etiqueta}</span>
       </span>
     </Link>
   );
@@ -253,35 +251,39 @@ export default function DockNav({ userName, children }: { userName?: string; chi
           los costados vacíos. Marca arriba, secciones y la cuenta abajo. Se
           queda fijo al hacer scroll; en pantallas menores sigue la barra de
           secciones de arriba. */}
-      <aside className="hidden 2xl:flex sticky top-0 h-screen w-[264px] shrink-0 flex-col border-r border-line bg-surface/50 px-4 pt-7 pb-10">
-        <Link href="/dashboard" aria-label="Ir al resumen" className="px-1.5 mb-7 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/50">
-          <Logo variante="completo" size={42} />
+      <aside className="hidden 2xl:flex sticky top-0 h-screen w-[272px] shrink-0 flex-col border-r border-line bg-surface/50 px-4 pt-7 pb-8 overflow-y-auto no-scrollbar">
+        <Link href="/dashboard" aria-label="Ir al resumen" className="self-center mb-6 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/50">
+          <Logo variante="completo" size={44} />
         </Link>
+
+        {/* Cuenta: arriba, como tarjeta. Perfil a la izquierda, salir a la derecha. */}
+        <div className="mb-6 rounded-2xl bg-surface border border-line p-2.5 flex items-center gap-2 shadow-diffuse">
+          <Link href="/perfil" aria-label="Mi perfil" className="flex items-center gap-3 flex-1 min-w-0 p-1 rounded-xl hover:bg-surface-2 transition-colors">
+            {miFoto ? (
+              <img src={miFoto} alt="" className="w-12 h-12 rounded-full object-cover shrink-0 ring-2 ring-teal/30" />
+            ) : (
+              <span className="w-12 h-12 rounded-full bg-teal text-inkOnAccent flex items-center justify-center text-[15px] font-display font-bold shrink-0 ring-2 ring-teal/30">
+                {iniciales || 'S'}
+              </span>
+            )}
+            <span className="min-w-0 leading-tight">
+              <span className="block text-[14px] font-semibold truncate">{userName || 'Supervisor'}</span>
+              <span className="block text-[12px] text-muted leading-snug line-clamp-2">{miPerfil?.puesto || 'Supervisor'}</span>
+            </span>
+          </Link>
+          <BotonDock etiqueta="Cerrar sesión">
+            <LogoutButton compacto className="w-10 h-10 rounded-full border border-line bg-surface-2 flex items-center justify-center text-ink/65 hover:text-red hover:border-red/40 active:scale-90 transition disabled:opacity-60" />
+          </BotonDock>
+        </div>
+
+        <p className="px-1 mb-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-faint">Secciones</p>
         <LayoutGroup id="lateral">
-          <nav aria-label="Secciones" className="flex flex-col gap-1 overflow-y-auto no-scrollbar p-0.5 -m-0.5">
+          <nav aria-label="Secciones" className="grid grid-cols-2 gap-2.5">
             {secciones.map((t) => (
               <SeccionLateral key={t.key} href={t.href} etiqueta={t.label} Icono={t.Icono} activo={t.key === activa} />
             ))}
           </nav>
         </LayoutGroup>
-        <div className="mt-auto pt-4 border-t border-line flex items-center gap-2">
-          <Link href="/perfil" aria-label="Mi perfil" className="flex items-center gap-2.5 flex-1 min-w-0 p-1.5 rounded-xl hover:bg-surface-2 transition-colors">
-            {miFoto ? (
-              <img src={miFoto} alt="" className="w-10 h-10 rounded-full object-cover shrink-0" />
-            ) : (
-              <span className="w-10 h-10 rounded-full bg-teal text-inkOnAccent flex items-center justify-center text-[13px] font-display font-bold shrink-0">
-                {iniciales || 'S'}
-              </span>
-            )}
-            <span className="min-w-0 leading-tight">
-              <span className="block text-[13.5px] font-semibold truncate">{userName || 'Supervisor'}</span>
-              <span className="block text-[12px] text-muted truncate">{miPerfil?.puesto || 'Supervisor'}</span>
-            </span>
-          </Link>
-          <BotonDock etiqueta="Cerrar sesión">
-            <LogoutButton compacto className="w-10 h-10 rounded-full border border-line bg-surface flex items-center justify-center text-ink/65 hover:text-red hover:border-red/40 active:scale-90 transition disabled:opacity-60" />
-          </BotonDock>
-        </div>
       </aside>
 
       <div className="flex-1 min-w-0">
