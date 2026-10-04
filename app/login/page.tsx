@@ -118,9 +118,10 @@ function LoginForm() {
       </div>
 
       {/* Animación: un sistema fotovoltaico que se arma. En celular va
-          completa arriba del formulario; en computadora, al lado izquierdo. */}
-      <div className="min-h-screen flex flex-col items-center justify-center gap-3 px-5 pt-14 pb-6 lg:flex-row lg:justify-end lg:gap-0 lg:p-5 lg:pr-[8%] xl:pr-[11%] relative z-10">
-      <FondoFotovoltaico className="w-full max-w-md shrink-0 lg:absolute lg:max-w-none lg:w-[50%] xl:w-[56%] 2xl:w-[66%] lg:left-[2%] lg:bottom-[8%]" />
+          completa arriba del formulario; en computadora el formulario va a la
+          izquierda y la animación ocupa el lado derecho. */}
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3 px-5 pt-14 pb-6 lg:flex-row lg:justify-start lg:gap-0 lg:p-5 lg:pl-[6%] xl:pl-[8%] relative z-10">
+      <FondoFotovoltaico className="w-full max-w-md shrink-0 lg:absolute lg:max-w-none lg:w-[50%] xl:w-[56%] 2xl:w-[64%] lg:right-[2%] lg:bottom-[8%]" />
 
       <form
         onSubmit={modoOlvido ? handleRecuperar : handleLogin}
