@@ -12,6 +12,8 @@ import {
 } from '@/lib/coberturaReportes';
 import { CalendarX, FileText, MessageSquareText } from 'lucide-react';
 
+const CLAVE_CACHE = 'dias-sin-reporte';
+
 function diaSemana(fecha: string): string {
   const [y, m, d] = fecha.split('-').map(Number);
   return new Date(y, m - 1, d).toLocaleDateString('es-MX', { weekday: 'long' });
@@ -30,12 +32,27 @@ export default function AvisoDiasSinReporte() {
   const [detalle, setDetalle] = useState('');
   const [guardando, setGuardando] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const uidRef = useRef<string | null>(null);
+
+  // Guarda lo que se muestra para la siguiente vez que se abra la pantalla.
+  useEffect(() => {
+    if (!uidRef.current) return;
+    try { sessionStorage.setItem(CLAVE_CACHE, JSON.stringify({ uid: uidRef.current, fechas: pendientes })); } catch { /* no crítico */ }
+  }, [pendientes]);
 
   useEffect(() => {
+    // Lo último que se supo en esta sesión se pinta de inmediato: sin esto el
+    // aviso aparecía un momento después y empujaba toda la pantalla.
+    let previo: { uid: string; fechas: string[] } | null = null;
+    try { previo = JSON.parse(sessionStorage.getItem(CLAVE_CACHE) || 'null'); } catch { /* sin almacenamiento */ }
+    if (previo?.fechas?.length) setPendientes(previo.fechas);
+
     (async () => {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      uidRef.current = user.id;
+      if (previo && previo.uid !== user.id) setPendientes([]);
 
       const { fecha: hoy, horaMin } = horaActualMexico();
       const hasta = horaMin >= HORA_CORTE_MIN ? hoy : sumarDias(hoy, -1);

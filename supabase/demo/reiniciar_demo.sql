@@ -49,12 +49,16 @@ declare
   s record;
   n_campo integer := 0;
   n_prog integer := 0;
+  n_prog_total integer;
   v_hora time;
   v_llegada timestamptz;
 begin
   if not exists (select 1 from public.demo_accesos) then
     raise exception 'demo_al_dia() solo corre en la instalación demo';
   end if;
+
+  select count(*) into n_prog_total from public.servicios_programados
+  where fecha = hoy and estado = 'programado' and report_id is null;
 
   for s in
     select id, estado from public.servicios_programados
@@ -75,8 +79,11 @@ begin
       where id = s.id;
     else
       n_prog := n_prog + 1;
-      -- Por iniciar: cada 40 minutos a partir de dentro de 40 (tope 23:50).
-      v_hora := least(ahora + make_interval(mins => n_prog * 40), hoy::timestamp + interval '23 hours 50 minutes')::time;
+      -- Por iniciar: cada 40 minutos a partir de dentro de 40. De noche ya
+      -- no caben: en vez de amontonarse todos a las 23:50, quedan escalonados
+      -- cada 10 minutos antes de esa hora.
+      v_hora := least(ahora + make_interval(mins => n_prog * 40),
+        hoy::timestamp + interval '23 hours 50 minutes' - make_interval(mins => (n_prog_total - n_prog) * 10))::time;
       update public.servicios_programados set hora_programada = v_hora where id = s.id;
     end if;
     -- Todos enterados, menos el último por iniciar: queda un «Sin ver» de ejemplo.
@@ -638,6 +645,23 @@ begin
     select id, 'entrada', a.existencia, 'general', 'Inventario inicial', 'Carga inicial del demo', v_sup, a.costo from nuevo;
   end loop;
 
+  -- ---------- Rutinas y mantenimientos recurrentes ----------
+  -- Para que Plantillas y Agenda → Recurrentes no arranquen vacías.
+  insert into public.rutinas_tareas (nombre, sistema, descripcion, secciones, creado_por) values
+    ('Preventivo de CCTV', 'CCTV', 'Revisión general de cámaras y grabadores',
+      '[{"titulo":"Cámaras","tareas":["Limpieza de lentes y carcasas","Revisar enfoque y ángulo","Revisar conectores y sellado"]},{"titulo":"Grabador","tareas":["Verificar grabación de los últimos 30 días","Revisar salud de discos","Respaldar configuración"]},{"titulo":"Cierre","tareas":["Prueba de visualización remota","Entrega al cliente"]}]'::jsonb, v_sup),
+    ('Preventivo de alarma contra incendio', 'Alarma&Det', 'Prueba por zonas del sistema de detección',
+      '[{"titulo":"Tablero","tareas":["Revisar eventos y fallas","Medir baterías de respaldo"]},{"titulo":"Dispositivos","tareas":["Prueba de detectores de humo por zona","Prueba de estaciones manuales","Prueba de sirenas y estrobos"]},{"titulo":"Cierre","tareas":["Restablecer el sistema","Entrega al cliente"]}]'::jsonb, v_sup),
+    ('Preventivo de control de acceso', 'Control de acceso', 'Torniquetes, lectoras y cerraduras',
+      '[{"titulo":"Mecánica","tareas":["Lubricar y ajustar torniquetes","Revisar cerraduras y contrachapas"]},{"titulo":"Electrónica","tareas":["Probar lectoras","Revisar fuentes y baterías","Respaldar base de tarjetas"]}]'::jsonb, v_sup);
+
+  insert into public.mantenimientos_recurrentes (cliente_id, proyecto, descripcion, frecuencia, proxima_fecha, hora, duracion_min, tecnico_ids, creado_por, rutina_id) values
+    (c_hosp, 'Hospital Santa Lucía', 'Inspección mensual de extintores y gabinetes', 'mensual', hoy + 9, '08:00', 120, array[v_tec2], v_sup, null),
+    (c_plaza, 'Plaza Comercial Arboleda', 'Mantenimiento preventivo de CCTV', 'trimestral', hoy + 24, '09:00', 240, array[v_tec],  v_sup,
+      (select id from public.rutinas_tareas where nombre = 'Preventivo de CCTV' limit 1)),
+    (c_torre, 'Corporativo Torre Azul', 'Preventivo de torniquetes y lectoras', 'bimestral', hoy + 41, '10:00', 180, array[v_tec],  v_sup,
+      (select id from public.rutinas_tareas where nombre = 'Preventivo de control de acceso' limit 1));
+
   -- ---------- Cobertura de reportes ----------
   -- Los días hábiles sin reporte se dan por justificados para que el Control
   -- de reportes y la pantalla del técnico no arranquen llenos de pendientes.
@@ -649,6 +673,23 @@ begin
     and not (c.fecha = hoy - 1 and c.tecnico_id in (
       select u.id from auth.users u where u.email in ('tecnico9' || dominio, 'tecnico13' || dominio)))
   on conflict do nothing;
+  -- Esas justificaciones de relleno dejan un renglón cada una en Actividad
+  -- («Justificó un día sin reporte»): se quitan para que la bitácora del
+  -- demo muestre movimientos de verdad y no decenas de renglones iguales.
+  delete from public.auditoria_global where entidad = 'dia';
+  -- Y unos movimientos de ejemplo de la última semana, para que Actividad
+  -- no arranque vacía.
+  insert into public.auditoria_global (actor_id, accion, entidad, detalle, created_at) values
+    (v_sup, 'programo_servicio', 'servicio', 'Plaza Comercial Arboleda: mantenimiento preventivo de CCTV estacionamiento', now() - interval '25 minutes'),
+    (v_sup, 'reasigno_tecnicos', 'servicio', 'Hotel Real del Valle: se sumó Daniel Ortiz al servicio', now() - interval '2 hours'),
+    (v_sup, 'aprobo_revision', 'reporte', 'Corporativo Torre Azul: reporte aprobado y firmado', now() - interval '1 day 3 hours'),
+    (v_sup, 'subio_factura', 'reporte', 'Hospital Santa Lucía: factura registrada', now() - interval '1 day 5 hours'),
+    (v_sup, 'reprogramo_dia', 'servicio', 'Colegio Los Pinos: el día 2 pasó al viernes por acceso restringido', now() - interval '2 days 1 hour'),
+    (v_sup, 'aprobo_insumo', 'servicio', 'Industrias Metálicas del Bajío: 2 detectores de humo del almacén', now() - interval '2 days 6 hours'),
+    (v_sup, 'creo_proyecto', 'proyecto', 'Corporativo Torre Azul: ampliación de CCTV en sótanos', now() - interval '3 days 2 hours'),
+    (v_sup, 'solicito_correccion', 'reporte', 'Hotel Real del Valle: falta el número de serie de la cerradura', now() - interval '4 days 4 hours'),
+    (v_sup, 'aprobo_revision', 'reporte', 'Hospital Santa Lucía: reporte aprobado y firmado', now() - interval '5 days 2 hours'),
+    (v_sup, 'programo_servicio', 'servicio', 'Hospital Santa Lucía: prueba trimestral de bombas y red contra incendio', now() - interval '6 days 5 hours');
 
   -- Suscripción: el demo vive siempre en «prueba» recién iniciada, para que
   -- el prospecto vea la franja con los días restantes y la pantalla de
@@ -670,9 +711,11 @@ $$;
 
 revoke all on function public.reiniciar_demo() from public, anon, authenticated;
 
--- Reinicio cada noche a las 3:00 de Guadalajara (9:00 UTC).
+-- Reinicio cada noche a las 00:05 de Guadalajara (6:05 UTC): justo al cambiar
+-- el día, para que quien entre de madrugada no vea los servicios de ayer
+-- como «días programados vencidos».
 select cron.unschedule('reiniciar-demo') where exists (select 1 from cron.job where jobname = 'reiniciar-demo');
-select cron.schedule('reiniciar-demo', '0 9 * * *', 'select public.reiniciar_demo()');
+select cron.schedule('reiniciar-demo', '5 6 * * *', 'select public.reiniciar_demo()');
 
 -- Cada 15 minutos, los servicios de hoy se reacomodan alrededor de la hora actual.
 select cron.unschedule('demo-al-dia') where exists (select 1 from cron.job where jobname = 'demo-al-dia');

@@ -1,5 +1,7 @@
 'use client';
 
+import EmptyIllustration from '@/components/EmptyIllustration';
+import EstadoVacio from '@/components/EstadoVacio';
 import { useCallback, useEffect, useState } from 'react';
 import { Plus, ListChecks, Pencil, Copy, Trash2, Check, X } from 'lucide-react';
 import { showToast } from '@/components/Toast';
@@ -101,7 +103,7 @@ export default function Rutinas() {
         <Plus size={18} strokeWidth={2.6} /> Nueva rutina
       </button>
       {error && <p className="text-[13px] text-red font-semibold mb-3">{error}</p>}
-      {rutinas && rutinas.length === 0 && !error && <p className="text-[13.5px] text-muted text-center py-8">Todavía no hay rutinas.</p>}
+      {rutinas && rutinas.length === 0 && !error && <EstadoVacio className="py-8" icono={<EmptyIllustration variante="plantilla" />} titulo="Todavía no hay rutinas" detalle="Crea la primera con «Nueva rutina»: después se carga con un clic al agendar un servicio." />}
 
       <div className="flex flex-col lg:grid lg:grid-cols-2 gap-3 items-start">
         {(rutinas || []).map((r) => {

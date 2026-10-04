@@ -2,6 +2,7 @@
 
 import Link from '@/components/TransitionLink';
 import { useEffect, useRef } from 'react';
+import { useDesvanecidoLateral } from '@/lib/useDesvanecidoLateral';
 
 type Item = { key: string; label: string; href: string; Icono: any };
 
@@ -9,7 +10,8 @@ type Item = { key: string; label: string; href: string; Icono: any };
 // fijo y separado del encabezado por un margen. Todas las secciones quedan visibles (se desliza de lado si
 // no caben) y la activa se acomoda sola a la vista al abrir la pantalla.
 export default function NavPestanas({ items, active }: { items: readonly Item[]; active: string }) {
-  const navRef = useRef<HTMLElement | null>(null);
+  const navRef = useRef<HTMLDivElement | null>(null);
+  const desvanecido = useDesvanecidoLateral(navRef);
 
   useEffect(() => {
     const activa = navRef.current?.querySelector<HTMLElement>('[aria-current="page"]');
@@ -17,7 +19,9 @@ export default function NavPestanas({ items, active }: { items: readonly Item[];
   }, [active]);
 
   return (
-    <nav ref={navRef} className="flex gap-2 mx-3 mt-2 px-2.5 py-1.5 rounded-2xl pestanas-fijas shadow-glow overflow-x-auto no-scrollbar" aria-label="Secciones">
+    <nav className="mx-3 mt-2 px-2.5 py-1.5 rounded-2xl pestanas-fijas shadow-glow" aria-label="Secciones">
+      {/* La fila se desliza dentro del marco; el lado con más secciones se desvanece. */}
+      <div ref={navRef} style={desvanecido} className="flex gap-2 overflow-x-auto no-scrollbar">
       {items.map((t) => {
         const on = t.key === active;
         return (
@@ -35,6 +39,7 @@ export default function NavPestanas({ items, active }: { items: readonly Item[];
           </Link>
         );
       })}
+      </div>
     </nav>
   );
 }

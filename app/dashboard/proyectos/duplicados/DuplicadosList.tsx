@@ -1,5 +1,7 @@
 'use client';
 
+import EmptyIllustration from '@/components/EmptyIllustration';
+import EstadoVacio from '@/components/EstadoVacio';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import SupervisorShell from '@/components/SupervisorShell';
@@ -94,7 +96,7 @@ export default function DuplicadosList({ userName }: { userName?: string }) {
       {cargando && <p className="text-muted text-sm">Cargando…</p>}
 
       {!cargando && grupos.length === 0 && solos.length === 0 && (
-        <p className="text-[14px] text-muted py-10 text-center">No hay duplicados pendientes. Todo está vinculado.</p>
+        <EstadoVacio icono={<EmptyIllustration variante="clientes" />} titulo="No hay duplicados pendientes" detalle="Todos los clientes están vinculados." />
       )}
 
       {grupos.length > 0 && (

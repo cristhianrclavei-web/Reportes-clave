@@ -1,5 +1,7 @@
 'use client';
 
+import EmptyIllustration from '@/components/EmptyIllustration';
+import EstadoVacio from '@/components/EstadoVacio';
 import { Rutina, listarRutinas, tareasDeRutina } from '@/lib/rutinas';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -146,7 +148,7 @@ export default function MantenimientosRecurrentes() {
       </button>
 
       {error && <p className="text-[13px] text-red font-semibold mb-3">{error}</p>}
-      {lista && lista.length === 0 && !error && <p className="text-[13px] text-muted text-center py-6">Todavía no hay mantenimientos recurrentes.</p>}
+      {lista && lista.length === 0 && !error && <EstadoVacio className="py-8" icono={<EmptyIllustration variante="agenda" />} titulo="Todavía no hay mantenimientos recurrentes" detalle="Programa aquí los que se repiten cada mes, trimestre o año y la app te avisa cuando toca agendarlos." />}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
         {lista?.map((r) => (

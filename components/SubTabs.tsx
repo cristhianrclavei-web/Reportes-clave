@@ -1,6 +1,7 @@
 'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, useEffect, useRef } from 'react';
+import { useDesvanecidoLateral } from '@/lib/useDesvanecidoLateral';
 
 // Pestañas DENTRO de una sección (Agendados / Concluidos, Reportes /
 // Levantamientos…). Van subrayadas y discretas a propósito: la navegación
@@ -21,9 +22,20 @@ export default function SubTabs<K extends string>({
   // principal va como botón flotante).
   accion?: ReactNode;
 }) {
+  const filaRef = useRef<HTMLDivElement | null>(null);
+  const desvanecido = useDesvanecidoLateral(filaRef);
+  // La pestaña activa se acomoda a la vista (solo de lado: sin mover la página).
+  useEffect(() => {
+    const fila = filaRef.current;
+    const tab = fila?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (!fila || !tab || fila.scrollWidth <= fila.clientWidth) return;
+    const dx = tab.getBoundingClientRect().left - fila.getBoundingClientRect().left;
+    fila.scrollTo({ left: fila.scrollLeft + dx - (fila.clientWidth - tab.offsetWidth) / 2 });
+  }, [activa]);
+
   return (
     <div className={`flex items-end gap-3 border-b border-line mb-5 ${className}`}>
-    <div className="flex gap-1 flex-1 min-w-0 overflow-x-auto no-scrollbar -mb-px" role="tablist">
+    <div ref={filaRef} style={desvanecido} className="flex gap-1 flex-1 min-w-0 overflow-x-auto no-scrollbar -mb-px" role="tablist">
       {opciones.map(({ k, label, Icono, badge }) => {
         const on = activa === k;
         return (
