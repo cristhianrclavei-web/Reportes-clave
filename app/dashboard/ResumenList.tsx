@@ -1,5 +1,6 @@
 'use client';
 
+import AvisoPlegable from '@/components/AvisoPlegable';
 import AlertaEquiposSinRegistro from '@/components/AlertaEquiposSinRegistro';
 import AlertaSolicitudes from '@/components/AlertaSolicitudes';
 import { useEffect, useMemo, useState } from 'react';
@@ -16,7 +17,7 @@ import ServiciosSinReporteSection from '@/components/ServiciosSinReporteSection'
 import { listarServiciosSupervisor, Servicio } from '@/lib/serviciosProgramados';
 import BitacoraSupervisorSection from '@/components/BitacoraSupervisorSection';
 import SupervisorShell from '@/components/SupervisorShell';
-import { CalendarClock, MessageSquareWarning, PackagePlus, AlertTriangle, PackageOpen } from 'lucide-react';
+import { CalendarClock, MessageSquareWarning, PackagePlus, AlertTriangle, PackageOpen, ChevronRight } from 'lucide-react';
 import { listarSolicitudesPendientes, resolverSolicitudInsumo } from '@/lib/insumos';
 import { mapaDeExistencias, listarBajoMinimo, ArticuloBajoMinimo } from '@/lib/almacen';
 import { showToast } from '@/components/Toast';
@@ -151,58 +152,62 @@ export default function ResumenList({
 
         {/* Lo que requiere una decisión va antes que las métricas */}
         {diasVencidos.length > 0 && (
-          <Link
-            href="/dashboard/agenda"
-            className="block mb-4 p-4 rounded-2xl bg-red/10 border-2 border-red/35 active:scale-[0.99] transition-transform"
+          <AvisoPlegable
+            tono="red"
+            Icono={CalendarClock}
+            cuenta={diasVencidos.length}
+            titulo={diasVencidos.length === 1 ? 'Día programado vencido' : 'Días programados vencidos'}
+            resumen="Hay que reprogramarlos para que el técnico pueda iniciarlos"
           >
-            <p className="font-display font-semibold text-[15px] text-red mb-1.5 flex items-center gap-2">
-              <CalendarClock size={18} strokeWidth={2.5} />
-              {diasVencidos.length === 1
-                ? 'Hay 1 día programado que ya venció'
-                : `Hay ${diasVencidos.length} días programados que ya vencieron`}
-            </p>
-            <p className="text-[13px] text-ink/80 leading-relaxed mb-1.5">
+            <p className="text-[13px] text-ink/80 leading-relaxed mb-2">
               Los técnicos no pueden iniciarlos hasta que se reprogramen.
             </p>
-            {diasVencidos.slice(0, 3).map((d) => (
-              <p key={d.id} className="text-[12.5px] text-muted">
-                {d.proyecto}{d.dias_totales > 1 ? ` · Día ${d.numero_dia} de ${d.dias_totales}` : ''} — {formatFecha(d.fecha)}
-              </p>
-            ))}
-            {diasVencidos.length > 3 && <p className="text-[12.5px] text-muted">y {diasVencidos.length - 3} más…</p>}
-            <p className="text-[13px] text-red font-semibold mt-2">Ver la agenda para reprogramarlos</p>
-          </Link>
+            <ul className="divide-y divide-line rounded-xl border border-line bg-surface-2/40 mb-3">
+              {diasVencidos.slice(0, 6).map((d) => (
+                <li key={d.id} className="flex items-center justify-between gap-3 px-3 py-2 text-[13px]">
+                  <span className="min-w-0 truncate">{d.proyecto}{d.dias_totales > 1 ? ` · Día ${d.numero_dia} de ${d.dias_totales}` : ''}</span>
+                  <span className="shrink-0 text-muted tabular-nums">{formatFecha(d.fecha)}</span>
+                </li>
+              ))}
+              {diasVencidos.length > 6 && <li className="px-3 py-2 text-[12.5px] text-muted">y {diasVencidos.length - 6} más…</li>}
+            </ul>
+            <Link href="/dashboard/agenda" className="inline-flex items-center gap-1 text-[13.5px] font-semibold text-red">
+              Ir a la agenda para reprogramarlos <ChevronRight size={15} />
+            </Link>
+          </AvisoPlegable>
         )}
 
         {bajoMinimo.length > 0 && (
-          <Link
-            href="/dashboard/almacen"
-            className="block mb-4 p-4 rounded-2xl bg-amber/12 border-2 border-amber/40 active:scale-[0.99] transition-transform"
+          <AvisoPlegable
+            tono="amber"
+            Icono={PackageOpen}
+            cuenta={bajoMinimo.length}
+            titulo={bajoMinimo.length === 1 ? 'Artículo por debajo del mínimo' : 'Artículos por debajo del mínimo'}
+            resumen={bajoMinimo.slice(0, 2).map((b) => b.articulo.descripcion).join(', ') + (bajoMinimo.length > 2 ? '…' : '')}
           >
-            <p className="font-display font-semibold text-[15px] text-amber mb-1.5 flex items-center gap-2">
-              <PackageOpen size={18} strokeWidth={2.5} />
-              {bajoMinimo.length === 1
-                ? 'Hay 1 artículo por debajo del mínimo'
-                : `Hay ${bajoMinimo.length} artículos por debajo del mínimo`}
-            </p>
-            {bajoMinimo.slice(0, 3).map((b) => (
-              <p key={b.articulo.id} className="text-[12.5px] text-muted">
-                {b.articulo.descripcion} — quedan {b.existencia} de {b.articulo.minimo} {b.articulo.unidad}
-              </p>
-            ))}
-            {bajoMinimo.length > 3 && <p className="text-[12.5px] text-muted">y {bajoMinimo.length - 3} más…</p>}
-            <p className="text-[13px] text-amber font-semibold mt-2">Ver el almacén</p>
-          </Link>
+            <ul className="divide-y divide-line rounded-xl border border-line bg-surface-2/40 mb-3">
+              {bajoMinimo.slice(0, 6).map((b) => (
+                <li key={b.articulo.id} className="flex items-center justify-between gap-3 px-3 py-2 text-[13px]">
+                  <span className="min-w-0 truncate">{b.articulo.descripcion}</span>
+                  <span className="shrink-0 text-muted tabular-nums">{b.existencia} de {b.articulo.minimo} {b.articulo.unidad}</span>
+                </li>
+              ))}
+              {bajoMinimo.length > 6 && <li className="px-3 py-2 text-[12.5px] text-muted">y {bajoMinimo.length - 6} más…</li>}
+            </ul>
+            <Link href="/dashboard/almacen" className="inline-flex items-center gap-1 text-[13.5px] font-semibold text-amber">
+              Ver el almacén <ChevronRight size={15} />
+            </Link>
+          </AvisoPlegable>
         )}
 
         {solicitudesInsumo.length > 0 && (
-          <div className="mb-4 p-4 rounded-2xl bg-amber/12 border-2 border-amber/40">
-            <p className="font-display font-semibold text-[15px] text-amber mb-2.5 flex items-center gap-2">
-              <PackagePlus size={18} strokeWidth={2.5} />
-              {solicitudesInsumo.length === 1
-                ? 'Hay 1 solicitud de herramienta'
-                : `Hay ${solicitudesInsumo.length} solicitudes de herramienta`}
-            </p>
+          <AvisoPlegable
+            tono="amber"
+            Icono={PackagePlus}
+            cuenta={solicitudesInsumo.length}
+            titulo={solicitudesInsumo.length === 1 ? 'Solicitud de herramienta o material' : 'Solicitudes de herramienta o material'}
+            resumen={solicitudesInsumo.slice(0, 2).map((x) => x.descripcion).join(', ') + (solicitudesInsumo.length > 2 ? '…' : '')}
+          >
 
             <div className="flex flex-col gap-2.5">
               {solicitudesInsumo.map((s) => (
@@ -245,28 +250,29 @@ export default function ResumenList({
                 </div>
               ))}
             </div>
-          </div>
+          </AvisoPlegable>
         )}
 
         {solicitudesPendientes.length > 0 && (
-          <Link
-            href="/dashboard/reportes"
-            className="block mb-4 p-4 rounded-2xl bg-amber/12 border-2 border-amber/40 active:scale-[0.99] transition-transform"
+          <AvisoPlegable
+            tono="amber"
+            Icono={MessageSquareWarning}
+            cuenta={solicitudesPendientes.length}
+            titulo={solicitudesPendientes.length === 1 ? 'Solicitud de corrección de reporte' : 'Solicitudes de corrección de reportes'}
+            resumen={solicitudesPendientes.slice(0, 2).map((r) => techName(r.profiles)).join(', ')}
           >
-            <p className="font-display font-semibold text-[15px] text-amber mb-1.5 flex items-center gap-2">
-              <MessageSquareWarning size={18} strokeWidth={2.5} />
-              {solicitudesPendientes.length === 1
-                ? 'Hay 1 solicitud de corrección'
-                : `Hay ${solicitudesPendientes.length} solicitudes de corrección`}
-            </p>
-            {solicitudesPendientes.slice(0, 3).map((r) => (
-              <p key={r.id} className="text-[12.5px] text-muted">
-                <span className="text-ink/80 font-medium">{techName(r.profiles)}</span> — {r.empresa_cliente}
-                {r.correccion_motivo ? `: ${r.correccion_motivo}` : ''}
-              </p>
-            ))}
-            <p className="text-[13px] text-amber font-semibold mt-2">Ver en Reportes para autorizarlas</p>
-          </Link>
+            <ul className="divide-y divide-line rounded-xl border border-line bg-surface-2/40 mb-3">
+              {solicitudesPendientes.slice(0, 6).map((r) => (
+                <li key={r.id} className="px-3 py-2 text-[13px]">
+                  <span className="font-medium">{techName(r.profiles)}</span>
+                  <span className="text-muted"> — {r.empresa_cliente}{r.correccion_motivo ? `: ${r.correccion_motivo}` : ''}</span>
+                </li>
+              ))}
+            </ul>
+            <Link href="/dashboard/reportes" className="inline-flex items-center gap-1 text-[13.5px] font-semibold text-amber">
+              Ver en Reportes para autorizarlas <ChevronRight size={15} />
+            </Link>
+          </AvisoPlegable>
         )}
 
         <AvisosPendientes />

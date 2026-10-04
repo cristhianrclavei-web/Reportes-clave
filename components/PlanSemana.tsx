@@ -1,5 +1,6 @@
 'use client';
 
+import SelectorPersona from '@/components/cuadrillas/SelectorPersona';
 import { useCuadrillas, cuadrillaPorTecnico, enCuadrilla, TODAS, SIN_CUADRILLA } from '@/lib/cuadrillas';
 import { FiltroCuadrillas } from '@/components/cuadrillas/ChipsCuadrilla';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -114,7 +115,14 @@ export default function PlanSemana() {
   const cuenta = useCallback((tecnicoId: string) =>
     dias.reduce((n, d) => n + serviciosDe(tecnicoId, d).filter((s) => s.estado !== 'cancelado').length, 0), [dias, serviciosDe]);
 
-  const seleccionado = filas.find((f) => f.id === selId) || filas[0];
+  // Celular: el menú ya agrupa por cuadrilla, así que lista a todos.
+  const filasMovil = useMemo(() => {
+    if (!datos) return [];
+    const base = datos.tecnicos.map((t) => ({ id: t.id, nombre: t.nombre }));
+    if (datos.servicios.some((s) => s.asignados.length === 0)) base.push({ id: SIN_TECNICO, nombre: 'Sin técnico' });
+    return base;
+  }, [datos]);
+  const seleccionado = filasMovil.find((f) => f.id === selId) || filas.find((f) => f.id === selId) || filasMovil[0];
 
   useEffect(() => {
     const cont = document.querySelector<HTMLElement>('[data-tira="semana"]');
@@ -185,16 +193,18 @@ export default function PlanSemana() {
       {error && <p className="text-[13px] text-red font-semibold mb-3">{error}</p>}
 
       {datos && (
-        <FiltroCuadrillas cuadrillas={cuadrillas} mapa={mapaCuad} ids={datos.tecnicos.map((t) => t.id)} valor={cuad} onCambiar={setCuad} className="mb-3" />
+        <FiltroCuadrillas cuadrillas={cuadrillas} mapa={mapaCuad} ids={datos.tecnicos.map((t) => t.id)} valor={cuad} onCambiar={setCuad} className="hidden lg:flex mb-3" />
       )}
 
       {/* Celular: un técnico a la vez con sus 7 días */}
       <div className={`lg:hidden ${cargando ? 'opacity-60' : ''}`}>
-        <TiraTecnicos
-          grupo="semana"
-          seleccionado={seleccionado?.id}
-          onSeleccionar={setSelId}
-          items={filas.map((f) => ({ id: f.id, nombre: f.nombre, etiqueta: f.id === SIN_TECNICO ? 'Sin técnico' : nombreCorto(f.nombre), cuenta: cuenta(f.id), indice: Math.max(0, (datos?.tecnicos || []).findIndex((t) => t.id === f.id)) }))}
+        {/* Menú desplegable agrupado por cuadrilla (en vez de la tira de avatares). */}
+        <SelectorPersona
+          items={filasMovil.map((f) => ({ id: f.id, nombre: f.nombre, cuenta: cuenta(f.id), especial: f.id === SIN_TECNICO, indice: Math.max(0, (datos?.tecnicos || []).findIndex((t) => t.id === f.id)) }))}
+          cuadrillas={cuadrillas}
+          mapa={mapaCuad}
+          valor={seleccionado?.id}
+          onCambiar={setSelId}
         />
         <div className="h-2" />
         {seleccionado && (

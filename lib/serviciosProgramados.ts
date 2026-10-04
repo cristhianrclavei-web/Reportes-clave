@@ -666,7 +666,10 @@ export async function obtenerServicioCompleto(id: string) {
 
   const [{ data: tareas, error: e2 }, { data: eventos, error: e3 }, { data: tecnicos, error: e4 }, { data: auditoria, error: e5 }] =
     await Promise.all([
-      supabase.from('servicio_tareas').select('*').eq('grupo_id', (servicio as Servicio).grupo_id).order('orden'),
+      // Un servicio sin grupo (datos cargados por fuera de la app) trae solo sus propias tareas.
+      (servicio as Servicio).grupo_id
+        ? supabase.from('servicio_tareas').select('*').eq('grupo_id', (servicio as Servicio).grupo_id).order('orden')
+        : supabase.from('servicio_tareas').select('*').eq('servicio_id', id).order('orden'),
       supabase.from('servicio_eventos').select('*').eq('servicio_id', id).order('created_at', { ascending: false }),
       supabase.from('servicio_tecnicos').select('tecnico_id, visto_en, enterado_en, profiles(full_name)').eq('servicio_id', id),
       supabase.from('servicio_auditoria').select('*, profiles(full_name)').eq('servicio_id', id).order('created_at', { ascending: false }),

@@ -230,7 +230,7 @@ begin
     (s4, v_sup, 'Industrias Metálicas del Bajío', 'Correctivo: falla en tablero de alarma contra incendio', hoy - 1, 180, '08:30', 'programado', c_ind,
        (((hoy - 1)) + time '08:40') at time zone 'America/Mexico_City', (((hoy - 1)) + time '08:50') at time zone 'America/Mexico_City', (((hoy - 1)) + time '11:30') at time zone 'America/Mexico_City'),
     -- hoy
-    (s5, v_sup, 'Colegio Los Pinos', 'Instalación de 6 cámaras en accesos y patio', hoy, 300, '09:00', 'programado', c_cole,
+    (s5, v_sup, 'Colegio Los Pinos', 'Instalación de 6 cámaras en accesos y patio', hoy, 600, '09:00', 'programado', c_cole,
        ((hoy) + time '08:58') at time zone 'America/Mexico_City', ((hoy) + time '09:10') at time zone 'America/Mexico_City', null),
     (s6, v_sup, 'Hotel Real del Valle', 'Revisión de cerraduras electrónicas del piso 3', hoy, 120, '15:30', 'programado', c_hotel, null, null, null),
     -- próximos
@@ -251,9 +251,9 @@ begin
   -- iniciar) y mañana. Tres técnicos quedan libres.
   for x in
     select * from (values
-      (4, c_plaza, 'Plaza Comercial Arboleda', 'Cambio de 2 detectores de humo en locales 8 y 11', 0, time '08:30', 'en_curso', 120),
-      (5, c_torre, 'Corporativo Torre Azul', 'Instalación de lectora en acceso a sótano 2', 0, time '09:30', 'en_curso', 180),
-      (6, c_ind, 'Industrias Metálicas del Bajío', 'Prueba anual de sistema de supresión en cuarto eléctrico', 0, time '10:00', 'en_sitio', 240),
+      (4, c_plaza, 'Plaza Comercial Arboleda', 'Cambio de 2 detectores de humo en locales 8 y 11', 0, time '08:30', 'en_curso', 600),
+      (5, c_torre, 'Corporativo Torre Azul', 'Instalación de lectora en acceso a sótano 2', 0, time '09:30', 'en_curso', 540),
+      (6, c_ind, 'Industrias Metálicas del Bajío', 'Prueba anual de sistema de supresión en cuarto eléctrico', 0, time '10:00', 'en_sitio', 540),
       (7, c_hotel, 'Hotel Real del Valle', 'Revisión de sensores de alarma en bodega', 0, time '12:00', 'programado', 90),
       (8, c_cole, 'Colegio Los Pinos', 'Canalización eléctrica para cámaras del patio', 0, time '13:00', 'programado', 180),
       (9, c_hosp, 'Hospital Santa Lucía', 'Reemplazo de cámara 14 en pasillo de urgencias', 0, time '16:00', 'programado', 60),
@@ -266,8 +266,8 @@ begin
     continue when v_id is null;
     v_s := gen_random_uuid();
     insert into public.servicios_programados
-      (id, creado_por, proyecto, descripcion, fecha, duracion_estimada_min, hora_programada, estado, cliente_id)
-    values (v_s, v_sup, x.nombre, x.descr, hoy + x.dia, x.dur, x.hora, 'programado', x.cli);
+      (id, grupo_id, creado_por, proyecto, descripcion, fecha, duracion_estimada_min, hora_programada, estado, cliente_id)
+    values (v_s, v_s, v_sup, x.nombre, x.descr, hoy + x.dia, x.dur, x.hora, 'programado', x.cli);
     insert into public.servicio_tecnicos (servicio_id, tecnico_id, visto_en, enterado_en)
     values (v_s, v_id, case when x.dia = 0 then now() end, case when x.dia = 0 then now() end);
     if x.est <> 'programado' then
@@ -278,6 +278,10 @@ begin
       where id = v_s;
     end if;
   end loop;
+
+  -- Cada servicio es su propio «proyecto» (la app siempre llena grupo_id al
+  -- agendar; sin él, la pantalla de detalle no puede buscar las tareas).
+  update public.servicios_programados set grupo_id = id where grupo_id is null;
 
   -- El estado se pone después de asignar técnicos (la base no deja cambiar
   -- los técnicos de un servicio ya concluido).
@@ -409,8 +413,8 @@ begin
     v_ini := ((hoy + x.dia) + x.hora) at time zone 'America/Mexico_City';
 
     insert into public.servicios_programados
-      (id, creado_por, proyecto, descripcion, fecha, duracion_estimada_min, hora_programada, estado, cliente_id)
-    values (v_s, v_sup, x.nombre, x.act1, hoy + x.dia, x.est, x.hora, 'programado', x.cli);
+      (id, grupo_id, creado_por, proyecto, descripcion, fecha, duracion_estimada_min, hora_programada, estado, cliente_id)
+    values (v_s, v_s, v_sup, x.nombre, x.act1, hoy + x.dia, x.est, x.hora, 'programado', x.cli);
     insert into public.servicio_tecnicos (servicio_id, tecnico_id, visto_en, enterado_en)
     values (v_s, v_id, v_ini - interval '1 day', v_ini - interval '1 day');
     update public.servicios_programados set

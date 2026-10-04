@@ -1,4 +1,5 @@
 'use client';
+import { useId } from 'react';
 import { MARCA, MARCA_MAYUS, COLORES } from '@/lib/marca';
 
 // Logo de Clave Inteligente en SVG vectorial.
@@ -15,15 +16,19 @@ const VERDE = COLORES.logo;
 // Marca «bloque»: cuadro redondeado con degradado, iniciales y dos nodos
 // conectados. Es la identidad de las instalaciones que no usan el escudo.
 function Bloque({ size = 44 }: { size?: number }) {
+  // Id propio por logo: con ids repetidos, si la primera copia de la página
+  // está oculta (encabezado de escritorio en el celular) el degradado de las
+  // demás deja de pintarse y el bloque sale sin fondo.
+  const idGrad = `marca-bloque-${useId().replace(/:/g, '')}`;
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" fill="none" aria-hidden="true">
       <defs>
-        <linearGradient id="marca-bloque" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+        <linearGradient id={idGrad} x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
           <stop offset="0" stopColor={COLORES.logo2} />
           <stop offset="1" stopColor={COLORES.logo} />
         </linearGradient>
       </defs>
-      <rect x="6" y="6" width="88" height="88" rx="24" fill="url(#marca-bloque)" />
+      <rect x="6" y="6" width="88" height="88" rx="24" fill={`url(#${idGrad})`} />
       {/* Nodos conectados */}
       <path d="M66 20 L80 34" stroke="#FFFFFF" strokeOpacity="0.75" strokeWidth="3.5" strokeLinecap="round" />
       <circle cx="66" cy="20" r="5" fill="#FFFFFF" />

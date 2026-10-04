@@ -7,6 +7,7 @@ import {
   ServicioSinReporte, ReporteParaVincular,
 } from '@/lib/serviciosProgramados';
 import { FileWarning, Search, Link2 } from 'lucide-react';
+import AvisoPlegable from '@/components/AvisoPlegable';
 
 function formatFecha(fecha: string): string {
   if (!fecha) return '—';
@@ -75,14 +76,14 @@ export default function ServiciosSinReporteSection() {
   if (cargando || servicios.length === 0) return null;
 
   return (
-    <div className="rounded-2xl bg-red/10 border border-red/25 p-4 mb-5">
-      <p className="text-[13.5px] font-semibold text-red flex items-center gap-2 mb-1">
-        <FileWarning size={16} strokeWidth={2.5} className="shrink-0" />
-        {servicios.length === 1
-          ? '1 servicio trabajado sin reporte'
-          : `${servicios.length} servicios trabajados sin reporte`}
-      </p>
-      <p className="text-[12.5px] text-ink/70 mb-4">
+    <AvisoPlegable
+      tono="red"
+      Icono={FileWarning}
+      cuenta={servicios.length}
+      titulo={servicios.length === 1 ? 'Servicio trabajado sin reporte' : 'Servicios trabajados sin reporte'}
+      resumen={servicios.slice(0, 2).map((x) => x.proyecto).join(', ') + (servicios.length > 2 ? '…' : '')}
+    >
+      <p className="text-[12.5px] text-ink/70 mb-3">
         Si el técnico ya lo hizo pero no lo ligó al programarlo, búscalo aquí y vincúlalo.
       </p>
 
@@ -140,6 +141,6 @@ export default function ServiciosSinReporteSection() {
           );
         })}
       </div>
-    </div>
+    </AvisoPlegable>
   );
 }

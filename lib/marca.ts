@@ -42,6 +42,9 @@ export const MARCA = {
   //   logo: 'escudo' (hexágono con nodos) | 'bloque' (cuadro redondeado).
   tema: valor(process.env.NEXT_PUBLIC_MARCA_TEMA, 'clave') === 'azul' ? ('azul' as const) : ('clave' as const),
   logo: valor(process.env.NEXT_PUBLIC_MARCA_LOGO, 'escudo') === 'bloque' ? ('bloque' as const) : ('escudo' as const),
+  // Zona horaria de la operación. El servidor corre en UTC: sin esto, «hoy»
+  // cambia a las 6 de la tarde de México.
+  zonaHoraria: valor(process.env.NEXT_PUBLIC_MARCA_ZONA_HORARIA, 'America/Mexico_City'),
   // Ciudad desde donde se fechan las cotizaciones («Guadalajara, Jal. a 3 de…»).
   ciudad: valor(process.env.NEXT_PUBLIC_MARCA_CIUDAD, 'Guadalajara, Jal.'),
   // Pie de página del PDF de cotización (dirección y teléfono de la empresa).
@@ -91,4 +94,10 @@ export const COLORES = MARCA.tema === 'azul'
 // demás marcas, uno dibujado con sus iniciales (app/icono/[tam]/route.tsx).
 export function iconoApp(tam: 192 | 512): string {
   return MARCA.iniciales === 'CI' ? `/icons/icon-${tam}.png` : `/icono/${tam}`;
+}
+
+// Fecha de hoy (AAAA-MM-DD) en la zona horaria de la operación. Para código
+// de servidor; en el navegador se usa hoyLocal() de lib/fechaHoy.
+export function hoyNegocio(ahora: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: MARCA.zonaHoraria, year: 'numeric', month: '2-digit', day: '2-digit' }).format(ahora);
 }

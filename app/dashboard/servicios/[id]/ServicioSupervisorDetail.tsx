@@ -84,8 +84,23 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
   const [todosTecnicos, setTodosTecnicos] = useState<{ id: string; full_name: string }[]>([]);
   const [tecnicoIdsSel, setTecnicoIdsSel] = useState<string[]>([]);
 
+  const [errorCarga, setErrorCarga] = useState<string | null>(null);
+
+  // Si la carga falla se muestra el error con opción de reintentar; antes la
+  // pantalla se quedaba en «Cargando…» para siempre.
   async function cargar() {
     setLoading(true);
+    setErrorCarga(null);
+    try {
+      await cargarDatos();
+    } catch (e: any) {
+      setErrorCarga(e?.message || 'Error de conexión');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function cargarDatos() {
     const { servicio: s, tareas: t, eventos: e, tecnicos: tc, auditoria: a } = await obtenerServicioCompleto(servicioId);
     setServicio(s);
     setTareas(t);
@@ -121,8 +136,6 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
     } else {
       setFolioReporte(null);
     }
-
-    setLoading(false);
   }
 
   useEffect(() => {
@@ -340,6 +353,19 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
       alert('No se pudo eliminar: ' + (e?.message || 'error desconocido'));
       setEliminando(false);
     }
+  }
+
+  if (errorCarga && !servicio) {
+    return (
+      <div className="max-w-2xl mx-auto pb-28 px-4 pt-16 text-center">
+        <p className="font-display font-bold text-xl mb-1.5">No se pudo abrir el servicio</p>
+        <p className="text-[14px] text-muted mb-5">{errorCarga}</p>
+        <div className="flex items-center justify-center gap-2">
+          <button type="button" onClick={() => cargar()} className="min-h-[44px] px-5 rounded-xl bg-teal text-inkOnAccent font-semibold text-[14px]">Reintentar</button>
+          <Link href="/dashboard/servicios" className="min-h-[44px] px-5 rounded-xl border border-line font-semibold text-[14px] flex items-center">Volver a Servicios</Link>
+        </div>
+      </div>
+    );
   }
 
   if (loading || !servicio) {

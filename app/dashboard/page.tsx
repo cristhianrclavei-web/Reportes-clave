@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { hoyNegocio } from '@/lib/marca';
 import { createClient } from '@/lib/supabaseServer';
 import ResumenList from './ResumenList';
 
@@ -22,13 +23,14 @@ export default async function ResumenPage() {
 
   // Días programados cuya fecha ya pasó y siguen sin concluirse: con el
   // bloqueo por fecha, el técnico no puede tocarlos hasta que se reprogramen.
-  const hoy = new Date();
-  const hoyStr = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+  // «Hoy» en la zona horaria de la operación, no la del servidor (UTC): si
+  // no, después de las 6 de la tarde los servicios de hoy salían vencidos.
+  const hoyStr = hoyNegocio();
   const { data: diasVencidos } = await supabase
     .from('servicios_programados')
     .select('id, proyecto, fecha, numero_dia, dias_totales')
     .lt('fecha', hoyStr)
-    .neq('estado', 'concluido')
+    .not('estado', 'in', '(concluido,cancelado)')
     .order('fecha', { ascending: true });
 
   return (

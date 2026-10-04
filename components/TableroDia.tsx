@@ -10,6 +10,7 @@ import ModalOverlay from '@/components/ModalOverlay';
 import { AvatarTecnico, TiraTecnicos, EstadoAvatar, UNIFORMES } from '@/components/AvatarTecnico';
 import { Cuadrilla, useCuadrillas, cuadrillaPorTecnico, enCuadrilla, TODAS, SIN_CUADRILLA } from '@/lib/cuadrillas';
 import { ElegirCuadrilla } from '@/components/cuadrillas/ChipsCuadrilla';
+import SelectorPersona from '@/components/cuadrillas/SelectorPersona';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
 import { showToast } from '@/components/Toast';
 import { hoyLocal, sumarDias, fechaLocal } from '@/lib/fechaHoy';
@@ -362,7 +363,7 @@ export default function TableroDia({ onAgendar }: {
 
       {/* Cuadrillas: reducen el tablero a un grupo. Solo si existen. */}
       {cuadrillas.length > 0 && datos && (
-        <div className="flex items-center gap-1.5 mb-2.5 overflow-x-auto -mx-1 px-1 lg:flex-wrap lg:overflow-visible" style={{ scrollbarWidth: 'none' }}>
+        <div className="hidden lg:flex items-center gap-1.5 mb-2.5 flex-wrap">
           {[
             { k: TODAS, nombre: 'Todas', color: null as number | null, gente: filasTodas },
             ...cuadrillas.map((c) => ({ k: c.id, nombre: c.nombre, color: c.color as number | null, gente: filasTodas.filter((f) => mapaCuad.get(f.id)?.id === c.id) })),
@@ -399,11 +400,13 @@ export default function TableroDia({ onAgendar }: {
       {/* Celular: un técnico a la vez, con tira para cambiar entre ellos. */}
       {visibles.length > 0 && (
         <div className="lg:hidden">
-          <TiraTecnicos
-            grupo="hoy"
-            seleccionado={seleccionado?.id}
-            onSeleccionar={setSelId}
-            items={visibles.map((f) => ({ id: f.id, nombre: f.nombre, etiqueta: nombreCorto(f.nombre), cuenta: f.servicios.length, estado: estadoTecnico(f), indice: indiceTec(f.id) }))}
+          {/* Menú desplegable agrupado por cuadrilla (en vez de la tira de avatares). */}
+          <SelectorPersona
+            items={visibles.map((f) => ({ id: f.id, nombre: f.nombre, cuenta: f.servicios.length, estado: estadoTecnico(f), indice: indiceTec(f.id) }))}
+            cuadrillas={cuadrillas}
+            mapa={mapaCuad}
+            valor={seleccionado?.id}
+            onCambiar={setSelId}
           />
           {seleccionado && (
             <div

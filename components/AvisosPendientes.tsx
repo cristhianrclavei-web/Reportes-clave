@@ -1,5 +1,6 @@
 'use client';
 
+import AvisoPlegable from '@/components/AvisoPlegable';
 import { useEffect, useState } from 'react';
 import { showToast } from '@/components/Toast';
 import { listarAvisosPendientes, resolverAviso, etiquetaCausa, AvisoPendiente } from '@/lib/avisos';
@@ -63,14 +64,14 @@ export default function AvisosPendientes() {
   if (cargando || avisos.length === 0) return null;
 
   return (
-    <div className="rounded-2xl bg-amber/10 border border-amber/25 p-4 mb-5">
-      <p className="text-[13.5px] font-semibold text-amber flex items-center gap-2 mb-1">
-        <TriangleAlert size={16} strokeWidth={2.5} className="shrink-0" />
-        {avisos.length === 1
-          ? 'Un técnico avisó de un problema con un día'
-          : `${avisos.length} avisos sobre días programados`}
-      </p>
-      <p className="text-[12.5px] text-ink/70 mb-4">
+    <AvisoPlegable
+      tono="amber"
+      Icono={TriangleAlert}
+      cuenta={avisos.length}
+      titulo={avisos.length === 1 ? 'Aviso de un técnico sobre un día programado' : 'Avisos de técnicos sobre días programados'}
+      resumen="Atenderlos ahora evita el viaje perdido"
+    >
+      <p className="text-[12.5px] text-ink/70 mb-3">
         Son días que todavía no llegan. Atenderlos ahora evita el viaje perdido.
       </p>
 
@@ -124,6 +125,6 @@ export default function AvisosPendientes() {
           );
         })}
       </div>
-    </div>
+    </AvisoPlegable>
   );
 }
