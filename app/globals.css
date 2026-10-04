@@ -278,6 +278,34 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   stroke-dasharray: 5 15;
   animation: fv-aparecer 0.6s ease-out forwards, fv-flujo 0.9s linear infinite;
 }
+.fv-luz {
+  opacity: 0;
+  animation: fv-aparecer 0.35s ease-out forwards, fv-parpadeo 5s ease-in-out infinite;
+}
+.fv-humo {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: fv-humo 3.9s ease-out infinite;
+}
+.fv-nube {
+  opacity: 0;
+  animation: fv-aparecer 0.7s ease-out forwards, fv-nube 34s ease-in-out infinite alternate;
+}
+.fv-barra {
+  transform-box: fill-box;
+  transform-origin: bottom;
+  transform: scaleY(0);
+  animation: fv-crecer 0.5s ease-out forwards;
+}
+@keyframes fv-parpadeo { 0%, 100% { opacity: 1; } 50% { opacity: 0.82; } }
+@keyframes fv-humo {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.6); }
+  25% { opacity: 0.7; }
+  100% { opacity: 0; transform: translate(26px, -70px) scale(1.9); }
+}
+@keyframes fv-nube { to { transform: translateX(110px); } }
+@keyframes fv-crecer { to { transform: scaleY(1); } }
 @keyframes fv-dibujar { to { stroke-dashoffset: 0; } }
 @keyframes fv-aparecer { to { opacity: 1; } }
 @keyframes fv-panel {
@@ -295,5 +323,6 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
     stroke-dashoffset: 0 !important;
     transform: none !important;
   }
-  .fv .fv-brillo { opacity: 0 !important; }
+  .fv .fv-brillo,
+  .fv .fv-humo { opacity: 0 !important; }
 }
