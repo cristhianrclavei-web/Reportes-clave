@@ -438,6 +438,11 @@ begin
     'firmaRevisionData', f3, 'firmaRevisionNombre', 'Ing. Laura Méndez', 'firmaRevisionFecha', hoy - 1)
   where id in (r1, r2, r5);
 
+  -- De los cinco reportes anteriores, dos conservan su observación (r1 y
+  -- r4); los demás quedan conformes para que la gráfica de conformidad del
+  -- cliente muestre una operación sana con algunos casos por revisar.
+  update public.reports set data = data || jsonb_build_object('observaciones', '') where id in (r2, r3, r5);
+
   -- ---------- Una semana de actividad de toda la plantilla ----------
   -- Servicios ya concluidos con sus tiempos reales y su reporte, para que
   -- los indicadores del Resumen (hoy, semana, técnicos activos, tiempos,
@@ -499,7 +504,10 @@ begin
         'horaLlegada', to_char(x.hora, 'HH24:MI'), 'horaSalida', to_char(x.hora + make_interval(mins => 10 + x.real_min), 'HH24:MI'),
         'contactoUsuario', v_contacto, 'puestoArea', v_puesto,
         'sistemaSeguridad', jsonb_build_array(x.sistema),
-        'actividades', jsonb_build_array(x.act1, x.act2), 'observaciones', x.obs,
+        'actividades', jsonb_build_array(x.act1, x.act2),
+        -- Solo uno de estos lleva observación: en la app «con observaciones»
+        -- significa que el cliente firmó pero dejó algo anotado.
+        'observaciones', case when i = 3 then x.obs else '' end,
         'equipos', jsonb_build_array(), 'tuberias', jsonb_build_array(), 'cables', jsonb_build_array(), 'soporteria', jsonb_build_array(),
         'fotos', jsonb_build_array(), 'firmaIngNombre', v_nom, 'firmaIngData', f1,
         'firmaClienteNombre', v_contacto,
