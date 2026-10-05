@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabaseServer';
 import Logo from '@/components/Logo';
 import ThemeToggle from '@/components/ThemeToggle';
 import PanelSupervisor from '@/components/PanelSupervisor';
-import { ChevronDown, ChevronLeft, CircleHelp, Lightbulb } from 'lucide-react';
+import { ChevronDown, ChevronLeft, BookOpen, Lightbulb } from 'lucide-react';
 import { MANUAL_SUPERVISOR, MANUAL_TECNICO, SeccionManual } from '@/lib/manual';
 import { MARCA } from '@/lib/marca';
 
@@ -79,7 +79,7 @@ export default async function AyudaPage() {
       <div className={`px-4 pt-5 ${esSupervisor ? 'lg:px-0 lg:pt-8' : ''}`}>
         <div className="flex items-center gap-3 mb-1.5">
           <span className="w-10 h-10 rounded-xl bg-teal/12 text-teal flex items-center justify-center shrink-0">
-            <CircleHelp size={21} strokeWidth={2.1} />
+            <BookOpen size={21} strokeWidth={2.1} />
           </span>
           <h1 className={`font-display font-bold text-2xl tracking-wide ${esSupervisor ? 'lg:text-[34px] lg:leading-tight' : 'lg:text-3xl'}`}>Manual de uso</h1>
         </div>

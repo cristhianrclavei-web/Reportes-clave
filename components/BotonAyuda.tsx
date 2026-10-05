@@ -1,17 +1,18 @@
 import Link from 'next/link';
-import { CircleHelp } from 'lucide-react';
+import { BookOpen } from 'lucide-react';
 
-// Acceso discreto al manual de uso (/ayuda). Va junto al cambio de tema en
-// los encabezados; el manual muestra lo que corresponde al rol de quien entra.
+// Acceso al manual de uso (/ayuda): un libro abierto, con el mismo botón
+// redondo que el cambio de tema para que se lea como parte del encabezado.
+// El manual muestra lo que corresponde al rol de quien entra.
 export default function BotonAyuda({ className }: { className?: string }) {
   return (
     <Link
       href="/ayuda"
       aria-label="Manual de uso"
       title="Manual de uso"
-      className={className || 'w-10 h-10 rounded-full flex items-center justify-center text-ink/60 hover:text-ink hover:bg-surface-2 active:scale-90 transition shrink-0'}
+      className={className || 'w-9 h-9 rounded-full border border-line-strong bg-surface-2 flex items-center justify-center shrink-0 text-ink/85 hover:text-teal hover:border-teal/50 active:scale-90 transition'}
     >
-      <CircleHelp size={19} strokeWidth={2.1} />
+      <BookOpen size={17} strokeWidth={2.2} />
     </Link>
   );
 }

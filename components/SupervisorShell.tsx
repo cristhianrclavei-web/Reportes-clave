@@ -70,7 +70,7 @@ export default function SupervisorShell({
           <Logo variante="completo" size={32} className="min-w-0 hidden min-[400px]:inline-flex" />
           <div className="flex items-center gap-0.5 shrink-0">
             <CommandPalette puedeAlmacen={puedeAlmacen} />
-            <BotonAyuda className="w-9 h-9 rounded-full flex items-center justify-center text-ink/60 active:scale-90 transition shrink-0" />
+            <BotonAyuda />
             <ThemeToggle />
             <PerfilChip nombre={userName} respaldo="Supervisión" />
             <LogoutButton compacto />
