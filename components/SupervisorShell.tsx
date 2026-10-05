@@ -64,11 +64,13 @@ export default function SupervisorShell({
           className="barra-fija px-4 pb-3 flex items-center justify-between gap-3"
           style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}
         >
-          <Logo variante="completo" size={32} className="min-w-0" compactoEnMovil />
+          {/* En teléfonos angostos solo el emblema: así caben los cinco
+              botones (buscar, manual, tema, perfil y salir) sin encimarse. */}
+          <Logo size={32} className="min-[400px]:hidden" />
+          <Logo variante="completo" size={32} className="min-w-0 hidden min-[400px]:inline-flex" />
           <div className="flex items-center gap-0.5 shrink-0">
             <CommandPalette puedeAlmacen={puedeAlmacen} />
-            {/* En teléfonos angostos no cabe: ahí el manual se abre desde Mi perfil. */}
-            <BotonAyuda className="hidden min-[400px]:flex w-9 h-9 rounded-full items-center justify-center text-ink/60 active:scale-90 transition shrink-0" />
+            <BotonAyuda className="w-9 h-9 rounded-full flex items-center justify-center text-ink/60 active:scale-90 transition shrink-0" />
             <ThemeToggle />
             <PerfilChip nombre={userName} respaldo="Supervisión" />
             <LogoutButton compacto />
