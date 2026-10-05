@@ -1,7 +1,7 @@
 'use client';
 
 import BotonAyuda from '@/components/BotonAyuda';
-import PerfilChip from '@/components/PerfilChip';
+import MenuCuenta from '@/components/MenuCuenta';
 import ThemeToggle from '@/components/ThemeToggle';
 import LogoutButton from '@/components/LogoutButton';
 import TecnicoTabs from '@/components/TecnicoTabs';
@@ -13,12 +13,9 @@ export default function SolicitudesTecnico({ userName }: { userName: string }) {
     <div className="max-w-2xl lg:max-w-none lg:px-6 mx-auto pb-10">
       <div className="sticky top-0 z-20 bg-bg pb-2">
         <div className="barra-fija px-5 pb-3 flex items-center justify-between gap-3" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}>
-          <Logo variante="completo" size={34} className="min-w-0" compactoEnMovil />
+          <Logo variante="completo" size={34} className="min-w-0" />
           <div className="flex items-center gap-1 shrink-0">
-            <PerfilChip nombre={userName} respaldo="Personal técnico" />
-            <BotonAyuda />
-            <ThemeToggle />
-            <LogoutButton compacto />
+            <MenuCuenta nombre={userName} respaldo="Personal técnico" />
           </div>
         </div>
         <TecnicoTabs active="solicitudes" />

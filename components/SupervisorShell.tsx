@@ -1,12 +1,9 @@
 'use client';
 
-import BotonAyuda from '@/components/BotonAyuda';
 import { ReactNode } from 'react';
 import Logo from './Logo';
-import PerfilChip from './PerfilChip';
-import ThemeToggle from './ThemeToggle';
+import MenuCuenta from './MenuCuenta';
 import CommandPalette from './CommandPalette';
-import LogoutButton from './LogoutButton';
 import { DashboardTabKey, seccionesVisibles } from './DashboardTabs';
 import NavPestanas from './NavPestanas';
 import { usePuedeAlmacen } from '@/lib/usePuedeAlmacen';
@@ -64,16 +61,12 @@ export default function SupervisorShell({
           className="barra-fija px-4 pb-3 flex items-center justify-between gap-3"
           style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}
         >
-          {/* En teléfonos angostos solo el emblema: así caben los cinco
-              botones (buscar, manual, tema, perfil y salir) sin encimarse. */}
-          <Logo size={32} className="min-[400px]:hidden" />
-          <Logo variante="completo" size={32} className="min-w-0 hidden min-[400px]:inline-flex" />
-          <div className="flex items-center gap-0.5 shrink-0">
+          {/* Logo completo; a la derecha solo el buscador y la cuenta (perfil,
+              manual, tema y salir van dentro de su menú). */}
+          <Logo variante="completo" size={34} className="min-w-0" />
+          <div className="flex items-center gap-2 shrink-0">
             <CommandPalette puedeAlmacen={puedeAlmacen} />
-            <BotonAyuda />
-            <ThemeToggle />
-            <PerfilChip nombre={userName} respaldo="Supervisión" />
-            <LogoutButton compacto />
+            <MenuCuenta nombre={userName} respaldo="Supervisión" />
           </div>
         </div>
         <NavPestanas items={todas} active={active} />

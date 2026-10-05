@@ -8,7 +8,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabaseClient';
 import ThemeToggle from '@/components/ThemeToggle';
-import PerfilChip from '@/components/PerfilChip';
+import MenuCuenta from '@/components/MenuCuenta';
 import NotificacionesToggle from '@/components/NotificacionesToggle';
 import AvisoCuentaPrueba from '@/components/AvisoCuentaPrueba';
 import AvisoDiasSinReporte from '@/components/AvisoDiasSinReporte';
@@ -65,12 +65,9 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
           className="barra-fija px-5 pb-3 flex items-center justify-between gap-3"
           style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}
         >
-        <Logo variante="completo" size={34} className="min-w-0" compactoEnMovil />
+        <Logo variante="completo" size={34} className="min-w-0" />
         <div className="flex items-center gap-1 shrink-0">
-          <PerfilChip nombre={userName} respaldo="Personal técnico" />
-          <BotonAyuda />
-          <ThemeToggle />
-          <LogoutButton compacto />
+          <MenuCuenta nombre={userName} respaldo="Personal técnico" />
         </div>
         </div>
         <TecnicoTabs active="reportes" />

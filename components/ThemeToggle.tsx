@@ -8,7 +8,8 @@ import { navegarConTransicion } from '@/lib/nativeViewTransition';
 export default function ThemeToggle({
   className,
   variante = 'boton',
-}: { className?: string; variante?: 'boton' | 'interruptor' } = {}) {
+  conTexto = false,
+}: { className?: string; variante?: 'boton' | 'interruptor'; conTexto?: boolean } = {}) {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
   useEffect(() => {
@@ -88,6 +89,8 @@ export default function ThemeToggle({
           <path d="M20.7 15.3a8.5 8.5 0 1 1-10-10 6.8 6.8 0 0 0 10 10z" />
         </svg>
       )}
+      {/* Como renglón de un menú: dice a qué tema se cambia. */}
+      {conTexto && <span>{theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}</span>}
     </button>
   );
 }
