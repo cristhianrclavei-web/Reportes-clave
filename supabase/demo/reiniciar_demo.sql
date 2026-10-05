@@ -137,6 +137,115 @@ $$;
 revoke all on function public.demo_al_dia(timestamp) from public, anon, authenticated;
 
 -- ============================================================
+-- Imágenes de ejemplo
+-- ============================================================
+-- Ilustraciones genéricas (supabase/demo/fotos/*.png) subidas una sola vez
+-- al almacenamiento del demo, en evidencias/demo/. Los reportes y las tareas
+-- las comparten: nadie puede borrarlas desde la app (no hay política de
+-- borrado para esa carpeta), así que sobreviven a que un visitante elimine
+-- un reporte.
+do $$
+begin
+  drop policy if exists evidencias_select_demo on storage.objects;
+  create policy evidencias_select_demo on storage.objects for select to authenticated
+    using (bucket_id = 'evidencias' and (storage.foldername(name))[1] = 'demo');
+exception when others then
+  raise notice 'No se pudo crear la política de imágenes de ejemplo: %', sqlerrm;
+end $$;
+
+-- Fotos de un reporte según el sistema atendido.
+create or replace function public.demo_fotos(p_sistema text)
+returns jsonb
+language sql
+immutable
+as $$
+  select case
+    when p_sistema ilike '%cctv%' then jsonb_build_array(
+      jsonb_build_object('path', 'demo/camara-domo.png', 'caption', 'Cámara instalada y enfocada'),
+      jsonb_build_object('path', 'demo/camara-bala.png', 'caption', 'Cámara exterior en su soporte'),
+      jsonb_build_object('path', 'demo/grabador.png', 'caption', 'Grabador con todas las cámaras en línea'))
+    when p_sistema ilike '%acceso%' then jsonb_build_array(
+      jsonb_build_object('path', 'demo/lectora-acceso.png', 'caption', 'Lectora probada con tarjeta'))
+    when p_sistema ilike '%incendio%' then jsonb_build_array(
+      jsonb_build_object('path', 'demo/extintor.png', 'caption', 'Extintor revisado y con carga vigente'),
+      jsonb_build_object('path', 'demo/tablero-incendio.png', 'caption', 'Tablero en estado normal'))
+    when p_sistema ilike '%alarma%' then jsonb_build_array(
+      jsonb_build_object('path', 'demo/detector-humo.png', 'caption', 'Detector probado'),
+      jsonb_build_object('path', 'demo/tablero-incendio.png', 'caption', 'Tablero sin fallas después de la prueba'))
+    when p_sistema ilike '%el_ctric%' or p_sistema ilike '%automatiza%' then jsonb_build_array(
+      jsonb_build_object('path', 'demo/tablero-electrico.png', 'caption', 'Tablero después de la intervención'))
+    else jsonb_build_array(
+      jsonb_build_object('path', 'demo/camara-domo.png', 'caption', 'Equipo instalado'))
+  end;
+$$;
+
+-- Foto de evidencia para un servicio, según lo que dice su descripción.
+create or replace function public.demo_foto_servicio(p_descripcion text)
+returns text
+language sql
+immutable
+as $$
+  select 'demo/' || case
+    when p_descripcion ~* 'grabador|respaldo' then 'grabador'
+    when p_descripcion ~* 'c[aá]mara|cctv' then 'camara-bala'
+    when p_descripcion ~* 'extintor|bomba|red contra' then 'extintor'
+    when p_descripcion ~* 'humo|detector|sirena|estaci' then 'detector-humo'
+    when p_descripcion ~* 'alarma|incendio' then 'tablero-incendio'
+    when p_descripcion ~* 'acceso|tarjeta|lectora|cerradura|torniquete' then 'lectora-acceso'
+    when p_descripcion ~* 'tablero|el[eé]ctric|variador|pastilla|fuente' then 'tablero-electrico'
+    else 'camara-domo'
+  end || '.png';
+$$;
+
+-- Lista de tareas de un servicio con su avance: 0 = sin empezar, 1 = a
+-- medias (como un servicio en curso), 2 = todo hecho. Las tareas terminadas
+-- llevan su foto de evidencia.
+create or replace function public.demo_tareas(p_servicio uuid, p_nivel integer)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_grupo uuid; v_desc text; v_tec uuid; v_foto text; v_base timestamptz;
+begin
+  if not exists (select 1 from public.demo_accesos) then
+    raise exception 'demo_tareas() solo corre en la instalación demo';
+  end if;
+  -- Las horas de las tareas se cuentan hacia atrás desde el cierre del
+  -- servicio (o desde ahora, si sigue abierto).
+  select grupo_id, descripcion, coalesce(hora_fin, now()) into v_grupo, v_desc, v_base from public.servicios_programados where id = p_servicio;
+  if v_grupo is null then return; end if;
+  select tecnico_id into v_tec from public.servicio_tecnicos where servicio_id = p_servicio limit 1;
+  v_foto := public.demo_foto_servicio(coalesce(v_desc, ''));
+
+  delete from public.servicio_eventos where servicio_id = p_servicio and tipo = 'evidencia';
+  delete from public.servicio_tareas where grupo_id = v_grupo;
+  insert into public.servicio_tareas (servicio_id, grupo_id, descripcion, orden, completada, completada_por, completada_en, foto_path, nota, avance_pct)
+  select p_servicio, v_grupo, t.descripcion, t.orden,
+    t.orden < hechas, case when t.orden < hechas then v_tec end,
+    case when t.orden < hechas then v_base - make_interval(mins => (4 - t.orden) * 12) end,
+    case when t.orden < hechas and t.orden = 1 then v_foto end,
+    case when t.orden = 1 and t.orden < hechas then 'Sin novedad' end,
+    case when t.orden < hechas then 100 when t.orden = hechas and p_nivel = 1 then 50 else 0 end
+  from (values
+    (0, 'Revisión inicial y medidas de seguridad'),
+    (1, coalesce(nullif(v_desc, ''), 'Trabajo principal')),
+    (2, 'Pruebas de funcionamiento'),
+    (3, 'Limpieza del área y entrega al cliente')
+  ) t(orden, descripcion)
+  cross join (select case p_nivel when 2 then 4 when 1 then 2 else 0 end as hechas) h;
+
+  if p_nivel >= 1 then
+    insert into public.servicio_eventos (servicio_id, tipo, nota, foto_path, created_by, created_at)
+    values (p_servicio, 'evidencia', 'Avance del trabajo', v_foto, v_tec, v_base - interval '15 minutes');
+  end if;
+end;
+$$;
+
+revoke all on function public.demo_tareas(uuid, integer) from public, anon, authenticated;
+
+-- ============================================================
 -- Pulso del demo: eventos en vivo mientras alguien lo está viendo
 -- ============================================================
 -- Cada minuto, si alguien entró al demo en la última media hora, pasa UNA
@@ -227,6 +336,7 @@ begin
     select id, proyecto into s from public.servicios_programados
       where fecha = hoy and estado = 'en_sitio' order by hora_llegada, id limit 1;
     update public.servicios_programados set estado = 'en_curso', hora_inicio = now() where id = s.id;
+    perform public.demo_tareas(s.id, 1);
     return 'inició en ' || s.proyecto;
 
   elsif accion = 'concluir' then
@@ -234,6 +344,7 @@ begin
       where fecha = hoy and estado = 'en_curso' and report_id is null and hora_inicio < now() - interval '4 minutes'
       order by hora_inicio, id limit 1;
     update public.servicios_programados set estado = 'concluido', hora_fin = now() where id = s.id;
+    perform public.demo_tareas(s.id, 2);
     return 'concluyó ' || s.proyecto;
 
   elsif accion = 'reporte' then
@@ -262,7 +373,7 @@ begin
         'actividades', jsonb_build_array(coalesce(s.descripcion, 'Servicio realizado'), 'Pruebas de funcionamiento con el cliente'),
         'observaciones', '',
         'equipos', jsonb_build_array(), 'tuberias', jsonb_build_array(), 'cables', jsonb_build_array(), 'soporteria', jsonb_build_array(),
-        'fotos', jsonb_build_array(), 'firmaIngNombre', v_nom, 'firmaIngData', v_f1,
+        'fotos', public.demo_fotos(sistemas[n]), 'firmaIngNombre', v_nom, 'firmaIngData', v_f1,
         'firmaClienteNombre', v_contacto, 'firmaClienteData', v_f2,
         'servicioConcluido', true, 'fechaConcluido', hoy,
         'facturaEstado', 'pendiente', 'revisionEstado', 'pendiente', 'servicioProgramadoId', s.id));
@@ -287,6 +398,7 @@ begin
     values (v_id, v_id, v_sup, v_cli.nombre, trabajos[n], hoy, 60 + 30 * floor(random() * 3)::int,
       least(ahora + interval '20 minutes', hoy::timestamp + interval '23 hours 50 minutes')::time, 'programado', v_cli.id);
     insert into public.servicio_tecnicos (servicio_id, tecnico_id, visto_en, enterado_en) values (v_id, v_tec, now(), now());
+    perform public.demo_tareas(v_id, 0);
     return 'servicio nuevo en ' || v_cli.nombre;
   end if;
 end;
@@ -888,6 +1000,14 @@ begin
     (v_sup, 'solicito_correccion', 'reporte', 'Hotel Real del Valle: falta el número de serie de la cerradura', now() - interval '4 days 4 hours'),
     (v_sup, 'aprobo_revision', 'reporte', 'Hospital Santa Lucía: reporte aprobado y firmado', now() - interval '5 days 2 hours'),
     (v_sup, 'programo_servicio', 'servicio', 'Hospital Santa Lucía: prueba trimestral de bombas y red contra incendio', now() - interval '6 days 5 hours');
+
+  -- ---------- Imágenes de ejemplo ----------
+  -- Cada reporte lleva fotos según su sistema, y cada servicio su lista de
+  -- tareas con el avance que corresponde a su estado.
+  update public.reports set data = jsonb_set(data, '{fotos}', public.demo_fotos(coalesce(data->'sistemaSeguridad'->>0, '')));
+  for x in select id, estado from public.servicios_programados where estado <> 'cancelado' loop
+    perform public.demo_tareas(x.id, case x.estado when 'concluido' then 2 when 'en_curso' then 1 else 0 end);
+  end loop;
 
   -- Suscripción: el demo vive siempre en «prueba» recién iniciada, para que
   -- el prospecto vea la franja con los días restantes y la pantalla de
