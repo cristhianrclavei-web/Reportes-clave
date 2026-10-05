@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabaseClient';
@@ -11,6 +11,33 @@ import Logo from '@/components/Logo';
 import { DEMO, MARCA } from '@/lib/marca';
 import PortadaDemo, { ClaveAcceso, cuentaDemo } from '@/components/PortadaDemo';
 import FondoFotovoltaico from '@/components/FondoFotovoltaico';
+import { AlertTriangle, Eye, EyeOff, Loader2, Lock, Mail, ShieldAlert } from 'lucide-react';
+
+// Límite de intentos en este dispositivo: tras 5 fallos seguidos hay que
+// esperar, y la espera se duplica con cada fallo más (1, 2, 4… hasta 15 min).
+// Frena a quien prueba contraseñas a mano desde la app; el límite de fondo
+// contra ataques automatizados lo pone el servicio de acceso (Supabase), que
+// también limita los intentos por dirección de red.
+const CLAVE_INTENTOS = 'acceso-intentos';
+const CLAVE_CORREO = 'acceso-correo';
+const INTENTOS_LIBRES = 5;
+function leerIntentos(): { fallos: number; hasta: number } {
+  try {
+    const v = JSON.parse(localStorage.getItem(CLAVE_INTENTOS) || 'null');
+    if (v && typeof v.fallos === 'number' && typeof v.hasta === 'number') return v;
+  } catch { /* sin almacenamiento */ }
+  return { fallos: 0, hasta: 0 };
+}
+function guardarIntentos(v: { fallos: number; hasta: number } | null) {
+  try {
+    if (v) localStorage.setItem(CLAVE_INTENTOS, JSON.stringify(v));
+    else localStorage.removeItem(CLAVE_INTENTOS);
+  } catch { /* no crítico */ }
+}
+function tiempo(seg: number): string {
+  const m = Math.floor(seg / 60), s = seg % 60;
+  return m > 0 ? `${m}:${String(s).padStart(2, '0')} min` : `${s} s`;
+}
 
 function LoginForm() {
   const [email, setEmail] = useState('');
@@ -21,16 +48,34 @@ function LoginForm() {
   const [enviado, setEnviado] = useState(false);
   // Demo: cuál de los dos accesos se está abriendo (para su indicador).
   const [entrando, setEntrando] = useState<ClaveAcceso | null>(null);
+  const [verClave, setVerClave] = useState(false);
+  const [recordar, setRecordar] = useState(false);
+  const [mayusculas, setMayusculas] = useState(false);
+  // Segundos que faltan para poder intentar de nuevo (0 = sin bloqueo).
+  const [espera, setEspera] = useState(0);
+
+  // Correo recordado y bloqueo vigente: se leen ya montado (no en el render).
+  useEffect(() => {
+    try {
+      const c = localStorage.getItem(CLAVE_CORREO);
+      if (c) { setEmail(c); setRecordar(true); }
+    } catch { /* sin almacenamiento */ }
+    const tic = () => setEspera(Math.max(0, Math.ceil((leerIntentos().hasta - Date.now()) / 1000)));
+    tic();
+    const t = setInterval(tic, 1000);
+    return () => clearInterval(t);
+  }, []);
   const router = useRouter();
   const searchParams = useSearchParams();
   const theme = useTheme();
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    await entrar(email, password);
+    if (leerIntentos().hasta > Date.now()) return;
+    await entrar(email.trim(), password, true);
   }
 
-  async function entrar(correo: string, contrasena: string) {
+  async function entrar(correo: string, contrasena: string, contarIntentos = false) {
     setLoading(true);
     setError(null);
     const supabase = createClient();
@@ -44,6 +89,25 @@ function LoginForm() {
     setLoading(false);
 
     if (authError) {
+      // El servicio de acceso también corta cuando hay demasiados intentos.
+      if (authError.status === 429) {
+        setError('Demasiados intentos. Espera unos minutos antes de volver a intentar.');
+        return;
+      }
+      if (contarIntentos) {
+        const fallos = leerIntentos().fallos + 1;
+        const bloqueoMin = fallos >= INTENTOS_LIBRES ? Math.min(15, 2 ** (fallos - INTENTOS_LIBRES)) : 0;
+        guardarIntentos({ fallos, hasta: bloqueoMin ? Date.now() + bloqueoMin * 60000 : 0 });
+        if (bloqueoMin) {
+          setEspera(bloqueoMin * 60);
+          setPassword('');
+          setError(null);
+        } else {
+          const quedan = INTENTOS_LIBRES - fallos;
+          setError(`Correo o contraseña incorrectos. ${quedan === 1 ? 'Queda 1 intento' : `Quedan ${quedan} intentos`} antes de una pausa de seguridad.`);
+        }
+        return;
+      }
       setError('Correo o contraseña incorrectos.');
       return;
     }
@@ -62,6 +126,15 @@ function LoginForm() {
       await supabase.auth.signOut({ scope: 'local' });
       setError(validation.reason || 'No tienes permiso para acceder');
       return;
+    }
+
+    // Entró: se borra la cuenta de fallos y se recuerda (o se olvida) el correo.
+    if (contarIntentos) {
+      guardarIntentos(null);
+      try {
+        if (recordar) localStorage.setItem(CLAVE_CORREO, correo);
+        else localStorage.removeItem(CLAVE_CORREO);
+      } catch { /* no crítico */ }
     }
 
     // ===== PASO 3: Si todo está bien, redirigir =====
@@ -149,29 +222,64 @@ function LoginForm() {
           </p>
         </div>
 
-        <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted mb-1.5">Correo</label>
-        <input
-          type="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="usuario@empresa.com"
-          className="w-full px-3.5 py-3 mb-4 rounded-2xl bg-surface-2 border border-line focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal-glow text-[15px] transition-colors"
-          autoComplete="email"
-        />
+        <label htmlFor="acceso-correo" className="block text-[11px] font-semibold uppercase tracking-wider text-muted mb-1.5">Correo</label>
+        <div className="relative mb-4">
+          <Mail size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+          <input
+            id="acceso-correo"
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="usuario@empresa.com"
+            className="w-full pl-10 pr-3.5 py-3 rounded-2xl bg-surface-2 border border-line focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal-glow text-[15px] transition-colors"
+            autoComplete="email"
+            autoCapitalize="none"
+            spellCheck={false}
+            inputMode="email"
+          />
+        </div>
 
         {!modoOlvido && (
           <>
-            <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted mb-1.5">Contraseña</label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full px-3.5 py-3 mb-5 rounded-2xl bg-surface-2 border border-line focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal-glow text-[15px] transition-colors"
-              autoComplete="current-password"
-            />
+            <label htmlFor="acceso-clave" className="block text-[11px] font-semibold uppercase tracking-wider text-muted mb-1.5">Contraseña</label>
+            <div className="relative">
+              <Lock size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+              <input
+                id="acceso-clave"
+                type={verClave ? 'text' : 'password'}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyUp={(e) => setMayusculas(e.getModifierState?.('CapsLock') === true)}
+                onBlur={() => setMayusculas(false)}
+                placeholder="••••••••"
+                className="w-full pl-10 pr-12 py-3 rounded-2xl bg-surface-2 border border-line focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal-glow text-[15px] transition-colors"
+                autoComplete="current-password"
+                autoCapitalize="none"
+                spellCheck={false}
+              />
+              <button
+                type="button"
+                onClick={() => setVerClave((v) => !v)}
+                aria-label={verClave ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                aria-pressed={verClave}
+                title={verClave ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center text-muted hover:text-ink active:scale-90 transition"
+              >
+                {verClave ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+            {mayusculas && (
+              <p className="text-[12.5px] text-amber font-medium mt-1.5 flex items-center gap-1.5">
+                <AlertTriangle size={14} /> Bloq Mayús está activado
+              </p>
+            )}
+
+            <label className="flex items-center gap-2.5 mt-3.5 mb-5 cursor-pointer select-none w-fit">
+              <input type="checkbox" checked={recordar} onChange={(e) => setRecordar(e.target.checked)} className="w-[18px] h-[18px] accent-teal" />
+              <span className="text-[13.5px] text-ink/85">Recordar mi correo en este dispositivo</span>
+            </label>
           </>
         )}
 
@@ -195,12 +303,25 @@ function LoginForm() {
         )}
 
         {error && (
-          <p className="text-red text-[13px] -mt-2 mb-4">{error}</p>
+          <p role="alert" className="text-red text-[13px] -mt-2 mb-4">{error}</p>
+        )}
+
+        {!modoOlvido && espera > 0 && (
+          <div role="alert" className="-mt-1 mb-4 p-3.5 rounded-2xl bg-red/10 border border-red/30 flex items-start gap-2.5">
+            <ShieldAlert size={18} className="text-red shrink-0 mt-0.5" />
+            <div className="text-[13px] leading-relaxed">
+              <p className="font-semibold text-red">Demasiados intentos fallidos</p>
+              <p className="text-ink/85">
+                Por seguridad, espera <b className="tabular-nums">{tiempo(espera)}</b> para volver a intentar. Si no recuerdas
+                tu contraseña, usa «¿Olvidaste tu contraseña?».
+              </p>
+            </div>
+          </div>
         )}
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || (!modoOlvido && espera > 0)}
           className={`w-full py-3.5 rounded-2xl font-display font-semibold text-base tracking-wide transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.97] disabled:opacity-60 disabled:hover:translate-y-0 ${
             theme === 'dark' ? 'bg-teal text-inkOnAccent shadow-glow-teal hover:brightness-110' : ''
           }`}
@@ -210,9 +331,13 @@ function LoginForm() {
               : undefined
           }
         >
-          {loading
-            ? (modoOlvido ? 'Enviando...' : 'Entrando...')
-            : (modoOlvido ? (enviado ? 'Enviar de nuevo' : 'Enviar enlace') : 'Entrar')}
+          {loading ? (
+            <span className="inline-flex items-center justify-center gap-2">
+              <Loader2 size={18} className="animate-spin" />
+              {modoOlvido ? 'Enviando…' : 'Entrando…'}
+            </span>
+          ) : modoOlvido ? (enviado ? 'Enviar de nuevo' : 'Enviar enlace')
+            : espera > 0 ? `Espera ${tiempo(espera)}` : 'Entrar'}
         </button>
 
         <button
