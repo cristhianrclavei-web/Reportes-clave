@@ -11,7 +11,9 @@ import { MARCA } from '@/lib/marca';
 //      que en el resto de la app. Única excepción, decidida por la empresa:
 //      el técnico puede consultar dirección y contactos de cualquier cliente
 //      (los necesita para llegar al servicio) aunque no tenga la sección
-//      Clientes; esa consulta usa el cliente admin con columnas fijas.
+//      Clientes, y las plantillas de la empresa (rutinas de tareas y
+//      plantillas de insumos) para preparar un servicio. Esas dos consultas
+//      usan el cliente admin con columnas fijas.
 //   3. Se piden columnas concretas: firmas, fotos, costos y márgenes no se
 //      mandan al modelo aunque la RLS dejara leerlos.
 //   4. Cada consulta tiene tope de filas: una pregunta amplia no debe
@@ -245,6 +247,7 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
       return salida(
         filas.slice(0, n).map((s) => ({
           servicio_id: s.id,
+          enlace: `${esSupervisor ? '/dashboard/servicios' : '/servicios'}/${s.id}`,
           proyecto: s.proyecto, descripcion: recorta(s.descripcion, 300),
           fecha: s.fecha, hora: s.hora_programada?.slice(0, 5) || null, hora_salida: s.hora_salida_programada?.slice(0, 5) || null,
           dia: s.dias_totales > 1 ? `${s.numero_dia} de ${s.dias_totales}` : null,
@@ -434,7 +437,7 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
           .limit(80);
         filas[0].partidas = lineas || [];
       }
-      return salida(filas.map(({ _id, ...r }) => r), n);
+      return salida(filas.map(({ _id, ...r }) => ({ ...r, enlace: `/dashboard/cotizaciones/${_id}` })), n);
     },
   });
 
@@ -479,9 +482,57 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
     },
   });
 
+  const listaDeCarga = betaZodTool({
+    name: 'lista_de_carga_de_servicio',
+    description:
+      'Lista de carga (insumos) de un servicio: la herramienta, el material y el equipo que se definió llevar. Requiere el servicio_id que devuelve consultar_servicios. Si viene vacía, el servicio no tiene lista de carga capturada.',
+    inputSchema: z.object({ servicio_id: z.string().uuid() }),
+    run: async (i) => {
+      const { data: s, error: e1 } = await supabase.from('servicios_programados').select('id, grupo_id, proyecto, descripcion').eq('id', i.servicio_id).maybeSingle();
+      if (e1) return falla(e1);
+      if (!s) return JSON.stringify({ error: 'No existe ese servicio o no tienes acceso' });
+      const { data, error } = await supabase
+        .from('servicio_insumos')
+        .select('categoria, descripcion, cantidad, unidad, es_del_tecnico, nota')
+        .eq('grupo_id', s.grupo_id)
+        .eq('estado_solicitud', 'aprobado')
+        .order('categoria')
+        .order('orden')
+        .limit(120);
+      if (error) return falla(error);
+      return salida(data, 120, { proyecto: s.proyecto, servicio: recorta(s.descripcion, 300) });
+    },
+  });
+
+  const plantillas = betaZodTool({
+    name: 'plantillas_de_la_empresa',
+    description:
+      'Plantillas propias de la empresa para preparar un trabajo: rutinas de tareas por tipo de sistema (qué se revisa y prueba en un mantenimiento) y plantillas de insumos (qué herramienta, material y equipo llevar). Úsala para saber cómo hace la empresa un tipo de servicio.',
+    inputSchema: z.object({ texto: z.string().optional().describe('Sistema o tipo de trabajo: CCTV, incendio, control de acceso, preventivo… Vacío devuelve todas') }),
+    run: async (i) => {
+      const lector = !esSupervisor && admin ? admin : supabase;
+      const [{ data: rutinas, error }, { data: insumos, error: e2 }] = await Promise.all([
+        lector.from('rutinas_tareas').select('nombre, sistema, descripcion, secciones').eq('activo', true).order('nombre').limit(60),
+        lector.from('plantillas_insumos').select('nombre, items').order('nombre').limit(60),
+      ]);
+      if (error || e2) return falla(error || e2);
+      const palabras = sinAcentos(limpio(i.texto)).split(' ').filter((p) => p.length > 2);
+      const coincide = (...campos: unknown[]) => palabras.length === 0 || palabras.some((p) => sinAcentos(campos.join(' ')).includes(p));
+      const r = ((rutinas as any[]) || []).filter((x) => coincide(x.nombre, x.sistema, x.descripcion));
+      const p = ((insumos as any[]) || []).filter((x) => coincide(x.nombre));
+      return JSON.stringify({
+        // Si el filtro no encontró nada se devuelven los nombres de todas,
+        // para que el modelo elija la más parecida en vez de decir «no hay».
+        rutinas_de_tareas: r.length ? r : ((rutinas as any[]) || []).map((x) => ({ nombre: x.nombre, sistema: x.sistema })),
+        plantillas_de_insumos: p.length ? p : ((insumos as any[]) || []).map((x) => ({ nombre: x.nombre })),
+        coincidencia_exacta: r.length + p.length > 0,
+      });
+    },
+  });
+
   // El técnico no recibe las funciones de supervisión: aunque la RLS ya le
   // devolvería vacío, no ofrecerlas evita respuestas confusas («no hay
   // cotizaciones») sobre datos que simplemente no le corresponden.
-  const comunes = [buscarEquipos, buscarReportes, servicios, tareas, existencias, vales, clientes];
+  const comunes = [buscarEquipos, buscarReportes, servicios, tareas, listaDeCarga, plantillas, existencias, vales, clientes];
   return esSupervisor ? [...comunes, cotizaciones, disponibles, recurrentes] : comunes;
 }

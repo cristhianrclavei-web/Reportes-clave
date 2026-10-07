@@ -119,6 +119,8 @@ export const MANUAL_TECNICO: SeccionManual[] = [
         resumen: 'Pregunta por tus servicios, reportes y material, escribiendo o hablando.',
         pasos: [
           'Toca el botón redondo de la esquina inferior derecha y escribe tu pregunta, por ejemplo «¿qué servicios tengo mañana?».',
+          'También te ayuda a preparar un servicio: pregunta «¿qué herramienta y equipo llevo mañana?» y revisa la lista de carga del servicio y las plantillas de la empresa; si no hay, te da una recomendación general.',
+          'Los nombres en color dentro de la respuesta son enlaces: tócalos para abrir ese reporte o servicio.',
           'Con el micrófono puedes preguntar hablando; al terminar de hablar la pregunta se envía sola.',
           'El botón de la bocina activa que las respuestas se lean en voz alta.',
         ],
@@ -291,7 +293,8 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
           'Toca el botón redondo de la esquina inferior derecha y pregunta, por ejemplo «¿en qué servicio se instaló la cámara DS-2CD1043G2?» o «¿qué servicios de esta semana siguen sin reporte?».',
           'Responde sobre reportes, equipos instalados, servicios, almacén, vales, clientes, cotizaciones y mantenimientos recurrentes.',
           'Con el micrófono puedes preguntar hablando; el botón de la bocina hace que lea las respuestas en voz alta.',
-          'Cada respuesta cita el folio, la fecha y el cliente para que lo ubiques en su sección.',
+          'Los folios y nombres en color son enlaces: tócalos para abrir ese reporte, servicio o cotización.',
+          'También da apoyo técnico: cómo preparar un mantenimiento, qué llevar o cómo configurar un equipo. Primero usa las listas de carga y plantillas de la empresa y, si hace falta, busca en internet y dice de qué sitio lo tomó.',
         ],
         nota: 'Solo consulta: no crea ni cambia nada, y no muestra costos ni márgenes. Hay un tope de preguntas por persona al día. Incluido en el paquete Empresa.',
       },

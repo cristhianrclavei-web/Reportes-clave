@@ -34,8 +34,9 @@ const SUGERENCIAS: Record<'supervisor' | 'tecnico', string[]> = {
   ],
 };
 
-// [texto](/ruta): solo rutas internas de la app, nunca direcciones externas.
-const ENLACE = /\[([^\]\n]+)\]\((\/[^)\s]*)\)/g;
+// [texto](/ruta) para pantallas de la app y [sitio](https://…) para fuentes
+// de internet. Ningún otro esquema (javascript:, data:) llega a ser enlace.
+const ENLACE = /\[([^\]\n]+)\]\((\/(?!\/)[^)\s]*|https:\/\/[^)\s]+)\)/g;
 
 // Texto de la respuesta con los enlaces a reportes como vínculos. Son <a>
 // normales (recarga completa) a propósito: las listas de reportes abren el
@@ -46,7 +47,11 @@ function conEnlaces(t: string) {
   for (const m of t.matchAll(ENLACE)) {
     if (m.index > ultimo) partes.push(t.slice(ultimo, m.index));
     partes.push(
-      <a key={m.index} href={m[2]} className="text-teal font-medium underline underline-offset-2">
+      <a
+        key={m.index} href={m[2]}
+        {...(m[2].startsWith('/') ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
+        className="text-teal font-medium underline underline-offset-2"
+      >
         {m[1]}
       </a>,
     );
