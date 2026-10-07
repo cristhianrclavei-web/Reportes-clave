@@ -68,6 +68,11 @@ function falla(e: { message?: string } | null): string {
 
 const folioDe = (id: string) => id.slice(0, 8).toUpperCase();
 
+// Dirección dentro de la app que abre el detalle de un reporte. Cada rol
+// tiene su lista: la del supervisor y la de «Mis reportes» del técnico.
+const enlaceReporte = (id: string, esSupervisor: boolean) =>
+  `${esSupervisor ? '/dashboard/reportes' : '/mis-reportes'}?reporte=${id}`;
+
 export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, admin: SupabaseClient | null = null) {
   const esSupervisor = yo.rol === 'supervisor';
 
@@ -123,6 +128,7 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
           const exactos = todos.filter((e) => palabras.every((p) => texto(e).includes(p)));
           return {
             folio_reporte: folioDe(r.id),
+            enlace: enlaceReporte(r.id, esSupervisor),
             cliente: r.empresa_cliente, fecha: r.fecha,
             hecho_por: mapa.get(r.created_by) || null,
             equipos: (exactos.length ? exactos : todos).slice(0, 25).map((e) => ({
@@ -182,6 +188,7 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
       return salida(
         ((data as any[]) || []).map((r) => ({
           folio: folioDe(r.id),
+          enlace: enlaceReporte(r.id, esSupervisor),
           fecha: r.fecha, cliente: r.empresa_cliente,
           tipo: [r.tipo_servicio, r.sub_tipo_servicio].filter(Boolean).join(' · ') || null,
           sistema: r.sistema,

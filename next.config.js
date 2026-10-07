@@ -79,12 +79,14 @@ const nextConfig = {
 
           // geolocation=(self): la app la usa en bitacora y detalle de
           // servicios. Bloquearla romperia el registro de ubicacion.
+          // microphone=(self): el asistente lo usa para dictar la pregunta;
+          // con microphone=() el navegador niega el microfono sin preguntar.
           {
             key: 'Permissions-Policy',
             value: [
               'geolocation=(self)',
               'camera=()',
-              'microphone=()',
+              'microphone=(self)',
               'payment=()',
               'usb=()',
               'magnetometer=()',

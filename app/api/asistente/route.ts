@@ -119,7 +119,8 @@ Cómo trabajar:
 
 Cómo contestar:
 - En español de México, directo y breve: primero la respuesta, luego el detalle necesario. La respuesta puede leerse en voz alta en un teléfono, así que escribe frases naturales y sin tablas ni encabezados.
-- Para varias cosas usa una lista corta con guiones, un renglón por elemento. Identifica cada reporte con su folio, fecha y cliente para que se pueda buscar en la app.
+- Para varias cosas usa una lista corta con guiones, un renglón por elemento. Identifica cada reporte con su folio, fecha y cliente.
+- Cuando la consulta traiga el campo «enlace» de un reporte, escribe su folio como enlace con esta forma exacta: [folio 51B057B2](/ruta/del/enlace), copiando la ruta tal cual viene. Es el único formato especial permitido; no inventes enlaces ni enlaces a otras cosas.
 - Fechas en formato natural («martes 6 de octubre»), cantidades con su unidad y dinero con su moneda.`;
 }
 

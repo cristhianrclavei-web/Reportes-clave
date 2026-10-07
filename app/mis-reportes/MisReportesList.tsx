@@ -4,7 +4,7 @@ import BotonAyuda from '@/components/BotonAyuda';
 import { useAliasClientes } from '@/lib/useAliasClientes';
 import { coincideBusqueda } from '@/lib/busqueda';
 import SubTabs from '@/components/SubTabs';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabaseClient';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -40,6 +40,15 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
   const [filterType, setFilterType] = useState('');
   const [open, setOpen] = useState<Report | null>(null);
   const [subseccion, setSubseccion] = useState<'reportes' | 'levantamientos'>('reportes');
+
+  // Enlace directo (p. ej. desde el asistente): ?reporte=<id> abre ese reporte.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('reporte');
+    if (!id) return;
+    const r = reportsIniciales.find((x) => x.id === id);
+    if (r) setOpen(r);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handleReporteActualizado(reportId: string, patch: Partial<Report>) {
     setReports((prev) => prev.map((r) => (r.id === reportId ? { ...r, ...patch } : r)));

@@ -34,12 +34,42 @@ const SUGERENCIAS: Record<'supervisor' | 'tecnico', string[]> = {
   ],
 };
 
+// [texto](/ruta): solo rutas internas de la app, nunca direcciones externas.
+const ENLACE = /\[([^\]\n]+)\]\((\/[^)\s]*)\)/g;
+
+// Texto de la respuesta con los enlaces a reportes como vínculos. Son <a>
+// normales (recarga completa) a propósito: las listas de reportes abren el
+// detalle al cargar, y así funciona aunque ya se esté en esa pantalla.
+function conEnlaces(t: string) {
+  const partes: React.ReactNode[] = [];
+  let ultimo = 0;
+  for (const m of t.matchAll(ENLACE)) {
+    if (m.index > ultimo) partes.push(t.slice(ultimo, m.index));
+    partes.push(
+      <a key={m.index} href={m[2]} className="text-teal font-medium underline underline-offset-2">
+        {m[1]}
+      </a>,
+    );
+    ultimo = m.index + m[0].length;
+  }
+  if (ultimo < t.length) partes.push(t.slice(ultimo));
+  return partes;
+}
+
+const AVISOS_VOZ: Record<string, string> = {
+  'not-allowed': 'El navegador no tiene permiso para usar el micrófono. Actívalo en el candado de la barra de direcciones.',
+  'service-not-allowed': 'El dictado no está disponible en este navegador. Usa el micrófono del teclado.',
+  'no-speech': 'No te escuché. Toca el micrófono y habla de nuevo.',
+  'audio-capture': 'No se encontró un micrófono en este equipo.',
+  network: 'El dictado necesita conexión a internet.',
+};
+
 const K_CHARLA = 'asistenteCharla';
 const K_VOZ = 'asistenteVoz';
 
-// Lo que se lee en voz alta no debe llevar los signos de formato.
+// Lo que se lee en voz alta no debe llevar los signos de formato ni rutas.
 function paraVoz(t: string): string {
-  return t.replace(/\*\*/g, '').replace(/^\s*[-•]\s*/gm, '').replace(/[#_`]/g, '');
+  return t.replace(ENLACE, '$1').replace(/\*\*/g, '').replace(/^\s*[-•]\s*/gm, '').replace(/[#_`]/g, '');
 }
 
 export default function Asistente() {
@@ -55,6 +85,7 @@ export default function Asistente() {
   const [leer, setLeer] = useState(false);
   const [puedeDictar, setPuedeDictar] = useState(false);
   const [escuchando, setEscuchando] = useState(false);
+  const [avisoVoz, setAvisoVoz] = useState('');
   const reconocedor = useRef<any>(null);
   const fin = useRef<HTMLDivElement>(null);
   const mensajesRef = useRef<Mensaje[]>([]);
@@ -145,6 +176,7 @@ export default function Asistente() {
     const Rec = w.SpeechRecognition || w.webkitSpeechRecognition;
     if (!Rec) return;
     callar();
+    setAvisoVoz('');
     const rec = new Rec();
     rec.lang = 'es-MX';
     rec.interimResults = true;
@@ -158,7 +190,10 @@ export default function Asistente() {
       }
       setTexto((definitivo + parcial).trim());
     };
-    rec.onerror = () => setEscuchando(false);
+    rec.onerror = (ev: any) => {
+      setEscuchando(false);
+      if (ev?.error !== 'aborted') setAvisoVoz(AVISOS_VOZ[ev?.error] || 'No se pudo usar el dictado. Escribe tu pregunta.');
+    };
     rec.onend = () => {
       setEscuchando(false);
       // Al terminar de hablar la pregunta se manda sola, como un asistente de voz.
@@ -166,7 +201,7 @@ export default function Asistente() {
     };
     reconocedor.current = rec;
     setEscuchando(true);
-    rec.start();
+    try { rec.start(); } catch { setEscuchando(false); setAvisoVoz(AVISOS_VOZ['service-not-allowed']); }
   };
 
   const cambiarVoz = () => {
@@ -260,7 +295,7 @@ export default function Asistente() {
                   : `max-w-[92%] rounded-2xl rounded-bl-md px-3.5 py-2 border text-[14.5px] leading-relaxed whitespace-pre-wrap ${m.error ? 'border-red/40 bg-red/10 text-red' : 'border-line bg-surface-2'}`
               }
             >
-              {m.texto.replace(/\*\*/g, '')}
+              {m.rol === 'user' ? m.texto : conEnlaces(m.texto.replace(/\*\*/g, ''))}
             </div>
           </div>
         ))}
@@ -274,6 +309,9 @@ export default function Asistente() {
         <div ref={fin} />
       </div>
 
+      {avisoVoz && (
+        <div role="alert" className="shrink-0 px-4 py-2 text-[12.5px] text-amber border-t border-line">{avisoVoz}</div>
+      )}
       <form
         onSubmit={(e) => { e.preventDefault(); enviar(texto); }}
         className="shrink-0 border-t border-line px-3 py-2.5 flex items-end gap-2"
