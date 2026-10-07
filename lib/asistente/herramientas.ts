@@ -8,7 +8,10 @@ import { MARCA } from '@/lib/marca';
 //   1. Solo lectura: aquí no hay insert, update ni delete.
 //   2. Todo se consulta con la sesión de quien pregunta (el cliente de
 //      lib/supabaseServer), así que la RLS decide qué filas ve cada rol igual
-//      que en el resto de la app. Nunca se usa el cliente admin.
+//      que en el resto de la app. Única excepción, decidida por la empresa:
+//      el técnico puede consultar dirección y contactos de cualquier cliente
+//      (los necesita para llegar al servicio) aunque no tenga la sección
+//      Clientes; esa consulta usa el cliente admin con columnas fijas.
 //   3. Se piden columnas concretas: firmas, fotos, costos y márgenes no se
 //      mandan al modelo aunque la RLS dejara leerlos.
 //   4. Cada consulta tiene tope de filas: una pregunta amplia no debe
@@ -65,7 +68,7 @@ function falla(e: { message?: string } | null): string {
 
 const folioDe = (id: string) => id.slice(0, 8).toUpperCase();
 
-export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta) {
+export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, admin: SupabaseClient | null = null) {
   const esSupervisor = yo.rol === 'supervisor';
 
   // Nombres de las personas, para devolver «quién» en vez de un id. La RLS
@@ -367,13 +370,16 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta) {
 
   const clientes = betaZodTool({
     name: 'buscar_clientes',
-    description: 'Clientes registrados: dirección y contactos (nombre, puesto, teléfono, correo).',
+    description: 'Clientes registrados: dirección y contactos (nombre, puesto, teléfono, correo). Sirve también para la dirección y el contacto de un servicio: busca al cliente por el nombre del proyecto del servicio.',
     inputSchema: z.object({ texto: z.string().describe('Nombre o parte del nombre del cliente'), limite }),
     run: async (i) => {
       const n = i.limite || 8;
-      const { data, error } = await supabase
+      // Sin datos fiscales (RFC, régimen): solo lo necesario para llegar y
+      // saber a quién buscar.
+      const lector = !esSupervisor && admin ? admin : supabase;
+      const { data, error } = await lector
         .from('clientes')
-        .select('nombre, direccion, ciudad, estado, cliente_contactos(nombre, puesto, telefono, correo)')
+        .select('nombre, direccion, calle, num_exterior, num_interior, colonia, codigo_postal, ciudad, estado, cliente_contactos(nombre, puesto, telefono, correo)')
         .ilike('nombre', patron(i.texto) || '%')
         .order('nombre')
         .limit(n);

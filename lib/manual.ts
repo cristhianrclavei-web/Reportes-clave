@@ -122,7 +122,7 @@ export const MANUAL_TECNICO: SeccionManual[] = [
           'Con el micrófono puedes preguntar hablando; al terminar de hablar la pregunta se envía sola.',
           'El botón de la bocina activa que las respuestas se lean en voz alta.',
         ],
-        nota: 'Solo consulta: no crea ni cambia nada, y ve lo mismo que tú ves en la app. Disponible si el paquete de tu empresa lo incluye.',
+        nota: 'Solo consulta: no crea ni cambia nada. Ve lo mismo que tú ves en la app y, además, la dirección y los contactos de los clientes. Disponible si el paquete de tu empresa lo incluye.',
       },
       {
         titulo: 'Tu perfil',
