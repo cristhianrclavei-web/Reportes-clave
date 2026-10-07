@@ -115,6 +115,16 @@ export const MANUAL_TECNICO: SeccionManual[] = [
     titulo: 'Tu cuenta',
     temas: [
       {
+        titulo: 'Asistente',
+        resumen: 'Pregunta por tus servicios, reportes y material, escribiendo o hablando.',
+        pasos: [
+          'Toca el botón redondo de la esquina inferior derecha y escribe tu pregunta, por ejemplo «¿qué servicios tengo mañana?».',
+          'Con el micrófono puedes preguntar hablando; al terminar de hablar la pregunta se envía sola.',
+          'El botón de la bocina activa que las respuestas se lean en voz alta.',
+        ],
+        nota: 'Solo consulta: no crea ni cambia nada, y ve lo mismo que tú ves en la app. Disponible si el paquete de tu empresa lo incluye.',
+      },
+      {
         titulo: 'Tu perfil',
         resumen: 'Foto o avatar, puesto, especialidades y datos de emergencia.',
         pasos: ['Toca tu nombre o tus iniciales arriba para abrir «Mi perfil».', 'Cambia lo que necesites y toca «Guardar perfil».'],
@@ -274,6 +284,17 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
   {
     titulo: 'Tu cuenta',
     temas: [
+      {
+        titulo: 'Asistente',
+        resumen: 'Consulta la operación con una pregunta, escribiendo o hablando.',
+        pasos: [
+          'Toca el botón redondo de la esquina inferior derecha y pregunta, por ejemplo «¿en qué servicio se instaló la cámara DS-2CD1043G2?» o «¿qué servicios de esta semana siguen sin reporte?».',
+          'Responde sobre reportes, equipos instalados, servicios, almacén, vales, clientes, cotizaciones y mantenimientos recurrentes.',
+          'Con el micrófono puedes preguntar hablando; el botón de la bocina hace que lea las respuestas en voz alta.',
+          'Cada respuesta cita el folio, la fecha y el cliente para que lo ubiques en su sección.',
+        ],
+        nota: 'Solo consulta: no crea ni cambia nada, y no muestra costos ni márgenes. Hay un tope de preguntas por persona al día. Incluido en el paquete Empresa.',
+      },
       {
         titulo: 'Buscar rápido',
         resumen: 'Para saltar a una sección o a un cliente.',

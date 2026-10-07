@@ -5,6 +5,7 @@ import ToastContainer from '@/components/Toast';
 import OfflineSyncManager from '@/components/OfflineSyncManager';
 import SeleccionarNumeros from '@/components/SeleccionarNumeros';
 import AvisoSuscripcion from '@/components/AvisoSuscripcion';
+import Asistente from '@/components/Asistente';
 import { MARCA, MARCA_MAYUS, DEMO, COLORES, iconoApp } from '@/lib/marca';
 
 const display = Barlow_Condensed({
@@ -85,6 +86,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AvisoSuscripcion />
         {children}
         <ToastContainer />
+        <Asistente />
         <OfflineSyncManager />
         <SeleccionarNumeros />
         <script
