@@ -64,6 +64,18 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
     return lines.length ? lines : [''];
   }
 
+  // Como wrapText, pero respetando los saltos de línea que la persona
+  // escribió en la descripción (wrapText los trata como un espacio más y
+  // junta todo en un solo párrafo). Un renglón vacío se conserva como
+  // separación; los del principio y del final se descartan.
+  function wrapConSaltos(text: string, fnt: PDFFont, size: number, maxWidth: number): string[] {
+    const parrafos = (text || '').replace(/\r\n?/g, '\n').split('\n');
+    while (parrafos.length && !parrafos[0].trim()) parrafos.shift();
+    while (parrafos.length && !parrafos[parrafos.length - 1].trim()) parrafos.pop();
+    const lines = parrafos.flatMap((p) => (p.trim() ? wrapText(p, fnt, size, maxWidth) : ['']));
+    return lines.length ? lines : [''];
+  }
+
   function centrado(pg: PDFPage, texto: string, x: number, w: number, y0: number, size: number, fnt: PDFFont) {
     const tw = fnt.widthOfTextAtSize(texto, size);
     pg.drawText(texto, { x: x + w / 2 - tw / 2, y: y0, size, font: fnt, color: NAVY });
@@ -188,7 +200,7 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
     let importeGrupo = 0;
     grupo.lineas.forEach((l, i) => {
       importeGrupo += l.importe;
-      const descLines = wrapText(l.descripcion, font, 8, colDescW - 8);
+      const descLines = wrapConSaltos(l.descripcion, font, 8, colDescW - 8);
       const rowH = Math.max(18, descLines.length * 10 + 8);
       const paginaAntesDeLaFila = page;
       ensureSpace(rowH);

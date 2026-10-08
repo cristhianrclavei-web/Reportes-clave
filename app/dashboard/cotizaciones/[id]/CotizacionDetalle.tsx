@@ -280,7 +280,7 @@ export default function CotizacionDetalle({
               {g.lineas.map((l) => (
                 <div key={l.id} className="flex justify-between gap-3 p-3 rounded-xl bg-surface-2 border border-line text-[13px]">
                   <div className="min-w-0">
-                    <p className="leading-relaxed">{l.descripcion}</p>
+                    <p className="leading-relaxed whitespace-pre-wrap">{l.descripcion}</p>
                     <p className="text-muted text-[12px] mt-1">{l.unidad} · Cant. {l.cantidad} · {money(l.precio_unitario)} c/u</p>
                     {l.costo > 0 && (
                       <p className="text-amber/80 text-[11.5px] mt-0.5">Costo {money(l.costo)} · {l.margen_pct}% ganancia</p>
