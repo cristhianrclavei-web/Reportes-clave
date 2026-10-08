@@ -32,7 +32,8 @@ export async function GET(req: NextRequest) {
     const centro = new Date(`${dia}T12:00:00Z`).getTime();
     const { data, error } = await supabase
       .from('asistente_uso')
-      .select('id, created_at, pregunta, respuesta')
+      // '*' y no la lista de columnas: `calificacion` puede no existir aún.
+      .select('*')
       .eq('user_id', user.id)
       .gte('created_at', new Date(centro - 36 * 3600_000).toISOString())
       .lte('created_at', new Date(centro + 36 * 3600_000).toISOString())
@@ -41,7 +42,7 @@ export async function GET(req: NextRequest) {
     if (error) return NextResponse.json({ error: 'No se pudo leer el historial' }, { status: 500 });
     const conversacion = ((data as any[]) || [])
       .filter((r) => diaLocal(r.created_at) === dia)
-      .map((r) => ({ id: r.id, hora: horaLocal(r.created_at), ts: r.created_at, pregunta: r.pregunta, respuesta: r.respuesta || '' }));
+      .map((r) => ({ id: r.id, hora: horaLocal(r.created_at), ts: r.created_at, pregunta: r.pregunta, respuesta: r.respuesta || '', calificacion: r.calificacion ?? null }));
     return NextResponse.json({ dia, conversacion });
   }
 

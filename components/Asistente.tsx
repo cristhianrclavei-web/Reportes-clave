@@ -6,7 +6,7 @@ import { MARCA } from '@/lib/marca';
 import { ESCUDO_CONTORNO, ESCUDO_RAMAL, ESCUDO_TRAZO, ESCUDO_NODOS, ESCUDO_LETRA } from '@/lib/logoMarca';
 import {
   Sparkles, X, Mic, MicOff, Square, SendHorizontal, Volume2, VolumeX, History, ChevronLeft, ChevronRight,
-  ImagePlus, AudioLines, SquarePen, Settings2,
+  ImagePlus, AudioLines, SquarePen, Settings2, ThumbsUp, ThumbsDown,
 } from 'lucide-react';
 
 // Chat del asistente de IA. Botón flotante que aparece únicamente si
@@ -26,7 +26,9 @@ import {
 // El chat muestra la conversación de hoy y los días anteriores se consultan
 // aparte, para que la pantalla no se llene.
 
-type Mensaje = { rol: 'user' | 'assistant'; texto: string; error?: boolean; fotos?: number };
+// `id` es el de la consulta en el servidor (para calificarla), `opciones` las
+// respuestas de un toque que propuso el asistente y `voto` el pulgar dado.
+type Mensaje = { rol: 'user' | 'assistant'; texto: string; error?: boolean; fotos?: number; id?: string; opciones?: string[]; voto?: 1 | -1 | null };
 type Adjunto = { tipo: 'image/jpeg'; datos: string; vista: string };
 type DiaHistorial = { dia: string; mensajes: number };
 type EstadoVoz = 'escuchando' | 'pensando' | 'hablando' | 'pausa';
@@ -43,7 +45,7 @@ const SUGERENCIAS: Record<'supervisor' | 'tecnico', string[]> = {
   ],
   tecnico: [
     '¿Qué servicios tengo hoy y mañana?',
-    '¿Qué material llevo en mi vale?',
+    'Necesito pedir material al almacén',
     '¿Qué reportes hice esta semana?',
   ],
 };
@@ -90,7 +92,7 @@ const NOMBRE = `${MARCA.iniciales}-BOT`;
 // La bienvenida solo promete lo que el asistente hace hoy para cada rol.
 const BIENVENIDA: Record<'supervisor' | 'tecnico', string> = {
   supervisor: 'Estoy aquí para ayudarte con información de reportes, servicios y almacén, y para programar servicios y armar cotizaciones.',
-  tecnico: 'Estoy aquí para ayudarte con tus servicios, reportes y material, y a preparar tu trabajo.',
+  tecnico: 'Estoy aquí para ayudarte con tus servicios y reportes, a preparar tu trabajo y a pedir material al almacén.',
 };
 const SEGUNDOS_BIENVENIDA = 5;
 const K_BIENVENIDA = 'asistenteBienvenida';
@@ -225,6 +227,9 @@ export default function Asistente() {
   modoVozRef.current = modoVoz;
   const silencios = useRef(0);
   const escucharRef = useRef<() => void>(() => {});
+  const primerGuardado = useRef(true);
+  // Mantiene la pantalla encendida durante la conversación por voz.
+  const pantallaActiva = useRef<any>(null);
   // Audio de la voz natural en curso y un número de turno: si se pide callar
   // o leer otra cosa mientras llega el audio, el anterior ya no se reproduce.
   const audio = useRef<HTMLAudioElement | null>(null);
@@ -266,7 +271,10 @@ export default function Asistente() {
   }, []);
 
   useEffect(() => {
-    try { sessionStorage.setItem(K_CHARLA, JSON.stringify(mensajes.slice(-40))); } catch { /* modo privado */ }
+    // La primera pasada es con la lista aún vacía, antes de que se aplique lo
+    // leído del almacenamiento: guardarla ahí borraría la plática guardada.
+    if (primerGuardado.current) primerGuardado.current = false;
+    else { try { sessionStorage.setItem(K_CHARLA, JSON.stringify(mensajes.slice(-40))); } catch { /* modo privado */ } }
     fin.current?.scrollIntoView({ block: 'end' });
   }, [mensajes, pensando, vista]);
 
@@ -294,11 +302,23 @@ export default function Asistente() {
         const ultima = filas[filas.length - 1];
         const reciente = ultima && Date.now() - new Date(ultima.ts).getTime() < 3 * 60 * 60_000;
         const deHoy: Mensaje[] = (reciente ? filas.slice(inicio) : [])
-          .flatMap((c) => [{ rol: 'user' as const, texto: c.pregunta }, { rol: 'assistant' as const, texto: c.respuesta }]);
+          .flatMap((c) => [{ rol: 'user' as const, texto: c.pregunta }, { rol: 'assistant' as const, texto: c.respuesta, id: c.id, voto: c.calificacion ?? null }]);
         if (deHoy.length) setMensajes(deHoy.slice(-40));
       })
       .catch(() => { /* sin red: se empieza en blanco */ });
   }, [abierto, hoyCargado]);
+
+  // El sistema suelta la pantalla encendida al salir de la app: al volver,
+  // si la conversación por voz sigue abierta, se pide otra vez.
+  useEffect(() => {
+    if (!modoVoz) return;
+    const alVolver = () => {
+      if (document.visibilityState !== 'visible' || !modoVozRef.current) return;
+      (navigator as any).wakeLock?.request?.('screen').then((w: any) => { pantallaActiva.current = w; }).catch(() => { /* no disponible */ });
+    };
+    document.addEventListener('visibilitychange', alVolver);
+    return () => document.removeEventListener('visibilitychange', alVolver);
+  }, [modoVoz]);
 
   // Mensaje de bienvenida sobre el botón: una vez cada que se abre la app
   // (por sesión del navegador, no en cada cambio de pantalla), dura unos
@@ -397,6 +417,9 @@ export default function Asistente() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           mensajes: charla.map(({ rol, texto }) => ({ rol, texto })),
+          // Qué pantalla tiene abierta, para que «esta cotización» o «este
+          // servicio» se entiendan sin dar folio.
+          pantalla: window.location.pathname + window.location.search,
           ...(fotos.length ? { imagenes: fotos.map(({ tipo, datos }) => ({ tipo, datos })) } : {}),
           ...(opciones.porVoz ? { modo: 'voz' } : {}),
         }),
@@ -407,7 +430,7 @@ export default function Asistente() {
         setMensajes([...charla, { rol: 'assistant', texto: falla, error: true }]);
         return opciones.porVoz ? falla : null;
       }
-      setMensajes([...charla, { rol: 'assistant', texto: d.respuesta }]);
+      setMensajes([...charla, { rol: 'assistant', texto: d.respuesta, id: d.id || undefined, opciones: Array.isArray(d.opciones) ? d.opciones : [] }]);
       if (typeof d.restantes === 'number') setRestantes(d.restantes);
       if (leer && !opciones.porVoz) decir(d.respuesta);
       return d.respuesta as string;
@@ -519,6 +542,8 @@ export default function Asistente() {
     modoVozRef.current = true;
     setModoVoz(true);
     setAjustesVoz(false);
+    // Sin esto el teléfono se bloquea a media plática y corta el micrófono.
+    (navigator as any).wakeLock?.request?.('screen').then((w: any) => { if (modoVozRef.current) pantallaActiva.current = w; else w.release?.(); }).catch(() => { /* no disponible o batería baja */ });
     // Estrena la voz dentro del toque (iPhone) y arranca a escuchar.
     try { window.speechSynthesis?.speak(new SpeechSynthesisUtterance('')); } catch { /* sin voz */ }
     setTimeout(() => escucharRef.current(), 150);
@@ -528,6 +553,8 @@ export default function Asistente() {
     modoVozRef.current = false;
     setModoVoz(false);
     setEstadoVoz('pausa');
+    try { pantallaActiva.current?.release?.(); } catch { /* ya liberada */ }
+    pantallaActiva.current = null;
     callar();
     try { reconocedor.current?.abort?.(); } catch { /* ya terminó */ }
     reconocedor.current = null;
@@ -546,6 +573,16 @@ export default function Asistente() {
     callar();
     silencios.current = 0;
     escucharRef.current();
+  };
+
+  // Pulgar sobre una respuesta. Tocar el mismo otra vez lo quita.
+  const calificar = (id: string, valor: 1 | -1) => {
+    const actual = mensajesRef.current.find((m) => m.id === id)?.voto ?? null;
+    const nuevo = actual === valor ? null : valor;
+    setMensajes((prev) => prev.map((m) => (m.id === id ? { ...m, voto: nuevo } : m)));
+    fetch('/api/asistente/calificar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, valor: nuevo ?? 0 }) })
+      .then((r) => { if (!r.ok) setMensajes((prev) => prev.map((m) => (m.id === id ? { ...m, voto: actual } : m))); })
+      .catch(() => setMensajes((prev) => prev.map((m) => (m.id === id ? { ...m, voto: actual } : m))));
   };
 
   const elegirVoz = (uri: string) => {
@@ -678,7 +715,7 @@ export default function Asistente() {
           <div className="text-[11.5px] text-muted leading-tight truncate">
             {vista !== 'chat'
               ? 'Conversaciones anteriores'
-              : rol === 'supervisor' ? 'Consulta, agenda servicios y arma cotizaciones' : 'Solo consulta · no modifica nada'}
+              : rol === 'supervisor' ? 'Consulta, agenda servicios y arma cotizaciones' : 'Consulta y pide material al almacén'}
           </div>
         </div>
         {vista === 'chat' && (
@@ -771,7 +808,7 @@ export default function Asistente() {
               </div>
             )}
             {mensajes.map((m, i) => (
-              <div key={i} className={m.rol === 'user' ? 'flex justify-end' : 'flex justify-start'}>
+              <div key={i} className={m.rol === 'user' ? 'flex justify-end' : 'flex flex-col items-start'}>
                 <div
                   className={
                     m.rol === 'user'
@@ -782,6 +819,35 @@ export default function Asistente() {
                   {m.fotos ? <span className="mb-1 flex items-center gap-1.5 text-[11.5px] opacity-80"><ImagePlus size={13} />{m.fotos === 1 ? '1 foto' : `${m.fotos} fotos`}</span> : null}
                   {m.rol === 'user' ? m.texto : conEnlaces(m.texto.replace(/\*\*/g, ''))}
                 </div>
+                {m.rol === 'assistant' && m.id && !m.error && (
+                  <div className="mt-1 ml-1 flex gap-0.5">
+                    <button
+                      type="button" onClick={() => calificar(m.id!, 1)} aria-pressed={m.voto === 1} aria-label="Respuesta útil" title="Útil"
+                      className={`flex h-7 w-7 items-center justify-center rounded-full transition active:scale-90 ${m.voto === 1 ? 'bg-teal/15 text-teal' : 'text-muted/70 hover:text-ink'}`}
+                    >
+                      <ThumbsUp size={13.5} />
+                    </button>
+                    <button
+                      type="button" onClick={() => calificar(m.id!, -1)} aria-pressed={m.voto === -1} aria-label="Respuesta que no sirvió" title="No sirvió"
+                      className={`flex h-7 w-7 items-center justify-center rounded-full transition active:scale-90 ${m.voto === -1 ? 'bg-red/15 text-red' : 'text-muted/70 hover:text-ink'}`}
+                    >
+                      <ThumbsDown size={13.5} />
+                    </button>
+                  </div>
+                )}
+                {/* Respuestas de un toque: solo en el último mensaje, mientras siga siendo la pregunta abierta. */}
+                {m.rol === 'assistant' && i === mensajes.length - 1 && !pensando && (m.opciones?.length || 0) > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {m.opciones!.map((o) => (
+                      <button
+                        key={o} type="button" onClick={() => enviar(o)}
+                        className="rounded-full border border-teal/45 bg-teal/10 px-3.5 py-2 text-[13.5px] font-medium text-teal transition hover:bg-teal/20 active:scale-95"
+                      >
+                        {o}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
             {pensando && (

@@ -14,4 +14,6 @@ alter table public.asistente_uso
   -- Costo estimado en dólares con los precios del modelo al momento.
   add column if not exists costo_usd numeric(10, 5),
   -- La consulta llevaba fotos (el texto de la pregunta no las incluye).
-  add column if not exists con_imagen boolean not null default false;
+  add column if not exists con_imagen boolean not null default false,
+  -- Pulgar de quien preguntó: 1 útil, -1 no sirvió, null sin calificar.
+  add column if not exists calificacion smallint check (calificacion in (1, -1));

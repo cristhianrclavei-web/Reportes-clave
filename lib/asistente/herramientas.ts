@@ -13,9 +13,12 @@ import { calcularTotales, normalizarEnlace, precioUnitarioDesdeCosto } from '@/l
 //        · crear_borrador_cotizacion / actualizar_borrador_cotizacion: una
 //          cotización en «borrador», marcada como generada por IA. Solo se
 //          tocan borradores; una cotización aprobada o enviada no se edita.
-//        · programar_servicio, reprogramar_servicio, cancelar_servicio: lo
-//          mismo que «Agendar» y el detalle del servicio, con su bitácora y
-//          su aviso a los técnicos. Nunca se elimina un servicio.
+//        · programar_servicio, reprogramar_servicio, cancelar_servicio,
+//          cambiar_tecnicos_de_servicio: lo mismo que «Agendar» y el detalle
+//          del servicio, con su bitácora y su aviso a los técnicos. Nunca se
+//          elimina un servicio.
+//      Y una para cualquier rol: solicitar_material crea un vale de almacén a
+//      nombre de quien lo pide (la función crear_vale de la base valida todo).
 //      Cada acción repite las validaciones que hace la app.
 //   2. Todo se consulta con la sesión de quien pregunta (el cliente de
 //      lib/supabaseServer), así que la RLS decide qué filas ve cada rol igual
@@ -1026,10 +1029,140 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
     },
   });
 
+  const cambiarTecnicos = betaZodTool({
+    name: 'cambiar_tecnicos_de_servicio',
+    description:
+      'Cambia quiénes están asignados a un servicio que todavía no empieza. Manda la lista FINAL completa de técnicos (los que se quedan más los que entran). Requiere el servicio_id de consultar_servicios. Úsala solo después de decir quién sale y quién entra y de que el usuario lo confirme.',
+    inputSchema: z.object({
+      confirmado_por_el_usuario: z.literal(true),
+      servicio_id: z.string().uuid(),
+      tecnicos: z.array(texto(80)).min(1).max(12).describe('Nombres de TODOS los técnicos que deben quedar asignados'),
+    }),
+    run: async (i) => {
+      const { data: sv, error } = await supabase.from('servicios_programados').select('id, proyecto, fecha, estado, numero_dia, dias_totales').eq('id', i.servicio_id).maybeSingle();
+      if (error) return falla(error);
+      if (!sv) return JSON.stringify({ error: 'No existe ese servicio' });
+      if (sv.estado !== 'programado' && sv.estado !== 'en_sitio') {
+        return JSON.stringify({ error: `No se puede cambiar el personal de un servicio «${sv.estado}»: quien hizo el trabajo debe seguir apareciendo en él.` });
+      }
+      const { data: perfiles, error: eP } = await supabase.from('profiles').select('id, full_name, activo').eq('role', 'tecnico');
+      if (eP) return falla(eP);
+      const activos = ((perfiles as any[]) || []).filter((p) => p.activo !== false);
+      const finales: string[] = [];
+      for (const nombre of i.tecnicos) {
+        const t = sinAcentos(limpio(nombre));
+        const exacto = activos.filter((p) => sinAcentos(p.full_name) === t);
+        const hallados = exacto.length ? exacto : activos.filter((p) => sinAcentos(p.full_name).includes(t));
+        if (hallados.length === 0) return JSON.stringify({ error: `No hay un técnico activo llamado «${nombre}»`, tecnicos_activos: activos.map((p) => p.full_name) });
+        if (hallados.length > 1) return JSON.stringify({ error: `«${nombre}» coincide con varias personas; pregunta cuál`, opciones: hallados.map((p) => p.full_name) });
+        if (!finales.includes(hallados[0].id)) finales.push(hallados[0].id);
+      }
+      const mapa = await cargarNombres();
+      const { data: actuales, error: eA } = await supabase.from('servicio_tecnicos').select('tecnico_id').eq('servicio_id', sv.id);
+      if (eA) return falla(eA);
+      const antes = ((actuales as any[]) || []).map((r) => r.tecnico_id as string);
+      // Solo se quitan los que salen y se agregan los que entran: quien sigue
+      // asignado conserva su «Visto»/«Enterado».
+      const salen = antes.filter((id) => !finales.includes(id));
+      const entran = finales.filter((id) => !antes.includes(id));
+      if (salen.length === 0 && entran.length === 0) return JSON.stringify({ sin_cambios: true, tecnicos: finales.map((id) => mapa.get(id)) });
+      if (salen.length > 0) {
+        const { error: eD } = await supabase.from('servicio_tecnicos').delete().eq('servicio_id', sv.id).in('tecnico_id', salen);
+        if (eD) return falla(eD);
+      }
+      if (entran.length > 0) {
+        const { error: eI } = await supabase.from('servicio_tecnicos').insert(entran.map((tid) => ({ servicio_id: sv.id, tecnico_id: tid })));
+        if (eI) return JSON.stringify({ error: 'Se quitó a quien salía pero no se pudo asignar a quien entraba: hay que revisarlo en el detalle del servicio', detalle: eI.message, enlace: `/dashboard/servicios/${sv.id}` });
+      }
+      const nombresDe = (ids: string[]) => ids.map((id) => mapa.get(id) || 'Sin nombre').join(', ');
+      const etiqueta = `«${sv.proyecto}»${sv.dias_totales > 1 ? ` (día ${sv.numero_dia}/${sv.dias_totales})` : ''}`;
+      const cambio = `Cambió el personal con el asistente${salen.length ? `; salen: ${nombresDe(salen)}` : ''}${entran.length ? `; entran: ${nombresDe(entran)}` : ''}`;
+      let enviadas = 0;
+      try {
+        await supabase.from('servicio_auditoria').insert({ servicio_id: sv.id, supervisor_id: yo.id, cambio });
+        await supabase.from('auditoria_global').insert({ actor_id: yo.id, accion: 'reasigno_tecnicos', entidad: 'servicio', entidad_id: sv.id, detalle: `${cambio} en ${etiqueta}` });
+        if (entran.length > 0) {
+          const { data: pref } = await supabase.rpc('filtrar_por_preferencia', { p_usuarios: entran, p_tipo: 'servicio_asignado' });
+          const destino = ((pref as any[]) || []).map((r) => (typeof r === 'string' ? r : r.filtrar_por_preferencia)).filter((id) => id && id !== yo.id);
+          enviadas = (await enviarPush(destino, { titulo: 'Te asignaron un servicio', mensaje: `${etiqueta}. Confirma que estás enterado.`, url: `/servicios/${sv.id}`, tag: 'servicio-asignado' })).enviadas;
+        }
+      } catch (e) { console.error('[asistente] bitácora o aviso:', e); }
+      return JSON.stringify({
+        cambiado: true, proyecto: sv.proyecto, fecha: sv.fecha, tecnicos: finales.map((id) => mapa.get(id)),
+        salieron: salen.map((id) => mapa.get(id)), entraron: entran.map((id) => mapa.get(id)),
+        enlace: `/dashboard/servicios/${sv.id}`, notificaciones_enviadas_a_quien_entra: enviadas,
+      });
+    },
+  });
+
+  // ---------- Pedir material al almacén (cualquier rol) ----------
+
+  const solicitarMaterial = betaZodTool({
+    name: 'solicitar_material',
+    description:
+      'Crea un vale de almacén a nombre de quien pregunta: pide herramienta, material o equipo para un cliente o servicio, y avisa al almacén para que lo prepare. Los artículos deben existir en el catálogo: búscalos antes con existencias_almacen y usa su descripción tal cual. Úsala solo después de leer la lista (artículo y cantidad) y de que el usuario la confirme.',
+    inputSchema: z.object({
+      confirmado_por_el_usuario: z.literal(true),
+      para: texto(160).min(2).describe('Cliente o proyecto para el que es el material'),
+      servicio_id: z.string().uuid().optional().describe('Servicio al que va ligado, si se sabe (de consultar_servicios)'),
+      nota: texto(300).optional(),
+      articulos: z.array(z.object({
+        articulo: texto(160).min(2).describe('Descripción del artículo como aparece en existencias_almacen'),
+        cantidad: z.number().positive(),
+      })).min(1).max(30),
+    }),
+    run: async (i) => {
+      const items: { articulo_id: string; cantidad: number; descripcion: string }[] = [];
+      const noHallados: string[] = [];
+      const ambiguos: { pedido: string; opciones: string[] }[] = [];
+      for (const it of i.articulos) {
+        const palabras = sinAcentos(limpio(it.articulo)).split(' ').filter((p) => p.length > 1).slice(0, 5);
+        let q = supabase.from('almacen_articulos').select('id, descripcion, marca, modelo').eq('activo', true).limit(8);
+        for (const p of palabras) q = q.or(['descripcion', 'marca', 'modelo'].map((col) => `${col}.ilike.${patron(p)}`).join(','));
+        const { data, error } = await q;
+        if (error) return falla(error);
+        const lista = (data as any[]) || [];
+        const nombre = (a: any) => [a.descripcion, a.marca, a.modelo].filter(Boolean).join(' ');
+        const exacto = lista.filter((a) => sinAcentos(a.descripcion) === sinAcentos(it.articulo.trim()) || sinAcentos(nombre(a)) === sinAcentos(it.articulo.trim()));
+        const elegido = exacto.length === 1 ? exacto[0] : lista.length === 1 ? lista[0] : null;
+        if (elegido) items.push({ articulo_id: elegido.id, cantidad: it.cantidad, descripcion: nombre(elegido) });
+        else if (lista.length === 0) noHallados.push(it.articulo);
+        else ambiguos.push({ pedido: it.articulo, opciones: lista.map(nombre) });
+      }
+      if (noHallados.length || ambiguos.length) {
+        return JSON.stringify({
+          error: 'No se creó el vale: hay artículos sin identificar',
+          no_estan_en_el_catalogo: noHallados, hay_varios_parecidos: ambiguos,
+          que_hacer: 'Pregunta cuál de los parecidos es. Lo que no está en el catálogo no se puede pedir por aquí: se solicita su alta en la sección de vales de la app.',
+        });
+      }
+      const { data: cls } = await (admin || supabase).from('clientes').select('id, nombre').ilike('nombre', patron(i.para)).limit(3);
+      const cliente = ((cls as any[]) || []).length === 1 ? (cls as any[])[0] : null;
+      const paraQuien = cliente?.nombre || i.para.trim();
+      const { data, error } = await supabase.rpc('crear_vale', {
+        p_cliente_id: cliente?.id || null, p_cliente_nombre: paraQuien, p_servicio_id: i.servicio_id || null,
+        p_nota: i.nota?.trim() || '', p_items: items.map(({ articulo_id, cantidad }) => ({ articulo_id, cantidad })),
+      });
+      if (error) return JSON.stringify({ error: 'No se pudo crear el vale', detalle: error.message });
+      const vale = data as { id: string; folio: string };
+      let enviadas = 0;
+      try {
+        const { data: dest } = await supabase.rpc('destinatarios_notificacion_tipo', { p_destino: 'almacen', p_tipo: 'vale_almacen' });
+        const ids = ((dest as any[]) || []).map((r) => (typeof r === 'string' ? r : r.destinatarios_notificacion_tipo)).filter((id) => id && id !== yo.id);
+        enviadas = (await enviarPush(ids, {
+          titulo: `Vale ${vale.folio}: piden al almacén`,
+          mensaje: `${yo.nombre} pide ${items.length} artículo(s) para ${paraQuien}: ${items.slice(0, 3).map((x) => x.descripcion).join(', ')}${items.length > 3 ? '…' : ''}`,
+          url: '/dashboard/almacen?sub=vales', tag: `vale-${vale.id}`,
+        })).enviadas;
+      } catch (e) { console.error('[asistente] aviso al almacén:', e); }
+      return JSON.stringify({ vale_creado: true, folio: vale.folio, para: paraQuien, articulos: items.map(({ descripcion, cantidad }) => ({ descripcion, cantidad })), almacen_notificado: enviadas > 0 });
+    },
+  });
+
   // El técnico no recibe las funciones de supervisión: aunque la RLS ya le
   // devolvería vacío, no ofrecerlas evita respuestas confusas («no hay
   // cotizaciones») sobre datos que simplemente no le corresponden.
-  const comunes = [buscarEquipos, buscarReportes, servicios, tareas, listaDeCarga, plantillas, existencias, vales, clientes];
+  const comunes = [buscarEquipos, buscarReportes, servicios, tareas, listaDeCarga, plantillas, existencias, vales, clientes, ...(yo.puedeEscribir === false ? [] : [solicitarMaterial])];
   if (!esSupervisor) return comunes;
-  return [...comunes, cotizaciones, disponibles, recurrentes, preciosDeReferencia, redaccion, leerBorrador, ...(yo.puedeEscribir === false ? [] : [crearBorrador, actualizarBorrador, programarServicio, reprogramarServicio, cancelarServicio])];
+  return [...comunes, cotizaciones, disponibles, recurrentes, preciosDeReferencia, redaccion, leerBorrador, ...(yo.puedeEscribir === false ? [] : [crearBorrador, actualizarBorrador, programarServicio, reprogramarServicio, cancelarServicio, cambiarTecnicos])];
 }

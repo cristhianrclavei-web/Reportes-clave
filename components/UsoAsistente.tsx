@@ -14,6 +14,8 @@ type Uso = {
   dias: { dia: string; mensajes: number; costo: number }[];
   herramientas: { nombre: string; veces: number }[];
   sinRespuesta: { cuando: string; quien: string; pregunta: string; respuesta: string }[];
+  pulgares?: { arriba: number; abajo: number };
+  malCalificadas?: { cuando: string; quien: string; pregunta: string; respuesta: string }[];
 };
 
 // Nombre interno de cada función → cómo se le dice en la app.
@@ -25,6 +27,7 @@ const FUNCIONES: Record<string, string> = {
   precios_de_referencia: 'Precios para cotizar', redaccion_de_cotizaciones: 'Redacción de cotizaciones',
   crear_borrador_cotizacion: 'Crear cotización', leer_borrador_cotizacion: 'Leer borrador', actualizar_borrador_cotizacion: 'Modificar cotización',
   programar_servicio: 'Programar servicio', reprogramar_servicio: 'Reprogramar servicio', cancelar_servicio: 'Cancelar servicio',
+  cambiar_tecnicos_de_servicio: 'Cambiar técnicos', solicitar_material: 'Pedir material',
   web_search: 'Búsqueda en internet',
 };
 
@@ -132,6 +135,30 @@ export default function UsoAsistente() {
               </div>
             </div>
           )}
+
+          <div>
+            <p className={titulo}>Calificación de las respuestas</p>
+            <p className="text-[13.5px]">
+              <span className="font-semibold text-teal">{uso.pulgares?.arriba || 0}</span> útiles ·{' '}
+              <span className="font-semibold text-red">{uso.pulgares?.abajo || 0}</span> que no sirvieron
+            </p>
+            {(uso.malCalificadas?.length || 0) > 0 && (
+              <div className="mt-2 flex flex-col gap-2">
+                {uso.malCalificadas!.map((s, n) => (
+                  <details key={n} className="group rounded-xl border border-red/30 bg-red/[0.06] px-3 py-2.5">
+                    <summary className="flex cursor-pointer list-none items-start gap-2 text-[13px] [&::-webkit-details-marker]:hidden">
+                      <span className="min-w-0 flex-1">
+                        <span className="block leading-snug">{s.pregunta}</span>
+                        <span className="mt-0.5 block text-[11.5px] text-muted">{s.quien}</span>
+                      </span>
+                      <ChevronRight size={15} className="mt-0.5 shrink-0 text-muted transition-transform group-open:rotate-90" />
+                    </summary>
+                    <p className="mt-2 border-t border-line pt-2 text-[12.5px] leading-snug text-muted">{s.respuesta}</p>
+                  </details>
+                ))}
+              </div>
+            )}
+          </div>
 
           <div>
             <p className={titulo}>Preguntas que no pudo resolver</p>

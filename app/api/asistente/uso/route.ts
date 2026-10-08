@@ -48,6 +48,8 @@ export async function GET() {
   const porDia = new Map<string, { mensajes: number; costo: number }>();
   const herramientas = new Map<string, number>();
   const sinRespuesta: { cuando: string; quien: string; pregunta: string; respuesta: string }[] = [];
+  const malCalificadas: { cuando: string; quien: string; pregunta: string; respuesta: string }[] = [];
+  const pulgares = { arriba: 0, abajo: 0 };
 
   for (const f of lista) {
     const dia = diaLocal(f.created_at);
@@ -72,6 +74,11 @@ export async function GET() {
     porDia.set(dia, d);
 
     // code_execution es una pieza interna de la búsqueda en internet.
+    if (f.calificacion === 1) pulgares.arriba++;
+    if (f.calificacion === -1) {
+      pulgares.abajo++;
+      if (malCalificadas.length < 40) malCalificadas.push({ cuando: f.created_at, quien: quien.nombre, pregunta: String(f.pregunta || '').slice(0, 240), respuesta: String(f.respuesta || '').slice(0, 320) });
+    }
     for (const h of (f.herramientas as string[]) || []) if (h !== 'code_execution') herramientas.set(h, (herramientas.get(h) || 0) + 1);
     if (sinRespuesta.length < 40 && NO_SUPO.test(f.respuesta || '')) {
       sinRespuesta.push({ cuando: f.created_at, quien: quien.nombre, pregunta: String(f.pregunta || '').slice(0, 240), respuesta: String(f.respuesta || '').slice(0, 320) });
@@ -86,5 +93,7 @@ export async function GET() {
     dias: [...porDia].map(([dia, d]) => ({ dia, mensajes: d.mensajes, costo: r2(d.costo) })).sort((a, b) => (a.dia < b.dia ? 1 : -1)).slice(0, 14),
     herramientas: [...herramientas].map(([nombre, veces]) => ({ nombre, veces })).sort((a, b) => b.veces - a.veces).slice(0, 12),
     sinRespuesta,
+    pulgares,
+    malCalificadas,
   });
 }
