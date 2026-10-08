@@ -3,13 +3,17 @@ import { betaZodTool } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { z } from 'zod';
 import { MARCA, hoyNegocio } from '@/lib/marca';
 import { buscarProductosSyscom, syscomConfigurado } from '@/lib/syscom';
+import { enviarPush } from '@/lib/pushServidor';
 import { calcularTotales, normalizarEnlace, precioUnitarioDesdeCosto } from '@/lib/cotizaciones';
 
 // Funciones de consulta del asistente. Reglas de este archivo:
 //
-//   1. Solo lectura, con una única excepción: crear_borrador_cotizacion
-//      inserta una cotización en estado «borrador», marcada como generada
-//      por IA, y solo para supervisores. No hay ningún update ni delete.
+//   1. Solo lectura, con dos excepciones, ambas solo para supervisores y
+//      solo tras la confirmación explícita del usuario:
+//        · crear_borrador_cotizacion inserta una cotización en «borrador»,
+//          marcada como generada por IA;
+//        · programar_servicio inserta un servicio nuevo (igual que «Agendar»).
+//      No hay ningún update ni delete.
 //   2. Todo se consulta con la sesión de quien pregunta (el cliente de
 //      lib/supabaseServer), así que la RLS decide qué filas ve cada rol igual
 //      que en el resto de la app. Única excepción, decidida por la empresa:
@@ -686,10 +690,150 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
     },
   });
 
+  // ---------- Programar servicios (solo supervisor) ----------
+
+  const hora = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).describe('Hora HH:MM en 24 h');
+  const programarServicio = betaZodTool({
+    name: 'programar_servicio',
+    description:
+      'Agenda un servicio nuevo (uno o varios días) y lo asigna a técnicos, igual que la sección «Agendar» de la app; los técnicos reciben su aviso. Úsala solo después de mostrar el resumen y de que el usuario lo confirme de forma explícita en su último mensaje. No sirve para cambiar ni cancelar servicios existentes.',
+    inputSchema: z.object({
+      confirmado_por_el_usuario: z.literal(true).describe('true solo si el usuario ya vio el resumen y dijo que sí'),
+      cliente_o_proyecto: texto(160).min(2).describe('Nombre del cliente o proyecto, como aparece en la app si ya existe'),
+      descripcion: texto(600).min(3).describe('Qué se va a hacer'),
+      fechas: z.array(fecha).min(1).max(31).describe('Una fecha por día de trabajo'),
+      hora_llegada: hora.optional(),
+      hora_salida: hora.optional(),
+      tecnicos: z.array(texto(80)).min(1).max(12).describe('Nombres de los técnicos asignados'),
+      tareas: z.array(texto(300)).max(60).optional().describe('Lista de tareas del servicio, en orden'),
+      lista_de_carga: z.array(z.object({
+        categoria: z.enum(['herramienta', 'material', 'equipo']),
+        descripcion: texto(200).min(2),
+        cantidad: z.number().positive(),
+        unidad: texto(20),
+      })).max(60).optional().describe('Herramienta, material y equipo a llevar'),
+    }),
+    run: async (i) => {
+      const hoy = hoyNegocio();
+      const fechas = [...new Set(i.fechas)].sort();
+      if (fechas[0] < hoy) return JSON.stringify({ error: `No se puede agendar en una fecha pasada (${fechas[0]}). Hoy es ${hoy}.` });
+      if (i.hora_llegada && i.hora_salida && i.hora_salida <= i.hora_llegada) return JSON.stringify({ error: 'La hora de salida debe ser posterior a la de llegada' });
+
+      // Técnicos: cada nombre debe corresponder a una sola persona activa.
+      const { data: perfiles, error: eP } = await supabase.from('profiles').select('id, full_name, activo').eq('role', 'tecnico');
+      if (eP) return falla(eP);
+      const activos = ((perfiles as any[]) || []).filter((p) => p.activo !== false);
+      const ids: string[] = [];
+      const asignados: string[] = [];
+      for (const nombre of i.tecnicos) {
+        const t = sinAcentos(limpio(nombre));
+        const exacto = activos.filter((p) => sinAcentos(p.full_name) === t);
+        const hallados = exacto.length ? exacto : activos.filter((p) => sinAcentos(p.full_name).includes(t));
+        if (hallados.length === 0) return JSON.stringify({ error: `No hay un técnico activo llamado «${nombre}»`, tecnicos_activos: activos.map((p) => p.full_name) });
+        if (hallados.length > 1) return JSON.stringify({ error: `«${nombre}» coincide con varias personas; pregunta cuál`, opciones: hallados.map((p) => p.full_name) });
+        if (!ids.includes(hallados[0].id)) { ids.push(hallados[0].id); asignados.push(hallados[0].full_name); }
+      }
+
+      // Cliente: si existe en la app se liga y se usa su nombre oficial.
+      const { data: cls } = await supabase.from('clientes').select('id, nombre').ilike('nombre', patron(i.cliente_o_proyecto)).limit(6);
+      const lista = (cls as any[]) || [];
+      const igual = lista.filter((c) => sinAcentos(c.nombre) === sinAcentos(i.cliente_o_proyecto.trim()));
+      if (igual.length !== 1 && lista.length > 1) return JSON.stringify({ error: 'Hay varios clientes con ese nombre; pregunta cuál', opciones: lista.map((c) => c.nombre) });
+      const cliente = igual[0] || lista[0] || null;
+      const proyecto = cliente?.nombre || i.cliente_o_proyecto.trim();
+
+      // Ubicación: la del último servicio de ese cliente que la tenga, para
+      // que la llegada se siga detectando sola. Si no hay, se queda sin punto.
+      let ubicacion: unknown = null;
+      {
+        let q = supabase.from('servicios_programados').select('ubicacion_programada').not('ubicacion_programada', 'is', null).order('fecha', { ascending: false }).limit(1);
+        q = cliente ? q.eq('cliente_id', cliente.id) : q.ilike('proyecto', proyecto);
+        const { data: previo } = await q;
+        ubicacion = (previo as any[])?.[0]?.ubicacion_programada || null;
+      }
+
+      // Empalmes: no impiden agendar (un técnico puede tener dos servicios
+      // el mismo día), pero se devuelven para que el supervisor lo sepa.
+      const { data: mismosDias } = await supabase
+        .from('servicios_programados')
+        .select('proyecto, fecha, hora_programada, servicio_tecnicos(tecnico_id)')
+        .in('fecha', fechas)
+        .neq('estado', 'cancelado');
+      const empalmes = ((mismosDias as any[]) || []).flatMap((s) =>
+        (s.servicio_tecnicos || []).filter((t: any) => ids.includes(t.tecnico_id)).map((t: any) => ({
+          tecnico: asignados[ids.indexOf(t.tecnico_id)], fecha: s.fecha, hora: s.hora_programada?.slice(0, 5) || null, servicio: s.proyecto,
+        })),
+      );
+
+      const duracion = i.hora_llegada && i.hora_salida
+        ? (Number(i.hora_salida.slice(0, 2)) * 60 + Number(i.hora_salida.slice(3))) - (Number(i.hora_llegada.slice(0, 2)) * 60 + Number(i.hora_llegada.slice(3)))
+        : 120;
+      const grupoId = crypto.randomUUID();
+      const creados: { id: string; fecha: string }[] = [];
+      for (let dia = 0; dia < fechas.length; dia++) {
+        const { data: s, error } = await supabase
+          .from('servicios_programados')
+          .insert({
+            creado_por: yo.id, proyecto, cliente_id: cliente?.id || null, descripcion: i.descripcion.trim(),
+            fecha: fechas[dia], hora_programada: i.hora_llegada || null, hora_salida_programada: i.hora_salida || null,
+            ubicacion_programada: ubicacion, duracion_estimada_min: duracion,
+            grupo_id: grupoId, numero_dia: dia + 1, dias_totales: fechas.length,
+          })
+          .select('id, fecha')
+          .single();
+        if (error) return JSON.stringify({ error: 'No se pudo agendar', detalle: error.message, dias_ya_creados: creados.length });
+        creados.push(s as any);
+        const { error: eT } = await supabase.from('servicio_tecnicos').insert(ids.map((tid) => ({ servicio_id: s.id, tecnico_id: tid })));
+        if (eT) return JSON.stringify({ error: 'El servicio se creó pero no se pudieron asignar los técnicos; hay que asignarlos en la app', detalle: eT.message, enlace: `/dashboard/servicios/${s.id}` });
+      }
+      const avisos: string[] = [];
+      if (i.tareas?.length) {
+        const { error } = await supabase.from('servicio_tareas').insert(i.tareas.map((d, n) => ({ servicio_id: creados[0].id, grupo_id: grupoId, descripcion: d.trim(), orden: n })));
+        if (error) avisos.push('No se pudieron guardar las tareas: ' + error.message);
+      }
+      if (i.lista_de_carga?.length) {
+        const { error } = await supabase.from('servicio_insumos').insert(i.lista_de_carga.map((it, n) => ({
+          grupo_id: grupoId, servicio_id: creados[0].id, categoria: it.categoria, descripcion: it.descripcion.trim(),
+          cantidad: it.cantidad, unidad: it.unidad.trim() || 'pza', orden: n, agregado_por: yo.id, es_del_tecnico: false,
+        })));
+        if (error) avisos.push('No se pudo guardar la lista de carga: ' + error.message);
+      }
+      if (!ubicacion) avisos.push('El servicio quedó sin ubicación en el mapa: si se quiere detectar la llegada sola, hay que ponerla en el detalle del servicio.');
+
+      // Lo mismo que hace «Agendar»: bitácora de acciones y aviso a los
+      // asignados (respetando lo que cada quien eligió recibir). Ninguno de
+      // los dos debe tumbar un servicio que ya quedó agendado.
+      let pushEnviados = 0;
+      try {
+        await supabase.from('auditoria_global').insert({
+          actor_id: yo.id, accion: 'programo_servicio', entidad: 'servicio', entidad_id: creados[0].id,
+          detalle: `Programó «${proyecto}» con el asistente — ${fechas.length} día(s), ${ids.length} persona(s), ${i.tareas?.length || 0} tarea(s). Fechas: ${fechas.join(', ')}`,
+        });
+        const { data: pref } = await supabase.rpc('filtrar_por_preferencia', { p_usuarios: ids, p_tipo: 'servicio_asignado' });
+        const destino = ((pref as any[]) || []).map((r) => (typeof r === 'string' ? r : r.filtrar_por_preferencia)).filter((id) => id && id !== yo.id);
+        const [a, m, d] = fechas[0].split('-');
+        pushEnviados = (await enviarPush(destino, { titulo: 'Te asignaron un servicio', mensaje: `${proyecto} · ${fechas.length > 1 ? `${fechas.length} días desde el ` : ''}${d}/${m}/${a}`, url: '/servicios', tag: 'servicio-asignado' })).enviadas;
+      } catch (e) {
+        console.error('[asistente] aviso o bitácora del servicio:', e);
+      }
+
+      return JSON.stringify({
+        agendado: true, proyecto, cliente_ligado: !!cliente, tecnicos: asignados,
+        dias: creados.map((c) => ({ fecha: c.fecha, enlace: `/dashboard/servicios/${c.id}` })),
+        hora_llegada: i.hora_llegada || null, hora_salida: i.hora_salida || null,
+        tareas: i.tareas?.length || 0, lista_de_carga: i.lista_de_carga?.length || 0,
+        // 0 = ningún asignado tiene notificaciones activas en su teléfono;
+        // el servicio igual les aparece al abrir la app.
+        notificaciones_enviadas: pushEnviados,
+        empalmes_con_otros_servicios: empalmes, avisos,
+      });
+    },
+  });
+
   // El técnico no recibe las funciones de supervisión: aunque la RLS ya le
   // devolvería vacío, no ofrecerlas evita respuestas confusas («no hay
   // cotizaciones») sobre datos que simplemente no le corresponden.
   const comunes = [buscarEquipos, buscarReportes, servicios, tareas, listaDeCarga, plantillas, existencias, vales, clientes];
   if (!esSupervisor) return comunes;
-  return [...comunes, cotizaciones, disponibles, recurrentes, preciosDeReferencia, redaccion, ...(yo.puedeEscribir === false ? [] : [crearBorrador])];
+  return [...comunes, cotizaciones, disponibles, recurrentes, preciosDeReferencia, redaccion, ...(yo.puedeEscribir === false ? [] : [crearBorrador, programarServicio])];
 }

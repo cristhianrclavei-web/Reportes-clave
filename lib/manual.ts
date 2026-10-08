@@ -296,7 +296,17 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
           'Los folios y nombres en color son enlaces: tócalos para abrir ese reporte, servicio o cotización.',
           'También da apoyo técnico: cómo preparar un mantenimiento, qué llevar o cómo configurar un equipo. Primero usa las listas de carga y plantillas de la empresa y, si hace falta, busca en internet y dice de qué sitio lo tomó.',
         ],
-        nota: 'No cambia ni borra nada: lo único que crea son borradores de cotización. Hay un tope de preguntas por persona al día. Incluido en el paquete Empresa.',
+        nota: 'No cambia, cancela ni borra nada: lo único que crea son servicios nuevos y borradores de cotización, y siempre te pide confirmar antes. Hay un tope de preguntas por persona al día. Incluido en el paquete Empresa.',
+      },
+      {
+        titulo: 'Programar un servicio con el asistente',
+        resumen: 'Dile qué, cuándo y con quién; él lo agenda.',
+        pasos: [
+          'Pídele, por ejemplo, «programa un preventivo de CCTV en Plaza Arboleda el viernes a las 9 con Jorge».',
+          'Te pregunta lo que falte, revisa si los técnicos están libres ese día y te ofrece la lista de tareas de la plantilla.',
+          'Te muestra el resumen; al confirmarlo agenda el servicio, avisa a los técnicos y te da el enlace para abrirlo.',
+        ],
+        nota: 'Para cambiar o cancelar un servicio ya agendado se sigue usando la sección Servicios.',
       },
       {
         titulo: 'Cotizar con el asistente',

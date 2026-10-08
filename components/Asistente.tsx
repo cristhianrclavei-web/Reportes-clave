@@ -25,7 +25,7 @@ const SIN_CHAT = ['/login', '/firmar', '/verificar', '/restablecer', '/aviso-pri
 const SUGERENCIAS: Record<'supervisor' | 'tecnico', string[]> = {
   supervisor: [
     '¿Qué servicios hay hoy y quién está asignado?',
-    '¿Qué servicios de esta semana siguen sin reporte?',
+    'Ayúdame a programar un servicio',
     'Ayúdame a armar una cotización',
   ],
   tecnico: [
@@ -76,7 +76,7 @@ const NOMBRE = `${MARCA.iniciales}-BOT`;
 
 // La bienvenida solo promete lo que el asistente hace hoy para cada rol.
 const BIENVENIDA: Record<'supervisor' | 'tecnico', string> = {
-  supervisor: 'Estoy aquí para ayudarte con información de reportes, servicios y almacén, y para armar cotizaciones.',
+  supervisor: 'Estoy aquí para ayudarte con información de reportes, servicios y almacén, y para programar servicios y armar cotizaciones.',
   tecnico: 'Estoy aquí para ayudarte con tus servicios, reportes y material, y a preparar tu trabajo.',
 };
 const SEGUNDOS_BIENVENIDA = 5;
@@ -318,7 +318,7 @@ export default function Asistente() {
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-[15px] leading-tight">{NOMBRE}</div>
           <div className="text-[11.5px] text-muted leading-tight">
-            {rol === 'supervisor' ? 'Consulta y arma borradores de cotización' : 'Solo consulta · no modifica nada'}
+            {rol === 'supervisor' ? 'Consulta, agenda servicios y arma cotizaciones' : 'Solo consulta · no modifica nada'}
           </div>
         </div>
         <button
