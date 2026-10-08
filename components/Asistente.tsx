@@ -25,7 +25,7 @@ const SUGERENCIAS: Record<'supervisor' | 'tecnico', string[]> = {
   supervisor: [
     '¿Qué servicios hay hoy y quién está asignado?',
     '¿Qué servicios de esta semana siguen sin reporte?',
-    '¿Qué artículos del almacén están por debajo del mínimo?',
+    'Ayúdame a armar una cotización',
   ],
   tecnico: [
     '¿Qué servicios tengo hoy y mañana?',
@@ -246,7 +246,9 @@ export default function Asistente() {
         <Sparkles size={18} className="text-teal" />
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-[15px] leading-tight">Asistente</div>
-          <div className="text-[11.5px] text-muted leading-tight">Solo consulta · no modifica nada</div>
+          <div className="text-[11.5px] text-muted leading-tight">
+            {rol === 'supervisor' ? 'Consulta y arma borradores de cotización' : 'Solo consulta · no modifica nada'}
+          </div>
         </div>
         <button
           type="button" onClick={cambiarVoz}

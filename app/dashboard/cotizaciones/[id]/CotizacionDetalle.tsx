@@ -12,7 +12,7 @@ import {
   eliminarCotizacion, agruparPorSistema, obtenerCotizacion,
 } from '@/lib/cotizaciones';
 import { showToast } from '@/components/Toast';
-import { FileText, Pencil, Trash2, ChevronLeft, X, Check, Send, Ban, MessageCircle, ExternalLink, Copy } from 'lucide-react';
+import { FileText, Pencil, Trash2, ChevronLeft, X, Check, Send, Ban, MessageCircle, ExternalLink, Copy, Sparkles } from 'lucide-react';
 import { MARCA, MARCA_MAYUS } from '@/lib/marca';
 
 // WhatsApp necesita el código de país adelante — los teléfonos se capturan
@@ -217,6 +217,19 @@ export default function CotizacionDetalle({
         <ChevronLeft size={16} strokeWidth={2.4} />
         Todas las cotizaciones
       </Link>
+
+      {/* Solo en pantalla y mientras siga en borrador: es un recordatorio
+          para quien la revisa, no parte de la cotización. */}
+      {cotizacion.generada_por_ia && cotizacion.estado === 'borrador' && (
+        <div role="note" className="mb-4 rounded-2xl border border-amber/40 bg-amber/10 px-4 py-3 flex gap-3">
+          <Sparkles size={18} className="text-amber shrink-0 mt-0.5" />
+          <div className="min-w-0 text-[13.5px] leading-relaxed">
+            <p className="font-semibold text-amber">Cotización generada por IA</p>
+            <p>Puede haber errores. Revísala antes de aprobar.</p>
+            {cotizacion.notas_ia && <p className="mt-1.5 text-muted whitespace-pre-wrap">{cotizacion.notas_ia}</p>}
+          </div>
+        </div>
+      )}
 
       <div className={`${cardCls} mb-4`}>
         <div className="flex justify-between items-start gap-3 mb-3 flex-wrap">

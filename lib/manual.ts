@@ -296,7 +296,19 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
           'Los folios y nombres en color son enlaces: tócalos para abrir ese reporte, servicio o cotización.',
           'También da apoyo técnico: cómo preparar un mantenimiento, qué llevar o cómo configurar un equipo. Primero usa las listas de carga y plantillas de la empresa y, si hace falta, busca en internet y dice de qué sitio lo tomó.',
         ],
-        nota: 'Solo consulta: no crea ni cambia nada, y no muestra costos ni márgenes. Hay un tope de preguntas por persona al día. Incluido en el paquete Empresa.',
+        nota: 'No cambia ni borra nada: lo único que crea son borradores de cotización. Hay un tope de preguntas por persona al día. Incluido en el paquete Empresa.',
+      },
+      {
+        titulo: 'Cotizar con el asistente',
+        resumen: 'Te hace las preguntas necesarias y deja la cotización como borrador.',
+        pasos: [
+          'Pídele, por ejemplo, «cotiza un sistema fotovoltaico de 16 paneles». Te pregunta el cliente y los datos técnicos que falten.',
+          'Te pregunta si el margen de ganancia va igual para todos los conceptos o si lo marcas tú a mano.',
+          'Toma precios de cotizaciones anteriores y del almacén (y de SYSCOM cuando esté conectado). Lo que no encuentra lo marca «por confirmar».',
+          'Te muestra el resumen; al confirmarlo guarda el borrador y te da el enlace para abrirlo.',
+          'Abre el borrador, revisa partidas y precios, ajusta lo necesario y entonces apruébalo.',
+        ],
+        nota: 'El borrador muestra el aviso «Cotización generada por IA»: solo se ve en la app, no en el PDF del cliente.',
       },
       {
         titulo: 'Buscar rápido',

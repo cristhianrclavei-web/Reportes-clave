@@ -1,11 +1,15 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { betaZodTool } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { z } from 'zod';
-import { MARCA } from '@/lib/marca';
+import { MARCA, hoyNegocio } from '@/lib/marca';
+import { buscarProductosSyscom, syscomConfigurado } from '@/lib/syscom';
+import { calcularTotales, normalizarEnlace, precioUnitarioDesdeCosto } from '@/lib/cotizaciones';
 
 // Funciones de consulta del asistente. Reglas de este archivo:
 //
-//   1. Solo lectura: aquí no hay insert, update ni delete.
+//   1. Solo lectura, con una única excepción: crear_borrador_cotizacion
+//      inserta una cotización en estado «borrador», marcada como generada
+//      por IA, y solo para supervisores. No hay ningún update ni delete.
 //   2. Todo se consulta con la sesión de quien pregunta (el cliente de
 //      lib/supabaseServer), así que la RLS decide qué filas ve cada rol igual
 //      que en el resto de la app. Única excepción, decidida por la empresa:
@@ -14,12 +18,20 @@ import { MARCA } from '@/lib/marca';
 //      Clientes, y las plantillas de la empresa (rutinas de tareas y
 //      plantillas de insumos) para preparar un servicio. Esas dos consultas
 //      usan el cliente admin con columnas fijas.
-//   3. Se piden columnas concretas: firmas, fotos, costos y márgenes no se
-//      mandan al modelo aunque la RLS dejara leerlos.
+//   3. Se piden columnas concretas: firmas y fotos nunca se mandan al
+//      modelo. Costos y márgenes solo en precios_de_referencia, que existe
+//      únicamente para el supervisor (quien ya los ve al cotizar en la app).
 //   4. Cada consulta tiene tope de filas: una pregunta amplia no debe
 //      convertirse en una descarga de la base.
 
-export type QuienPregunta = { id: string; nombre: string; rol: 'tecnico' | 'supervisor' };
+export type QuienPregunta = {
+  id: string;
+  nombre: string;
+  rol: 'tecnico' | 'supervisor';
+  correo?: string;
+  // false con la suscripción en solo lectura: no se ofrece crear borradores.
+  puedeEscribir?: boolean;
+};
 
 const TOPE = 40;
 const fecha = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('Fecha AAAA-MM-DD');
@@ -67,6 +79,10 @@ function salida(filas: unknown[] | null, pedidas: number, extra: Record<string, 
 function falla(e: { message?: string } | null): string {
   return JSON.stringify({ error: 'No se pudo consultar', detalle: e?.message || 'desconocido' });
 }
+
+// Los mismos que sugiere el formulario de cotización (CotizacionForm).
+const SISTEMAS_COTIZACION = ['CCTV', 'Control de Acceso', 'Control de Acceso Vehicular', 'Alarma & Detección de Humo', 'Alarma de Intrusión', 'Red Contra Incendio', 'Automatización', 'Paneles Solares', 'Instalaciones Eléctricas'];
+const UNIDADES_COTIZACION = ['Pza', 'Lote', 'Serv', 'Mts', 'Hrs', 'Juego'];
 
 const folioDe = (id: string) => id.slice(0, 8).toUpperCase();
 
@@ -530,9 +546,150 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
     },
   });
 
+  // ---------- Cotizar (solo supervisor) ----------
+
+  const preciosDeReferencia = betaZodTool({
+    name: 'precios_de_referencia',
+    description:
+      'Costos y precios para armar una cotización, de tres fuentes en orden de preferencia: SYSCOM (precio vigente de proveedor, si está conectado), partidas de cotizaciones anteriores de la empresa (con su costo, margen y precio de venta) y artículos del almacén (último costo). Busca un concepto a la vez: «panel solar 550», «inversor 8 kW», «mano de obra instalación».',
+    inputSchema: z.object({ texto: z.string().describe('Concepto a buscar: producto, modelo, marca o servicio') }),
+    run: async (i) => {
+      const palabras = sinAcentos(limpio(i.texto)).split(' ').filter((p) => p.length > 1).slice(0, 4);
+      if (palabras.length === 0) return JSON.stringify({ error: 'Indica qué concepto buscar' });
+      let ql = supabase
+        .from('cotizacion_lineas')
+        .select('sistema, descripcion, unidad, costo, margen_pct, precio_unitario, cotizaciones(folio, fecha, empresa, moneda)')
+        .limit(12);
+      let qa = supabase.from('almacen_articulos').select('descripcion, marca, modelo, unidad, costo_unitario').eq('activo', true).limit(10);
+      for (const p of palabras) {
+        ql = ql.ilike('descripcion', patron(p));
+        qa = qa.or(['descripcion', 'marca', 'modelo'].map((col) => `${col}.ilike.${patron(p)}`).join(','));
+      }
+      const syscom = syscomConfigurado()
+        ? buscarProductosSyscom(limpio(i.texto), 8)
+            .then((ps) => ({ conectado: true, productos: ps.map((x) => ({ titulo: x.titulo, marca: x.marca, modelo: x.modelo, costo: x.precio, moneda: x.moneda, existencia: x.existencia })) }))
+            .catch((e) => ({ conectado: true, error: String(e?.message || e).slice(0, 200), productos: [] }))
+        : Promise.resolve({ conectado: false, productos: [] });
+      const [{ data: lineas, error }, { data: arts, error: e2 }, sy] = await Promise.all([ql, qa, syscom]);
+      if (error || e2) return falla(error || e2);
+      return JSON.stringify({
+        syscom: sy,
+        cotizaciones_anteriores: ((lineas as any[]) || []).map(({ cotizaciones: c, ...l }) => ({ ...l, folio: c?.folio, fecha: c?.fecha, cliente: c?.empresa, moneda: c?.moneda })),
+        almacen: ((arts as any[]) || []).map((a) => ({ articulo: [a.descripcion, a.marca, a.modelo].filter(Boolean).join(' '), unidad: a.unidad, ultimo_costo: a.costo_unitario })),
+      });
+    },
+  });
+
+  const redaccion = betaZodTool({
+    name: 'redaccion_de_cotizaciones',
+    description:
+      'Cómo redacta la empresa sus cotizaciones: condiciones (forma de pago, tiempo de entrega, garantía, vigencia, notas) y la redacción completa de las partidas de cotizaciones recientes, opcionalmente de un sistema o tema. Úsala antes de escribir partidas para imitar el estilo de la empresa.',
+    inputSchema: z.object({ tema: z.string().optional().describe('Sistema o palabra clave: «solar», «CCTV», «incendio»…') }),
+    run: async (i) => {
+      const sel = 'id, folio, fecha, empresa, forma_pago, tiempo_entrega, garantia, vigencia_dias, notas, moneda, iva_pct';
+      const { data: recientes, error } = await supabase.from('cotizaciones').select(sel).order('fecha', { ascending: false }).limit(3);
+      if (error) return falla(error);
+      let cots = (recientes as any[]) || [];
+      const t = patron(i.tema);
+      if (t) {
+        const { data: ls } = await supabase.from('cotizacion_lineas').select('cotizacion_id').or(`sistema.ilike.${t},descripcion.ilike.${t}`).limit(40);
+        const ids = [...new Set(((ls as any[]) || []).map((l) => l.cotizacion_id))].slice(0, 3);
+        if (ids.length) {
+          const { data: delTema } = await supabase.from('cotizaciones').select(sel).in('id', ids);
+          cots = [...((delTema as any[]) || []), ...cots.filter((c) => !ids.includes(c.id))].slice(0, 4);
+        }
+      }
+      if (cots.length === 0) return JSON.stringify({ aviso: 'La empresa aún no tiene cotizaciones en la app para tomar como ejemplo.', sistemas_usuales: SISTEMAS_COTIZACION, unidades_usuales: UNIDADES_COTIZACION });
+      const { data: lineas } = await supabase.from('cotizacion_lineas').select('cotizacion_id, sistema, descripcion, unidad, cantidad').in('cotizacion_id', cots.map((c) => c.id)).order('orden').limit(120);
+      return JSON.stringify({
+        sistemas_usuales: SISTEMAS_COTIZACION,
+        unidades_usuales: UNIDADES_COTIZACION,
+        ejemplos: cots.map(({ id, ...c }) => ({ ...c, partidas: ((lineas as any[]) || []).filter((l) => l.cotizacion_id === id).map(({ cotizacion_id, ...l }) => l) })),
+      });
+    },
+  });
+
+  const texto = (max: number) => z.string().max(max);
+  const crearBorrador = betaZodTool({
+    name: 'crear_borrador_cotizacion',
+    description:
+      'Guarda una cotización nueva en estado BORRADOR, marcada como generada por IA para que una persona la revise antes de aprobarla. Úsala solo después de mostrar el resumen completo y de que el usuario lo haya confirmado de forma explícita en su último mensaje. El precio de venta y los totales los calcula el sistema a partir del costo y el margen: no los calcules tú.',
+    inputSchema: z.object({
+      confirmado_por_el_usuario: z.literal(true).describe('true solo si el usuario ya vio el resumen y dijo que sí'),
+      empresa: texto(160).min(2).describe('Nombre del cliente'),
+      atencion: texto(160).optional().describe('Persona a quien va dirigida'),
+      telefono: texto(40).optional(),
+      correo: texto(120).optional(),
+      direccion: texto(300).optional(),
+      forma_pago: texto(400).optional(),
+      tiempo_entrega: texto(400).optional(),
+      garantia: texto(600).optional(),
+      vigencia_dias: z.number().int().min(1).max(180).optional(),
+      notas: texto(1500).optional().describe('Notas que SÍ verá el cliente en el PDF'),
+      moneda: z.enum(['MXN', 'USD']).optional(),
+      tipo_cambio: z.number().positive().optional().describe('MXN por 1 USD; obligatorio si la moneda es USD'),
+      pendientes_de_revisar: texto(1500).describe('Para quien revisa, no para el cliente: qué precios son de referencia o estimados, qué cantidades supusiste y qué falta confirmar. Una línea por punto.'),
+      partidas: z.array(z.object({
+        sistema: texto(80).describe('Grupo de la partida, p. ej. «Paneles Solares»'),
+        descripcion: texto(1200).min(3),
+        unidad: texto(20),
+        cantidad: z.number().positive(),
+        costo: z.number().min(0).describe('Costo unitario para la empresa, sin IVA, en la moneda de la cotización'),
+        margen_pct: z.number().min(0).max(300).describe('Margen de ganancia sobre el costo; 0 si el usuario lo pondrá a mano'),
+        enlace: texto(300).optional().describe('Dirección https de donde salió el precio, si la hay'),
+      })).min(1).max(60),
+    }),
+    run: async (i) => {
+      const moneda = i.moneda || 'MXN';
+      if (moneda === 'USD' && !i.tipo_cambio) return JSON.stringify({ error: 'Falta el tipo de cambio para cotizar en USD' });
+      const lineas = i.partidas.map((l) => ({
+        sistema: l.sistema.trim() || 'General', descripcion: l.descripcion.trim(), unidad: l.unidad.trim() || 'Pza',
+        cantidad: l.cantidad, costo: l.costo, margen_pct: l.margen_pct,
+        precio_unitario: precioUnitarioDesdeCosto(l.costo, l.margen_pct),
+        enlace: l.enlace && /^https:\/\//i.test(l.enlace) ? l.enlace : null,
+      }));
+      const ivaPct = 16;
+      const { subtotal, iva, total } = calcularTotales(lineas, ivaPct);
+      // Mismo consecutivo que usa el formulario de la app.
+      const { count } = await supabase.from('cotizaciones').select('id', { count: 'exact', head: true });
+      const folio = `COT-${String((count || 0) + 1).padStart(4, '0')}`;
+      const { data: cot, error } = await supabase
+        .from('cotizaciones')
+        .insert({
+          folio, created_by: yo.id, estado: 'borrador', fecha: hoyNegocio(),
+          empresa: i.empresa.trim(), atencion: i.atencion?.trim() || null, telefono: i.telefono?.trim() || null,
+          correo: i.correo?.trim() || null, direccion: i.direccion?.trim() || null,
+          forma_pago: i.forma_pago?.trim() || 'Contado 100% contra entrega',
+          tiempo_entrega: i.tiempo_entrega?.trim() || 'De 5 a 7 días hábiles previamente programados para todos los servicios que integran la cotización.',
+          garantia: i.garantia?.trim() || 'Equipos 12 meses, contra defectos de fabricación.',
+          vigencia_dias: i.vigencia_dias || 15, notas: i.notas?.trim() || null,
+          firmante_nombre: yo.nombre, firmante_correo: yo.correo || null,
+          iva_pct: ivaPct, moneda, presentacion_precios: 'desglose', tipo_cambio: moneda === 'USD' ? i.tipo_cambio : 1,
+          subtotal, iva, total,
+          generada_por_ia: true, notas_ia: i.pendientes_de_revisar.trim() || null,
+        })
+        .select('id')
+        .single();
+      if (error) {
+        if (/generada_por_ia|notas_ia/.test(error.message)) return JSON.stringify({ error: 'La base aún no está preparada para borradores del asistente: falta correr patch_asistente_cotizaciones.sql. Avisa a quien administra la app.' });
+        return falla(error);
+      }
+      const { error: e2 } = await supabase.from('cotizacion_lineas').insert(
+        lineas.map((l, n) => ({ cotizacion_id: cot.id, orden: n, ...l, importe: Math.round(l.cantidad * l.precio_unitario * 100) / 100, enlace: normalizarEnlace(l.enlace) })),
+      );
+      if (e2) return JSON.stringify({ error: 'Se creó la cotización pero no se pudieron guardar sus partidas', detalle: e2.message, folio, enlace: `/dashboard/cotizaciones/${cot.id}` });
+      return JSON.stringify({
+        creada: true, folio, estado: 'borrador', enlace: `/dashboard/cotizaciones/${cot.id}`,
+        moneda, subtotal, iva, total,
+        partidas: lineas.map((l) => ({ descripcion: l.descripcion.slice(0, 60), cantidad: l.cantidad, precio_unitario: l.precio_unitario })),
+      });
+    },
+  });
+
   // El técnico no recibe las funciones de supervisión: aunque la RLS ya le
   // devolvería vacío, no ofrecerlas evita respuestas confusas («no hay
   // cotizaciones») sobre datos que simplemente no le corresponden.
   const comunes = [buscarEquipos, buscarReportes, servicios, tareas, listaDeCarga, plantillas, existencias, vales, clientes];
-  return esSupervisor ? [...comunes, cotizaciones, disponibles, recurrentes] : comunes;
+  if (!esSupervisor) return comunes;
+  return [...comunes, cotizaciones, disponibles, recurrentes, preciosDeReferencia, redaccion, ...(yo.puedeEscribir === false ? [] : [crearBorrador])];
 }

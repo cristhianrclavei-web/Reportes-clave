@@ -68,6 +68,10 @@ export type Cotizacion = {
   aprobada_por: string | null;
   aprobada_firma: string | null;
   aprobada_en: string | null;
+  // Borrador armado por el asistente de IA (patch_asistente_cotizaciones.sql):
+  // se avisa en la app que hay que revisarlo. Nunca sale en el PDF.
+  generada_por_ia?: boolean;
+  notas_ia?: string | null;
   profiles?: { full_name: string } | { full_name: string }[] | null;
 };
 
