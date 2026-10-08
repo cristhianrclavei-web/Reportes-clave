@@ -1,4 +1,5 @@
 import { reducirFoto } from './reducirFoto';
+import type { Avance } from './useAvanceGuardado';
 import { createClient } from './supabaseClient';
 
 export const SISTEMAS_SUGERIDOS = [
@@ -75,8 +76,12 @@ async function subirFoto(levantamientoId: string, file: File): Promise<string> {
 
 // Sube lo nuevo y junta con lo que ya existía — se usa igual al crear (donde
 // fotosExistentes siempre viene vacío) que al editar.
-async function resolverFotos(levantamientoId: string, fotosExistentes: FotoGuardada[], fotosNuevas: File[]): Promise<FotoGuardada[]> {
-  const subidas = await Promise.all(fotosNuevas.map((f) => subirFoto(levantamientoId, f)));
+async function resolverFotos(levantamientoId: string, fotosExistentes: FotoGuardada[], fotosNuevas: File[], alSubir?: () => void): Promise<FotoGuardada[]> {
+  const subidas = await Promise.all(fotosNuevas.map(async (f) => {
+    const path = await subirFoto(levantamientoId, f);
+    alSubir?.();
+    return path;
+  }));
   return [...fotosExistentes, ...subidas.map((path) => ({ path, caption: '' }))];
 }
 
@@ -93,12 +98,27 @@ function datosCabecera(input: LevantamientoInput) {
   };
 }
 
-export async function crearLevantamiento(input: LevantamientoInput): Promise<string> {
+// Avance de las fotos (generales y de cada sistema, que suben a la vez): su
+// tramo del porcentaje se reparte entre todas y avanza al terminar cada una.
+function contadorDeFotos(input: LevantamientoInput, desde: number, hasta: number, onAvance?: Avance): () => void {
+  const total = input.fotosNuevas.length + input.sistemas.reduce((n, s) => n + s.fotosNuevas.length, 0);
+  let hechas = 0;
+  if (total > 0) onAvance?.(desde, total > 1 ? `Guardando fotos · 0 de ${total}` : 'Guardando la foto');
+  return () => {
+    hechas++;
+    onAvance?.(desde + ((hasta - desde) * hechas) / total, total > 1 ? `Guardando fotos · ${hechas} de ${total}` : 'Guardando la foto');
+  };
+}
+
+export async function crearLevantamiento(input: LevantamientoInput, onAvance?: Avance): Promise<string> {
   const supabase = createClient();
+  onAvance?.(8, 'Verificando tu sesión');
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('No hay sesión activa');
 
+  onAvance?.(14, 'Asignando folio');
   const folio = await siguienteFolio(supabase);
+  onAvance?.(20, 'Creando el levantamiento');
 
   const { data: lev, error: e1 } = await supabase
     .from('levantamientos')
@@ -109,31 +129,34 @@ export async function crearLevantamiento(input: LevantamientoInput): Promise<str
 
   const levantamientoId = lev.id as string;
 
-  const fotosGenerales = await resolverFotos(levantamientoId, input.fotosExistentes, input.fotosNuevas);
+  const alSubir = contadorDeFotos(input, 26, 86, onAvance);
+  const fotosGenerales = await resolverFotos(levantamientoId, input.fotosExistentes, input.fotosNuevas, alSubir);
   if (fotosGenerales.length > 0) {
     const { error: eFotos } = await supabase.from('levantamientos').update({ fotos: fotosGenerales }).eq('id', levantamientoId);
     if (eFotos) throw eFotos;
   }
 
-  await guardarSistemas(levantamientoId, input.sistemas);
+  await guardarSistemas(levantamientoId, input.sistemas, alSubir, onAvance);
 
   return levantamientoId;
 }
 
-export async function actualizarLevantamiento(id: string, input: LevantamientoInput): Promise<void> {
+export async function actualizarLevantamiento(id: string, input: LevantamientoInput, onAvance?: Avance): Promise<void> {
   const supabase = createClient();
 
-  const fotos = await resolverFotos(id, input.fotosExistentes, input.fotosNuevas);
+  onAvance?.(8, 'Preparando los cambios');
+  const alSubir = contadorDeFotos(input, 12, 80, onAvance);
+  const fotos = await resolverFotos(id, input.fotosExistentes, input.fotosNuevas, alSubir);
   const { error: e1 } = await supabase.from('levantamientos').update({ fotos, ...datosCabecera(input) }).eq('id', id);
   if (e1) throw e1;
 
   const { error: eDel } = await supabase.from('levantamiento_sistemas').delete().eq('levantamiento_id', id);
   if (eDel) throw eDel;
 
-  await guardarSistemas(id, input.sistemas);
+  await guardarSistemas(id, input.sistemas, alSubir, onAvance);
 }
 
-async function guardarSistemas(levantamientoId: string, sistemas: SistemaInput[]): Promise<void> {
+async function guardarSistemas(levantamientoId: string, sistemas: SistemaInput[], alSubir?: () => void, onAvance?: Avance): Promise<void> {
   const supabase = createClient();
   const filas = await Promise.all(
     sistemas.map(async (s, i) => ({
@@ -142,10 +165,11 @@ async function guardarSistemas(levantamientoId: string, sistemas: SistemaInput[]
       sistema: s.sistema.trim() || 'General',
       estado_actual: s.estado_actual.trim() || null,
       observaciones: s.observaciones.trim() || null,
-      fotos: await resolverFotos(levantamientoId, s.fotosExistentes, s.fotosNuevas),
+      fotos: await resolverFotos(levantamientoId, s.fotosExistentes, s.fotosNuevas, alSubir),
     }))
   );
   if (filas.length === 0) return;
+  onAvance?.(90, filas.length > 1 ? `Guardando ${filas.length} sistemas` : 'Guardando el sistema');
   const { error } = await supabase.from('levantamiento_sistemas').insert(filas);
   if (error) throw error;
 }

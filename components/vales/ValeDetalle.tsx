@@ -1,6 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useAvanceGuardado, pausaFinal } from '@/lib/useAvanceGuardado';
+import SavingOverlay from '@/components/SavingOverlay';
+import type { Avance } from '@/lib/useAvanceGuardado';
 import { X, FileText, Camera, Images, Clock, AlertTriangle, Check, Users } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
 import SignaturePad, { SignaturePadHandle } from '@/components/SignaturePad';
@@ -35,6 +38,8 @@ export default function ValeDetalle({
   onCambio: () => void;
 }) {
   const [guardando, setGuardando] = useState(false);
+  const { progreso, avance } = useAvanceGuardado();
+  const [pantalla, setPantalla] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const est = ETIQUETA_ESTADO[vale.estado];
   const vencido = valeVencido(vale);
@@ -42,22 +47,29 @@ export default function ValeDetalle({
   const [recargaT, setRecargaT] = useState(0);
   useEffect(() => { traspasosDeVale(vale.id).then(setTraspasos); }, [vale.id, recargaT]);
 
-  async function ejecutar(fn: () => Promise<void>, ok: string) {
+  // `conPantalla`: los guardados largos (devolución con fotos) muestran la
+  // pantalla de avance; las acciones de un toque solo bloquean los botones.
+  async function ejecutar(fn: (avance: Avance) => Promise<void>, ok: string, conPantalla = false) {
+    avance(4, 'Preparando…');
+    setPantalla(conPantalla);
     setGuardando(true);
     setError(null);
     try {
-      await fn();
+      await fn(avance);
+      if (conPantalla) { avance(100, ok); await pausaFinal(); }
       showToast(ok, 'success');
       onCambio();
     } catch (e: any) {
       setError(e?.message || 'No se pudo completar');
     } finally {
       setGuardando(false);
+      setPantalla(false);
     }
   }
 
   return (
     <ModalOverlay onClose={() => !guardando && onClose()}>
+      <SavingOverlay show={guardando && pantalla} pct={progreso.pct} label={progreso.etapa} />
       <div className="glass-strong rounded-3xl w-full max-w-lg p-5 max-h-[92vh] overflow-y-auto">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -150,7 +162,7 @@ export default function ValeDetalle({
               <Devolver vale={vale} guardando={guardando} ejecutar={ejecutar} />
               {vale.estado === 'en_uso' && (
                 <Prestar vale={vale} pendientes={traspasos} guardando={guardando}
-                  ejecutar={(fn, ok) => ejecutar(async () => { await fn(); setRecargaT((k) => k + 1); }, ok)} />
+                  ejecutar={(fn, ok, conPantalla) => ejecutar(async (av) => { await fn(av); setRecargaT((k) => k + 1); }, ok, conPantalla)} />
               )}
               {vale.extension_estado !== 'pendiente' && <MasDias vale={vale} guardando={guardando} ejecutar={ejecutar} />}
             </>
@@ -178,7 +190,7 @@ export default function ValeDetalle({
   );
 }
 
-type Ejecutar = (fn: () => Promise<void>, ok: string) => void;
+type Ejecutar = (fn: (avance: Avance) => Promise<void>, ok: string, conPantalla?: boolean) => void;
 
 function FotosDevolucion({ paths }: { paths: string[] }) {
   const [urls, setUrls] = useState<string[]>([]);
@@ -233,7 +245,7 @@ function Devolver({ vale, guardando, ejecutar }: { vale: Vale; guardando: boolea
     );
   }
 
-  async function enviar() {
+  async function enviar(avance: Avance) {
     if (fotos.length === 0) throw new Error('Agrega al menos una foto de lo que entregas');
     const items = entregados.map((i) => {
       const c = Math.max(0, Math.min(Number(cant[i.id]) || 0, Number(i.cantidad_entregada)));
@@ -243,7 +255,11 @@ function Devolver({ vale, guardando, ejecutar }: { vale: Vale; guardando: boolea
     const sinMotivo = items.find((x) => x.motivo === null && x.cantidad < Number(entregados.find((e) => e.id === x.id)!.cantidad_entregada));
     if (sinMotivo) throw new Error('Indica qué pasó con lo que no regresa');
     const paths: string[] = [];
-    for (const f of fotos) paths.push(await subirFotoDevolucion(vale.id, f));
+    for (let i = 0; i < fotos.length; i++) {
+      avance(10 + (62 * i) / fotos.length, fotos.length > 1 ? `Guardando fotos · ${i + 1} de ${fotos.length}` : 'Guardando la foto');
+      paths.push(await subirFotoDevolucion(vale.id, fotos[i]));
+    }
+    avance(78, 'Registrando la devolución');
     await devolverVale(vale, items, paths, notaGral);
   }
 
@@ -297,7 +313,7 @@ function Devolver({ vale, guardando, ejecutar }: { vale: Vale; guardando: boolea
         )}
       </div>
       <input className={inputCls} placeholder="Nota para el almacén (opcional)" value={notaGral} onChange={(e) => setNotaGral(e.target.value)} />
-      <button type="button" disabled={guardando || fotos.length === 0} onClick={() => ejecutar(enviar, 'Devolución enviada al almacén')}
+      <button type="button" disabled={guardando || fotos.length === 0} onClick={() => ejecutar(enviar, 'Devolución enviada al almacén', true)}
         className="min-h-[46px] rounded-xl bg-teal text-inkOnAccent text-[14px] font-semibold disabled:opacity-50">
         {guardando ? 'Enviando…' : 'Enviar devolución'}
       </button>

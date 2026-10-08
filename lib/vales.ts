@@ -1,4 +1,5 @@
 import { reducirFoto } from './reducirFoto';
+import type { Avance } from './useAvanceGuardado';
 import { createClient } from './supabaseClient';
 import { notificar } from './push';
 import { Articulo, listarArticulos, mapaDeExistencias } from './almacen';
@@ -151,7 +152,8 @@ export async function crearVale(input: {
   servicioId: string | null;
   nota: string;
   items: { articuloId: string; cantidad: number; descripcion: string }[];
-}): Promise<{ id: string; folio: string }> {
+}, onAvance?: Avance): Promise<{ id: string; folio: string }> {
+  onAvance?.(25, 'Creando el vale');
   const { data, error } = await createClient().rpc('crear_vale', {
     p_cliente_id: input.clienteId,
     p_cliente_nombre: input.clienteNombre,
@@ -161,6 +163,7 @@ export async function crearVale(input: {
   });
   if (error) throw new Error(error.message);
   const r = data as { id: string; folio: string };
+  onAvance?.(72, 'Avisando al almacén');
   const quien = await nombreUsuario();
   await notificar({
     destino: 'almacen',

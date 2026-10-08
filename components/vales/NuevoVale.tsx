@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useAvanceGuardado, pausaFinal } from '@/lib/useAvanceGuardado';
+import SavingOverlay from '@/components/SavingOverlay';
 import { X, Search, Plus, Minus, Trash2, AlertTriangle, PackageX } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
@@ -33,6 +35,7 @@ export default function NuevoVale({ onClose, onCreado }: { onClose: () => void; 
   const [partidas, setPartidas] = useState<Partida[]>([]);
   const [nota, setNota] = useState('');
   const [guardando, setGuardando] = useState(false);
+  const { progreso, avance } = useAvanceGuardado();
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<{ descripcion: string; unidad: string; sinExistencia: boolean } | null>(null);
 
@@ -76,6 +79,7 @@ export default function NuevoVale({ onClose, onCreado }: { onClose: () => void; 
     if (!nombre) { setError('Indica para qué cliente o servicio es.'); return; }
     const items = partidas.filter((p) => p.cantidad > 0);
     if (items.length === 0) { setError('Agrega al menos un artículo.'); return; }
+    avance(5, 'Preparando el vale');
     setGuardando(true);
     setError(null);
     try {
@@ -85,7 +89,9 @@ export default function NuevoVale({ onClose, onCreado }: { onClose: () => void; 
         servicioId: servicio?.id || null,
         nota,
         items: items.map((p) => ({ articuloId: p.articulo.id, cantidad: p.cantidad, descripcion: p.articulo.descripcion })),
-      });
+      }, avance);
+      avance(100, `Vale ${r.folio} enviado`);
+      await pausaFinal();
       showToast(`Vale ${r.folio} enviado al almacén`, 'success');
       onCreado();
     } catch (e: any) {
@@ -96,6 +102,7 @@ export default function NuevoVale({ onClose, onCreado }: { onClose: () => void; 
 
   return (
     <ModalOverlay onClose={() => !guardando && onClose()}>
+      <SavingOverlay show={guardando} pct={progreso.pct} label={progreso.etapa} />
       <div className="glass-strong rounded-3xl w-full max-w-lg p-5 max-h-[92vh] overflow-y-auto">
         <div className="flex items-start justify-between gap-3 mb-3">
           <div>

@@ -13,6 +13,8 @@ import {
 import { generarUUID } from '@/lib/uuid';
 import { hoyLocal } from '@/lib/fechaHoy';
 import { showToast } from '@/components/Toast';
+import { useAvanceGuardado, pausaFinal } from '@/lib/useAvanceGuardado';
+import SavingOverlay from '@/components/SavingOverlay';
 import { Plus, Trash2, Camera, Images, X } from 'lucide-react';
 
 const inputCls =
@@ -106,6 +108,7 @@ export default function LevantamientoForm({
   onCancelar: () => void;
 }) {
   const [guardando, setGuardando] = useState(false);
+  const { progreso, avance } = useAvanceGuardado();
   const [msg, setMsg] = useState<string | null>(null);
 
   const l = inicial?.levantamiento;
@@ -175,6 +178,7 @@ export default function LevantamientoForm({
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
+    avance(3, 'Preparando el levantamiento');
     setGuardando(true);
     setMsg(null);
     const input: LevantamientoInput = {
@@ -192,13 +196,17 @@ export default function LevantamientoForm({
     };
     try {
       if (modo === 'editar' && levantamientoId) {
-        await actualizarLevantamiento(levantamientoId, input);
+        await actualizarLevantamiento(levantamientoId, input, avance);
         await borrador.limpiar();
+        avance(100, 'Levantamiento actualizado');
+        await pausaFinal();
         showToast('Levantamiento actualizado', 'success');
         onGuardado(levantamientoId);
       } else {
-        const id = await crearLevantamiento(input);
+        const id = await crearLevantamiento(input, avance);
         await borrador.limpiar();
+        avance(100, 'Levantamiento guardado');
+        await pausaFinal();
         showToast('Levantamiento guardado', 'success');
         onGuardado(id);
       }
@@ -210,6 +218,7 @@ export default function LevantamientoForm({
 
   return (
     <div className="flex flex-col gap-4 pb-6">
+      <SavingOverlay show={guardando} pct={progreso.pct} label={progreso.etapa} />
       {borrador.recuperadoEn && (
         <AvisoBorrador
           que="el levantamiento"

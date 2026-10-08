@@ -3,6 +3,8 @@
 import { fechaDMA } from '@/lib/etiquetaMantenimiento';
 import ConfirmacionTecnicos from '@/components/ConfirmacionTecnicos';
 import { useEffect, useState } from 'react';
+import { useAvanceGuardado, pausaFinal } from '@/lib/useAvanceGuardado';
+import SavingOverlay from '@/components/SavingOverlay';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -61,6 +63,9 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
   const [fecha, setFecha] = useState('');
   const [duracionMin, setDuracionMin] = useState(0);
   const [guardando, setGuardando] = useState(false);
+  // Pantalla de avance: solo al guardar la edición del servicio.
+  const { progreso: guardado, avance } = useAvanceGuardado();
+  const [pantalla, setPantalla] = useState(false);
 
   const [editandoTecnicos, setEditandoTecnicos] = useState(false);
   const [showAgregarDias, setShowAgregarDias] = useState(false);
@@ -154,15 +159,21 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
       if (duracionMin !== servicio.duracion_estimada_min) cambios.push(`duración estimada: ${servicio.duracion_estimada_min} → ${duracionMin} min`);
 
       if (cambios.length > 0) {
+        avance(15, 'Guardando los cambios del servicio');
+        setPantalla(true);
         await editarServicio(servicioId, { proyecto, descripcion, fecha, duracion_estimada_min: duracionMin }, cambios.join('; '));
         showToast('Servicio actualizado', 'success');
+        avance(80, 'Actualizando el servicio');
       }
       setEditando(false);
       await cargar();
+      if (cambios.length > 0) { avance(100, 'Servicio actualizado'); await pausaFinal(); }
     } catch (e: any) {
+      setPantalla(false);
       alert('No se pudo guardar: ' + (e?.message || 'error desconocido'));
     } finally {
       setGuardando(false);
+      setPantalla(false);
     }
   }
 
@@ -384,6 +395,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
 
   return (
     <div className="max-w-2xl lg:max-w-none mx-auto pb-28 lg:pb-16 lg:px-8 2xl:px-10">
+      <SavingOverlay show={pantalla} pct={guardado.pct} label={guardado.etapa} />
       {/* Computadora: el panel ya trae marca, tema y salir; aquí solo el
           título con la flecha de regreso, como en las demás secciones. */}
       <div className="hidden lg:flex items-center gap-1.5 pt-8">

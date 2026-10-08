@@ -1,6 +1,8 @@
 'use client';
 
 import { ElegirCuadrilla } from '@/components/cuadrillas/ChipsCuadrilla';
+import { useAvanceGuardado, pausaFinal } from '@/lib/useAvanceGuardado';
+import SavingOverlay from '@/components/SavingOverlay';
 import CampoNumero from '@/components/CampoNumero';
 import { coincideBusqueda } from '@/lib/busqueda';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
@@ -208,6 +210,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   }
   const [subPlantillas, setSubPlantillas] = useState<'rutinas' | 'listas'>('rutinas');
   const [guardando, setGuardando] = useState(false);
+  const { progreso, avance } = useAvanceGuardado();
   const [error, setError] = useState<string | null>(null);
 
   async function cargar() {
@@ -639,6 +642,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
       setError('La ubicación del sitio quedó incompleta.');
       return;
     }
+    avance(3, fechasFinales.length > 1 ? 'Preparando el proyecto' : 'Preparando el servicio');
     setGuardando(true);
     setError(null);
     try {
@@ -657,12 +661,13 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
         tecnicoIds,
         tareas: tareasLimpias,
         insumos: insumosLimpios,
-      });
+      }, avance);
       showToast(fechasFinales.length > 1 ? `Proyecto programado (${fechasFinales.length} días)` : 'Servicio programado', 'success');
       // Si vino de un mantenimiento recurrente, su próxima fecha avanza.
       if (recurrenteRef.current && creados[0]) {
         const id = recurrenteRef.current;
         recurrenteRef.current = null;
+        avance(93, 'Actualizando el mantenimiento recurrente');
         try {
           const r = (await listarRecurrentes()).find((x) => x.id === id);
           if (r) await avanzarRecurrente(r, creados[0].id);
@@ -670,6 +675,8 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
           // el servicio ya quedó creado; la fecha se puede ajustar en Recurrentes
         }
       }
+      avance(100, fechasFinales.length > 1 ? `Proyecto programado · ${fechasFinales.length} días` : 'Servicio programado');
+      await pausaFinal();
       if (volverRef.current === 'agenda') {
         volverRef.current = null;
         router.push('/dashboard/agenda');
@@ -700,6 +707,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
       userName={userName}
       wrapperClassName="max-w-2xl lg:max-w-none mx-auto pb-28 lg:pb-16 lg:px-8 2xl:px-10"
     >
+        <SavingOverlay show={guardando} pct={progreso.pct} label={progreso.etapa} />
         {seccion === 'agendar' ? (
           <button
             onClick={() => {

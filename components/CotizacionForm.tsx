@@ -14,6 +14,8 @@ import {
 import { generarUUID } from '@/lib/uuid';
 import { hoyLocal } from '@/lib/fechaHoy';
 import { showToast } from '@/components/Toast';
+import { useAvanceGuardado, pausaFinal } from '@/lib/useAvanceGuardado';
+import SavingOverlay from '@/components/SavingOverlay';
 import { Plus, Trash2, Search, Link2 } from 'lucide-react';
 import SelectorProductoSyscom from '@/components/SelectorProductoSyscom';
 import type { ProductoSyscom } from '@/lib/syscom';
@@ -68,6 +70,7 @@ export default function CotizacionForm({
 }) {
   const router = useRouter();
   const [guardando, setGuardando] = useState(false);
+  const { progreso, avance } = useAvanceGuardado();
   const [msg, setMsg] = useState<string | null>(null);
 
   const c = inicial?.cotizacion;
@@ -269,6 +272,7 @@ export default function CotizacionForm({
       }
       return;
     }
+    avance(4, 'Preparando la cotización');
     setGuardando(true);
     setMsg(null);
     const input: CotizacionInput = {
@@ -293,8 +297,10 @@ export default function CotizacionForm({
     };
     try {
       if (modo === 'editar' && cotizacionId) {
-        await actualizarCotizacion(cotizacionId, input);
+        await actualizarCotizacion(cotizacionId, input, avance);
         await borrador.limpiar();
+        avance(100, 'Cotización actualizada');
+        await pausaFinal();
         showToast('Cotización actualizada', 'success');
         if (onGuardado) {
           onGuardado();
@@ -302,8 +308,10 @@ export default function CotizacionForm({
           router.push(`/dashboard/cotizaciones/${cotizacionId}`);
         }
       } else {
-        const id = await crearCotizacion(input);
+        const id = await crearCotizacion(input, avance);
         await borrador.limpiar();
+        avance(100, 'Cotización guardada');
+        await pausaFinal();
         showToast('Cotización guardada', 'success');
         router.push(`/dashboard/cotizaciones/${id}`);
       }
@@ -315,6 +323,7 @@ export default function CotizacionForm({
 
   return (
     <div className="flex flex-col gap-4 pb-10">
+      <SavingOverlay show={guardando} pct={progreso.pct} label={progreso.etapa} />
       {borrador.recuperadoEn && (
         <AvisoBorrador
           que="la cotización"

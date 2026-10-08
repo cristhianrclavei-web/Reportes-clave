@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { MARCA } from '@/lib/marca';
 import {
   ESCUDO_CONTORNO, ESCUDO_RAMAL, ESCUDO_TRAZO, ESCUDO_NODOS,
@@ -188,6 +189,8 @@ function Contenido({ pct, label }: { pct?: number; label?: string }) {
 
 export default function SavingOverlay({ show, pct, label }: { show: boolean; pct?: number; label?: string }) {
   // Se monta de nuevo en cada guardado: el porcentaje siempre arranca en 0.
-  if (!show) return null;
-  return <Contenido pct={pct} label={label} />;
+  if (!show || typeof document === 'undefined') return null;
+  // Al body: dentro de una ventana con vidrio (backdrop-filter) un `fixed`
+  // se queda encerrado en la ventana en vez de cubrir la pantalla.
+  return createPortal(<Contenido pct={pct} label={label} />, document.body);
 }

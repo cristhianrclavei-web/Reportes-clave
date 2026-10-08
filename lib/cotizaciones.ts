@@ -1,4 +1,5 @@
 import { createClient } from './supabaseClient';
+import type { Avance } from './useAvanceGuardado';
 
 // Flujo: borrador -> (firma de aprobación interna) -> aprobada -> enviada.
 // "rechazada" puede pasar en cualquier punto (se descarta la cotización).
@@ -193,12 +194,15 @@ function datosCotizacion(input: CotizacionInput) {
   };
 }
 
-export async function crearCotizacion(input: CotizacionInput): Promise<string> {
+export async function crearCotizacion(input: CotizacionInput, onAvance?: Avance): Promise<string> {
   const supabase = createClient();
+  onAvance?.(10, 'Verificando tu sesión');
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('No hay sesión activa');
 
+  onAvance?.(25, 'Asignando folio');
   const folio = await siguienteFolio(supabase);
+  onAvance?.(42, 'Creando la cotización');
 
   const { data: cot, error: e1 } = await supabase
     .from('cotizaciones')
@@ -209,6 +213,7 @@ export async function crearCotizacion(input: CotizacionInput): Promise<string> {
 
   const filas = filasDeLineas(cot.id, input.lineas);
   if (filas.length > 0) {
+    onAvance?.(70, filas.length > 1 ? `Guardando ${filas.length} partidas` : 'Guardando la partida');
     const { error: e2 } = await supabase.from('cotizacion_lineas').insert(filas);
     if (e2) throw e2;
   }
@@ -220,8 +225,9 @@ export async function crearCotizacion(input: CotizacionInput): Promise<string> {
 // línea: en una cotización el número de líneas es bajo y así no hay que
 // llevar el registro de cuáles son nuevas, cuáles cambiaron y cuáles se
 // borraron desde el formulario.
-export async function actualizarCotizacion(id: string, input: CotizacionInput): Promise<void> {
+export async function actualizarCotizacion(id: string, input: CotizacionInput, onAvance?: Avance): Promise<void> {
   const supabase = createClient();
+  onAvance?.(20, 'Guardando la cotización');
 
   const { error: e1 } = await supabase
     .from('cotizaciones')
@@ -229,11 +235,13 @@ export async function actualizarCotizacion(id: string, input: CotizacionInput): 
     .eq('id', id);
   if (e1) throw e1;
 
+  onAvance?.(48, 'Actualizando las partidas');
   const { error: eDel } = await supabase.from('cotizacion_lineas').delete().eq('cotizacion_id', id);
   if (eDel) throw eDel;
 
   const filas = filasDeLineas(id, input.lineas);
   if (filas.length > 0) {
+    onAvance?.(70, filas.length > 1 ? `Guardando ${filas.length} partidas` : 'Guardando la partida');
     const { error: e2 } = await supabase.from('cotizacion_lineas').insert(filas);
     if (e2) throw e2;
   }

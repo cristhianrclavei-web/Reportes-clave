@@ -1,4 +1,5 @@
 import { reducirFoto } from './reducirFoto';
+import type { Avance } from './useAvanceGuardado';
 import { createClient } from './supabaseClient';
 import { getCurrentLocation } from './geolocation';
 import { registrarAccionGlobal } from './auditoriaGlobal';
@@ -117,8 +118,9 @@ export async function crearServicio(input: {
   // Lista de carga capturada al programar. Se guarda junto con el proyecto
   // para que el técnico la tenga desde el primer día.
   insumos?: { categoria: string; descripcion: string; cantidad: number; unidad: string; articuloId?: string | null }[];
-}): Promise<Servicio[]> {
+}, onAvance?: Avance): Promise<Servicio[]> {
   const supabase = createClient();
+  onAvance?.(8, 'Verificando tu sesión');
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('No hay sesión activa');
 
@@ -131,6 +133,7 @@ export async function crearServicio(input: {
   const diasCreados: Servicio[] = [];
 
   for (let dia = 1; dia <= diasTotales; dia++) {
+    onAvance?.(15 + (50 * (dia - 1)) / diasTotales, diasTotales > 1 ? `Programando día ${dia} de ${diasTotales}` : 'Programando el servicio');
     const { data: servicio, error: e1 } = await supabase
       .from('servicios_programados')
       .insert({
@@ -166,6 +169,7 @@ export async function crearServicio(input: {
   // del día 1 sigue disponible el día 2. (servicio_id apunta al día 1
   // solo como ancla del registro.)
   if (input.tareas.length > 0) {
+    onAvance?.(68, 'Creando la lista de tareas');
     const { error: e3 } = await supabase
       .from('servicio_tareas')
       .insert(input.tareas.map((desc, i) => ({ servicio_id: diasCreados[0].id, grupo_id: grupoId, descripcion: desc, orden: i })));
@@ -174,6 +178,7 @@ export async function crearServicio(input: {
 
   // La lista de herramienta y material también es del proyecto completo.
   if (input.insumos && input.insumos.length > 0) {
+    onAvance?.(77, 'Guardando la lista de carga');
     const { error: e4 } = await supabase.from('servicio_insumos').insert(
       input.insumos.map((it, i) => ({
         grupo_id: grupoId,
@@ -191,6 +196,7 @@ export async function crearServicio(input: {
     if (e4) throw e4;
   }
 
+  onAvance?.(86, input.tecnicoIds.length > 0 ? 'Avisando al personal asignado' : 'Registrando el servicio');
   await registrarAccionGlobal(
     'programo_servicio',
     'servicio',
