@@ -632,7 +632,7 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
       notas: texto(1500).optional().describe('Notas que SÍ verá el cliente en el PDF'),
       moneda: z.enum(['MXN', 'USD']).optional(),
       tipo_cambio: z.number().positive().optional().describe('MXN por 1 USD; obligatorio si la moneda es USD'),
-      pendientes_de_revisar: texto(1500).describe('Para quien revisa, no para el cliente: qué precios son de referencia o estimados, qué cantidades supusiste y qué falta confirmar. Una línea por punto.'),
+      pendientes_de_revisar: texto(900).describe('Para quien revisa, no para el cliente: lo que hay que confirmar antes de aprobar. Máximo 6 puntos, uno por renglón, cada uno una frase corta (unas 12 palabras) y sin viñetas. Agrupa: un solo punto para todos los precios estimados (nombra los conceptos, sin montos), uno por supuesto importante. No repitas lo que ya se ve en la cotización, como el margen.'),
       partidas: z.array(z.object({
         sistema: texto(80).describe('Grupo de la partida, p. ej. «Paneles Solares»'),
         descripcion: texto(1200).min(3),

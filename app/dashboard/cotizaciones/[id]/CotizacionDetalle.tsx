@@ -220,16 +220,40 @@ export default function CotizacionDetalle({
 
       {/* Solo en pantalla y mientras siga en borrador: es un recordatorio
           para quien la revisa, no parte de la cotización. */}
-      {cotizacion.generada_por_ia && cotizacion.estado === 'borrador' && (
-        <div role="note" className="mb-4 rounded-2xl border border-amber/40 bg-amber/10 px-4 py-3 flex gap-3">
-          <Sparkles size={18} className="text-amber shrink-0 mt-0.5" />
-          <div className="min-w-0 text-[13.5px] leading-relaxed">
-            <p className="font-semibold text-amber">Cotización generada por IA</p>
-            <p>Puede haber errores. Revísala antes de aprobar.</p>
-            {cotizacion.notas_ia && <p className="mt-1.5 text-muted whitespace-pre-wrap">{cotizacion.notas_ia}</p>}
+      {cotizacion.generada_por_ia && cotizacion.estado === 'borrador' && (() => {
+        // Un punto por renglón; se quitan guiones o viñetas que traiga el texto.
+        const puntos = (cotizacion.notas_ia || '').split(/\r?\n/).map((t) => t.replace(/^\s*[-•·]\s*/, '').trim()).filter(Boolean);
+        return (
+          <div role="note" className="mb-4 rounded-2xl border border-amber/35 bg-amber/[0.07] overflow-hidden">
+            <div className="flex items-center gap-3 px-4 py-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber/15 text-amber">
+                <Sparkles size={17} strokeWidth={2.2} />
+              </span>
+              <div className="min-w-0">
+                <p className="text-[14px] font-semibold leading-tight text-amber">Cotización generada por IA</p>
+                <p className="mt-0.5 text-[12.5px] leading-snug text-muted">Puede haber errores. Revísala antes de aprobar.</p>
+              </div>
+            </div>
+            {puntos.length > 0 && (
+              // Cerrado por defecto: el detalle está a un toque, sin llenar la pantalla.
+              <details className="group border-t border-amber/20">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-2.5 text-[13px] font-medium text-ink/85 [&::-webkit-details-marker]:hidden">
+                  <span>{puntos.length === 1 ? '1 punto por revisar' : `${puntos.length} puntos por revisar`}</span>
+                  <ChevronLeft size={16} strokeWidth={2.4} className="-rotate-90 text-muted transition-transform group-open:rotate-90" />
+                </summary>
+                <ul className="flex flex-col gap-2.5 px-4 pb-3.5 pt-0.5">
+                  {puntos.map((t, n) => (
+                    <li key={n} className="flex gap-2.5 text-[13px] leading-snug text-ink/80">
+                      <span aria-hidden className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-amber/70" />
+                      <span className="min-w-0">{t}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       <div className={`${cardCls} mb-4`}>
         <div className="flex justify-between items-start gap-3 mb-3 flex-wrap">
