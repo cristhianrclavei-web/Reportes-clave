@@ -208,6 +208,14 @@ export default function NuevoReportePage() {
   const [userName, setUserName] = useState('');
   const [userId, setUserId] = useState('');
   const [saving, setSaving] = useState(false);
+  // Avance real del guardado, para la pantalla de «guardando» (0–100 y etapa).
+  const [progreso, setProgreso] = useState({ pct: 0, etapa: '' });
+  const avance = (pct: number, etapa: string) => setProgreso({ pct, etapa });
+  // Las fotos se llevan casi todo el tiempo: su tramo se reparte entre ellas.
+  const avanceFoto = (i: number, total: number, desde: number, hasta: number) =>
+    avance(desde + ((hasta - desde) * i) / total, total > 1 ? `Guardando fotos · ${i + 1} de ${total}` : 'Guardando la foto');
+  // Deja ver el 100 % un instante antes de cerrar la pantalla de guardado.
+  const pausaFinal = () => new Promise((r) => setTimeout(r, 700));
   const [showPreview, setShowPreview] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
@@ -878,12 +886,14 @@ export default function NuevoReportePage() {
       const { revisionEstado, facturaEstado, fechaConcluido, ...formulario } = sharedData;
       const fotoData: { path: string; caption: string }[] = fotosServicio.map((f) => ({ path: f.path, caption: f.caption.trim() }));
       for (let i = 0; i < fotos.length; i++) {
+        avanceFoto(i, fotos.length, 12, 68);
         const f = await reducirFoto(fotos[i].file);
         const ext = f.name.split('.').pop() || 'jpg';
         const path = `${editarId}/${Date.now()}-${i}.${ext}`;
         const { error: eUp } = await supabase.storage.from('evidencias').upload(path, f, { contentType: f.type || 'image/jpeg' });
         if (!eUp) fotoData.push({ path, caption: fotos[i].caption.trim() });
       }
+      avance(72, conFormato ? 'Guardando la corrección y sus formatos' : 'Guardando la corrección');
       const anterior = orig.data || {};
       const concluyoAhora = sharedData.servicioConcluido && !anterior.servicioConcluido;
       const data = {
@@ -914,11 +924,13 @@ export default function NuevoReportePage() {
       const antes = anterior.servicioProgramadoId || null;
       const ahora = servicioSeleccionadoId || null;
       if (antes !== ahora) {
+        avance(84, 'Ligando con el servicio');
         if (antes) await supabase.from('servicios_programados').update({ report_id: null }).eq('id', antes);
         if (ahora) { try { await vincularReporteAServicio(ahora, editarId); } catch { /* no crítico */ } }
       }
 
       const folio = anterior.claveFormato ? ` (folio ${anterior.claveFormato})` : '';
+      avance(92, 'Avisando a supervisión');
       await registrarAccionGlobal('aplico_correccion', 'reporte', editarId, `Corrigió el reporte completo de «${empresaCliente.trim()}»${folio}`);
       await notificar({
         destino: 'supervisores',
@@ -928,6 +940,8 @@ export default function NuevoReportePage() {
         url: '/dashboard/reportes',
         tag: `correccion-${editarId}`,
       });
+      avance(100, 'Corrección guardada');
+      await pausaFinal();
       setSaving(false);
       showToast('Corrección guardada', 'success');
       resetAll();
@@ -954,6 +968,7 @@ export default function NuevoReportePage() {
     // se guarda.
     const horaSalidaFinal = horaSalida || horaActualStr();
 
+    avance(3, editarId ? 'Preparando la corrección' : 'Preparando el reporte');
     setSaving(true);
     setMsg(null);
 
@@ -982,6 +997,7 @@ export default function NuevoReportePage() {
         // nunca llamamos a Supabase aquí, así el guardado sin conexión no
         // depende de ninguna respuesta de red que se pueda quedar esperando.
         if (!userId) throw new Error('No se pudo identificar tu sesión. Vuelve a iniciar sesión con conexión al menos una vez.');
+        avance(35, fotos.length > 0 ? 'Sin conexión · guardando fotos en este dispositivo' : 'Sin conexión · guardando en este dispositivo');
 
         const fotosForOffline = await Promise.all(
           fotos.map(async (f) => ({
@@ -1009,6 +1025,8 @@ export default function NuevoReportePage() {
           servicioProgramadoId: servicioSeleccionadoId,
         });
 
+        avance(100, 'Guardado en este dispositivo');
+        await pausaFinal();
         setMsg('Sin conexión — el reporte se guardó en este dispositivo y se subirá automáticamente en cuanto vuelvas a tener internet.');
         setPendingCount((c) => c + 1);
         showToast('Reporte guardado localmente (sin conexión)', 'success');
@@ -1028,7 +1046,9 @@ export default function NuevoReportePage() {
     }
 
     try {
+      avance(8, 'Verificando tu sesión');
       const { data: { user } } = await withTimeout(supabase.auth.getUser(), 10000, 'sesión');
+      avance(15, 'Asignando folio');
 
       // Folio automático: iniciales del técnico + "-A-" + consecutivo (por técnico)
       const { count } = await withTimeout(
@@ -1041,6 +1061,7 @@ export default function NuevoReportePage() {
 
       const reportId = generarUUID();
       const baseData = { ...sharedData, fotos: [] as { path: string; caption: string }[], claveFormato };
+      avance(22, conFormato ? 'Creando el reporte y sus formatos' : 'Creando el reporte');
 
       const { error } = await withTimeout(
         Promise.resolve(
@@ -1073,6 +1094,7 @@ export default function NuevoReportePage() {
       }));
       // Subir fotos de evidencia nuevas, si hay
       for (let i = 0; i < fotos.length; i++) {
+        avanceFoto(i, fotos.length, 30, 78);
         const f = await reducirFoto(fotos[i].file);
         const ext = f.name.split('.').pop() || 'jpg';
         const path = `${reportId}/${Date.now()}-${i}.${ext}`;
@@ -1083,6 +1105,7 @@ export default function NuevoReportePage() {
       }
 
       if (fotoData.length > 0) {
+        avance(82, 'Adjuntando las fotos al reporte');
         const { error: updateError } = await supabase.from('reports').update({ data: { ...baseData, fotos: fotoData } }).eq('id', reportId);
         if (updateError) {
           setSaving(false);
@@ -1093,6 +1116,7 @@ export default function NuevoReportePage() {
       }
 
       if (servicioSeleccionadoId) {
+        avance(88, 'Ligando con el servicio');
         try {
           await vincularReporteAServicio(servicioSeleccionadoId, reportId);
         } catch {
@@ -1100,8 +1124,8 @@ export default function NuevoReportePage() {
         }
       }
 
-      setSaving(false);
       setMsg('Reporte guardado');
+      avance(93, 'Avisando a supervisión');
       // Avisar a quien revisa y factura: es el punto donde el reporte entra a
       // su bandeja.
       await notificar({
@@ -1125,6 +1149,8 @@ export default function NuevoReportePage() {
         };
         await Promise.all([notificar({ destino: 'almacen', ...aviso }), notificar({ destino: 'supervisores', ...aviso })]);
       }
+      avance(100, 'Reporte guardado');
+      await pausaFinal();
       resetAll();
       // Guardado completo: se cierra el formulario y se regresa a la lista.
       // (Sin conexión se queda aquí: la lista necesita red para cargar.)
@@ -1161,7 +1187,7 @@ export default function NuevoReportePage() {
 
   return (
     <div className="max-w-2xl lg:max-w-none lg:px-6 mx-auto pb-32">
-      <SavingOverlay show={saving} />
+      <SavingOverlay show={saving} pct={progreso.pct} label={progreso.etapa} />
       {/* Header */}
       <div className="sticky top-0 z-20 glass-strong px-5 py-3.5 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">

@@ -363,3 +363,30 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .asistente-orbe-halo, .asistente-orbe-disco, .asistente-orbe-onda { animation: none !important; }
 }
+
+/* Pantalla de guardado (components/SavingOverlay.tsx): el escudo se traza de
+   0 a 100 % y los servicios del logotipo se encienden por etapa. */
+@keyframes guardado-entra { from { opacity: 0; } to { opacity: 1; } }
+@keyframes guardado-etapa { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes guardado-late { 0%, 100% { opacity: 0.55; transform: scale(0.94); } 50% { opacity: 1; transform: scale(1.04); } }
+@keyframes guardado-salta { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@keyframes guardado-listo { 0% { transform: scale(1); } 45% { transform: scale(1.07); } 100% { transform: scale(1); } }
+
+.guardado { animation: guardado-entra 0.25s ease-out; }
+.guardado-halo {
+  background: radial-gradient(circle, rgb(var(--c-acento) / 0.26), rgb(var(--c-acento) / 0.08) 45%, transparent 68%);
+  animation: guardado-late 2.8s ease-in-out infinite;
+}
+.guardado-trazo { filter: drop-shadow(0 0 5px rgb(var(--c-acento) / 0.55)); }
+.guardado-trazo path { transition: stroke-dashoffset 0.25s linear, opacity 0.4s ease; }
+.guardado-relleno { transition: opacity 0.5s ease; }
+.guardado-nodo { transition: fill 0.35s ease, stroke 0.35s ease; }
+.guardado-etapa { animation: guardado-etapa 0.3s ease-out; }
+.guardado-icono { transition: opacity 0.4s ease; }
+.guardado-icono-turno { animation: guardado-salta 0.9s ease-in-out infinite; }
+.guardado-punto { transition: background-color 0.4s ease; }
+.guardado-listo { animation: guardado-listo 0.55s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  .guardado, .guardado-halo, .guardado-etapa, .guardado-icono-turno, .guardado-listo { animation: none !important; }
+}
