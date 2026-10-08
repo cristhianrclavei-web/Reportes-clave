@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { MARCA } from '@/lib/marca';
+import { ESCUDO_CONTORNO, ESCUDO_RAMAL, ESCUDO_TRAZO, ESCUDO_NODOS, ESCUDO_LETRA } from '@/lib/logoMarca';
 import {
   Sparkles, X, Mic, MicOff, Square, SendHorizontal, Volume2, VolumeX, History, ChevronLeft, ChevronRight,
   ImagePlus, AudioLines, SquarePen, Settings2,
@@ -134,6 +135,42 @@ const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', '
 function diaLargo(iso: string): string {
   const [a, m, d] = iso.split('-').map(Number);
   return `${DIAS[new Date(Date.UTC(a, m - 1, d)).getUTCDay()]} ${d} de ${MESES[m - 1]}`;
+}
+
+// Emblema de la marca en blanco para el centro del orbe: el escudo con sus
+// nodos (misma geometría que el logo, lib/logoMarca.ts) o, en las marcas de
+// «bloque», las iniciales con los dos nodos conectados.
+function EmblemaBlanco() {
+  const letras = (
+    <text
+      textAnchor="middle" fill="#FFFFFF" fontWeight="700" letterSpacing="0.5"
+      fontFamily="var(--font-display), system-ui, sans-serif"
+      x={MARCA.logo === 'bloque' ? 48 : ESCUDO_LETRA.x} y={MARCA.logo === 'bloque' ? 68 : ESCUDO_LETRA.y}
+      fontSize={MARCA.logo === 'bloque' ? 44 : MARCA.iniciales.length > 2 ? ESCUDO_LETRA.tam * 0.76 : ESCUDO_LETRA.tam}
+    >
+      {MARCA.iniciales}
+    </text>
+  );
+  return (
+    <svg width="96" height="96" viewBox="0 0 100 100" fill="none" aria-hidden="true" style={{ filter: 'drop-shadow(0 2px 6px rgb(0 0 0 / 0.25))' }}>
+      {MARCA.logo === 'bloque' ? (
+        <>
+          <path d="M70 16 L84 30" stroke="#FFFFFF" strokeOpacity="0.8" strokeWidth="3.5" strokeLinecap="round" />
+          <circle cx="70" cy="16" r="5" fill="#FFFFFF" />
+          <circle cx="84" cy="30" r="5" fill="#FFFFFF" />
+        </>
+      ) : (
+        <>
+          <g stroke="#FFFFFF" strokeOpacity="0.95" strokeWidth={ESCUDO_TRAZO} strokeLinecap="round" strokeLinejoin="round">
+            <path d={ESCUDO_CONTORNO} />
+            <path d={ESCUDO_RAMAL} />
+          </g>
+          {ESCUDO_NODOS.map(([cx, cy, r]) => <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r={r} fill="#FFFFFF" />)}
+        </>
+      )}
+      {letras}
+    </svg>
+  );
 }
 
 const ETIQUETA_VOZ: Record<EstadoVoz, string> = {
@@ -836,13 +873,14 @@ export default function Asistente() {
             <button
               type="button" onClick={tocarOrbe} data-estado={estadoVoz}
               aria-label={estadoVoz === 'escuchando' ? 'Pausar' : estadoVoz === 'hablando' ? 'Interrumpir y hablar' : 'Hablar'}
-              className="asistente-orbe relative h-44 w-44 shrink-0 overflow-hidden rounded-full shadow-glow-teal outline-none focus-visible:ring-4 focus-visible:ring-teal/40"
-              style={{ background: 'radial-gradient(circle at 30% 25%, rgb(var(--c-acento) / 1), rgb(var(--c-acento-oscuro) / 1) 75%)' }}
+              className="asistente-orbe relative h-48 w-48 shrink-0 rounded-full outline-none focus-visible:ring-4 focus-visible:ring-teal/40"
             >
-              <span
-                aria-hidden className="asistente-orbe-brillo absolute -inset-6"
-                style={{ background: 'conic-gradient(from 0deg, transparent 0deg, rgb(255 255 255 / 0.55) 70deg, transparent 150deg, rgb(255 255 255 / 0.25) 250deg, transparent 330deg)', filter: 'blur(18px)' }}
-              />
+              <span aria-hidden className="asistente-orbe-halo absolute -inset-3 rounded-full" />
+              <span aria-hidden className="asistente-orbe-onda absolute inset-0 rounded-full" />
+              <span aria-hidden className="asistente-orbe-onda absolute inset-0 rounded-full" />
+              <span className="asistente-orbe-disco absolute inset-0 flex items-center justify-center rounded-full">
+                <EmblemaBlanco />
+              </span>
             </button>
             <div className="w-full max-w-sm text-center" aria-live="polite">
               <p className="text-[13px] font-medium text-teal">{avisoVoz || ETIQUETA_VOZ[estadoVoz]}</p>

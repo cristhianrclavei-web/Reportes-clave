@@ -327,18 +327,39 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   .fv .fv-humo { opacity: 0 !important; }
 }
 
-/* Asistente · conversación por voz: el orbe respira distinto según lo que
-   esté pasando (escucha, piensa, habla). */
-@keyframes asistente-orbe-escucha { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
-@keyframes asistente-orbe-habla { 0%, 100% { transform: scale(1); } 25% { transform: scale(1.09); } 60% { transform: scale(0.97); } }
-@keyframes asistente-orbe-gira { to { transform: rotate(360deg); } }
-.asistente-orbe { transition: transform 0.4s ease, filter 0.4s ease, opacity 0.4s ease; }
-.asistente-orbe[data-estado='escuchando'] { animation: asistente-orbe-escucha 2.4s ease-in-out infinite; }
-.asistente-orbe[data-estado='hablando'] { animation: asistente-orbe-habla 1.1s ease-in-out infinite; }
-.asistente-orbe[data-estado='pensando'] { filter: saturate(0.7) brightness(0.9); }
-.asistente-orbe[data-estado='pausa'] { filter: grayscale(0.7) brightness(0.7); transform: scale(0.94); }
-.asistente-orbe-brillo { animation: asistente-orbe-gira 14s linear infinite; }
-.asistente-orbe[data-estado='pensando'] .asistente-orbe-brillo { animation-duration: 2.2s; }
+/* Asistente · conversación por voz. El orbe tiene tres capas: un halo de luz
+   que gira detrás, el disco con el escudo y unas ondas que salen cuando
+   habla. Cada estado (escucha, piensa, habla, pausa) mueve una capa distinta. */
+@keyframes asistente-gira { to { transform: rotate(360deg); } }
+@keyframes asistente-respira { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.045); } }
+@keyframes asistente-late { 0%, 100% { opacity: 0.55; transform: scale(1); } 50% { opacity: 0.95; transform: scale(1.07); } }
+@keyframes asistente-onda { 0% { transform: scale(1); opacity: 0.5; } 100% { transform: scale(1.55); opacity: 0; } }
+
+.asistente-orbe { transition: filter 0.5s ease, opacity 0.5s ease; }
+.asistente-orbe-halo {
+  background: conic-gradient(from 0deg, rgb(var(--c-acento) / 0), rgb(var(--c-acento) / 0.9) 25%, rgb(var(--c-acento) / 0) 50%, rgb(var(--c-acento) / 0.55) 75%, rgb(var(--c-acento) / 0));
+  filter: blur(14px);
+  animation: asistente-gira 9s linear infinite;
+}
+.asistente-orbe-disco {
+  background:
+    radial-gradient(circle at 32% 24%, rgb(255 255 255 / 0.2), transparent 46%),
+    radial-gradient(circle at 50% 55%, rgb(var(--c-acento) / 1), rgb(var(--c-acento-oscuro) / 1) 82%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.16), inset 0 -18px 36px rgb(0 0 0 / 0.28), 0 14px 44px rgb(var(--c-acento) / 0.28);
+  transition: transform 0.4s ease;
+}
+.asistente-orbe-onda { border: 1.5px solid rgb(var(--c-acento) / 0.6); opacity: 0; }
+
+.asistente-orbe[data-estado='escuchando'] .asistente-orbe-disco { animation: asistente-respira 2.6s ease-in-out infinite; }
+.asistente-orbe[data-estado='escuchando'] .asistente-orbe-halo { animation: asistente-gira 9s linear infinite, asistente-late 2.6s ease-in-out infinite; }
+.asistente-orbe[data-estado='pensando'] .asistente-orbe-halo { animation-duration: 1.4s; }
+.asistente-orbe[data-estado='pensando'] .asistente-orbe-disco { transform: scale(0.97); }
+.asistente-orbe[data-estado='hablando'] .asistente-orbe-disco { animation: asistente-respira 0.9s ease-in-out infinite; }
+.asistente-orbe[data-estado='hablando'] .asistente-orbe-onda { animation: asistente-onda 1.8s ease-out infinite; }
+.asistente-orbe[data-estado='hablando'] .asistente-orbe-onda + .asistente-orbe-onda { animation-delay: 0.9s; }
+.asistente-orbe[data-estado='pausa'] { filter: saturate(0.25) brightness(0.8); }
+.asistente-orbe[data-estado='pausa'] .asistente-orbe-halo { animation-play-state: paused; opacity: 0.35; }
+
 @media (prefers-reduced-motion: reduce) {
-  .asistente-orbe, .asistente-orbe-brillo { animation: none !important; }
+  .asistente-orbe-halo, .asistente-orbe-disco, .asistente-orbe-onda { animation: none !important; }
 }
