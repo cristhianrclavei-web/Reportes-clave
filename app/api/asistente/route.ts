@@ -135,6 +135,7 @@ export async function GET() {
 // no invalidarla en cada petición.
 // Conversación manos libres: la respuesta se escucha, no se lee.
 const INSTRUCCIONES_VOZ = `Ahora la conversación es por voz: el usuario habla y tu respuesta se lee en voz alta, así que mientras dure:
+- La persona está esperando en silencio: sé rápido. Haz solo las consultas indispensables (lo ideal es una sola vuelta de consultas, pidiendo juntas las que necesites) y no consultes nada para saludar, confirmar o hacer la siguiente pregunta.
 - Contesta en una a tres frases cortas y naturales, como hablando por teléfono. Sin listas, sin enlaces, sin negritas, sin folios largos ni direcciones de internet.
 - Lo que escuchas viene de un dictado y puede traer errores: si un nombre o un dato no se entiende o no coincide con nada en la app, pregunta para confirmarlo en vez de adivinar.
 - Al agendar o cotizar por voz, si en lo que dijo faltó un dato necesario (por ejemplo la hora de salida o el técnico), pídeselo enseguida, de uno en uno.
@@ -276,9 +277,12 @@ export async function POST(req: NextRequest) {
       ...(conRespaldo ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {}),
     });
 
+    const inicio = Date.now();
+    const vueltas: number[] = [];
     let final: Anthropic.Beta.BetaMessage | null = null;
     for await (const mensaje of runner) {
       final = mensaje;
+      vueltas.push(Date.now() - inicio);
       // Una búsqueda larga puede pausar el turno: se reanuda devolviendo lo
       // que lleva, sin agregar ningún mensaje nuevo.
       if (mensaje.stop_reason === 'pause_turn') runner.pushMessages({ role: 'assistant', content: mensaje.content });
@@ -294,7 +298,9 @@ export async function POST(req: NextRequest) {
       }
     }
     if (!final) throw new Error('sin respuesta del modelo');
-    console.log(`[asistente] ${final.model} entrada=${tokens.entrada} (de caché ${tokens.cache}) salida=${tokens.salida} búsquedas=${tokens.busquedas}`);
+    // «tiempos» = ms acumulados al terminar cada vuelta del modelo: sirve para
+    // ver si la espera está en las consultas o en la respuesta final.
+    console.log(`[asistente] ${final.model}${porVoz ? ' voz' : ''} entrada=${tokens.entrada} (de caché ${tokens.cache}) salida=${tokens.salida} búsquedas=${tokens.busquedas} tiempos=${vueltas.join('/')} ms herramientas=${[...usadasEnTurno].join(',') || '-'}`);
 
     // Con búsqueda en internet el mismo mensaje trae lo que el modelo dijo
     // antes de buscar («voy a buscar…»): la respuesta es solo el texto que

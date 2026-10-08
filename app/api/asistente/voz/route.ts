@@ -21,8 +21,11 @@ const MODELO = process.env.ELEVENLABS_MODELO || 'eleven_v4_turbo';
 const MODELO_RESPALDO = 'eleven_flash_v2_5';
 const MAX_LETRAS = 1000;
 
+// Se usa el punto de entrada «stream» de ElevenLabs y su respuesta se pasa
+// tal cual al navegador: el audio empieza a sonar en cuanto llegan los
+// primeros trozos, sin esperar a que se genere completo.
 async function sintetizar(texto: string, modelo: string): Promise<Response> {
-  return fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(VOZ)}?output_format=mp3_44100_128`, {
+  return fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(VOZ)}/stream?output_format=mp3_44100_128`, {
     method: 'POST',
     headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY!, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
     body: JSON.stringify({ text: texto, model_id: modelo, language_code: 'es' }),
@@ -30,7 +33,7 @@ async function sintetizar(texto: string, modelo: string): Promise<Response> {
   });
 }
 
-export async function POST(req: NextRequest) {
+async function responder(texto: string): Promise<Response> {
   if (!process.env.ELEVENLABS_API_KEY || !process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: 'La voz natural no está activada.' }, { status: 503 });
   }
@@ -44,12 +47,10 @@ export async function POST(req: NextRequest) {
   if (!perfil || perfil.activo === false || !(plan as MiPlan | null)?.modulos?.includes('ia')) {
     return NextResponse.json({ error: 'Sin acceso al asistente.' }, { status: 403 });
   }
-
-  const body = await req.json().catch(() => ({}));
-  const texto = typeof body.texto === 'string' ? body.texto.trim() : '';
   if (!texto) return NextResponse.json({ error: 'Falta el texto.' }, { status: 400 });
   if (texto.length > MAX_LETRAS) return NextResponse.json({ error: 'Texto demasiado largo para la voz natural.' }, { status: 413 });
 
+  const t0 = Date.now();
   try {
     let r = await sintetizar(texto, MODELO);
     // 401 = llave inválida y 429 = sin créditos o saturado: otro modelo no lo
@@ -63,9 +64,23 @@ export async function POST(req: NextRequest) {
       console.error('[asistente/voz] ElevenLabs', r.status, (await r.text().catch(() => '')).slice(0, 300));
       return NextResponse.json({ error: 'No se pudo generar la voz.' }, { status: 502 });
     }
+    console.log(`[asistente/voz] ${texto.length} letras, primer audio en ${Date.now() - t0} ms`);
     return new Response(r.body, { headers: { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-store' } });
   } catch (e) {
     console.error('[asistente/voz]', e);
     return NextResponse.json({ error: 'No se pudo generar la voz.' }, { status: 502 });
   }
+}
+
+// GET ?t=texto: es la que usa el chat, como origen directo de un <audio>,
+// para que el navegador vaya reproduciendo mientras descarga. Las cookies de
+// sesión no viajan en peticiones de otros sitios, así que no se puede
+// disparar desde fuera para gastar créditos.
+export async function GET(req: NextRequest) {
+  return responder((req.nextUrl.searchParams.get('t') || '').trim());
+}
+
+export async function POST(req: NextRequest) {
+  const body = await req.json().catch(() => ({}));
+  return responder(typeof body.texto === 'string' ? body.texto.trim() : '');
 }

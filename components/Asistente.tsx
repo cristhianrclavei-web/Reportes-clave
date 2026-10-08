@@ -324,8 +324,9 @@ export default function Asistente() {
       const a = audio.current;
       audio.current = null;
       a.onended = null; a.onerror = null;
-      try { a.pause(); } catch { /* ya terminó */ }
-      if (a.src.startsWith('blob:')) URL.revokeObjectURL(a.src);
+      // Además de pausar se suelta el origen: corta la descarga del audio
+      // que aún se estuviera generando (cada letra generada se cobra).
+      try { a.pause(); a.removeAttribute('src'); a.load(); } catch { /* ya terminó */ }
     }
   }, []);
 
@@ -358,21 +359,20 @@ export default function Asistente() {
     if (!hayVozNatural || vozElegida !== '' || !limpio || limpio.length > MAX_LETRAS_VOZ_NATURAL) { decirLocal(t, alTerminar); return; }
     callar();
     const turno = turnoVoz.current;
-    fetch('/api/asistente/voz', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto: limpio }) })
-      .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status)))))
-      .then((blob) => {
-        if (turno !== turnoVoz.current) return;
-        const a = new Audio(URL.createObjectURL(blob));
-        audio.current = a;
-        const cerrar = () => {
-          if (audio.current === a) audio.current = null;
-          URL.revokeObjectURL(a.src);
-        };
-        a.onended = () => { cerrar(); alTerminar?.(); };
-        a.onerror = () => { cerrar(); if (turno === turnoVoz.current) decirLocal(t, alTerminar); };
-        return a.play().catch(() => { cerrar(); if (turno === turnoVoz.current) decirLocal(t, alTerminar); });
-      })
-      .catch(() => { if (turno === turnoVoz.current) decirLocal(t, alTerminar); });
+    // La ruta se usa como origen directo del audio: el navegador reproduce
+    // conforme descarga, sin esperar el archivo completo.
+    const a = new Audio(`/api/asistente/voz?t=${encodeURIComponent(limpio)}`);
+    audio.current = a;
+    let resuelto = false;
+    const alRespaldo = () => {
+      if (resuelto) return;
+      resuelto = true;
+      if (audio.current === a) audio.current = null;
+      if (turno === turnoVoz.current) decirLocal(t, alTerminar);
+    };
+    a.onended = () => { if (resuelto) return; resuelto = true; if (audio.current === a) audio.current = null; alTerminar?.(); };
+    a.onerror = alRespaldo;
+    a.play().catch(alRespaldo);
   }, [hayVozNatural, vozElegida, callar, decirLocal]);
 
   // Manda la pregunta. Devuelve la respuesta (o null si falló) para que la
