@@ -10,6 +10,7 @@ import ThemeToggle from '@/components/ThemeToggle';
 import Logo from '@/components/Logo';
 import PanelSupervisor from '@/components/PanelSupervisor';
 import { ChevronLeft, ChevronRight, BadgeCheck, UserCog, BookOpen } from 'lucide-react';
+import UsoAsistente from '@/components/UsoAsistente';
 import { DEMO } from '@/lib/marca';
 
 export const dynamic = 'force-dynamic';
@@ -104,6 +105,10 @@ export default async function PerfilPage() {
               <ChevronRight size={20} className="text-muted shrink-0" />
             </Link>
           )}
+
+          {/* Se muestra solo a quien administra el asistente; el propio
+              componente lo averigua. */}
+          <UsoAsistente />
 
           {/* Usuarios: quien supervisa los administra en Personal → Usuarios
               (alta, rol, permisos, baja). El gestor que no es supervisor

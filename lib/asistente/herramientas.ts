@@ -8,12 +8,15 @@ import { calcularTotales, normalizarEnlace, precioUnitarioDesdeCosto } from '@/l
 
 // Funciones de consulta del asistente. Reglas de este archivo:
 //
-//   1. Solo lectura, con dos excepciones, ambas solo para supervisores y
+//   1. Solo lectura, salvo estas acciones, todas solo para supervisores y
 //      solo tras la confirmación explícita del usuario:
-//        · crear_borrador_cotizacion inserta una cotización en «borrador»,
-//          marcada como generada por IA;
-//        · programar_servicio inserta un servicio nuevo (igual que «Agendar»).
-//      No hay ningún update ni delete.
+//        · crear_borrador_cotizacion / actualizar_borrador_cotizacion: una
+//          cotización en «borrador», marcada como generada por IA. Solo se
+//          tocan borradores; una cotización aprobada o enviada no se edita.
+//        · programar_servicio, reprogramar_servicio, cancelar_servicio: lo
+//          mismo que «Agendar» y el detalle del servicio, con su bitácora y
+//          su aviso a los técnicos. Nunca se elimina un servicio.
+//      Cada acción repite las validaciones que hace la app.
 //   2. Todo se consulta con la sesión de quien pregunta (el cliente de
 //      lib/supabaseServer), así que la RLS decide qué filas ve cada rol igual
 //      que en el resto de la app. Única excepción, decidida por la empresa:
@@ -614,6 +617,16 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
   });
 
   const texto = (max: number) => z.string().max(max);
+  const partidasSchema = z.array(z.object({
+    sistema: texto(80).describe('Grupo de la partida, p. ej. «Paneles Solares»'),
+    descripcion: texto(1200).min(3),
+    unidad: texto(20),
+    cantidad: z.number().positive(),
+    costo: z.number().min(0).describe('Costo unitario para la empresa, sin IVA, en la moneda de la cotización'),
+    margen_pct: z.number().min(0).max(300).describe('Margen de ganancia sobre el costo'),
+    enlace: texto(300).optional().describe('Dirección https de donde salió el precio, si la hay'),
+  })).min(1).max(60);
+
   const crearBorrador = betaZodTool({
     name: 'crear_borrador_cotizacion',
     description:
@@ -633,15 +646,7 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
       moneda: z.enum(['MXN', 'USD']).optional(),
       tipo_cambio: z.number().positive().optional().describe('MXN por 1 USD; obligatorio si la moneda es USD'),
       pendientes_de_revisar: texto(900).describe('Para quien revisa, no para el cliente: lo que hay que confirmar antes de aprobar. Máximo 6 puntos, uno por renglón, cada uno una frase corta (unas 12 palabras) y sin viñetas. Agrupa: un solo punto para todos los precios estimados (nombra los conceptos, sin montos), uno por supuesto importante. No repitas lo que ya se ve en la cotización, como el margen.'),
-      partidas: z.array(z.object({
-        sistema: texto(80).describe('Grupo de la partida, p. ej. «Paneles Solares»'),
-        descripcion: texto(1200).min(3),
-        unidad: texto(20),
-        cantidad: z.number().positive(),
-        costo: z.number().min(0).describe('Costo unitario para la empresa, sin IVA, en la moneda de la cotización'),
-        margen_pct: z.number().min(0).max(300).describe('Margen de ganancia sobre el costo; 0 si el usuario lo pondrá a mano'),
-        enlace: texto(300).optional().describe('Dirección https de donde salió el precio, si la hay'),
-      })).min(1).max(60),
+      partidas: partidasSchema,
     }),
     run: async (i) => {
       const moneda = i.moneda || 'MXN';
@@ -687,6 +692,76 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
         moneda, subtotal, iva, total,
         partidas: lineas.map((l) => ({ descripcion: l.descripcion.slice(0, 60), cantidad: l.cantidad, precio_unitario: l.precio_unitario })),
       });
+    },
+  });
+
+  const leerBorrador = betaZodTool({
+    name: 'leer_borrador_cotizacion',
+    description: 'Lee completa una cotización en borrador para poder modificarla: condiciones y todas sus partidas con costo, margen y precio. Úsala siempre antes de actualizar_borrador_cotizacion.',
+    inputSchema: z.object({ folio: texto(20).describe('Folio, p. ej. COT-0016') }),
+    run: async (i) => {
+      const { data: c, error } = await supabase
+        .from('cotizaciones')
+        .select('id, folio, estado, fecha, empresa, atencion, telefono, correo, direccion, forma_pago, tiempo_entrega, garantia, vigencia_dias, notas, moneda, tipo_cambio, iva_pct, subtotal, iva, total, notas_ia')
+        .ilike('folio', limpio(i.folio))
+        .maybeSingle();
+      if (error) return falla(error);
+      if (!c) return JSON.stringify({ error: `No existe la cotización ${i.folio}` });
+      const { data: lineas } = await supabase.from('cotizacion_lineas').select('sistema, descripcion, unidad, cantidad, costo, margen_pct, precio_unitario, importe, enlace').eq('cotizacion_id', c.id).order('orden');
+      const { id, ...resto } = c as any;
+      return JSON.stringify({ ...resto, se_puede_modificar: c.estado === 'borrador', enlace: `/dashboard/cotizaciones/${id}`, partidas: lineas || [] });
+    },
+  });
+
+  const actualizarBorrador = betaZodTool({
+    name: 'actualizar_borrador_cotizacion',
+    description:
+      'Modifica una cotización que sigue en BORRADOR: reemplaza todas sus partidas por la lista que mandes y cambia las condiciones que indiques. Manda la lista COMPLETA de partidas como debe quedar (las que no cambian, tal cual las devolvió leer_borrador_cotizacion). Úsala solo después de decir qué va a cambiar y de que el usuario lo confirme. Precios y totales los calcula el sistema.',
+    inputSchema: z.object({
+      confirmado_por_el_usuario: z.literal(true),
+      folio: texto(20),
+      partidas: partidasSchema,
+      atencion: texto(160).optional(), telefono: texto(40).optional(), correo: texto(120).optional(), direccion: texto(300).optional(),
+      forma_pago: texto(400).optional(), tiempo_entrega: texto(400).optional(), garantia: texto(600).optional(),
+      vigencia_dias: z.number().int().min(1).max(180).optional(),
+      notas: texto(1500).optional().describe('Notas que SÍ verá el cliente en el PDF'),
+      cambios_hechos: texto(600).describe('Para quien revisa: qué se cambió en esta edición, en una o dos frases cortas'),
+    }),
+    run: async (i) => {
+      const { data: c, error } = await supabase.from('cotizaciones').select('id, folio, estado, iva_pct, moneda, notas_ia').ilike('folio', limpio(i.folio)).maybeSingle();
+      if (error) return falla(error);
+      if (!c) return JSON.stringify({ error: `No existe la cotización ${i.folio}` });
+      if (c.estado !== 'borrador') return JSON.stringify({ error: `La ${c.folio} está «${c.estado}»: solo se pueden modificar borradores. Se puede copiar a una nueva desde la app.` });
+      const lineas = i.partidas.map((l) => ({
+        sistema: l.sistema.trim() || 'General', descripcion: l.descripcion.trim(), unidad: l.unidad.trim() || 'Pza',
+        cantidad: l.cantidad, costo: l.costo, margen_pct: l.margen_pct,
+        precio_unitario: precioUnitarioDesdeCosto(l.costo, l.margen_pct),
+        enlace: l.enlace && /^https:\/\//i.test(l.enlace) ? l.enlace : null,
+      }));
+      const { subtotal, iva, total } = calcularTotales(lineas, Number(c.iva_pct) || 0);
+      const opcional = Object.fromEntries(
+        (['atencion', 'telefono', 'correo', 'direccion', 'forma_pago', 'tiempo_entrega', 'garantia', 'notas'] as const)
+          .filter((k) => i[k] !== undefined).map((k) => [k, i[k]!.trim() || null]),
+      );
+      const notasIa = [c.notas_ia, `Editada con el asistente: ${i.cambios_hechos.trim()}`].filter(Boolean).join('\n').slice(-1800);
+      // Mismo orden que el formulario de la app: encabezado y luego se
+      // reemplazan todas las partidas.
+      const { error: eU } = await supabase
+        .from('cotizaciones')
+        .update({ ...opcional, ...(i.vigencia_dias ? { vigencia_dias: i.vigencia_dias } : {}), subtotal, iva, total, generada_por_ia: true, notas_ia: notasIa, updated_at: new Date().toISOString() })
+        .eq('id', c.id)
+        .eq('estado', 'borrador');
+      if (eU) {
+        if (/generada_por_ia|notas_ia/.test(eU.message)) return JSON.stringify({ error: 'La base aún no está preparada para borradores del asistente: falta correr patch_asistente_cotizaciones.sql.' });
+        return falla(eU);
+      }
+      const { error: eD } = await supabase.from('cotizacion_lineas').delete().eq('cotizacion_id', c.id);
+      if (eD) return falla(eD);
+      const { error: eI } = await supabase.from('cotizacion_lineas').insert(
+        lineas.map((l, n) => ({ cotizacion_id: c.id, orden: n, ...l, importe: Math.round(l.cantidad * l.precio_unitario * 100) / 100, enlace: normalizarEnlace(l.enlace) })),
+      );
+      if (eI) return JSON.stringify({ error: 'Se actualizó el encabezado pero no se pudieron guardar las partidas: hay que revisarla en la app', detalle: eI.message, enlace: `/dashboard/cotizaciones/${c.id}` });
+      return JSON.stringify({ actualizada: true, folio: c.folio, enlace: `/dashboard/cotizaciones/${c.id}`, moneda: c.moneda, partidas: lineas.length, subtotal, iva, total });
     },
   });
 
@@ -830,10 +905,131 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
     },
   });
 
+  // Aviso a los asignados de un servicio, respetando lo que cada quien eligió
+  // recibir. Devuelve cuántas notificaciones salieron; nunca lanza.
+  const avisarAsignados = async (servicioId: string, aviso: { titulo: string; mensaje: string; url: string; tag: string }): Promise<number> => {
+    try {
+      const { data: asig } = await supabase.from('servicio_tecnicos').select('tecnico_id').eq('servicio_id', servicioId);
+      const todos = ((asig as any[]) || []).map((r) => r.tecnico_id as string);
+      if (todos.length === 0) return 0;
+      const { data: pref } = await supabase.rpc('filtrar_por_preferencia', { p_usuarios: todos, p_tipo: 'servicio_asignado' });
+      const destino = ((pref as any[]) || []).map((r) => (typeof r === 'string' ? r : r.filtrar_por_preferencia)).filter((id) => id && id !== yo.id);
+      return (await enviarPush(destino, aviso)).enviadas;
+    } catch (e) {
+      console.error('[asistente] aviso a técnicos:', e);
+      return 0;
+    }
+  };
+  const dma = (f: string) => f.split('-').reverse().join('/');
+
+  const reprogramarServicio = betaZodTool({
+    name: 'reprogramar_servicio',
+    description:
+      'Cambia la fecha y/o el horario de un servicio ya agendado que no esté concluido ni cancelado. Requiere el servicio_id de consultar_servicios. Úsala solo después de decir el cambio (de qué fecha y hora a cuál) y de que el usuario lo confirme. No cambia los técnicos asignados.',
+    inputSchema: z.object({
+      confirmado_por_el_usuario: z.literal(true),
+      servicio_id: z.string().uuid(),
+      nueva_fecha: fecha.optional(),
+      hora_llegada: hora.optional(),
+      hora_salida: hora.optional(),
+    }),
+    run: async (i) => {
+      if (!i.nueva_fecha && !i.hora_llegada && !i.hora_salida) return JSON.stringify({ error: 'Indica la nueva fecha o el nuevo horario' });
+      const { data: a, error } = await supabase
+        .from('servicios_programados')
+        .select('id, proyecto, fecha, numero_dia, dias_totales, grupo_id, estado, hora_programada, hora_salida_programada')
+        .eq('id', i.servicio_id).maybeSingle();
+      if (error) return falla(error);
+      if (!a) return JSON.stringify({ error: 'No existe ese servicio' });
+      if (a.estado === 'concluido' || a.estado === 'cancelado') return JSON.stringify({ error: `Ese servicio está ${a.estado}; no se puede reprogramar.` });
+      const nuevaFecha = i.nueva_fecha && i.nueva_fecha !== a.fecha ? i.nueva_fecha : null;
+      if (nuevaFecha) {
+        if (nuevaFecha < hoyNegocio()) return JSON.stringify({ error: `No se puede mover a una fecha pasada (${nuevaFecha})` });
+        if (a.estado !== 'programado') return JSON.stringify({ error: 'El servicio ya empezó; solo se le puede cambiar el horario, no la fecha.' });
+        // Dos días del mismo proyecto no pueden compartir fecha.
+        const { data: choque } = await supabase.from('servicios_programados').select('id').eq('grupo_id', a.grupo_id).eq('fecha', nuevaFecha).neq('id', a.id).limit(1);
+        if (choque && choque.length > 0) return JSON.stringify({ error: `Ya hay un día de este proyecto programado para el ${nuevaFecha}. Elige otra fecha.` });
+      }
+      const llegada = i.hora_llegada || a.hora_programada?.slice(0, 5) || null;
+      const salida = i.hora_salida || a.hora_salida_programada?.slice(0, 5) || null;
+      if (llegada && salida && salida <= llegada) return JSON.stringify({ error: 'La hora de salida debe ser posterior a la de llegada' });
+      const cambios: Record<string, unknown> = {};
+      if (nuevaFecha) cambios.fecha = nuevaFecha;
+      if (i.hora_llegada) cambios.hora_programada = i.hora_llegada;
+      if (i.hora_salida) cambios.hora_salida_programada = i.hora_salida;
+      if ((i.hora_llegada || i.hora_salida) && llegada && salida) {
+        cambios.duracion_estimada_min = (Number(salida.slice(0, 2)) * 60 + Number(salida.slice(3))) - (Number(llegada.slice(0, 2)) * 60 + Number(llegada.slice(3)));
+      }
+      if (Object.keys(cambios).length === 0) return JSON.stringify({ sin_cambios: true, motivo: 'El servicio ya tiene esa fecha y horario' });
+      const { error: eU } = await supabase.from('servicios_programados').update(cambios).eq('id', a.id);
+      if (eU) return falla(eU);
+
+      let numero = a.numero_dia;
+      if (nuevaFecha) {
+        // «Día N» debe seguir siendo cronológico dentro del proyecto.
+        const { data: dias } = await supabase.from('servicios_programados').select('id, numero_dia').eq('grupo_id', a.grupo_id).order('fecha', { ascending: true });
+        for (let n = 0; n < ((dias as any[]) || []).length; n++) {
+          const d = (dias as any[])[n];
+          if (d.id === a.id) numero = n + 1;
+          if (d.numero_dia !== n + 1) await supabase.from('servicios_programados').update({ numero_dia: n + 1 }).eq('id', d.id);
+        }
+      }
+      const partes = [
+        nuevaFecha ? `de ${a.fecha} a ${nuevaFecha}` : '',
+        i.hora_llegada || i.hora_salida ? `horario ${llegada || '—'}${salida ? ` a ${salida}` : ''}` : '',
+      ].filter(Boolean).join(', ');
+      const cambio = `Reprogramó con el asistente el día ${numero} de «${a.proyecto}»: ${partes}`;
+      try {
+        await supabase.from('servicio_auditoria').insert({ servicio_id: a.id, supervisor_id: yo.id, cambio });
+        await supabase.from('auditoria_global').insert({ actor_id: yo.id, accion: 'reprogramo_dia', entidad: 'servicio', entidad_id: a.id, detalle: cambio });
+      } catch (e) { console.error('[asistente] bitácora:', e); }
+      const detalle = [nuevaFecha ? `ahora es el ${dma(nuevaFecha)}` : '', i.hora_llegada || i.hora_salida ? `horario ${llegada || ''}${salida ? ` a ${salida}` : ''}` : ''].filter(Boolean).join(', ');
+      const enviadas = await avisarAsignados(a.id, { titulo: 'Cambió un servicio tuyo', mensaje: `«${a.proyecto}»: ${detalle}. Confirma que estás enterado.`, url: `/servicios/${a.id}`, tag: `servicio-cambio-${a.id}` });
+
+      // Empalmes de los asignados en la fecha final, solo como información.
+      const { data: asig } = await supabase.from('servicio_tecnicos').select('tecnico_id').eq('servicio_id', a.id);
+      const idsAsig = ((asig as any[]) || []).map((r) => r.tecnico_id);
+      const { data: otros } = await supabase.from('servicios_programados').select('id, proyecto, hora_programada, servicio_tecnicos(tecnico_id)').eq('fecha', nuevaFecha || a.fecha).neq('estado', 'cancelado').neq('id', a.id);
+      const mapa = await cargarNombres();
+      const empalmes = ((otros as any[]) || []).flatMap((s) => (s.servicio_tecnicos || []).filter((t: any) => idsAsig.includes(t.tecnico_id)).map((t: any) => ({ tecnico: mapa.get(t.tecnico_id) || null, servicio: s.proyecto, hora: s.hora_programada?.slice(0, 5) || null })));
+      return JSON.stringify({
+        reprogramado: true, proyecto: a.proyecto, fecha: nuevaFecha || a.fecha, hora_llegada: llegada, hora_salida: salida,
+        enlace: `/dashboard/servicios/${a.id}`, notificaciones_enviadas: enviadas, empalmes_con_otros_servicios: empalmes,
+      });
+    },
+  });
+
+  const cancelarServicio = betaZodTool({
+    name: 'cancelar_servicio',
+    description:
+      'Cancela un servicio agendado que todavía no ha empezado, con su motivo. Queda en el historial como cancelado (no se borra) y se puede reactivar desde la app. Requiere el servicio_id de consultar_servicios. Úsala solo después de decir cuál servicio y de que el usuario lo confirme y dé el motivo.',
+    inputSchema: z.object({
+      confirmado_por_el_usuario: z.literal(true),
+      servicio_id: z.string().uuid(),
+      motivo: texto(300).min(3),
+    }),
+    run: async (i) => {
+      const { data: sv, error } = await supabase.from('servicios_programados').select('id, proyecto, fecha, estado, numero_dia, dias_totales').eq('id', i.servicio_id).maybeSingle();
+      if (error) return falla(error);
+      if (!sv) return JSON.stringify({ error: 'No existe ese servicio' });
+      if (sv.estado !== 'programado') return JSON.stringify({ error: `Solo se puede cancelar un servicio que no se ha empezado; este está «${sv.estado}».` });
+      const { error: eU } = await supabase.from('servicios_programados').update({ estado: 'cancelado', cancelado_motivo: i.motivo.trim() }).eq('id', sv.id).eq('estado', 'programado');
+      if (eU) return falla(eU);
+      const etiqueta = `«${sv.proyecto}»${sv.dias_totales > 1 ? ` (día ${sv.numero_dia}/${sv.dias_totales})` : ''}`;
+      const cambio = `Canceló con el asistente ${etiqueta} del ${dma(sv.fecha)}: ${i.motivo.trim()}`;
+      try {
+        await supabase.from('servicio_auditoria').insert({ servicio_id: sv.id, supervisor_id: yo.id, cambio });
+        await supabase.from('auditoria_global').insert({ actor_id: yo.id, accion: 'cambio_en_dia', entidad: 'servicio', entidad_id: sv.id, detalle: cambio });
+      } catch (e) { console.error('[asistente] bitácora:', e); }
+      const enviadas = await avisarAsignados(sv.id, { titulo: 'Se canceló un servicio', mensaje: `${etiqueta} del ${dma(sv.fecha)}: ${i.motivo.trim()}`, url: '/servicios', tag: `servicio-cancelado-${sv.id}` });
+      return JSON.stringify({ cancelado: true, proyecto: sv.proyecto, fecha: sv.fecha, enlace: `/dashboard/servicios/${sv.id}`, notificaciones_enviadas: enviadas });
+    },
+  });
+
   // El técnico no recibe las funciones de supervisión: aunque la RLS ya le
   // devolvería vacío, no ofrecerlas evita respuestas confusas («no hay
   // cotizaciones») sobre datos que simplemente no le corresponden.
   const comunes = [buscarEquipos, buscarReportes, servicios, tareas, listaDeCarga, plantillas, existencias, vales, clientes];
   if (!esSupervisor) return comunes;
-  return [...comunes, cotizaciones, disponibles, recurrentes, preciosDeReferencia, redaccion, ...(yo.puedeEscribir === false ? [] : [crearBorrador, programarServicio])];
+  return [...comunes, cotizaciones, disponibles, recurrentes, preciosDeReferencia, redaccion, leerBorrador, ...(yo.puedeEscribir === false ? [] : [crearBorrador, actualizarBorrador, programarServicio, reprogramarServicio, cancelarServicio])];
 }
