@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
+import { MARCA } from '@/lib/marca';
 import { Sparkles, X, Mic, Square, SendHorizontal, Volume2, VolumeX, Trash2 } from 'lucide-react';
 
 // Chat del asistente de IA (Fase 1: solo consultas). Botón flotante que
@@ -69,6 +70,18 @@ const AVISOS_VOZ: Record<string, string> = {
   network: 'El dictado necesita conexión a internet.',
 };
 
+// Nombre del asistente: las iniciales de la marca de la instalación (CI-BOT
+// en Clave Inteligente).
+const NOMBRE = `${MARCA.iniciales}-BOT`;
+
+// La bienvenida solo promete lo que el asistente hace hoy para cada rol.
+const BIENVENIDA: Record<'supervisor' | 'tecnico', string> = {
+  supervisor: 'Estoy aquí para ayudarte con información de reportes, servicios y almacén, y para armar cotizaciones.',
+  tecnico: 'Estoy aquí para ayudarte con tus servicios, reportes y material, y a preparar tu trabajo.',
+};
+const SEGUNDOS_BIENVENIDA = 5;
+const K_BIENVENIDA = 'asistenteBienvenida';
+
 const K_CHARLA = 'asistenteCharla';
 const K_VOZ = 'asistenteVoz';
 
@@ -91,6 +104,8 @@ export default function Asistente() {
   const [puedeDictar, setPuedeDictar] = useState(false);
   const [escuchando, setEscuchando] = useState(false);
   const [avisoVoz, setAvisoVoz] = useState('');
+  // Bienvenida: 'no' (sin montar) → 'entra' → 'visible' → 'sale' → 'no'.
+  const [bienvenida, setBienvenida] = useState<'no' | 'entra' | 'visible' | 'sale'>('no');
   const reconocedor = useRef<any>(null);
   const fin = useRef<HTMLDivElement>(null);
   const mensajesRef = useRef<Mensaje[]>([]);
@@ -126,6 +141,23 @@ export default function Asistente() {
     try { sessionStorage.setItem(K_CHARLA, JSON.stringify(mensajes.slice(-30))); } catch { /* modo privado */ }
     fin.current?.scrollIntoView({ block: 'end' });
   }, [mensajes, pensando]);
+
+  // Mensaje de bienvenida sobre el botón: una vez cada que se abre la app
+  // (por sesión del navegador, no en cada cambio de pantalla), dura unos
+  // segundos y se va solo.
+  useEffect(() => {
+    if (!rol || oculto) return;
+    try {
+      if (sessionStorage.getItem(K_BIENVENIDA)) return;
+      sessionStorage.setItem(K_BIENVENIDA, '1');
+    } catch { /* modo privado: se muestra igual */ }
+    const t1 = setTimeout(() => setBienvenida('entra'), 700);
+    const t2 = setTimeout(() => setBienvenida('visible'), 760);
+    const t3 = setTimeout(() => setBienvenida('sale'), 760 + SEGUNDOS_BIENVENIDA * 1000);
+    const t4 = setTimeout(() => setBienvenida('no'), 760 + SEGUNDOS_BIENVENIDA * 1000 + 400);
+    return () => { [t1, t2, t3, t4].forEach(clearTimeout); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rol]);
 
   const callar = useCallback(() => {
     try { window.speechSynthesis?.cancel(); } catch { /* sin voz */ }
@@ -222,16 +254,55 @@ export default function Asistente() {
 
   if (!abierto) {
     return (
+      <>
+        {bienvenida !== 'no' && (
+          <div
+            className={`fixed right-4 z-[90] w-[min(19rem,calc(100vw-2rem))] origin-bottom-right transition-all duration-300 ease-out motion-reduce:transition-none print:hidden ${bienvenida === 'visible' ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-3 scale-95 pointer-events-none'}`}
+            style={{ bottom: 'calc(5.25rem + env(safe-area-inset-bottom))' }}
+          >
+            <div role="status" className="relative overflow-hidden rounded-2xl rounded-br-md border border-line-strong bg-surface shadow-glow">
+              <button
+                type="button"
+                onClick={() => { setBienvenida('no'); setAbierto(true); }}
+                className="flex w-full items-start gap-3 px-3.5 py-3 text-left"
+              >
+                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal/15 text-teal">
+                  <Sparkles size={18} strokeWidth={2.2} />
+                </span>
+                <span className="min-w-0 pr-5">
+                  <span className="block font-display text-[15px] font-semibold tracking-wide leading-tight">
+                    Hola, soy {NOMBRE}
+                    <span className="ml-1.5 align-middle text-[10.5px] font-sans font-medium normal-case tracking-normal text-muted">tu asistente</span>
+                  </span>
+                  <span className="mt-1 block text-[13px] leading-snug text-ink/85">{BIENVENIDA[rol]}</span>
+                </span>
+              </button>
+              <button
+                type="button" onClick={() => setBienvenida('no')} aria-label="Cerrar el mensaje"
+                className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full text-muted transition hover:text-ink active:scale-90"
+              >
+                <X size={15} />
+              </button>
+              {/* Se vacía en lo que dura el mensaje: avisa que se cierra solo. */}
+              <span
+                aria-hidden
+                className="block h-[3px] origin-left bg-teal/70 ease-linear motion-reduce:hidden"
+                style={{ transform: bienvenida === 'visible' ? 'scaleX(0)' : 'scaleX(1)', transitionProperty: 'transform', transitionDuration: bienvenida === 'visible' ? `${SEGUNDOS_BIENVENIDA}s` : '0s' }}
+              />
+            </div>
+          </div>
+        )}
       <button
         type="button"
-        onClick={() => setAbierto(true)}
+        onClick={() => { setBienvenida('no'); setAbierto(true); }}
         aria-label="Abrir el asistente"
-        title="Asistente"
+        title={NOMBRE}
         className="fixed right-4 z-[90] w-14 h-14 rounded-full bg-teal text-inkOnAccent flex items-center justify-center shadow-glow-teal transition hover:brightness-110 active:scale-90 print:hidden"
         style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
       >
         <Sparkles size={24} strokeWidth={2.2} />
       </button>
+      </>
     );
   }
 
@@ -245,7 +316,7 @@ export default function Asistente() {
       <div className="flex items-center gap-2 px-4 h-14 border-b border-line shrink-0">
         <Sparkles size={18} className="text-teal" />
         <div className="flex-1 min-w-0">
-          <div className="font-semibold text-[15px] leading-tight">Asistente</div>
+          <div className="font-semibold text-[15px] leading-tight">{NOMBRE}</div>
           <div className="text-[11.5px] text-muted leading-tight">
             {rol === 'supervisor' ? 'Consulta y arma borradores de cotización' : 'Solo consulta · no modifica nada'}
           </div>
