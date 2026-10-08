@@ -97,11 +97,16 @@ const K_BIENVENIDA = 'asistenteBienvenida';
 
 const K_CHARLA = 'asistenteCharla';
 const K_VOZ = 'asistenteVoz';
-// Voz elegida para leer (voiceURI del navegador) y desde cuándo cuenta la
+// Voz elegida para leer: '' = la mejor disponible (la natural del servidor
+// si la instalación la tiene), 'local' = la del equipo en automático, o el
+// voiceURI de una voz concreta del equipo. Y desde cuándo cuenta la
 // conversación de hoy («Conversación nueva» no borra el historial: solo deja
 // de mostrar y de mandar al modelo lo anterior).
 const K_VOZ_ELEGIDA = 'asistenteVozElegida';
 const K_DESDE = 'asistenteDesde';
+
+// Más largo que esto se lee con la voz del equipo: la natural cobra por letra.
+const MAX_LETRAS_VOZ_NATURAL = 1000;
 
 const MAX_FOTOS = 3;
 const LADO_FOTO = 1280;
@@ -209,6 +214,7 @@ export default function Asistente() {
   const [ajustesVoz, setAjustesVoz] = useState(false);
   const [voces, setVoces] = useState<SpeechSynthesisVoice[]>([]);
   const [vozElegida, setVozElegida] = useState('');
+  const [hayVozNatural, setHayVozNatural] = useState(false);
 
   const reconocedor = useRef<any>(null);
   const fin = useRef<HTMLDivElement>(null);
@@ -219,6 +225,10 @@ export default function Asistente() {
   modoVozRef.current = modoVoz;
   const silencios = useRef(0);
   const escucharRef = useRef<() => void>(() => {});
+  // Audio de la voz natural en curso y un número de turno: si se pide callar
+  // o leer otra cosa mientras llega el audio, el anterior ya no se reproduce.
+  const audio = useRef<HTMLAudioElement | null>(null);
+  const turnoVoz = useRef(0);
 
   // ¿Hay asistente para esta sesión? Se vuelve a preguntar al salir de una
   // pantalla pública (acaba de iniciar sesión).
@@ -231,6 +241,7 @@ export default function Asistente() {
         if (!vigente) return;
         setRol(d.disponible ? d.rol : null);
         setRestantes(d.disponible ? d.restantes : null);
+        setHayVozNatural(!!d.disponible && !!d.vozNatural);
       })
       .catch(() => { /* sin red: no se muestra */ });
     return () => { vigente = false; };
@@ -307,11 +318,20 @@ export default function Asistente() {
   }, [rol]);
 
   const callar = useCallback(() => {
+    turnoVoz.current += 1;
     try { window.speechSynthesis?.cancel(); } catch { /* sin voz */ }
+    if (audio.current) {
+      const a = audio.current;
+      audio.current = null;
+      a.onended = null; a.onerror = null;
+      try { a.pause(); } catch { /* ya terminó */ }
+      if (a.src.startsWith('blob:')) URL.revokeObjectURL(a.src);
+    }
   }, []);
 
-  // Lee un texto en voz alta. alTerminar se llama al acabar (o si no se pudo).
-  const decir = useCallback((t: string, alTerminar?: () => void) => {
+  // Lee un texto con la voz del equipo. alTerminar se llama al acabar (o si
+  // no se pudo).
+  const decirLocal = useCallback((t: string, alTerminar?: () => void) => {
     const voz = window.speechSynthesis;
     if (!voz) { alTerminar?.(); return; }
     voz.cancel();
@@ -329,6 +349,31 @@ export default function Asistente() {
     }
     voz.speak(u);
   }, [vozElegida]);
+
+  // Lee un texto en voz alta: con la voz natural si la hay y está elegida, y
+  // con la del equipo si no, o si la natural falla (sin créditos, sin red, el
+  // navegador bloquea el audio).
+  const decir = useCallback((t: string, alTerminar?: () => void) => {
+    const limpio = paraVoz(t).trim();
+    if (!hayVozNatural || vozElegida !== '' || !limpio || limpio.length > MAX_LETRAS_VOZ_NATURAL) { decirLocal(t, alTerminar); return; }
+    callar();
+    const turno = turnoVoz.current;
+    fetch('/api/asistente/voz', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto: limpio }) })
+      .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status)))))
+      .then((blob) => {
+        if (turno !== turnoVoz.current) return;
+        const a = new Audio(URL.createObjectURL(blob));
+        audio.current = a;
+        const cerrar = () => {
+          if (audio.current === a) audio.current = null;
+          URL.revokeObjectURL(a.src);
+        };
+        a.onended = () => { cerrar(); alTerminar?.(); };
+        a.onerror = () => { cerrar(); if (turno === turnoVoz.current) decirLocal(t, alTerminar); };
+        return a.play().catch(() => { cerrar(); if (turno === turnoVoz.current) decirLocal(t, alTerminar); });
+      })
+      .catch(() => { if (turno === turnoVoz.current) decirLocal(t, alTerminar); });
+  }, [hayVozNatural, vozElegida, callar, decirLocal]);
 
   // Manda la pregunta. Devuelve la respuesta (o null si falló) para que la
   // conversación por voz sepa qué leer.
@@ -846,13 +891,14 @@ export default function Asistente() {
           {ajustesVoz && (
             <div className="mx-4 mb-2 rounded-2xl border border-line bg-surface p-3.5 shrink-0">
               <label htmlFor="asistente-voz" className="block text-[11px] font-semibold uppercase tracking-wider text-muted mb-1.5">Voz</label>
-              {voces.length > 0 ? (
+              {voces.length > 0 || hayVozNatural ? (
                 <div className="flex gap-2">
                   <select
                     id="asistente-voz" value={vozElegida} onChange={(e) => elegirVoz(e.target.value)}
                     className="min-w-0 flex-1 rounded-xl border border-line-strong bg-surface-2 px-3 py-2.5 text-[14px] outline-none focus:border-teal/60"
                   >
-                    <option value="">Automática (español de México)</option>
+                    {hayVozNatural && <option value="">Voz natural</option>}
+                    <option value={hayVozNatural ? 'local' : ''}>Voz del equipo · automática</option>
                     {voces.map((v) => <option key={v.voiceURI} value={v.voiceURI}>{v.name} · {v.lang}</option>)}
                   </select>
                   <button
@@ -865,7 +911,11 @@ export default function Asistente() {
               ) : (
                 <p className="text-[13px] text-muted">Este equipo no tiene voces en español instaladas.</p>
               )}
-              <p className="mt-2 text-[12px] leading-snug text-muted">Las voces son las que tiene instaladas tu teléfono o computadora.</p>
+              <p className="mt-2 text-[12px] leading-snug text-muted">
+                {hayVozNatural
+                  ? 'La voz natural se genera en línea; si no está disponible se usa la del equipo.'
+                  : 'Las voces son las que tiene instaladas tu teléfono o computadora.'}
+              </p>
             </div>
           )}
 

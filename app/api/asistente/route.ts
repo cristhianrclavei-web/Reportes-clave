@@ -120,7 +120,11 @@ function respuestaError(e: unknown) {
 export async function GET() {
   try {
     const { yo, usadas } = await autorizar();
-    return NextResponse.json({ disponible: true, rol: yo.rol, restantes: Math.max(0, LIMITE_DIARIO - usadas) });
+    return NextResponse.json({
+      disponible: true, rol: yo.rol, restantes: Math.max(0, LIMITE_DIARIO - usadas),
+      // Hay voz natural (ElevenLabs) configurada en esta instalación.
+      vozNatural: !!process.env.ELEVENLABS_API_KEY,
+    });
   } catch (e) {
     return NextResponse.json({ disponible: false, motivo: e instanceof Rechazo ? e.message : 'error' });
   }
