@@ -59,7 +59,9 @@ function usePorcentaje(objetivo?: number): number {
   return visto;
 }
 
-function Contenido({ pct, label }: { pct?: number; label?: string }) {
+// `pie`: el renglón de abajo mientras avanza. Al guardar pide no cerrar; al
+// abrir una página (components/PantallaCarga) no hace falta.
+export function Contenido({ pct, label, pie = 'No cierres ni cambies de pantalla', etiquetaAria = 'Avance del guardado' }: { pct?: number; label?: string; pie?: string; etiquetaAria?: string }) {
   const visto = usePorcentaje(pct);
   const listo = visto >= 100;
   const esBloque = MARCA.logo === 'bloque';
@@ -77,7 +79,7 @@ function Contenido({ pct, label }: { pct?: number; label?: string }) {
         aria-valuenow={visto}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-label="Avance del guardado"
+        aria-label={etiquetaAria}
       >
         <div className="guardado-halo absolute -inset-10 rounded-full" aria-hidden="true" />
         <svg viewBox="0 0 100 100" fill="none" className="relative w-full h-full overflow-visible" aria-hidden="true">
@@ -181,7 +183,7 @@ function Contenido({ pct, label }: { pct?: number; label?: string }) {
       </div>
 
       <p className="text-muted text-xs mt-6 text-center">
-        {listo ? 'Todo quedó guardado' : 'No cierres ni cambies de pantalla'}
+        {listo ? 'Todo quedó guardado' : pie}
       </p>
     </div>
   );
