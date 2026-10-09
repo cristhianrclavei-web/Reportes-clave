@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Gauge, MessageSquareWarning, Users } from 'lucide-react';
+import { Gauge, MessageSquareWarning, Users, Ban } from 'lucide-react';
 import { DiaAgenda } from '@/lib/serviciosProgramados';
 import {
-  resumenEficiencia, eficienciaPorSemana, motivosFrecuentes, eficienciaPorGrupo, lunesDe, MARGEN_MIN,
+  resumenEficiencia, eficienciaPorSemana, motivosFrecuentes, eficienciaPorGrupo, visitasEnFalso, lunesDe, MARGEN_MIN,
   Conteo, FilaGrupo,
 } from '@/lib/eficiencia';
 import { formatMinutos, MUESTRA_MINIMA } from '@/lib/kpis';
@@ -98,6 +98,7 @@ export default function KpiEficiencia({ servicios }: { servicios: DiaAgenda[] })
   }, [servicios, semanas, hoy]);
   const resumen = useMemo(() => resumenEficiencia(delPeriodo), [delPeriodo]);
   const motivos = useMemo(() => motivosFrecuentes(delPeriodo), [delPeriodo]);
+  const enFalso = useMemo(() => visitasEnFalso(delPeriodo), [delPeriodo]);
   const grupos = useMemo(
     () => eficienciaPorGrupo(delPeriodo, (s) => (agrupar === 'tecnico' ? s.tecnicos : [s.proyecto])),
     [delPeriodo, agrupar],
@@ -240,7 +241,38 @@ export default function KpiEficiencia({ servicios }: { servicios: DiaAgenda[] })
           )}
         </Tarjeta>
 
-        {/* 3. Por técnico o por cliente */}
+        {/* 3. Visitas en falso */}
+        <Tarjeta titulo="Visitas en falso" Icono={Ban} color="text-red"
+          explicacion={
+            <>
+              Días en que el personal llegó y no se pudo trabajar («No se pudo trabajar» al cerrar).
+              El tiempo es de la llegada al cierre de esas visitas. Por cliente, para ver con quién
+              se pierden más vueltas; «externas» son las que no fueron por causa del equipo.
+            </>
+          }
+        >
+          {enFalso.total === 0 ? (
+            <p className="text-[13px] text-muted">{hayDatos ? 'Ninguna en el periodo.' : 'Sin datos todavía.'}</p>
+          ) : (
+            <>
+              <p className="flex items-baseline gap-2">
+                <span className="font-display font-bold text-[30px] leading-none tabular-nums">{enFalso.total}</span>
+                <span className="text-[12.5px] text-muted">{enFalso.total === 1 ? 'visita' : 'visitas'}{enFalso.minutos > 0 ? ` · ${formatMinutos(enFalso.minutos)} en sitio sin trabajo` : ''}</span>
+              </p>
+              <div className="flex flex-col gap-1.5 mt-3">
+                {enFalso.porCliente.slice(0, 6).map((c) => (
+                  <div key={c.nombre} className="flex items-baseline gap-2 text-[12.5px]">
+                    <span className="flex-1 min-w-0 truncate">{c.nombre}</span>
+                    <span className="text-muted shrink-0">{c.externas === c.n ? 'externa' : c.externas === 0 ? 'propia' : `${c.externas} externa${c.externas > 1 ? 's' : ''}`}</span>
+                    <span className="font-semibold tabular-nums shrink-0 w-5 text-right">{c.n}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </Tarjeta>
+
+        {/* 4. Por técnico o por cliente */}
         <Tarjeta titulo="Detalle" Icono={Users} color="text-teal" className="md:col-span-2 xl:col-span-3"
           explicacion={
             <>

@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { CheckCircle2, CircleDashed, Ban, Clock, Camera } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { CheckCircle2, CircleDashed, Ban, Clock, Camera, X } from 'lucide-react';
+import SignaturePad, { SignaturePadHandle } from '@/components/SignaturePad';
 import ModalOverlay from '@/components/ModalOverlay';
 import { Servicio, CierreServicio } from '@/lib/serviciosProgramados';
 import { MOTIVOS, MARGEN_MIN, desfaseSalida, ResultadoCierre } from '@/lib/eficiencia';
@@ -13,8 +14,11 @@ import { formatMinutos } from '@/lib/kpis';
 // Al técnico no se le dice qué motivos cuentan en contra: la lista es una sola.
 
 function ListaMotivos({
-  donde, valor, onChange, comentario, onComentario,
+  donde, valor, onChange, comentario, onComentario, sin = [], comentarioObligatorio = false,
 }: {
+  // Claves que no aplican en este punto.
+  sin?: string[];
+  comentarioObligatorio?: boolean;
   donde: 'llegada' | 'cierre';
   valor: string | null;
   onChange: (clave: string) => void;
@@ -24,7 +28,7 @@ function ListaMotivos({
   return (
     <>
       <div className="flex flex-col gap-1.5">
-        {MOTIVOS.filter((m) => m[donde]).map((m) => (
+        {MOTIVOS.filter((m) => m[donde] && !sin.includes(m.clave)).map((m) => (
           <button
             key={m.clave}
             type="button"
@@ -41,7 +45,7 @@ function ListaMotivos({
       <textarea
         value={comentario}
         onChange={(e) => onComentario(e.target.value)}
-        placeholder={valor === 'otro' ? 'Cuéntanos qué pasó' : 'Comentario (opcional)'}
+        placeholder={comentarioObligatorio || valor === 'otro' ? 'Cuéntanos qué pasó' : 'Comentario (opcional)'}
         className="w-full px-3 py-2.5 mt-2 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[13.5px] min-h-[60px]"
       />
     </>
@@ -180,6 +184,9 @@ export function ModalCierre({
           <div className="mt-4">
             <p className="text-[11px] uppercase tracking-wider text-muted mb-1.5">¿Por qué no se terminó?</p>
             <ListaMotivos donde="cierre" valor={motivoResultado} onChange={setMotivoResultado} comentario={comentarioResultado} onComentario={setComentarioResultado} />
+            {resultado === 'no_realizado' && (
+              <p className="text-[12.5px] text-muted mt-2 leading-snug">Tu supervisor revisa el caso y decide si este día queda sin reporte.</p>
+            )}
           </div>
         )}
 
@@ -209,6 +216,99 @@ export function ModalCierre({
             className="flex-1 min-h-[50px] rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15px] active:scale-95 transition-transform disabled:opacity-50"
           >
             {busy ? 'Cerrando...' : 'Concluir'}
+          </button>
+        </div>
+      </div>
+    </ModalOverlay>
+  );
+}
+
+// «No se pudo trabajar»: el técnico llegó y el trabajo no se pudo hacer. Va
+// aparte de «Terminar» para que no haya que adivinar dónde se registra. El
+// comentario es obligatorio porque un supervisor lo revisa para decidir si
+// el día queda sin reporte; la foto y la firma de quien atendió son el
+// respaldo de la visita y son opcionales.
+export type VisitaSinTrabajo = { motivo: string; comentario: string; foto: File | null; firma: string | null; firmaNombre: string };
+
+export function ModalVisitaSinTrabajo({
+  busy, onCancelar, onConfirmar,
+}: {
+  busy: boolean;
+  onCancelar: () => void;
+  onConfirmar: (v: VisitaSinTrabajo) => void;
+}) {
+  const [motivo, setMotivo] = useState<string | null>(null);
+  const [comentario, setComentario] = useState('');
+  const [foto, setFoto] = useState<File | null>(null);
+  const [fotoVista, setFotoVista] = useState<string | null>(null);
+  const [firma, setFirma] = useState<string | null>(null);
+  const [firmaNombre, setFirmaNombre] = useState('');
+  const fotoRef = useRef<HTMLInputElement>(null);
+  const firmaRef = useRef<SignaturePadHandle>(null);
+
+  const listo = !!motivo && comentario.trim().length >= 5;
+
+  return (
+    <ModalOverlay onClose={() => !busy && onCancelar()}>
+      <div className="glass-strong rounded-3xl max-w-md w-full p-5 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center gap-2.5 mb-1.5">
+          <span className="w-9 h-9 rounded-full bg-red/12 flex items-center justify-center shrink-0">
+            <Ban size={18} strokeWidth={2.4} className="text-red" />
+          </span>
+          <p className="font-display font-bold text-[17px] leading-tight">No se pudo trabajar</p>
+        </div>
+        <p className="text-[13px] text-muted mb-3.5 leading-snug">
+          El día se cierra sin trabajo realizado. Tu supervisor lo revisa y decide si queda sin reporte.
+        </p>
+
+        <p className="text-[11px] uppercase tracking-wider text-muted mb-1.5">¿Qué lo impidió?</p>
+        <ListaMotivos donde="cierre" sin={['retrabajo']} comentarioObligatorio valor={motivo} onChange={setMotivo} comentario={comentario} onComentario={setComentario} />
+
+        <p className="text-[11px] uppercase tracking-wider text-muted mt-4 mb-1.5">Foto del sitio (opcional)</p>
+        <input
+          ref={fotoRef} type="file" accept="image/*" capture="environment" className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0] || null;
+            e.target.value = '';
+            if (!f) return;
+            setFoto(f);
+            setFotoVista(URL.createObjectURL(f));
+          }}
+        />
+        {fotoVista ? (
+          <div className="relative w-[112px]">
+            <img src={fotoVista} alt="Foto de la visita" className="w-[112px] h-[112px] object-cover rounded-xl border border-line" />
+            <button type="button" aria-label="Quitar foto" onClick={() => { setFoto(null); setFotoVista(null); }} className="absolute -top-2 -right-2 w-8 h-8 rounded-full bg-surface border border-line-strong flex items-center justify-center">
+              <X size={15} strokeWidth={2.6} />
+            </button>
+          </div>
+        ) : (
+          <button type="button" onClick={() => fotoRef.current?.click()} className="w-full min-h-[46px] rounded-xl border border-dashed border-line-strong text-ink/80 text-[13.5px] font-medium flex items-center justify-center gap-2 active:scale-95 transition-transform">
+            <Camera size={17} strokeWidth={2.3} />
+            Tomar foto
+          </button>
+        )}
+
+        <p className="text-[11px] uppercase tracking-wider text-muted mt-4 mb-1.5">¿Quién te atendió? (opcional)</p>
+        <input
+          value={firmaNombre}
+          onChange={(e) => setFirmaNombre(e.target.value)}
+          placeholder="Nombre de la persona del cliente"
+          className="w-full px-3 py-2.5 mb-2 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[13.5px]"
+        />
+        <SignaturePad ref={firmaRef} height={110} titulo="Firma de quien atendió" onCambio={setFirma} />
+
+        <div className="flex gap-2 mt-4">
+          <button type="button" onClick={onCancelar} disabled={busy} className="flex-1 min-h-[50px] rounded-2xl border border-line-strong text-ink/80 text-[14.5px] font-semibold active:scale-95 transition-transform disabled:opacity-60">
+            Cancelar
+          </button>
+          <button
+            type="button"
+            disabled={busy || !listo}
+            onClick={() => onConfirmar({ motivo: motivo!, comentario, foto, firma, firmaNombre })}
+            className="flex-1 min-h-[50px] rounded-2xl bg-red text-white font-display font-semibold text-[15px] active:scale-95 transition-transform disabled:opacity-50"
+          >
+            {busy ? 'Cerrando...' : 'Cerrar el día'}
           </button>
         </div>
       </div>

@@ -238,6 +238,35 @@ export function motivosFrecuentes(servicios: ServicioEvaluable[]): MotivoFrecuen
   return [...mapa.values()].sort((a, b) => b.n - a.n || b.minutos - a.minutos);
 }
 
+export type VisitasEnFalso = {
+  total: number;
+  // Minutos de la visita (de la llegada al cierre) que no produjeron trabajo.
+  minutos: number;
+  porCliente: { nombre: string; n: number; externas: number }[];
+};
+
+// Visitas en falso: días en que el personal llegó y no se pudo trabajar
+// (resultado «no realizado»). Por cliente, para ver con quién se pierden
+// más vueltas; `externas` son las que no fueron por causa del equipo.
+export function visitasEnFalso<T extends ServicioEvaluable & Pick<Servicio, 'proyecto'>>(servicios: T[]): VisitasEnFalso {
+  const mapa = new Map<string, { nombre: string; n: number; externas: number }>();
+  let total = 0, minutos = 0;
+  concluidos(servicios).forEach((s) => {
+    if (s.resultado !== 'no_realizado') return;
+    total++;
+    const desde = s.hora_llegada || s.hora_inicio;
+    if (desde && s.hora_fin) {
+      const m = (new Date(s.hora_fin).getTime() - new Date(desde).getTime()) / 60000;
+      if (m > 0 && m < MAX_DESFASE_MIN) minutos += Math.round(m);
+    }
+    const fila = mapa.get(s.proyecto) || { nombre: s.proyecto, n: 0, externas: 0 };
+    fila.n++;
+    if (origenMotivo(s.resultado_motivo) === 'externo') fila.externas++;
+    mapa.set(s.proyecto, fila);
+  });
+  return { total, minutos, porCliente: [...mapa.values()].sort((x, y) => y.n - x.n || x.nombre.localeCompare(y.nombre, 'es')) };
+}
+
 export type FilaGrupo = Conteo & {
   nombre: string;
   n: number; // días clasificados

@@ -1,5 +1,6 @@
 'use client';
 
+import { debeReporte } from '@/lib/visitaSinTrabajo';
 import { useEnVivo } from '@/lib/useEnVivo';
 import { coincideBusqueda } from '@/lib/busqueda';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -176,7 +177,7 @@ export default function TableroDia({ onAgendar }: {
     const conServicio = filas.filter((f) => f.servicios.length > 0).length;
     const enCampo = servicios.filter((s) => s.estado === 'en_sitio' || s.estado === 'en_curso').length;
     const concluidos = servicios.filter((s) => s.estado === 'concluido').length;
-    const sinReporte = servicios.filter((s) => s.estado === 'concluido' && !s.report_id).length;
+    const sinReporte = servicios.filter((s) => s.estado === 'concluido' && debeReporte(s)).length;
     const avisos = servicios.reduce((n, s) => n + s.avisosPendientes.length, 0);
     return { conServicio, total: filas.length, enCampo, concluidos, sinReporte, avisos, servicios: servicios.length };
   }, [serviciosDia, filas]);
@@ -189,7 +190,7 @@ export default function TableroDia({ onAgendar }: {
     return sv.avisosPendientes.length > 0
       || llegadaAtrasada(sv, hoy, minutos, fecha) > 0
       || t.tipo === 'excedido'
-      || (sv.estado === 'concluido' && !sv.report_id)
+      || (sv.estado === 'concluido' && (debeReporte(sv) || sv.visita_estado === 'pendiente'))
       || (e.corto === 'Sin ver' && fecha <= hoy);
   }
 
@@ -258,7 +259,7 @@ export default function TableroDia({ onAgendar }: {
           llegada: hora(s.hora_llegada),
           inicio: hora(s.hora_inicio),
           fin: hora(s.hora_fin),
-          reporte: s.report_id ? 'Sí' : s.estado === 'concluido' ? 'FALTA' : '',
+          reporte: s.report_id ? 'Sí' : s.visita_estado === 'liberado' ? 'No aplica (visita sin trabajo)' : s.visita_estado === 'pendiente' ? 'Visita sin trabajo por revisar' : s.estado === 'concluido' ? 'FALTA' : '',
           aviso: [
             ...s.avisosPendientes.map((a) => `${etiquetaCausa(a.causa)}${a.comentario ? ': ' + a.comentario : ''}`),
             s.ultimoAviso?.nota || '',
@@ -600,6 +601,10 @@ function DetalleServicio({
         {tiempo.tipo === 'retraso' && <span className="px-2 py-0.5 rounded-full bg-amber/15 text-amber">Tardó {duracion(tiempo.minutos || 0)} de más</span>}
         {s.report_id ? (
           <span className="px-2 py-0.5 rounded-full bg-teal/15 text-teal">Con reporte</span>
+        ) : s.visita_estado === 'pendiente' ? (
+          <span className="px-2 py-0.5 rounded-full bg-amber/15 text-amber">Visita sin trabajo · revisar</span>
+        ) : s.visita_estado === 'liberado' ? (
+          <span className="px-2 py-0.5 rounded-full bg-surface-2 text-muted">Visita sin trabajo</span>
         ) : s.estado === 'concluido' ? (
           <span className="px-2 py-0.5 rounded-full bg-red/12 text-red">Sin reporte</span>
         ) : null}
@@ -1104,6 +1109,8 @@ function VistaEscritorio({
                       </span>
                       <span>
                         {sv.report_id ? <span className="text-[11.5px] font-semibold text-teal flex items-center gap-1"><FileText size={13} /> Listo</span>
+                          : sv.visita_estado === 'pendiente' ? <span className="text-[11.5px] font-semibold text-amber">Revisar visita</span>
+                          : sv.visita_estado === 'liberado' ? <span className="text-[11.5px] font-semibold text-muted">No aplica</span>
                           : sv.estado === 'concluido' ? <span className="text-[11.5px] font-semibold text-red">Falta</span>
                           : <span className="text-[12px] text-faint">—</span>}
                       </span>

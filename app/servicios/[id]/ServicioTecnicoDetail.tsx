@@ -13,7 +13,7 @@ import {
   obtenerServicioCompleto, marcarLlegada, iniciarServicio, sigoAsignadoAServicio,
   listarMisConfirmaciones, marcarServiciosVistos,
   registrarAvanceTarea, registrarRetraso, concluirServicio, concluirServicioAnticipado, agregarEvidenciaExtra,
-  registrarMotivoLlegada, CierreServicio, actualizarNotaEvidencia,
+  registrarMotivoLlegada, CierreServicio, actualizarNotaEvidencia, registrarVisitaSinTrabajo,
   calcularProgresoTareas, pausarServicio, reanudarServicio, minutosPausadosTotales,
 } from '@/lib/serviciosProgramados';
 import ProgressBar from '@/components/ProgressBar';
@@ -21,7 +21,7 @@ import AvisoServicio from '@/components/AvisoServicio';
 import {
   ChevronLeft, MapPin, Play, Check, Lock, Camera, AlertTriangle,
   Plus, X, CircleDashed, Clock, Flag, CalendarClock, PackageCheck, ChevronRight,
-  PauseCircle, PlayCircle, ClipboardList, MessageSquarePlus, CloudOff } from 'lucide-react';
+  PauseCircle, PlayCircle, ClipboardList, MessageSquarePlus, CloudOff, Ban } from 'lucide-react';
 
 const MOTIVOS_PAUSA = ['Comida', 'Emergencia personal', 'Trámite fuera de sitio', 'Otro'];
 import ModalOverlay from '@/components/ModalOverlay';
@@ -31,7 +31,8 @@ import { ResultadoBadges } from '@/components/ResultadoServicioBadges';
 import { createClient } from '@/lib/supabaseClient';
 import { showToast } from '@/components/Toast';
 import { distanciaMetros } from '@/lib/geocerca';
-import { ModalCierre, ModalMotivoLlegada } from '@/components/CierreServicio';
+import { ModalCierre, ModalMotivoLlegada, ModalVisitaSinTrabajo, VisitaSinTrabajo } from '@/components/CierreServicio';
+import { TEXTO_VISITA } from '@/lib/visitaSinTrabajo';
 import { MARGEN_MIN, desfaseLlegada } from '@/lib/eficiencia';
 import {
   FotoPendiente, EVENTO_FOTOS_PENDIENTES, tomarFotoRapida, listarFotosPendientes,
@@ -121,6 +122,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
   const [textoComentario, setTextoComentario] = useState('');
   // Fotos rápidas tomadas sin señal: están en el teléfono, esperando subir.
   const [pendientes, setPendientes] = useState<FotoPendiente[]>([]);
+  const [sinTrabajo, setSinTrabajo] = useState(false);
 
   // null = aún no se sabe (no se muestra nada).
   const [enterado, setEnterado] = useState<boolean | null>(null);
@@ -414,6 +416,20 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
     setPreguntandoCierre(true);
   }
 
+  async function handleVisitaSinTrabajo(v: VisitaSinTrabajo) {
+    setBusy(true);
+    try {
+      await registrarVisitaSinTrabajo(servicioId, v);
+      setSinTrabajo(false);
+      showToast('Día cerrado sin trabajo. Tu supervisor lo revisa.', 'success');
+      await cargar();
+    } catch (e: any) {
+      alert('No se pudo cerrar: ' + (e?.message || 'error'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleConfirmarCierre(c: CierreServicio) {
     setCierre(c);
     setPreguntandoCierre(false);
@@ -682,6 +698,32 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
               Pausar servicio (comida, etc.)
             </button>
           )
+        )}
+
+        {/* Llegó y no hay forma de trabajar (falta equipo del cliente, no hay
+            acceso…): salida propia, para no confundirla con «Terminar». */}
+        {(servicio.estado === 'en_sitio' || servicio.estado === 'en_curso') && (
+          <button
+            onClick={() => setSinTrabajo(true)}
+            disabled={busy}
+            className="w-full min-h-[48px] mb-4 rounded-xl border border-dashed border-red/45 text-red text-[14px] font-medium flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
+          >
+            <Ban size={16} strokeWidth={2.4} />
+            No se pudo trabajar
+          </button>
+        )}
+
+        {servicio.estado === 'concluido' && servicio.visita_estado && (
+          <div className={`mb-4 p-3.5 rounded-2xl border ${servicio.visita_estado === 'rechazado' ? 'bg-red/10 border-red/30' : servicio.visita_estado === 'liberado' ? 'bg-teal/10 border-teal/30' : 'bg-amber/10 border-amber/30'}`}>
+            <p className={`text-[14px] font-semibold ${servicio.visita_estado === 'rechazado' ? 'text-red' : servicio.visita_estado === 'liberado' ? 'text-teal' : 'text-amber'}`}>
+              {TEXTO_VISITA[servicio.visita_estado]}
+            </p>
+            <p className="text-[12.5px] text-ink/75 mt-1 leading-snug">
+              {servicio.visita_estado === 'pendiente' && 'Tu supervisor está revisando el caso. Mientras tanto no se te pide reporte de este día.'}
+              {servicio.visita_estado === 'liberado' && 'Tu supervisor aceptó la visita: no hace falta reporte de este día.'}
+              {servicio.visita_estado === 'rechazado' && (servicio.visita_nota || 'Tu supervisor indicó que hay que hacer el reporte de este día.')}
+            </p>
+          </div>
         )}
 
         {servicio.estado === 'concluido' && servicio.hora_fin && (
@@ -1136,6 +1178,10 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
             </div>
           </div>
         </ModalOverlay>
+      )}
+
+      {sinTrabajo && (
+        <ModalVisitaSinTrabajo busy={busy} onCancelar={() => setSinTrabajo(false)} onConfirmar={handleVisitaSinTrabajo} />
       )}
 
       {/* Modal: resultado del día (obligatorio) y motivos si hubo desviación. */}

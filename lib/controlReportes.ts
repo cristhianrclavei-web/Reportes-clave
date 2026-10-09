@@ -18,6 +18,8 @@ export type ServicioPendiente = {
   proyecto: string;
   fecha: string;
   estado: 'programado' | 'en_sitio' | 'en_curso' | 'concluido';
+  // 'pendiente': visita sin trabajo que el supervisor debe revisar.
+  visita_estado?: string | null;
   numero_dia: number;
   dias_totales: number;
   tecnicoIds: string[];
@@ -34,10 +36,12 @@ export async function cargarControl(desde: string, hasta: string): Promise<{
     supabase.rpc('cobertura_dias', { p_desde: desde, p_hasta: hasta }),
     supabase
       .from('servicios_programados')
-      .select('id, proyecto, fecha, estado, numero_dia, dias_totales, servicio_tecnicos(tecnico_id)')
+      .select('id, proyecto, fecha, estado, visita_estado, numero_dia, dias_totales, servicio_tecnicos(tecnico_id)')
       .gte('fecha', desde)
       .lte('fecha', hasta)
       .is('report_id', null)
+      // Una visita sin trabajo ya liberada no debe reporte.
+      .or('visita_estado.is.null,visita_estado.neq.liberado')
       .neq('estado', 'cancelado')
       .order('fecha', { ascending: true }),
   ]);

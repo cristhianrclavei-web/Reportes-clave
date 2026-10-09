@@ -20,6 +20,7 @@ export type Motivo = {
 export const MOTIVOS: Motivo[] = [
   { clave: 'trafico', texto: 'Tráfico o traslado', origen: 'externo', llegada: true, cierre: false },
   { clave: 'cliente_ausente', texto: 'El cliente no se encontraba', origen: 'externo', llegada: true, cierre: true },
+  { clave: 'cliente_sin_equipo', texto: 'Equipo o área del cliente no disponible', origen: 'externo', llegada: false, cierre: true },
   { clave: 'permiso', texto: 'Permiso de trabajo o acceso', origen: 'externo', llegada: true, cierre: true },
   { clave: 'instruccion_cliente', texto: 'Instrucción del cliente', origen: 'externo', llegada: true, cierre: true },
   { clave: 'clima', texto: 'Clima', origen: 'externo', llegada: true, cierre: true },

@@ -28,6 +28,8 @@ const ACCION_CFG: Record<AccionGlobal, { Icono: any; label: string; tono: 'teal'
   elimino_servicio: { Icono: Trash2, label: 'Eliminó servicio', tono: 'red' },
   elimino_dia: { Icono: CalendarX, label: 'Eliminó un día del proyecto', tono: 'red' },
   cerro_dia_manual: { Icono: BadgeCheck, label: 'Cerró un día manualmente', tono: 'amber' },
+  libero_reporte: { Icono: BadgeCheck, label: 'Liberó un servicio del reporte', tono: 'amber' },
+  exigio_reporte: { Icono: BadgeCheck, label: 'Indicó que un servicio sí requiere reporte', tono: 'amber' },
   elimino_reporte: { Icono: Trash2, label: 'Eliminó reporte', tono: 'red' },
   aprobo_revision: { Icono: BadgeCheck, label: 'Aprobó revisión final', tono: 'teal' },
   marco_finalizado: { Icono: Flag, label: 'Marcó servicio finalizado', tono: 'teal' },

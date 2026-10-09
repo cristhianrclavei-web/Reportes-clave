@@ -239,8 +239,10 @@ export default function ControlReportes({ reportes, onAbrirReporte }: { reportes
                           {p.tipo === 'servicio' ? (
                             <>
                               <p className="text-[13px] font-medium truncate">{p.servicio.proyecto}{p.servicio.dias_totales > 1 ? ` · día ${p.servicio.numero_dia}/${p.servicio.dias_totales}` : ''}</p>
-                              <p className={`text-[11.5px] ${p.servicio.estado === 'programado' ? 'text-amber' : 'text-red'}`}>
-                                {p.servicio.estado === 'programado' ? 'Sin actividad registrada: ¿se hizo? Reprográmalo o elimínalo si no' : 'Servicio sin reporte ligado'}
+                              <p className={`text-[11.5px] ${p.servicio.estado === 'programado' || p.servicio.visita_estado === 'pendiente' ? 'text-amber' : 'text-red'}`}>
+                                {p.servicio.visita_estado === 'pendiente'
+                                  ? 'Visita sin trabajo: abre el servicio y decide si se libera del reporte'
+                                  : p.servicio.estado === 'programado' ? 'Sin actividad registrada: ¿se hizo? Reprográmalo o elimínalo si no' : 'Servicio sin reporte ligado'}
                               </p>
                               <div className="flex gap-3 mt-1 text-[12px] font-semibold">
                                 {p.servicio.estado !== 'programado' && (

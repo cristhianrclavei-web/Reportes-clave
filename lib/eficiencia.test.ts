@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { Servicio } from './serviciosProgramados';
 import {
   desfaseLlegada, desfaseSalida, evaluarServicio, resumenEficiencia, eficienciaPorSemana,
-  motivosFrecuentes, eficienciaPorGrupo, lunesDe,
+  motivosFrecuentes, eficienciaPorGrupo, lunesDe, visitasEnFalso,
 } from './eficiencia';
+import { debeReporte } from './visitaSinTrabajo';
 
 function iso(fecha: string, hora: string): string {
   return new Date(`${fecha}T${hora}`).toISOString();
@@ -141,5 +142,36 @@ describe('agregados', () => {
     expect(ana.cumplimientoPct).toBe(50);
     expect(ana.terminadosPct).toBe(50);
     expect(filas.find((f) => f.nombre === 'Luis')!.cumplimientoPct).toBe(100);
+  });
+});
+
+describe('visitas sin trabajo', () => {
+  it('que el cliente no tenga el equipo es causa externa: no cuenta en contra', () => {
+    const e = evaluarServicio(servicio({ resultado: 'no_realizado', resultado_motivo: 'cliente_sin_equipo', hora_fin: iso('2026-10-05', '09:20') }));
+    expect(e.lectura).toBe('neutra');
+  });
+
+  it('cuenta las visitas en falso por cliente y el tiempo en sitio', () => {
+    const v = visitasEnFalso([
+      servicio({ proyecto: 'Cliente A', resultado: 'no_realizado', resultado_motivo: 'cliente_sin_equipo', hora_fin: iso('2026-10-05', '09:20') }),
+      servicio({ proyecto: 'Cliente A', resultado: 'no_realizado', resultado_motivo: 'falta_material', hora_fin: iso('2026-10-05', '09:10') }),
+      servicio({ proyecto: 'Cliente B', resultado: 'no_realizado', resultado_motivo: 'permiso', hora_fin: iso('2026-10-05', '09:30') }),
+      servicio({ proyecto: 'Cliente C' }),
+      servicio({ proyecto: 'Cliente D', resultado: 'no_realizado', estado: 'en_curso' }),
+    ]);
+    expect(v.total).toBe(3);
+    expect(v.minutos).toBe(60);
+    expect(v.porCliente).toEqual([
+      { nombre: 'Cliente A', n: 2, externas: 1 },
+      { nombre: 'Cliente B', n: 1, externas: 1 },
+    ]);
+  });
+
+  it('el reporte no se exige mientras se revisa ni ya liberada; rechazada, sí', () => {
+    expect(debeReporte({ report_id: null })).toBe(true);
+    expect(debeReporte({ report_id: null, visita_estado: 'pendiente' })).toBe(false);
+    expect(debeReporte({ report_id: null, visita_estado: 'liberado' })).toBe(false);
+    expect(debeReporte({ report_id: null, visita_estado: 'rechazado' })).toBe(true);
+    expect(debeReporte({ report_id: 'r1', visita_estado: 'rechazado' })).toBe(false);
   });
 });

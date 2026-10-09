@@ -24,6 +24,7 @@ import ModalOverlay from '@/components/ModalOverlay';
 import { listarPlantillas, guardarComoPlantilla, obtenerInsumos, resumenDeChecklist, PlantillaInsumos, ResumenChecklist } from '@/lib/insumos';
 import { ResultadoBadges } from '@/components/ResultadoServicioBadges';
 import EficienciaServicio from '@/components/EficienciaServicio';
+import VisitaSinTrabajoPanel from '@/components/VisitaSinTrabajoPanel';
 import { createClient } from '@/lib/supabaseClient';
 import { mapsLink } from '@/lib/geolocation';
 import { showToast } from '@/components/Toast';
@@ -483,6 +484,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
                 <div className="mt-2.5"><ResultadoBadges resultado={calcularResultadoServicio(servicio, progreso)} /></div>
               )}
               <EficienciaServicio servicio={servicio} />
+              <VisitaSinTrabajoPanel servicio={servicio} onCambio={cargar} />
             </>
 
           ) : (

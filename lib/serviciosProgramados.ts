@@ -7,6 +7,7 @@ import { generarUUID } from './uuid';
 import { evaluarVentanaServicio } from './ventanaServicio';
 import { notificar } from './push';
 import { textoMotivo } from './motivosServicio';
+import { VisitaEstado, debeReporte, FILTRO_DEBE_REPORTE } from './visitaSinTrabajo';
 
 export type Servicio = {
   id: string;
@@ -50,6 +51,14 @@ export type Servicio = {
   llegada_comentario?: string | null;
   salida_motivo?: string | null;
   salida_comentario?: string | null;
+  // Visita sin trabajo (patch_visita_sin_trabajo.sql, lib/visitaSinTrabajo.ts):
+  // el técnico la deja «pendiente» y solo un supervisor la libera o rechaza.
+  visita_estado?: VisitaEstado | null;
+  visita_revisada_por?: string | null;
+  visita_revisada_en?: string | null;
+  visita_nota?: string | null;
+  visita_firma?: string | null;
+  visita_firma_nombre?: string | null;
 };
 
 // Lo que responde el técnico al cerrar el día: siempre el resultado; los
@@ -60,6 +69,9 @@ export type CierreServicio = {
   resultadoComentario?: string;
   salidaMotivo?: string | null;
   salidaComentario?: string;
+  // Solo en «No se pudo trabajar»: quién atendió al técnico y su firma.
+  firma?: string | null;
+  firmaNombre?: string;
 };
 
 export type Tarea = {
@@ -648,6 +660,7 @@ export async function listarServiciosVinculables(): Promise<Servicio[]> {
     .from('servicios_programados')
     .select('*')
     .is('report_id', null)
+    .or(FILTRO_DEBE_REPORTE)
     .neq('estado', 'cancelado')
     .lte('fecha', hoyStr)
     .order('fecha', { ascending: false });
@@ -1248,6 +1261,11 @@ export async function concluirServicio(servicioId: string, cierre: CierreServici
     resultado_comentario: cierre.resultado === 'terminado' ? null : cierre.resultadoComentario?.trim() || null,
     salida_motivo: cierre.salidaMotivo || null,
     salida_comentario: cierre.salidaComentario?.trim() || null,
+    // No se trabajó: queda por revisar; el supervisor decide si se libera
+    // del reporte.
+    ...(cierre.resultado === 'no_realizado'
+      ? { visita_estado: 'pendiente', visita_firma: cierre.firma || null, visita_firma_nombre: cierre.firmaNombre?.trim() || null }
+      : {}),
   }).eq('id', servicioId);
   if (e1) throw e1;
 
@@ -1273,6 +1291,17 @@ export async function concluirServicio(servicioId: string, cierre: CierreServici
   }
 
   const quien = await nombreDelUsuario();
+  if (cierre.resultado === 'no_realizado') {
+    await notificar({
+      destino: 'supervisores',
+      tipo: 'cierre_servicio',
+      titulo: 'Visita sin trabajo: revisar',
+      mensaje: `${quien} no pudo trabajar en ${sv?.proyecto || 'un servicio'}${cierre.resultadoMotivo ? ` (${textoMotivo(cierre.resultadoMotivo).toLowerCase()})` : ''}. Decide si se libera del reporte y reprográmalo.`,
+      url: `/dashboard/servicios/${servicioId}`,
+      tag: 'visita-sin-trabajo',
+    });
+    return;
+  }
   await notificar({
     destino: 'supervisores',
     tipo: 'cierre_servicio',
@@ -1281,6 +1310,112 @@ export async function concluirServicio(servicioId: string, cierre: CierreServici
     url: `/dashboard/servicios/${servicioId}`,
     tag: 'cierre',
   });
+}
+
+// «No se pudo trabajar»: el técnico llegó y el trabajo no se pudo hacer. Guarda
+// la foto (si la hay) como evidencia y cierra el día como no realizado; el
+// servicio queda por revisar por un supervisor.
+export async function registrarVisitaSinTrabajo(servicioId: string, datos: {
+  motivo: string;
+  comentario: string;
+  foto?: File | null;
+  firma?: string | null;
+  firmaNombre?: string;
+}): Promise<void> {
+  if (datos.foto) {
+    await agregarEvidenciaExtra(servicioId, `Visita sin trabajo: ${datos.comentario.trim()}`, datos.foto);
+  }
+  await concluirServicio(servicioId, {
+    resultado: 'no_realizado',
+    resultadoMotivo: datos.motivo,
+    resultadoComentario: datos.comentario,
+    firma: datos.firma || null,
+    firmaNombre: datos.firmaNombre,
+  });
+}
+
+// Decisión del supervisor sobre una visita sin trabajo. También sirve para
+// liberar un día ya concluido que el técnico cerró de otra forma (la base
+// solo se lo permite a un supervisor).
+export async function resolverVisitaSinTrabajo(servicioId: string, decision: 'liberado' | 'rechazado', nota: string): Promise<void> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No hay sesión activa');
+  if (decision === 'rechazado' && !nota.trim()) throw new Error('Explica por qué sí requiere reporte.');
+
+  const { data: dia, error: eGet } = await supabase
+    .from('servicios_programados')
+    .select('proyecto, estado, report_id, numero_dia, dias_totales')
+    .eq('id', servicioId)
+    .single();
+  if (eGet) throw eGet;
+  if (dia.estado !== 'concluido') throw new Error('El día todavía no está concluido.');
+  if (dia.report_id && decision === 'liberado') throw new Error('Este día ya tiene un reporte ligado.');
+
+  const { error } = await supabase.from('servicios_programados').update({
+    visita_estado: decision,
+    visita_revisada_por: user.id,
+    visita_revisada_en: new Date().toISOString(),
+    visita_nota: nota.trim() || null,
+  }).eq('id', servicioId);
+  if (error) throw error;
+
+  const etiqueta = `«${dia.proyecto}»${dia.dias_totales > 1 ? ` (día ${dia.numero_dia}/${dia.dias_totales})` : ''}`;
+  const cambio = decision === 'liberado'
+    ? `Liberó del reporte ${etiqueta} por visita sin trabajo${nota.trim() ? `: ${nota.trim()}` : ''}`
+    : `Indicó que ${etiqueta} sí requiere reporte: ${nota.trim()}`;
+  await supabase.from('servicio_auditoria').insert({ servicio_id: servicioId, supervisor_id: user.id, cambio });
+  await registrarAccionGlobal(decision === 'liberado' ? 'libero_reporte' : 'exigio_reporte', 'servicio', servicioId, cambio);
+
+  const { data: asignados } = await supabase.from('servicio_tecnicos').select('tecnico_id').eq('servicio_id', servicioId);
+  const usuarios = (asignados || []).map((a: any) => a.tecnico_id as string);
+  if (usuarios.length > 0) {
+    await notificar({
+      usuarios,
+      tipo: decision === 'liberado' ? 'cierre_servicio' : 'reporte_pendiente',
+      titulo: decision === 'liberado' ? 'Visita sin trabajo aceptada' : 'Ese servicio sí requiere reporte',
+      mensaje: decision === 'liberado'
+        ? `${dia.proyecto}: no necesitas hacer reporte de ese día.`
+        : `${dia.proyecto}: ${nota.trim()}`,
+      url: `/servicios/${servicioId}`,
+      tag: 'visita-sin-trabajo',
+    });
+  }
+}
+
+// Programa de nuevo un servicio que no se pudo hacer: mismo cliente,
+// técnicos, horario, ubicación y tareas, en otra fecha. Es un servicio
+// nuevo; el original queda en el historial como visita sin trabajo.
+export async function reprogramarVisita(servicioId: string, fecha: string, onAvance?: Avance): Promise<Servicio> {
+  const supabase = createClient();
+  const { data: sv, error: e1 } = await supabase.from('servicios_programados').select('*').eq('id', servicioId).single();
+  if (e1) throw e1;
+  const s = sv as Servicio;
+  const [{ data: tecs }, { data: tareas }] = await Promise.all([
+    supabase.from('servicio_tecnicos').select('tecnico_id').eq('servicio_id', servicioId),
+    supabase.from('servicio_tareas').select('descripcion, completada').eq('grupo_id', s.grupo_id).order('orden', { ascending: true }),
+  ]);
+  const pendientes = ((tareas || []) as any[]).filter((t) => !t.completada).map((t) => t.descripcion as string);
+  const creados = await crearServicio({
+    proyecto: s.proyecto,
+    clienteId: s.cliente_id || null,
+    descripcion: s.descripcion || '',
+    fechas: [fecha],
+    horaProgramada: (s as any).hora_programada || null,
+    horaSalidaProgramada: (s as any).hora_salida_programada || null,
+    ubicacionProgramada: (s as any).ubicacion_programada || null,
+    duracionMin: s.duracion_estimada_min,
+    tecnicoIds: ((tecs || []) as any[]).map((t) => t.tecnico_id as string),
+    tareas: pendientes,
+  }, onAvance);
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    await supabase.from('servicio_auditoria').insert({
+      servicio_id: servicioId, supervisor_id: user.id,
+      cambio: `Reprogramó la visita sin trabajo para el ${fecha.split('-').reverse().join('/')}`,
+    });
+  }
+  return creados[0];
 }
 
 // Para cuando el técnico nunca marcó llegada/inicio (se le olvidó, o el
@@ -1401,6 +1536,7 @@ export async function listarServiciosSinReporte(): Promise<ServicioSinReporte[]>
     .select('id, proyecto, fecha, estado, numero_dia, dias_totales')
     .in('estado', ['en_curso', 'concluido'])
     .is('report_id', null)
+    .or(FILTRO_DEBE_REPORTE)
     .order('fecha', { ascending: true });
   if (error) throw error;
   if (!servicios || servicios.length === 0) return [];
@@ -1604,7 +1740,7 @@ export function filtrarSiguienteDiaPorGrupo(
     if (incluirConcluidosSinReporte) {
       // Todos los días terminados que deben reporte, más el siguiente por hacer.
       ordenados
-        .filter((d) => d.estado === 'concluido' && !d.report_id)
+        .filter((d) => d.estado === 'concluido' && debeReporte(d))
         .forEach((d) => resultado.push(d));
     }
 

@@ -260,7 +260,7 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
         .limit(TOPE * 2);
       const c = limpio(i.cliente_o_proyecto);
       if (c) q = q.ilike('proyecto', patron(c));
-      if (i.solo_sin_reporte) q = q.is('report_id', null).neq('estado', 'cancelado');
+      if (i.solo_sin_reporte) q = q.is('report_id', null).or('visita_estado.is.null,visita_estado.eq.rechazado').neq('estado', 'cancelado');
       const { data, error } = await q;
       if (error) return falla(error);
       const mapa = await cargarNombres();

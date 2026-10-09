@@ -1,5 +1,6 @@
 'use client';
 
+import { debeReporte } from '@/lib/visitaSinTrabajo';
 import SelectorOpciones from '@/components/SelectorOpciones';
 import { reducirFoto } from '@/lib/reducirFoto';
 import { ContactoCatalogo, catalogoEnCache, normalizar as normalizarNombre } from '@/lib/clientesCatalogo';
@@ -679,7 +680,7 @@ export default function NuevoReportePage() {
     listarPersonal().then(setPersonal).catch(() => {});
     listarMisServicios()
       .then((lista) => {
-        const pendientes = filtrarSiguienteDiaPorGrupo(lista.filter((s) => !s.report_id), true);
+        const pendientes = filtrarSiguienteDiaPorGrupo(lista.filter((s) => debeReporte(s)), true);
         setServiciosAsignados(pendientes);
         // Si el técnico ya había elegido un servicio del que después lo
         // quitaron (reasignación), la selección se descarta: la lista fresca

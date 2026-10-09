@@ -23,6 +23,8 @@ export type AccionGlobal =
   | 'elimino_servicio'
   | 'elimino_dia'
   | 'cerro_dia_manual'
+  | 'libero_reporte'
+  | 'exigio_reporte'
   | 'elimino_reporte'
   | 'aprobo_revision'
   | 'marco_finalizado'
