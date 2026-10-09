@@ -416,3 +416,50 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   .e404-cifra-izq, .e404-cifra-centro, .e404-cifra-der { animation: none !important; opacity: 0.6; }
   .e404-rec { animation: none !important; }
 }
+
+/* Las cuatro escenas del 404 se eligen al azar (components/Escena404.tsx). */
+@keyframes e404-entra { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.e404-entra { animation: e404-entra 0.35s ease-out; }
+
+/* Grúa (escenas404/Grua.tsx): el «0» se mece del cable, el técnico hace
+   señas y la baliza parpadea. */
+@keyframes e404-columpio { 0%, 100% { transform: rotate(-3.5deg); } 50% { transform: rotate(3.5deg); } }
+@keyframes e404-senas { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-24deg); } }
+@keyframes e404-baliza { 0%, 45% { opacity: 1; } 55%, 100% { opacity: 0.15; } }
+@keyframes e404-borde { 0%, 100% { opacity: 0.75; } 50% { opacity: 1; } }
+.e404-carga { transform-origin: 170px 44px; animation: e404-columpio 3.4s ease-in-out infinite; }
+.e404-brazo { transform-origin: 134px 190px; animation: e404-senas 1.7s ease-in-out infinite; }
+.e404-baliza { animation: e404-baliza 1.1s steps(1, end) infinite; }
+.e404-borde { animation: e404-borde 3.4s ease-in-out infinite; }
+
+/* Detector (escenas404/Detector.tsx): ondas de alarma, foco que parpadea,
+   humo de prueba que sube y la pértiga que se mueve. */
+@keyframes e404d-onda { 0% { transform: scale(1); opacity: 0.7; } 100% { transform: scale(1.75); opacity: 0; } }
+@keyframes e404d-led { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0.15; } }
+@keyframes e404d-humo { 0% { transform: translate(0, 0) scale(0.6); opacity: 0; } 20% { opacity: 0.35; } 100% { transform: translate(-22px, -46px) scale(1.9); opacity: 0; } }
+@keyframes e404d-pertiga { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-7deg); } }
+.e404d-onda { transform-origin: 200px 112px; animation: e404d-onda 1.8s ease-out infinite; }
+.e404d-onda-2 { animation-delay: 0.9s; }
+.e404d-led { animation: e404d-led 0.9s steps(1, end) infinite; }
+.e404d-humo { transform-box: fill-box; transform-origin: center; opacity: 0; animation: e404d-humo 2.6s ease-out infinite; }
+.e404d-humo-2 { animation-delay: 0.85s; }
+.e404d-humo-3 { animation-delay: 1.7s; }
+.e404d-pertiga { transform-origin: 249px 192px; animation: e404d-pertiga 2.6s ease-in-out infinite; }
+
+/* Cable (escenas404/Cable.tsx): los conectores se acercan, salta la chispa
+   y el 404 destella. Las cuatro animaciones duran lo mismo. */
+@keyframes e404c-clavija { 0%, 100% { transform: translateX(-16px); } 42%, 58% { transform: translateX(9px); } }
+@keyframes e404c-contacto { 0%, 100% { transform: translateX(16px); } 42%, 58% { transform: translateX(-9px); } }
+@keyframes e404c-chispa { 0%, 40% { opacity: 0; transform: scale(0.3) rotate(0deg); } 46% { opacity: 1; transform: scale(1.1) rotate(12deg); } 52% { opacity: 1; transform: scale(0.85) rotate(-8deg); } 60%, 100% { opacity: 0; transform: scale(0.3) rotate(0deg); } }
+@keyframes e404c-destello { 0%, 41% { opacity: 0; } 44% { opacity: 1; } 47% { opacity: 0.25; } 50%, 55% { opacity: 1; } 62%, 100% { opacity: 0; } }
+.e404c-clavija { animation: e404c-clavija 3s ease-in-out infinite; }
+.e404c-contacto { animation: e404c-contacto 3s ease-in-out infinite; }
+.e404c-chispa { transform-origin: 207px 204px; animation: e404c-chispa 3s linear infinite; }
+.e404c-destello { animation: e404c-destello 3s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .e404-entra, .e404-carga, .e404-brazo, .e404-baliza, .e404-borde,
+  .e404d-onda, .e404d-led, .e404d-pertiga, .e404c-clavija, .e404c-contacto { animation: none !important; }
+  .e404d-humo, .e404c-chispa { animation: none !important; opacity: 0; }
+  .e404c-destello { animation: none !important; opacity: 0.6; }
+}

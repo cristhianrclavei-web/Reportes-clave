@@ -1,67 +1,49 @@
-// Escena de la página 404: una cámara de vigilancia barre el cuarto con su
-// haz de luz buscando la página; cada cifra del «404» solo se enciende
-// cuando el haz le pasa encima. SVG y CSS (clases e404-* en globals.css), sin
-// JavaScript; respeta «reducir movimiento». Los colores salen del tema, así
-// sirve en claro y oscuro y con la marca de cada instalación.
-//
-// El barrido y el encendido de cada cifra comparten duración (ver
-// globals.css): si se cambia una, hay que cambiar las otras.
+'use client';
 
-const ACENTO = 'rgb(var(--c-acento))';
-const CIFRAS: [number, string, string][] = [[92, '4', 'e404-cifra-izq'], [200, '0', 'e404-cifra-centro'], [308, '4', 'e404-cifra-der']];
+import { useEffect, useState } from 'react';
+import EscenaCamara from './escenas404/Camara';
+import EscenaGrua from './escenas404/Grua';
+import EscenaDetector from './escenas404/Detector';
+import EscenaCable from './escenas404/Cable';
+
+// La página 404 muestra una de varias escenas animadas, al azar, cada una
+// con su texto. Se elige ya en el navegador (en el servidor la página es la
+// misma para todos) y se evita repetir la que salió la vez anterior. Para
+// agregar una escena: su componente en components/escenas404, sus clases en
+// globals.css y una fila aquí.
+const ESCENAS = [
+  { clave: 'camara', Escena: EscenaCamara, titulo: 'Buscamos por todos lados', texto: 'La cámara no encontró esta página: el enlace puede estar mal escrito o la página ya no existe.' },
+  { clave: 'grua', Escena: EscenaGrua, titulo: 'Esta página sigue en obra', texto: 'No encontramos lo que buscabas: el enlace puede estar mal escrito o la página ya no existe.' },
+  { clave: 'detector', Escena: EscenaDetector, titulo: 'Saltó la alarma', texto: 'Revisamos y no hay nada aquí: el enlace puede estar mal escrito o la página ya no existe.' },
+  { clave: 'cable', Escena: EscenaCable, titulo: 'Se perdió la conexión', texto: 'Esta página no conecta con nada: el enlace puede estar mal escrito o ya no existe.' },
+];
+
+const KEY = 'escena404';
 
 export default function Escena404() {
+  const [i, setI] = useState<number | null>(null);
+
+  useEffect(() => {
+    // ?escena=grua (camara, detector, cable) fija una, para revisarlas.
+    const pedida = ESCENAS.findIndex((e) => e.clave === new URLSearchParams(window.location.search).get('escena'));
+    if (pedida >= 0) { setI(pedida); return; }
+    let anterior = -1;
+    try { anterior = Number(sessionStorage.getItem(KEY) ?? -1); } catch { /* sin almacenamiento */ }
+    const opciones = ESCENAS.map((_, k) => k).filter((k) => k !== anterior);
+    const elegida = opciones[Math.floor(Math.random() * opciones.length)];
+    try { sessionStorage.setItem(KEY, String(elegida)); } catch { /* modo privado */ }
+    setI(elegida);
+  }, []);
+
+  // Mientras se elige se guarda el hueco, para que el botón no brinque.
+  if (i === null) return <div className="w-full aspect-[400/372]" aria-hidden="true" />;
+
+  const { Escena, titulo, texto } = ESCENAS[i];
   return (
-    <svg viewBox="0 0 400 280" className="w-full max-w-[420px] text-ink" role="img" aria-label="Una cámara de vigilancia busca la página con su luz y solo encuentra un 404">
-      <defs>
-        <linearGradient id="e404-haz" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor={ACENTO} stopOpacity="0.55" />
-          <stop offset="1" stopColor={ACENTO} stopOpacity="0" />
-        </linearGradient>
-        {/* El haz no se sale del cuadro del monitor (el recorte va en el
-            grupo fijo, no en el que gira). */}
-        <clipPath id="e404-cuadro"><rect x="7" y="7" width="386" height="266" rx="17" /></clipPath>
-      </defs>
-
-      {/* El cuadro del monitor: marco, esquinas y rótulo de la cámara */}
-      <rect x="6" y="6" width="388" height="268" rx="18" fill="rgb(var(--c-surface-2))" fillOpacity="0.55" stroke="currentColor" strokeOpacity="0.12" />
-      <g stroke="currentColor" strokeOpacity="0.35" strokeWidth="2" fill="none" strokeLinecap="round">
-        <path d="M22 40V22h18M360 22h18v18M378 240v18h-18M40 258H22v-18" />
-      </g>
-      <g className="font-mono" fontSize="10" fill="currentColor" fillOpacity="0.55">
-        <circle className="e404-rec" cx="30" cy="56" r="3.5" fill="#F0503C" fillOpacity="1" />
-        <text x="39" y="59.500">REC · CAM 04</text>
-        <text x="370" y="59.500" textAnchor="end">SIN SEÑAL</text>
-      </g>
-
-      {/* Piso */}
-      <path d="M36 236H364" stroke="currentColor" strokeOpacity="0.16" strokeWidth="2" strokeLinecap="round" />
-
-      {/* Las cifras, apagadas; cada una se enciende al paso del haz */}
-      <g className="font-display" fontWeight={700} fontSize={118} textAnchor="middle">
-        {CIFRAS.map(([x, c]) => (
-          <text key={`a${x}`} x={x} y={232} fill="currentColor" opacity={0.1}>{c}</text>
-        ))}
-        {CIFRAS.map(([x, c, clase]) => (
-          <text key={`b${x}`} className={clase} x={x} y={232} fill={ACENTO}>{c}</text>
-        ))}
-      </g>
-
-      {/* Soporte fijo en el techo */}
-      <path d="M176 22h48" stroke="currentColor" strokeOpacity="0.5" strokeWidth="5" strokeLinecap="round" />
-      <path d="M200 24v16" stroke="currentColor" strokeOpacity="0.5" strokeWidth="4" />
-
-      {/* Cámara y haz: giran juntos alrededor del soporte */}
-      <g clipPath="url(#e404-cuadro)">
-      <g className="e404-barrido">
-        <path d="M200 66L154 262H246Z" fill="url(#e404-haz)" />
-        <rect x="186" y="36" width="28" height="36" rx="7" fill="rgb(var(--c-surface))" stroke="currentColor" strokeOpacity="0.55" strokeWidth="2" />
-        <rect x="191" y="62" width="18" height="12" rx="4" fill="currentColor" fillOpacity="0.75" />
-        <circle cx="200" cy="69" r="3.2" fill={ACENTO} />
-        <circle className="e404-rec" cx="207" cy="44" r="2.2" fill="#F0503C" />
-      </g>
-      </g>
-      <circle cx="200" cy="40" r="4.5" fill="currentColor" fillOpacity="0.6" />
-    </svg>
+    <div className="e404-entra w-full flex flex-col items-center">
+      <Escena />
+      <h1 className="font-display font-bold text-[24px] tracking-wide mt-3 mb-2">{titulo}</h1>
+      <p className="text-[14px] text-muted leading-relaxed max-w-[330px] min-h-[68px]">{texto}</p>
+    </div>
   );
 }

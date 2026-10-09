@@ -11,14 +11,9 @@ export default function NotFound() {
       <div className="relative z-10 w-full max-w-md flex flex-col items-center text-center">
         <Logo variante="completo" size={40} />
 
-        <div className="w-full flex justify-center mt-6 mb-2">
+        <div className="w-full mt-6 mb-5">
           <Escena404 />
         </div>
-
-        <h1 className="font-display font-bold text-[24px] tracking-wide mt-3 mb-2">Buscamos por todos lados</h1>
-        <p className="text-[14px] text-muted leading-relaxed mb-7 max-w-[330px]">
-          La cámara no encontró esta página: el enlace puede estar mal escrito o la página ya no existe.
-        </p>
 
         <Link
           href="/"
