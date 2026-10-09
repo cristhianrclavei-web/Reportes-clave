@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { CheckCircle2, CircleDashed, Ban, Clock } from 'lucide-react';
+import { CheckCircle2, CircleDashed, Ban, Clock, Camera } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
 import { Servicio, CierreServicio } from '@/lib/serviciosProgramados';
 import { MOTIVOS, MARGEN_MIN, desfaseSalida, ResultadoCierre } from '@/lib/eficiencia';
@@ -97,8 +97,12 @@ const OPCIONES: { clave: ResultadoCierre; Icono: any; color: string }[] = [
 // Cierre del día. El resultado es obligatorio aunque el servicio no tenga
 // tareas: es la única forma de saber si salir antes fue porque se acabó.
 export function ModalCierre({
-  servicio, totalTareas, tareasPendientes, ahora, busy, onCancelar, onConfirmar,
+  servicio, totalTareas, tareasPendientes, ahora, busy, sinFotos = false, onTomarFoto, onCancelar, onConfirmar,
 }: {
+  // El día no tiene ninguna foto: se avisa antes de cerrar, que es cuando
+  // todavía se puede tomar.
+  sinFotos?: boolean;
+  onTomarFoto?: () => void;
   servicio: Servicio;
   totalTareas: number;
   tareasPendientes: number;
@@ -140,6 +144,16 @@ export function ModalCierre({
               ? `Hay ${tareasPendientes} de ${totalTareas} tarea(s) sin completar${esUltimoDia ? '' : '; siguen disponibles el siguiente día'}.`
               : 'Todas las tareas están completas.'}
         </p>
+
+        {sinFotos && onTomarFoto && (
+          <div className="mb-3.5 p-3 rounded-xl bg-amber/10 border border-amber/30">
+            <p className="text-[13px] text-ink/85 leading-snug mb-2">No registraste ninguna foto de evidencia en este servicio. Una vez cerrado ya no se pueden agregar.</p>
+            <button type="button" onClick={onTomarFoto} className="min-h-[42px] px-3.5 rounded-xl bg-amber text-inkOnAccent text-[13.5px] font-semibold inline-flex items-center gap-2 active:scale-95 transition-transform">
+              <Camera size={16} strokeWidth={2.5} />
+              Tomar foto ahora
+            </button>
+          </div>
+        )}
 
         <div className="flex flex-col gap-2">
           {OPCIONES.map(({ clave, Icono, color }) => (

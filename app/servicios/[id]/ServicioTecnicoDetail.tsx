@@ -13,7 +13,7 @@ import {
   obtenerServicioCompleto, marcarLlegada, iniciarServicio, sigoAsignadoAServicio,
   listarMisConfirmaciones, marcarServiciosVistos,
   registrarAvanceTarea, registrarRetraso, concluirServicio, concluirServicioAnticipado, agregarEvidenciaExtra,
-  registrarMotivoLlegada, CierreServicio,
+  registrarMotivoLlegada, CierreServicio, actualizarNotaEvidencia,
   calcularProgresoTareas, pausarServicio, reanudarServicio, minutosPausadosTotales,
 } from '@/lib/serviciosProgramados';
 import ProgressBar from '@/components/ProgressBar';
@@ -21,8 +21,7 @@ import AvisoServicio from '@/components/AvisoServicio';
 import {
   ChevronLeft, MapPin, Play, Check, Lock, Camera, AlertTriangle,
   Plus, X, CircleDashed, Clock, Flag, CalendarClock, PackageCheck, ChevronRight,
-  PauseCircle, PlayCircle, ClipboardList,
-} from 'lucide-react';
+  PauseCircle, PlayCircle, ClipboardList, MessageSquarePlus } from 'lucide-react';
 
 const MOTIVOS_PAUSA = ['Comida', 'Emergencia personal', 'Trámite fuera de sitio', 'Otro'];
 import ModalOverlay from '@/components/ModalOverlay';
@@ -111,11 +110,19 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
   const [fotoEvidenciaExtraPreview, setFotoEvidenciaExtraPreview] = useState<string | null>(null);
   const fotoEvidenciaExtraRef = useRef<HTMLInputElement>(null);
 
+  // Foto rápida y comentario posterior de una evidencia.
+  const fotoRapidaRef = useRef<HTMLInputElement>(null);
+  const [subiendoFotos, setSubiendoFotos] = useState(0);
+  const [comentando, setComentando] = useState<string | null>(null);
+  const [textoComentario, setTextoComentario] = useState('');
+
   // null = aún no se sabe (no se muestra nada).
   const [enterado, setEnterado] = useState<boolean | null>(null);
 
-  async function cargar() {
-    setLoading(true);
+  // `silencioso`: recarga sin cambiar la pantalla por «Cargando…» (para lo
+  // que se guarda en segundo plano, como la foto rápida).
+  async function cargar(silencioso = false) {
+    if (!silencioso) setLoading(true);
     try {
       const asignado = await sigoAsignadoAServicio(servicioId);
       if (!asignado) {
@@ -255,6 +262,39 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
       await cargar();
     } catch (e: any) {
       alert('No se pudo guardar: ' + (e?.message || 'error'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Foto rápida: el botón abre la cámara de una vez y la foto se guarda sola,
+  // sin comentario y sin detener la pantalla. Se pueden tomar varias seguidas.
+  async function handleFotoRapida(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setSubiendoFotos((n) => n + 1);
+    try {
+      await agregarEvidenciaExtra(servicioId, '', file);
+      showToast('Foto guardada', 'success');
+      await cargar(true);
+    } catch (err: any) {
+      alert('No se pudo guardar la foto: ' + (err?.message || 'revisa tu conexión') + '. Tómala de nuevo.');
+    } finally {
+      setSubiendoFotos((n) => n - 1);
+    }
+  }
+
+  async function handleGuardarComentario() {
+    if (!comentando) return;
+    setBusy(true);
+    try {
+      await actualizarNotaEvidencia(comentando, servicioId, textoComentario);
+      setComentando(null);
+      setTextoComentario('');
+      await cargar(true);
+    } catch (err: any) {
+      alert('No se pudo guardar el comentario: ' + (err?.message || 'error'));
     } finally {
       setBusy(false);
     }
@@ -715,7 +755,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
             className="w-full mt-3 mb-1 min-h-[48px] rounded-2xl border border-dashed border-amber/50 text-amber text-[14px] font-semibold flex items-center justify-center gap-2 active:scale-95 transition-transform"
           >
             <Plus size={17} strokeWidth={2.6} />
-            Agregar evidencia adicional
+            Agregar nota o evidencia con comentario
           </button>
         )}
 
@@ -776,11 +816,45 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
                       Avance parcial
                     </p>
                   )}
-                  {e.nota && <p className="text-[13.5px] text-ink/85 mb-1.5 leading-relaxed">{e.nota}</p>}
-                  {e.foto_path && fotoUrls[e.foto_path] && (
-                    <img src={fotoUrls[e.foto_path]} className="w-full max-w-[280px] h-[140px] object-cover rounded-lg border border-line mb-1.5" />
-                  )}
-                  <p className="text-[11px] text-muted">{fmtHora(e.created_at)}</p>
+                  <div className="flex gap-3">
+                    {e.foto_path && fotoUrls[e.foto_path] && (
+                      <a href={fotoUrls[e.foto_path]} target="_blank" rel="noreferrer" className="shrink-0">
+                        <img src={fotoUrls[e.foto_path]} alt="Evidencia" className="w-[84px] h-[84px] object-cover rounded-lg border border-line" />
+                      </a>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      {comentando === e.id ? (
+                        <>
+                          <textarea
+                            autoFocus
+                            value={textoComentario}
+                            onChange={(ev) => setTextoComentario(ev.target.value)}
+                            placeholder="¿Qué se ve en la foto?"
+                            className="w-full px-3 py-2 rounded-xl bg-surface border border-line focus:border-teal focus:outline-none text-[13.5px] min-h-[64px]"
+                          />
+                          <div className="flex gap-2 mt-1.5">
+                            <button onClick={() => { setComentando(null); setTextoComentario(''); }} className="flex-1 min-h-[40px] rounded-xl border border-line-strong text-ink/80 text-[13px] font-medium">Cancelar</button>
+                            <button onClick={handleGuardarComentario} disabled={busy} className="flex-1 min-h-[40px] rounded-xl bg-teal text-inkOnAccent text-[13px] font-semibold disabled:opacity-60">{busy ? 'Guardando...' : 'Guardar'}</button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {e.nota && <p className="text-[13.5px] text-ink/85 mb-1 leading-relaxed">{e.nota}</p>}
+                          <p className="text-[11px] text-muted">{fmtHora(e.created_at)}</p>
+                          {/* El comentario se puede poner después, mientras el día siga abierto. */}
+                          {e.tipo === 'evidencia' && servicio.estado === 'en_curso' && (
+                            <button
+                              onClick={() => { setComentando(e.id); setTextoComentario(e.nota || ''); }}
+                              className="mt-1.5 min-h-[36px] px-3 rounded-lg border border-dashed border-teal/50 text-teal text-[12.5px] font-semibold inline-flex items-center gap-1.5 active:scale-95 transition-transform"
+                            >
+                              <MessageSquarePlus size={14} strokeWidth={2.4} />
+                              {e.nota ? 'Editar comentario' : 'Agregar comentario'}
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -806,14 +880,30 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
       {(servicio.estado === 'en_curso' || (servicio.estado === 'en_sitio' && tiempoExcedido)) && (
         <div className="fixed bottom-0 left-0 right-0 z-30 glass-strong px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
           <div className="max-w-2xl lg:max-w-4xl mx-auto">
-            <button
-              onClick={handleConcluir}
-              disabled={busy}
-              className="w-full min-h-[52px] rounded-2xl bg-red text-white font-display font-semibold text-[15px] flex items-center justify-center gap-2.5 active:scale-95 transition-transform disabled:opacity-60"
-            >
-              <Flag size={18} strokeWidth={2.6} />
-              Terminar servicio
-            </button>
+            <input ref={fotoRapidaRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFotoRapida} />
+            {/* El hueco a la derecha es del botón flotante del asistente: sin
+                él queda encima de «Terminar». */}
+            <div className="flex gap-2.5 pr-[64px] lg:pr-0">
+              {/* Lo que más se usa durante el trabajo va grande y al pulgar:
+                  un toque abre la cámara y la foto se guarda sola. */}
+              {servicio.estado === 'en_curso' && (
+                <button
+                  onClick={() => fotoRapidaRef.current?.click()}
+                  className="flex-[1.6] min-h-[56px] rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15.5px] flex items-center justify-center gap-2.5 active:scale-95 transition-transform shadow-glow-teal"
+                >
+                  <Camera size={21} strokeWidth={2.5} />
+                  {subiendoFotos > 0 ? `Guardando ${subiendoFotos} foto${subiendoFotos > 1 ? 's' : ''}…` : 'Foto rápida'}
+                </button>
+              )}
+              <button
+                onClick={handleConcluir}
+                disabled={busy}
+                className="flex-1 min-h-[56px] rounded-2xl border border-red/60 bg-red/10 text-red font-display font-semibold text-[14.5px] flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
+              >
+                <Flag size={17} strokeWidth={2.6} />
+                Terminar
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -979,6 +1069,8 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
       {/* Modal: resultado del día (obligatorio) y motivos si hubo desviación. */}
       {preguntandoCierre && (
         <ModalCierre
+          sinFotos={servicio.estado === 'en_curso' && !eventos.some((e) => e.foto_path) && !tareas.some((t) => t.foto_path)}
+          onTomarFoto={() => { setPreguntandoCierre(false); fotoRapidaRef.current?.click(); }}
           servicio={servicio}
           totalTareas={tareas.length}
           tareasPendientes={tareas.filter((t) => !t.completada).length}

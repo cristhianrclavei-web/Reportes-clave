@@ -1211,6 +1211,24 @@ export async function agregarEvidenciaExtra(servicioId: string, nota: string, fo
   if (error) throw error;
 }
 
+// Comentario de una evidencia ya guardada. La foto rápida se guarda sin
+// texto para no detener el trabajo; el comentario se puede poner (o corregir)
+// después, mientras el día no se haya concluido: cerrado, lo registrado es el
+// respaldo de lo que se hizo.
+export async function actualizarNotaEvidencia(eventoId: string, servicioId: string, nota: string): Promise<void> {
+  const supabase = createClient();
+  const { data: sv, error: e1 } = await supabase.from('servicios_programados').select('estado').eq('id', servicioId).single();
+  if (e1) throw e1;
+  if (sv.estado === 'concluido') throw new Error('El servicio ya se concluyó; sus evidencias ya no se modifican.');
+  const { error } = await supabase
+    .from('servicio_eventos')
+    .update({ nota: nota.trim() || null })
+    .eq('id', eventoId)
+    .eq('servicio_id', servicioId)
+    .eq('tipo', 'evidencia');
+  if (error) throw error;
+}
+
 export async function concluirServicio(servicioId: string, cierre: CierreServicio) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
