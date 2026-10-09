@@ -391,16 +391,28 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   .guardado, .guardado-halo, .guardado-etapa, .guardado-icono-turno, .guardado-listo { animation: none !important; }
 }
 
-/* Página 404 (components/Escena404.tsx): el «0» se mece del cable de la
-   grúa, el técnico hace señas y la baliza parpadea. */
-@keyframes e404-columpio { 0%, 100% { transform: rotate(-3.5deg); } 50% { transform: rotate(3.5deg); } }
-@keyframes e404-senas { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-24deg); } }
-@keyframes e404-baliza { 0%, 45% { opacity: 1; } 55%, 100% { opacity: 0.15; } }
-@keyframes e404-borde { 0%, 100% { opacity: 0.75; } 50% { opacity: 1; } }
-.e404-carga { transform-origin: 170px 44px; animation: e404-columpio 3.4s ease-in-out infinite; }
-.e404-brazo { transform-origin: 134px 190px; animation: e404-senas 1.7s ease-in-out infinite; }
-.e404-baliza { animation: e404-baliza 1.1s steps(1, end) infinite; }
-.e404-borde { animation: e404-borde 3.4s ease-in-out infinite; }
+/* Página 404 (components/Escena404.tsx): la cámara barre de izquierda a
+   derecha y regresa, con una pausa en cada extremo. Cada cifra se enciende
+   cuando el haz le pasa encima: los tres encendidos usan la misma duración
+   que el barrido y están calculados sobre sus tiempos (0–45 % va, 50–95 %
+   vuelve). */
+@keyframes e404-barrido {
+  0% { transform: rotate(38deg); }
+  45%, 50% { transform: rotate(-38deg); }
+  95%, 100% { transform: rotate(38deg); }
+}
+@keyframes e404-cifra-izq { 0%, 4% { opacity: 1; } 12%, 84% { opacity: 0; } 94%, 100% { opacity: 1; } }
+@keyframes e404-cifra-centro { 0%, 13% { opacity: 0; } 22.5% { opacity: 1; } 32%, 63% { opacity: 0; } 72.5% { opacity: 1; } 82%, 100% { opacity: 0; } }
+@keyframes e404-cifra-der { 0%, 34% { opacity: 0; } 44%, 51% { opacity: 1; } 61%, 100% { opacity: 0; } }
+@keyframes e404-rec { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0.15; } }
+.e404-barrido { transform-origin: 200px 40px; animation: e404-barrido 7s linear infinite; }
+.e404-cifra-izq { animation: e404-cifra-izq 7s linear infinite; }
+.e404-cifra-centro { animation: e404-cifra-centro 7s linear infinite; }
+.e404-cifra-der { animation: e404-cifra-der 7s linear infinite; }
+.e404-rec { animation: e404-rec 1.2s steps(1, end) infinite; }
 @media (prefers-reduced-motion: reduce) {
-  .e404-carga, .e404-brazo, .e404-baliza, .e404-borde { animation: none !important; }
+  /* Quieta: cámara al centro y las tres cifras a media luz. */
+  .e404-barrido { animation: none !important; transform: rotate(0deg); }
+  .e404-cifra-izq, .e404-cifra-centro, .e404-cifra-der { animation: none !important; opacity: 0.6; }
+  .e404-rec { animation: none !important; }
 }

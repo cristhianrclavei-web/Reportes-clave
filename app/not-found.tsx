@@ -15,9 +15,9 @@ export default function NotFound() {
           <Escena404 />
         </div>
 
-        <h1 className="font-display font-bold text-[24px] tracking-wide mb-2">Esta página sigue en obra</h1>
+        <h1 className="font-display font-bold text-[24px] tracking-wide mt-3 mb-2">Buscamos por todos lados</h1>
         <p className="text-[14px] text-muted leading-relaxed mb-7 max-w-[330px]">
-          No encontramos lo que buscabas: el enlace puede estar mal escrito o la página ya no existe.
+          La cámara no encontró esta página: el enlace puede estar mal escrito o la página ya no existe.
         </p>
 
         <Link
