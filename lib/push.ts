@@ -147,6 +147,10 @@ export type TipoAviso =
   | 'correccion_resuelta'
   | 'aviso_servicio'
   | 'tecnico_fuera_de_sitio'
+  | 'salida_sitio'
+  | 'pausa_excedida'
+  | 'recordatorio_pausa'
+  | 'verificacion_presencia'
   | 'recordatorio_iniciar_servicio'
   | 'recordatorio_llegada_pendiente'
   | 'reporte_pendiente'
@@ -164,6 +168,8 @@ export type TipoAviso =
 export const TIPOS_AVISO: { valor: TipoAviso; label: string; detalle: string; paraTecnico?: boolean }[] = [
   { valor: 'aviso_servicio', label: 'Avisos sobre días programados', detalle: 'Cuando alguien del personal avisa que un día no se va a poder' },
   { valor: 'tecnico_fuera_de_sitio', label: 'Personal en sitio sin asignar', detalle: 'Cuando alguien está en un sitio programado que no es el suyo' },
+  { valor: 'salida_sitio', label: 'Salidas del sitio', detalle: 'Cuando alguien sale por material, reanuda lejos del sitio o la app lo detecta fuera con el servicio en curso' },
+  { valor: 'pausa_excedida', label: 'Pausas excedidas', detalle: 'Cuando una pausa (ej. la comida) se pasa de su tiempo más la tolerancia' },
   { valor: 'recordatorio_iniciar_servicio', label: 'Recordatorio de iniciar servicio', detalle: 'Cada 10 min mientras estés en sitio sin haber iniciado', paraTecnico: true },
   { valor: 'recordatorio_llegada_pendiente', label: 'Recordatorio de llegada pendiente', detalle: 'Cada 10 min si ya pasó tu hora programada y no has marcado llegada', paraTecnico: true },
   { valor: 'reporte_pendiente', label: 'Reporte de servicio pendiente', detalle: 'A las 6pm si no has hecho el reporte ni justificado el día, y cada mañana a las 9:00 mientras siga pendiente', paraTecnico: true },
@@ -191,6 +197,9 @@ export const TIPOS_AVISO: { valor: TipoAviso; label: string; detalle: string; pa
   { valor: 'servicio_sin_confirmar', label: 'Servicios sin confirmar', detalle: 'Cuando alguien del personal sigue sin confirmar 1 h después de su recordatorio' },
   { valor: 'correccion_resuelta', label: 'Respuesta a tus correcciones', detalle: 'Cuando autorizan o cierran una corrección que pediste', paraTecnico: true },
 ];
+
+// 'recordatorio_pausa' y 'verificacion_presencia' no aparecen en la lista a
+// propósito: son parte del control del servicio y no se pueden apagar.
 
 // Estos llegan apagados: son seguimiento del día y esa información ya está en
 // vivo en el panel. Encenderlos es decisión de cada quien.

@@ -2,6 +2,11 @@ import { reducirFoto } from './reducirFoto';
 import type { Avance } from './useAvanceGuardado';
 import { createClient } from './supabaseClient';
 import { getCurrentLocation } from './geolocation';
+import { distanciaMetros } from './geocerca';
+import {
+  TipoPausa, AjustesOperacion, AJUSTES_POR_DEFECTO, limiteDePausa, textoTipoPausa, fueraDeSitio, distanciaTexto, minutosTexto,
+  EventoPausa,
+} from './pausas';
 import { registrarAccionGlobal } from './auditoriaGlobal';
 import { generarUUID } from './uuid';
 import { evaluarVentanaServicio } from './ventanaServicio';
@@ -34,6 +39,9 @@ export type Servicio = {
   // la pausa abierta se suma aparte con minutosPausadosTotales().
   pausado_desde: string | null;
   minutos_pausados: number;
+  // Tipo y tiempo permitido de la pausa en curso (patch_control_pausas.sql).
+  pausa_tipo?: string | null;
+  pausa_limite_min?: number | null;
   report_id: string | null;
   // Cliente de la sección Clientes (patch_clientes_fase3.sql); null si no
   // se eligió de la lista ni coincide exacto con uno.
@@ -93,8 +101,13 @@ export type Tarea = {
 export type Evento = {
   id: string;
   servicio_id: string;
-  tipo: 'llegada' | 'inicio' | 'retraso' | 'evidencia' | 'cierre' | 'avance' | 'pausa' | 'reanudacion';
+  tipo: 'llegada' | 'inicio' | 'retraso' | 'evidencia' | 'cierre' | 'avance' | 'pausa' | 'reanudacion' | 'salida_sitio';
   nota: string | null;
+  // En pausa y reanudación (patch_control_pausas.sql): tipo de pausa, tiempo
+  // permitido y, al reanudar, los minutos que duró.
+  pausa_tipo?: string | null;
+  limite_min?: number | null;
+  minutos?: number | null;
   foto_path: string | null;
   // Evidencia en video (patch_video_evidencia.sql): foto_path es su portada.
   video_path?: string | null;
@@ -1057,85 +1070,259 @@ export async function iniciarServicio(servicioId: string) {
   });
 }
 
-// El técnico pausa el servicio él mismo (ej. hora de comida) en vez de que
-// el sistema intente adivinarlo por GPS: sin la app abierta en pantalla no
-// hay rastreo en segundo plano (sobre todo en iPhone), así que una alarma
-// automática al salir del radio daría más falsas alarmas que control real.
-// Con esto, el tiempo pausado queda descontado del cálculo de "excedido" y
-// registrado con hora y motivo para que el supervisor lo vea.
-export async function pausarServicio(servicioId: string, motivo: string): Promise<void> {
+// Tiempos permitidos de pausa y de respuesta a una verificación. Si la tabla
+// aún no existe o no se puede leer, se usan los de fábrica: una pausa nunca
+// debe fallar por no poder leer un ajuste.
+export async function leerAjustesOperacion(): Promise<AjustesOperacion> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from('ajustes_operacion')
+    .select('comida_min, otras_pausas_min, tolerancia_min, verificacion_min')
+    .maybeSingle();
+  return { ...AJUSTES_POR_DEFECTO, ...((data as Partial<AjustesOperacion>) || {}) };
+}
+
+export async function guardarAjustesOperacion(ajustes: AjustesOperacion): Promise<void> {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const ubicacion = await getCurrentLocation();
+  const { error } = await supabase
+    .from('ajustes_operacion')
+    .update({ ...ajustes, actualizado_en: new Date().toISOString(), actualizado_por: user?.id })
+    .eq('id', true);
+  if (error) throw error;
+}
+
+// Cuántas pausas de comida lleva ya este día de servicio. Sirve para avisar
+// antes de tomar una segunda.
+export async function comidasTomadas(servicioId: string): Promise<number> {
+  const supabase = createClient();
+  const { count } = await supabase
+    .from('servicio_eventos')
+    .select('id', { count: 'exact', head: true })
+    .eq('servicio_id', servicioId)
+    .eq('tipo', 'pausa')
+    .eq('pausa_tipo', 'comida');
+  return count || 0;
+}
+
+// Distancia de una ubicación al sitio programado, o null si falta alguna de
+// las dos (permiso de ubicación negado, servicio sin dirección en el mapa).
+function distanciaAlSitio(
+  sitio: { lat: number; lng: number } | null | undefined,
+  ubicacion: { lat: number; lng: number } | null
+): number | null {
+  if (!sitio || !ubicacion) return null;
+  return Math.round(distanciaMetros(ubicacion, sitio));
+}
+
+export type DatosPausa = {
+  tipo: TipoPausa;
+  // Motivo escrito («Otro») o a dónde va (compra de material).
+  detalle?: string;
+  // Solo compra de material: cuánto dijo que tardaría.
+  estimadoMin?: number | null;
+};
+
+// El técnico pausa el servicio él mismo (ej. hora de comida). Sin la app
+// abierta en pantalla no hay rastreo en segundo plano (sobre todo en
+// iPhone), así que la salida no se puede adivinar por GPS: se declara. Cada
+// pausa lleva su tipo y su tiempo permitido; el cron de recordatorios avisa
+// cuando está por terminar y cuando se excede. El tiempo pausado se
+// descuenta del cálculo de «excedido» del servicio.
+export async function pausarServicio(servicioId: string, datos: DatosPausa): Promise<{ limiteMin: number }> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const [ubicacion, ajustes, comidas] = await Promise.all([
+    getCurrentLocation(),
+    leerAjustesOperacion(),
+    datos.tipo === 'comida' ? comidasTomadas(servicioId) : Promise.resolve(0),
+  ]);
+  const limiteMin = limiteDePausa(datos.tipo, ajustes, datos.estimadoMin);
+  const detalle = datos.detalle?.trim() || '';
 
   const { data: actualizado, error: e1 } = await supabase
     .from('servicios_programados')
-    .update({ pausado_desde: new Date().toISOString() })
+    .update({ pausado_desde: new Date().toISOString(), pausa_tipo: datos.tipo, pausa_limite_min: limiteMin, pausa_avisos: 0 })
     .eq('id', servicioId)
     .is('pausado_desde', null) // ya pausado: no reinicia el reloj de la pausa
-    .select('id')
+    .select('id, proyecto')
     .maybeSingle();
   if (e1) throw e1;
-  if (!actualizado) return; // ya estaba pausado (doble toque) — no duplicar el evento
+  if (!actualizado) return { limiteMin }; // ya estaba pausado (doble toque) — no duplicar el evento
+
+  const esExtra = datos.tipo === 'comida' && comidas > 0;
+  const nota = [
+    textoTipoPausa(datos.tipo) + (esExtra ? ' (extra: ya había tomado su comida)' : ''),
+    detalle,
+    `hasta ${minutosTexto(limiteMin)}`,
+  ].filter(Boolean).join(' · ');
 
   const { error: e2 } = await supabase
     .from('servicio_eventos')
-    .insert({ servicio_id: servicioId, tipo: 'pausa', nota: motivo || null, ubicacion, created_by: user?.id });
+    .insert({
+      servicio_id: servicioId, tipo: 'pausa', nota, ubicacion, created_by: user?.id,
+      pausa_tipo: datos.tipo, limite_min: limiteMin,
+    });
   if (e2) throw e2;
 
-  const { data: sv } = await supabase.from('servicios_programados').select('proyecto').eq('id', servicioId).single();
   const quien = await nombreDelUsuario();
-  await notificar({
-    destino: 'supervisores',
-    tipo: 'pausa_servicio',
-    titulo: 'Servicio en pausa',
-    mensaje: `${quien} pausó ${sv?.proyecto || 'un servicio'}${motivo ? `: ${motivo}` : ''}`,
-    url: `/dashboard/servicios/${servicioId}`,
-    tag: 'pausa',
-  });
+  const proyecto = (actualizado as any).proyecto || 'un servicio';
+  if (datos.tipo === 'material') {
+    // Salir del sitio por material sí se avisa siempre: es lo que distingue
+    // una salida declarada de una ausencia.
+    await notificar({
+      destino: 'supervisores',
+      tipo: 'salida_sitio',
+      titulo: 'Salida por material',
+      mensaje: `${quien} salió de ${proyecto}${detalle ? ` a ${detalle}` : ''}. Calcula ${minutosTexto(limiteMin)}.`,
+      url: `/dashboard/servicios/${servicioId}`,
+      tag: `pausa-${servicioId}`,
+    });
+  } else {
+    await notificar({
+      destino: 'supervisores',
+      tipo: 'pausa_servicio',
+      titulo: esExtra ? 'Segunda pausa de comida' : 'Servicio en pausa',
+      mensaje: `${quien} pausó ${proyecto}: ${textoTipoPausa(datos.tipo)}${detalle ? ` — ${detalle}` : ''}`,
+      url: `/dashboard/servicios/${servicioId}`,
+      tag: `pausa-${servicioId}`,
+    });
+  }
+  return { limiteMin };
 }
 
-export async function reanudarServicio(servicioId: string): Promise<void> {
+export type ResultadoReanudar = {
+  minutos: number;
+  // Minutos de más sobre lo permitido (0 si volvió a tiempo).
+  excedidos: number;
+  // Distancia al sitio al reanudar, si se pudo medir, y si eso es «fuera».
+  distanciaM: number | null;
+  fuera: boolean;
+};
+
+export async function reanudarServicio(servicioId: string): Promise<ResultadoReanudar | null> {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const ubicacion = await getCurrentLocation();
 
   const { data: sv, error: eSv } = await supabase
     .from('servicios_programados')
-    .select('proyecto, pausado_desde, minutos_pausados')
+    .select('proyecto, pausado_desde, minutos_pausados, pausa_tipo, pausa_limite_min, ubicacion_programada, radio_geocerca_m')
     .eq('id', servicioId)
     .single();
   if (eSv) throw eSv;
-  if (!sv?.pausado_desde) return; // no estaba pausado — nada que hacer
+  if (!sv?.pausado_desde) return null; // no estaba pausado — nada que hacer
 
-  const minutosEstaPausa = Math.max(0, Math.round((Date.now() - new Date(sv.pausado_desde).getTime()) / 60000));
+  const minutos = Math.max(0, Math.round((Date.now() - new Date(sv.pausado_desde).getTime()) / 60000));
+  const limite = (sv.pausa_limite_min as number | null) || null;
+  const excedidos = limite ? Math.max(0, minutos - limite) : 0;
+  const distanciaM = distanciaAlSitio(sv.ubicacion_programada as any, ubicacion);
+  const fuera = distanciaM !== null && fueraDeSitio(distanciaM, ubicacion?.accuracy, (sv.radio_geocerca_m as number) || 120);
 
   const { error: e1 } = await supabase
     .from('servicios_programados')
-    .update({ pausado_desde: null, minutos_pausados: (sv.minutos_pausados || 0) + minutosEstaPausa })
+    .update({
+      pausado_desde: null, minutos_pausados: (sv.minutos_pausados || 0) + minutos,
+      pausa_tipo: null, pausa_limite_min: null, pausa_avisos: 0,
+    })
     .eq('id', servicioId);
   if (e1) throw e1;
+
+  const nota = [
+    `${minutosTexto(minutos)} de pausa`,
+    excedidos > 0 ? `${minutosTexto(excedidos)} de más` : '',
+    fuera ? `reanudó a ${distanciaTexto(distanciaM!)} del sitio` : '',
+    !ubicacion && sv.ubicacion_programada ? 'sin ubicación' : '',
+  ].filter(Boolean).join(' · ');
 
   const { error: e2 } = await supabase
     .from('servicio_eventos')
     .insert({
-      servicio_id: servicioId,
-      tipo: 'reanudacion',
-      nota: `${minutosEstaPausa} min de pausa`,
-      ubicacion,
-      created_by: user?.id,
+      servicio_id: servicioId, tipo: 'reanudacion', nota, ubicacion, created_by: user?.id,
+      pausa_tipo: sv.pausa_tipo || null, limite_min: limite, minutos, fuera_sitio: fuera,
     });
   if (e2) throw e2;
 
   const quien = await nombreDelUsuario();
+  const proyecto = sv.proyecto || 'un servicio';
+  if (fuera) {
+    // Reanudar lejos del sitio es justo lo que hay que ver: el reloj vuelve
+    // a correr sin que la persona esté trabajando.
+    await notificar({
+      destino: 'supervisores',
+      tipo: 'salida_sitio',
+      titulo: 'Reanudó fuera del sitio',
+      mensaje: `${quien} reanudó ${proyecto} a ${distanciaTexto(distanciaM!)} del sitio.`,
+      url: `/dashboard/servicios/${servicioId}`,
+      tag: `pausa-${servicioId}`,
+    });
+  } else {
+    await notificar({
+      destino: 'supervisores',
+      tipo: 'reanudacion_servicio',
+      titulo: 'Servicio reanudado',
+      mensaje: `${quien} reanudó ${proyecto} tras ${minutosTexto(minutos)}${excedidos > 0 ? ` (${minutosTexto(excedidos)} de más)` : ''}`,
+      url: `/dashboard/servicios/${servicioId}`,
+      tag: `pausa-${servicioId}`,
+    });
+  }
+  return { minutos, excedidos, distanciaM, fuera };
+}
+
+// Pausas cerradas y salidas detectadas desde una fecha, con quién las hizo:
+// la materia prima del indicador de pausas del Resumen.
+export async function listarPausasEquipo(desdeIso: string): Promise<EventoPausa[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('servicio_eventos')
+    .select('tipo, pausa_tipo, minutos, limite_min, fuera_sitio, created_by, profiles!servicio_eventos_created_by_fkey(full_name)')
+    .in('tipo', ['reanudacion', 'salida_sitio'])
+    .gte('created_at', desdeIso)
+    .limit(2000);
+  if (error) throw error;
+  return ((data as any[]) || []).map(({ profiles, ...e }) => ({
+    ...e,
+    nombre: (Array.isArray(profiles) ? profiles[0]?.full_name : profiles?.full_name) || 'Personal técnico',
+  })) as EventoPausa[];
+}
+
+// La app detectó al técnico lejos del sitio con el servicio en curso y sin
+// pausa. Solo ocurre con la pantalla del servicio abierta. Una vez cada
+// media hora como mucho: el GPS puede rebotar y no se trata de llenar el
+// historial ni el teléfono de supervisión.
+export async function registrarSalidaDeSitio(servicioId: string, distanciaM: number, ubicacion: { lat: number; lng: number; accuracy?: number }): Promise<boolean> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const haceMediaHora = new Date(Date.now() - 30 * 60000).toISOString();
+  const { count } = await supabase
+    .from('servicio_eventos')
+    .select('id', { count: 'exact', head: true })
+    .eq('servicio_id', servicioId)
+    .eq('tipo', 'salida_sitio')
+    .gte('created_at', haceMediaHora);
+  if ((count || 0) > 0) return false;
+
+  const { error } = await supabase.from('servicio_eventos').insert({
+    servicio_id: servicioId,
+    tipo: 'salida_sitio',
+    nota: `Detectado a ${distanciaTexto(distanciaM)} del sitio, sin pausa`,
+    ubicacion,
+    fuera_sitio: true,
+    created_by: user?.id,
+  });
+  if (error) throw error;
+
+  const { data: sv } = await supabase.from('servicios_programados').select('proyecto').eq('id', servicioId).single();
+  const quien = await nombreDelUsuario();
   await notificar({
     destino: 'supervisores',
-    tipo: 'reanudacion_servicio',
-    titulo: 'Servicio reanudado',
-    mensaje: `${quien} reanudó ${sv.proyecto || 'un servicio'} tras ${minutosEstaPausa} min`,
+    tipo: 'salida_sitio',
+    titulo: 'Fuera del sitio sin pausa',
+    mensaje: `${quien} está a ${distanciaTexto(distanciaM)} de ${sv?.proyecto || 'su servicio'} con el servicio en curso.`,
     url: `/dashboard/servicios/${servicioId}`,
-    tag: 'pausa',
+    tag: `salida-${servicioId}`,
   });
+  return true;
 }
 
 // Registra el avance de una tarea. Si el porcentaje llega a 100 la tarea

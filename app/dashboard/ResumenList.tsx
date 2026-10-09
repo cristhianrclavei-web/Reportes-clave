@@ -20,6 +20,7 @@ import ServiciosSinReporteSection from '@/components/ServiciosSinReporteSection'
 import { listarAgendaSupervisor, DiaAgenda } from '@/lib/serviciosProgramados';
 import KpiEficiencia from '@/components/KpiEficiencia';
 import KpiTiempoEquipo from '@/components/KpiTiempoEquipo';
+import KpiPausas from '@/components/KpiPausas';
 import AvisoAlmacenamiento from '@/components/AvisoAlmacenamiento';
 import BitacoraSupervisorSection from '@/components/BitacoraSupervisorSection';
 import SupervisorShell from '@/components/SupervisorShell';
@@ -319,6 +320,7 @@ export default function ResumenList({
         <KpiOperativos servicios={servicios} reports={reports} />
         <KpiEficiencia servicios={servicios} />
         <KpiTiempoEquipo servicios={servicios} />
+        <KpiPausas />
         <BitacoraSupervisorSection />
 
     </SupervisorShell>

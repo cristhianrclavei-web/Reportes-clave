@@ -18,13 +18,19 @@ import {
   registrarAvanceTarea, registrarRetraso, concluirServicio, concluirServicioAnticipado, agregarEvidenciaExtra,
   registrarMotivoLlegada, CierreServicio, actualizarNotaEvidencia, registrarVisitaSinTrabajo, agregarVideoEvidencia,
   calcularProgresoTareas, pausarServicio, reanudarServicio, minutosPausadosTotales,
+  leerAjustesOperacion, comidasTomadas, registrarSalidaDeSitio,
 } from '@/lib/serviciosProgramados';
+import {
+  TIPOS_PAUSA, TipoPausa, AJUSTES_POR_DEFECTO, AjustesOperacion, limiteDePausa, estadoPausa, textoTipoPausa,
+  fueraDeSitio, distanciaTexto, minutosTexto,
+} from '@/lib/pausas';
+import { Verificacion, miVerificacionPendiente, responderVerificacion } from '@/lib/presencia';
 import ProgressBar from '@/components/ProgressBar';
 import AvisoServicio from '@/components/AvisoServicio';
 import {
   ChevronLeft, MapPin, Play, Check, Lock, Camera, AlertTriangle,
   Plus, X, CircleDashed, Clock, Flag, CalendarClock, PackageCheck, ChevronRight,
-  PauseCircle, PlayCircle, ClipboardList, MessageSquarePlus, CloudOff, Ban, Video } from 'lucide-react';
+  PauseCircle, PlayCircle, ClipboardList, MessageSquarePlus, CloudOff, Ban, Video, LocateFixed, MapPinOff } from 'lucide-react';
 
 // Acceso secundario de la pantalla: ícono arriba y nombre corto. Van juntos en
 // una fila para no apilar botones a todo lo ancho antes de las tareas.
@@ -38,7 +44,8 @@ const ESTADO_CHIP: Record<Servicio['estado'], { label: string; cls: string }> = 
   cancelado: { label: 'Cancelado', cls: 'bg-surface-2 text-faint' },
 };
 
-const MOTIVOS_PAUSA = ['Comida', 'Emergencia personal', 'Trámite fuera de sitio', 'Otro'];
+// Cuánto dice el técnico que tardará en una salida por material.
+const ESTIMADOS_MATERIAL = [15, 30, 45, 60, 90];
 import ModalOverlay from '@/components/ModalOverlay';
 import { calcularResultadoServicio } from '@/lib/resultadoServicio';
 import { evaluarVentanaServicio } from '@/lib/ventanaServicio';
@@ -112,8 +119,19 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
   const retrasoInputRef = useRef<HTMLInputElement>(null);
 
   const [showPausa, setShowPausa] = useState(false);
-  const [motivoPausa, setMotivoPausa] = useState(MOTIVOS_PAUSA[0]);
+  const [tipoPausa, setTipoPausa] = useState<TipoPausa>('comida');
   const [comentarioPausa, setComentarioPausa] = useState('');
+  const [estimadoPausa, setEstimadoPausa] = useState(30);
+  const [ajustes, setAjustes] = useState<AjustesOperacion>(AJUSTES_POR_DEFECTO);
+  const [comidasPrevias, setComidasPrevias] = useState(0);
+
+  // Verificación de presencia que supervisión pidió y sigue sin responder.
+  const [verificacion, setVerificacion] = useState<Verificacion | null>(null);
+  const [respondiendo, setRespondiendo] = useState(false);
+
+  // La app vio al técnico lejos del sitio con el servicio en curso.
+  const [fueraA, setFueraA] = useState<number | null>(null);
+  const salidaAvisadaRef = useRef(false);
 
   const [ahora, setAhora] = useState(Date.now());
 
@@ -223,6 +241,91 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
     const id = setInterval(() => setAhora(Date.now()), 30000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    leerAjustesOperacion().then(setAjustes).catch(() => {});
+  }, []);
+
+  // ¿Supervisión pidió confirmar presencia? Se revisa al abrir (es a donde
+  // lleva el aviso), al volver a la app y cada medio minuto.
+  useEffect(() => {
+    let vivo = true;
+    const revisar = () => {
+      miVerificacionPendiente(servicioId).then((v) => { if (vivo) setVerificacion(v); }).catch(() => {});
+    };
+    revisar();
+    const id = setInterval(revisar, 30000);
+    const alVolver = () => { if (document.visibilityState === 'visible') revisar(); };
+    document.addEventListener('visibilitychange', alVolver);
+    return () => { vivo = false; clearInterval(id); document.removeEventListener('visibilitychange', alVolver); };
+  }, [servicioId]);
+
+  // Con el servicio en curso y sin pausa, se sigue comparando la posición con
+  // el sitio — solo mientras esta pantalla está abierta, que es lo único que
+  // un navegador permite. Para no acusar a nadie por un rebote del GPS hace
+  // falta estar claramente fuera (descontando la imprecisión) en dos
+  // lecturas separadas por un minuto.
+  const enCursoSinPausa = servicio?.estado === 'en_curso' && !servicio?.pausado_desde;
+  useEffect(() => {
+    if (!servicio || !enCursoSinPausa) { setFueraA(null); return; }
+    if (!servicio.ubicacion_programada) return;
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return;
+
+    const destino = servicio.ubicacion_programada;
+    const radio = servicio.radio_geocerca_m || 120;
+    let confirmar: ReturnType<typeof setTimeout> | null = null;
+    // Última lectura «fuera» del seguimiento; cualquier lectura «dentro» la borra.
+    let ultima: { punto: { lat: number; lng: number }; d: number; precision: number } | null = null;
+
+    const medir = (pos: GeolocationPosition) => {
+      const punto = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      const d = Math.round(distanciaMetros(punto, destino));
+      return { punto, d, fuera: fueraDeSitio(d, pos.coords.accuracy, radio), precision: Math.round(pos.coords.accuracy) };
+    };
+    const dentro = () => {
+      if (confirmar) { clearTimeout(confirmar); confirmar = null; }
+      ultima = null;
+      setFueraA(null);
+    };
+    const confirmarFuera = (m: { punto: { lat: number; lng: number }; d: number; precision: number }) => {
+      setFueraA(m.d);
+      if (salidaAvisadaRef.current) return;
+      salidaAvisadaRef.current = true;
+      registrarSalidaDeSitio(servicioId, m.d, { ...m.punto, accuracy: m.precision })
+        .then((nuevo) => { if (nuevo) cargar(true); })
+        .catch(() => { salidaAvisadaRef.current = false; });
+    };
+    // Segunda lectura un minuto después de la primera: quien no se mueve no
+    // genera lecturas nuevas por sí solo, así que se pide. Si el teléfono no
+    // la entrega, vale la última del seguimiento — que sigue siendo «fuera»,
+    // porque cualquier lectura «dentro» la habría borrado.
+    const segundaLectura = () => {
+      confirmar = null;
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const m = medir(pos);
+          if (m.fuera) confirmarFuera(m); else dentro();
+        },
+        () => { if (ultima) confirmarFuera(ultima); },
+        { enableHighAccuracy: true, maximumAge: 5000, timeout: 12000 }
+      );
+    };
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const m = medir(pos);
+        if (!m.fuera) { dentro(); return; }
+        ultima = m;
+        // Ya confirmado: solo se actualiza la distancia mostrada.
+        setFueraA((previa) => (previa === null ? previa : m.d));
+        if (!confirmar && !salidaAvisadaRef.current) confirmar = setTimeout(segundaLectura, 60000);
+      },
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 30000, timeout: 20000 }
+    );
+    return () => { navigator.geolocation.clearWatch(watchId); if (confirmar) clearTimeout(confirmar); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [servicio?.id, enCursoSinPausa]);
 
   // Detección automática de llegada e inicio: solo mientras el técnico tiene
   // esta pantalla abierta (no hay rastreo en segundo plano — iOS no lo
@@ -425,15 +528,30 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
     }
   }
 
+  function abrirPausa() {
+    setTipoPausa(fueraA !== null ? 'material' : 'comida');
+    setComentarioPausa('');
+    setEstimadoPausa(30);
+    setShowPausa(true);
+    comidasTomadas(servicioId).then(setComidasPrevias).catch(() => {});
+    leerAjustesOperacion().then(setAjustes).catch(() => {});
+  }
+
   async function handleGuardarPausa() {
+    if (tipoPausa === 'otro' && !comentarioPausa.trim()) {
+      showToast('Escribe el motivo de la pausa', 'error');
+      return;
+    }
     setBusy(true);
     try {
-      const motivo = motivoPausa === 'Otro' && comentarioPausa.trim() ? comentarioPausa.trim() : motivoPausa;
-      await pausarServicio(servicioId, motivo);
-      showToast('Servicio en pausa', 'success');
+      const { limiteMin } = await pausarServicio(servicioId, {
+        tipo: tipoPausa,
+        detalle: comentarioPausa,
+        estimadoMin: tipoPausa === 'material' ? estimadoPausa : null,
+      });
+      showToast(`En pausa: ${textoTipoPausa(tipoPausa).toLowerCase()}, hasta ${minutosTexto(limiteMin)}`, 'success');
       setShowPausa(false);
       setComentarioPausa('');
-      setMotivoPausa(MOTIVOS_PAUSA[0]);
       await cargar();
     } catch (e: any) {
       alert('No se pudo pausar: ' + (e?.message || 'error'));
@@ -445,13 +563,33 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
   async function handleReanudar() {
     setBusy(true);
     try {
-      await reanudarServicio(servicioId);
-      showToast('Servicio reanudado', 'success');
+      const r = await reanudarServicio(servicioId);
+      salidaAvisadaRef.current = false;
+      if (r?.fuera) showToast(`Reanudaste a ${distanciaTexto(r.distanciaM!)} del sitio. Se avisó a supervisión.`, 'error');
+      else if (r && r.excedidos > 0) showToast(`Servicio reanudado. La pausa duró ${minutosTexto(r.excedidos)} de más.`, 'error');
+      else showToast('Servicio reanudado', 'success');
       await cargar();
     } catch (e: any) {
       alert('No se pudo reanudar: ' + (e?.message || 'error'));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleEstoyAqui() {
+    if (!verificacion || !servicio) return;
+    setRespondiendo(true);
+    try {
+      const r = await responderVerificacion(verificacion, servicio.proyecto);
+      setVerificacion(null);
+      if (r === 'en_sitio') showToast('Presencia confirmada', 'success');
+      else if (r === 'fuera') showToast('Se registró tu respuesta: estás fuera del sitio', 'error');
+      else if (r === 'sin_ubicacion') showToast('Respondiste, pero sin ubicación. Activa el permiso de ubicación.', 'error');
+      else showToast('La verificación ya había vencido', 'error');
+    } catch (e: any) {
+      alert('No se pudo responder: ' + (e?.message || 'error'));
+    } finally {
+      setRespondiendo(false);
     }
   }
 
@@ -553,6 +691,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
     ? Math.floor((ahora - new Date(inicioReferencia).getTime()) / 60000) - minutosPausadosTotales(servicio, ahora)
     : 0;
   const tiempoExcedido = servicio.estado !== 'concluido' && inicioReferencia && minutosTranscurridos > servicio.duracion_estimada_min;
+  const pausa = servicio.pausado_desde ? estadoPausa(servicio.pausado_desde, servicio.pausa_limite_min, ahora, ajustes.tolerancia_min) : null;
 
   let retrasoFinalMin: number | null = null;
   if (servicio.estado === 'concluido' && servicio.hora_fin && inicioReferencia) {
@@ -589,6 +728,46 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
       </div>
 
       <div className="px-4 pt-4">
+        {verificacion && (
+          <div className="mb-4 p-4 rounded-2xl bg-teal/10 border-2 border-teal/50">
+            <p className="font-display font-semibold text-[16px] flex items-center gap-2">
+              <LocateFixed size={19} strokeWidth={2.4} className="text-teal" />
+              Confirma que estás en el sitio
+            </p>
+            <p className="text-[13.5px] text-muted mt-1 mb-3 leading-relaxed">
+              Supervisión pidió verificar tu presencia. Te quedan {Math.max(1, Math.ceil((new Date(verificacion.vence_en).getTime() - ahora) / 60000))} min; se registra tu ubicación al responder.
+            </p>
+            <button
+              onClick={handleEstoyAqui}
+              disabled={respondiendo}
+              className="w-full min-h-[52px] rounded-xl bg-teal text-inkOnAccent font-semibold text-[15.5px] flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
+            >
+              <MapPin size={18} strokeWidth={2.4} />
+              {respondiendo ? 'Tomando tu ubicación…' : 'Estoy aquí'}
+            </button>
+          </div>
+        )}
+
+        {fueraA !== null && enCursoSinPausa && (
+          <div className="mb-4 p-4 rounded-2xl bg-amber/10 border border-amber/40">
+            <p className="text-amber text-[14.5px] font-semibold flex items-center gap-2">
+              <MapPinOff size={17} strokeWidth={2.4} />
+              Estás a {distanciaTexto(fueraA)} del sitio
+            </p>
+            <p className="text-[13px] text-muted mt-1 mb-3 leading-relaxed">
+              El servicio sigue en curso. Si saliste por comida o material, pon la pausa para que quede registrado.
+            </p>
+            <button
+              onClick={abrirPausa}
+              disabled={busy}
+              className="w-full min-h-[46px] rounded-xl bg-amber text-inkOnAccent font-semibold text-[14.5px] flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
+            >
+              <PauseCircle size={18} strokeWidth={2.4} />
+              Pausar servicio
+            </button>
+          </div>
+        )}
+
         {/* Resumen del día: estado, qué se va a hacer, horas y avance en una
             sola tarjeta, para no repartirlo en renglones sueltos. */}
         <div className="mb-4 rounded-2xl bg-surface border border-line p-4">
@@ -733,12 +912,35 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
             que el propio técnico avisa al salir y al volver. */}
         {servicio.estado === 'en_curso' && (
           servicio.pausado_desde ? (
-            <div className="mb-4 p-4 rounded-2xl bg-amber/10 border border-amber/30">
-              <p className="text-amber text-[14px] font-semibold mb-1 flex items-center gap-2">
+            <div className={`mb-4 p-4 rounded-2xl border ${pausa && (pausa.nivel === 'terminada' || pausa.nivel === 'excedida') ? 'bg-red/10 border-red/40' : 'bg-amber/10 border-amber/30'}`}>
+              <p className={`text-[14px] font-semibold mb-1 flex items-center gap-2 ${pausa && (pausa.nivel === 'terminada' || pausa.nivel === 'excedida') ? 'text-red' : 'text-amber'}`}>
                 <PauseCircle size={17} strokeWidth={2.4} />
-                En pausa desde {fmtHora(servicio.pausado_desde)}
+                {textoTipoPausa(servicio.pausa_tipo)} · desde {fmtHora(servicio.pausado_desde)}
               </p>
-              <p className="text-[12.5px] text-muted mb-3">El tiempo de pausa no cuenta como retraso.</p>
+              {pausa && servicio.pausa_limite_min ? (
+                <>
+                  <p className="font-display font-semibold text-[26px] leading-tight tabular-nums">
+                    {pausa.excedidos > 0
+                      ? <span className="text-red">{minutosTexto(pausa.excedidos)} de más</span>
+                      : pausa.restantes === 0
+                        ? <span className="text-red">Se terminó tu tiempo</span>
+                        : <>Te quedan {minutosTexto(pausa.restantes)}</>}
+                  </p>
+                  <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden my-2.5">
+                    <div
+                      className={`h-full rounded-full ${pausa.nivel === 'normal' ? 'bg-amber' : pausa.nivel === 'por_terminar' ? 'bg-amber' : 'bg-red'}`}
+                      style={{ width: `${Math.min(100, Math.round((pausa.transcurridos / servicio.pausa_limite_min) * 100))}%` }}
+                    />
+                  </div>
+                  <p className="text-[12.5px] text-muted mb-3">
+                    {pausa.nivel === 'excedida'
+                      ? 'Ya se avisó a supervisión. Reanuda en cuanto estés de vuelta en el sitio.'
+                      : `Tiempo permitido: ${minutosTexto(servicio.pausa_limite_min)}. Reanuda al volver al sitio; te llegará un recordatorio.`}
+                  </p>
+                </>
+              ) : (
+                <p className="text-[12.5px] text-muted mb-3">El tiempo de pausa no cuenta como retraso.</p>
+              )}
               <button
                 onClick={handleReanudar}
                 disabled={busy}
@@ -755,7 +957,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
             acceso…): salida propia, para no confundirla con «Terminar». */}
         <div className={`grid gap-2 mb-6 ${servicio.estado === 'en_curso' && !servicio.pausado_desde ? 'grid-cols-3' : servicio.estado === 'en_sitio' || servicio.estado === 'en_curso' ? 'grid-cols-2' : 'grid-cols-1'}`}>
           {servicio.estado === 'en_curso' && !servicio.pausado_desde && (
-            <button onClick={() => setShowPausa(true)} disabled={busy} className={ACCESO}>
+            <button onClick={abrirPausa} disabled={busy} className={ACCESO}>
               <PauseCircle size={20} strokeWidth={2.2} className="text-amber" />
               <span>Pausar</span>
             </button>
@@ -1210,26 +1412,75 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
       {showPausa && (
         <ModalOverlay onClose={() => setShowPausa(false)}>
           <div className="glass-strong rounded-3xl max-w-md w-full p-5 max-h-[90vh] overflow-y-auto">
-            <p className="font-display font-semibold text-[15px] mb-1">Pausar servicio</p>
-            <p className="text-[13px] text-muted mb-3.5">Se registra la hora de salida. Al volver, toca «Reanudar servicio» para que el tiempo de pausa no cuente como retraso.</p>
+            <p className="font-display font-semibold text-[16px] mb-1">Pausar servicio</p>
+            <p className="text-[13px] text-muted mb-3.5">Elige el motivo. Cada pausa tiene su tiempo; al volver al sitio toca «Reanudar servicio».</p>
 
-            <label className="text-[11px] uppercase tracking-wider text-muted block mb-1.5">Motivo</label>
-            <select
-              value={motivoPausa}
-              onChange={(e) => setMotivoPausa(e.target.value)}
-              className="w-full px-3 py-2.5 mb-3 rounded-xl bg-surface-2 border border-line focus:border-amber focus:outline-none text-[13.5px]"
-            >
-              {MOTIVOS_PAUSA.map((m) => <option key={m} value={m}>{m}</option>)}
-            </select>
+            <div className="grid grid-cols-2 gap-2 mb-3.5">
+              {TIPOS_PAUSA.map((t) => {
+                const activo = tipoPausa === t.clave;
+                return (
+                  <button
+                    key={t.clave}
+                    type="button"
+                    onClick={() => setTipoPausa(t.clave)}
+                    aria-pressed={activo}
+                    className={`text-left px-3 py-2.5 rounded-xl border min-h-[58px] transition-colors active:scale-[0.98] ${t.clave === 'otro' ? 'col-span-2' : ''} ${activo ? 'border-amber bg-amber/12' : 'border-line bg-surface-2 hover:border-line-strong'}`}
+                  >
+                    <span className={`block text-[14px] font-semibold ${activo ? 'text-amber' : ''}`}>{t.texto}</span>
+                    <span className="block text-[11.5px] text-muted leading-snug mt-0.5">{t.detalle}</span>
+                  </button>
+                );
+              })}
+            </div>
 
-            {motivoPausa === 'Otro' && (
+            {tipoPausa === 'comida' && comidasPrevias > 0 && (
+              <p className="text-[13px] text-amber bg-amber/10 border border-amber/30 rounded-xl px-3 py-2.5 mb-3 leading-relaxed">
+                Ya tomaste tu comida en este servicio. Si continúas, queda registrada como una segunda pausa de comida.
+              </p>
+            )}
+
+            {tipoPausa === 'material' && (
+              <>
+                <label className="text-[11px] uppercase tracking-wider text-muted block mb-1.5">¿A dónde vas y por qué?</label>
+                <input
+                  value={comentarioPausa}
+                  onChange={(e) => setComentarioPausa(e.target.value)}
+                  placeholder="Ej. ferretería, por taquetes"
+                  className="w-full px-3 py-2.5 mb-3 rounded-xl bg-surface-2 border border-line focus:border-amber focus:outline-none text-[14px]"
+                />
+                <label className="text-[11px] uppercase tracking-wider text-muted block mb-1.5">¿Cuánto calculas tardar?</label>
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {ESTIMADOS_MATERIAL.map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setEstimadoPausa(m)}
+                      aria-pressed={estimadoPausa === m}
+                      className={`px-3.5 min-h-[40px] rounded-full border text-[13.5px] font-semibold ${estimadoPausa === m ? 'border-amber bg-amber/12 text-amber' : 'border-line bg-surface-2 text-ink/80'}`}
+                    >
+                      {minutosTexto(m)}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {(tipoPausa === 'otro' || tipoPausa === 'personal' || tipoPausa === 'espera_cliente') && (
               <textarea
                 value={comentarioPausa}
                 onChange={(e) => setComentarioPausa(e.target.value)}
-                placeholder="¿Por qué pausas el servicio?"
-                className="w-full px-3 py-2.5 mb-3 rounded-xl bg-surface-2 border border-line focus:border-amber focus:outline-none text-[13.5px] min-h-[70px]"
+                placeholder={tipoPausa === 'otro' ? '¿Por qué pausas el servicio?' : 'Comentario (opcional)'}
+                className="w-full px-3 py-2.5 mb-3 rounded-xl bg-surface-2 border border-line focus:border-amber focus:outline-none text-[14px] min-h-[70px]"
               />
             )}
+
+            <p className="text-[13px] text-ink/85 mb-3.5 flex items-center gap-2">
+              <Clock size={15} strokeWidth={2.4} className="text-amber shrink-0" />
+              <span>
+                Tiempo de esta pausa: <b>{minutosTexto(limiteDePausa(tipoPausa, ajustes, tipoPausa === 'material' ? estimadoPausa : null))}</b>.
+                {tipoPausa === 'material' ? ' Se avisa a supervisión que sales del sitio.' : ' Te avisaremos antes de que termine.'}
+              </span>
+            </p>
 
             <div className="flex gap-2">
               <button onClick={() => setShowPausa(false)} className="flex-1 min-h-[48px] rounded-xl border border-line-strong text-ink/80 text-[14.5px] font-medium active:scale-95 transition-transform">

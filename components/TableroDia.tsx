@@ -19,6 +19,8 @@ import { showToast } from '@/components/Toast';
 import { hoyLocal, sumarDias, fechaLocal } from '@/lib/fechaHoy';
 import { etiquetaCausa } from '@/lib/avisos';
 import { calcularEstadoTiempo, motivoNoEditable, Servicio } from '@/lib/serviciosProgramados';
+import { textoTipoPausa } from '@/lib/pausas';
+import AjustesPausasSection from '@/components/AjustesPausasSection';
 import {
   TableroDia as Datos, ServicioDia, cargarTableroDia, asignarRapido, registrarCambioDia, MOTIVOS_CAMBIO,
 } from '@/lib/tableroDia';
@@ -57,7 +59,10 @@ function etiquetaFecha(f: string): string {
 // Estado de un técnico en un servicio, del más avanzado al menos.
 function estadoServicio(s: ServicioDia, tecnicoId: string): { texto: string; corto: string; cls: string } {
   if (s.estado === 'concluido') return { texto: `Concluyó ${hora(s.hora_fin)}`, corto: `✓ ${hora(s.hora_fin)}`, cls: 'bg-teal/15 text-teal' };
-  if (s.pausado_desde) return { texto: `Pausado ${hora(s.pausado_desde)}`, corto: 'Pausado', cls: 'bg-amber/15 text-amber' };
+  if (s.pausado_desde) {
+    const tipo = s.pausa_tipo ? textoTipoPausa(s.pausa_tipo) : 'Pausado';
+    return { texto: `${s.pausa_tipo ? `En pausa: ${tipo.toLowerCase()}` : 'Pausado'} desde ${hora(s.pausado_desde)}`, corto: s.pausa_tipo === 'comida' ? 'Comida' : 'Pausado', cls: 'bg-amber/15 text-amber' };
+  }
   if (s.estado === 'en_curso') return { texto: `En curso ${hora(s.hora_inicio)}`, corto: 'En curso', cls: 'bg-teal/15 text-teal' };
   if (s.estado === 'en_sitio') return { texto: `Llegó ${hora(s.hora_llegada)}`, corto: 'En sitio', cls: 'bg-teal/10 text-teal' };
   const a = s.asignados.find((x) => x.tecnico_id === tecnicoId);
@@ -82,6 +87,16 @@ function duracion(min: number): string {
 type Filtro = 'todos' | 'alertas' | 'campo' | 'sin';
 
 // ¿Ya pasó la hora acordada y nadie ha llegado?
+// Minutos que la pausa en curso lleva sobre su tiempo permitido (0 si va
+// bien o si no se está viendo el día de hoy). `minutos` es la hora actual en
+// minutos del día, el mismo reloj del tablero.
+function pausaExcedida(s: ServicioDia, hoy: string, minutos: number, fecha: string): number {
+  if (fecha !== hoy || !s.pausado_desde || !s.pausa_limite_min) return 0;
+  const d = new Date(s.pausado_desde);
+  const transcurridos = minutos - (d.getHours() * 60 + d.getMinutes());
+  return Math.max(0, transcurridos - s.pausa_limite_min);
+}
+
 function llegadaAtrasada(s: ServicioDia, hoy: string, minutos: number, fecha: string): number {
   if (s.estado !== 'programado' || !s.hora_programada || fecha !== hoy) return 0;
   const [h, m] = s.hora_programada.split(':').map(Number);
@@ -189,6 +204,7 @@ export default function TableroDia({ onAgendar }: {
     const e = estadoServicio(sv, tecnicoId);
     return sv.avisosPendientes.length > 0
       || llegadaAtrasada(sv, hoy, minutos, fecha) > 0
+      || pausaExcedida(sv, hoy, minutos, fecha) > 0
       || t.tipo === 'excedido'
       || (sv.estado === 'concluido' && (debeReporte(sv) || sv.visita_estado === 'pendiente'))
       || (e.corto === 'Sin ver' && fecha <= hoy);
@@ -379,6 +395,8 @@ export default function TableroDia({ onAgendar }: {
         <Kpi n={datos ? `${resumen.concluidos}/${resumen.servicios}` : '–'} label="Concluidos" />
         <Kpi n={datos ? resumen.sinReporte : '–'} label="Sin reporte" tono={resumen.sinReporte ? 'red' : undefined} />
       </div>
+
+      <AjustesPausasSection />
 
       {resumen.avisos > 0 && (
         <div className="rounded-2xl px-4 py-2.5 mb-3 bg-red/10 border border-red/30 text-[13px] text-red font-semibold flex items-center gap-2">
@@ -588,6 +606,7 @@ function DetalleServicio({
   const e = estadoServicio(s, tecnicoId);
   const tiempo = calcularEstadoTiempo(s);
   const atraso = llegadaAtrasada(s, hoy, minutos, fecha);
+  const pausaDeMas = pausaExcedida(s, hoy, minutos, fecha);
   const companeros = s.asignados.filter((a) => a.tecnico_id !== tecnicoId).map((a) => a.nombre.split(' ')[0]);
   return (
     <div className="pb-2.5 pl-12 pr-1 text-[12.5px]">
@@ -597,6 +616,7 @@ function DetalleServicio({
       </p>
       <div className="flex flex-wrap gap-1.5 mt-1.5 text-[11.5px] font-semibold">
         {atraso > 0 && <span className="px-2 py-0.5 rounded-full bg-red/12 text-red flex items-center gap-1"><Clock size={11} />Sin llegar ({duracion(atraso)} tarde)</span>}
+        {pausaDeMas > 0 && <span className="px-2 py-0.5 rounded-full bg-red/12 text-red flex items-center gap-1"><Clock size={11} />Pausa excedida ({duracion(pausaDeMas)} de más)</span>}
         {tiempo.tipo === 'excedido' && <span className="px-2 py-0.5 rounded-full bg-amber/15 text-amber">Excedido {duracion(tiempo.minutos || 0)}</span>}
         {tiempo.tipo === 'retraso' && <span className="px-2 py-0.5 rounded-full bg-amber/15 text-amber">Tardó {duracion(tiempo.minutos || 0)} de más</span>}
         {s.report_id ? (

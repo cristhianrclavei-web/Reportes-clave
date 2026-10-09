@@ -19,7 +19,8 @@ import { getCurrentLocation } from '@/lib/geolocation';
 import { distanciaMetros } from '@/lib/geocerca';
 import ProgressBar from '@/components/ProgressBar';
 import EmptyIllustration from '@/components/EmptyIllustration';
-import { MapPin, Play, Check, Clock, CheckCheck } from 'lucide-react';
+import { MapPin, Play, Check, Clock, CheckCheck, LocateFixed, ChevronRight } from 'lucide-react';
+import { Verificacion, miVerificacionPendiente } from '@/lib/presencia';
 import { calcularResultadoServicio } from '@/lib/resultadoServicio';
 import { ResultadoIconos } from '@/components/ResultadoServicioBadges';
 import { evaluarVentanaServicio } from '@/lib/ventanaServicio';
@@ -94,6 +95,20 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
     return () => { cancelado = true; };
   }, []);
 
+  // Verificación de presencia sin responder: si el técnico abre la app sin
+  // tocar el aviso, aquí también la ve.
+  const [verificacion, setVerificacion] = useState<Verificacion | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    const revisar = () => {
+      miVerificacionPendiente().then((v) => { if (vivo) setVerificacion(v); }).catch(() => {});
+    };
+    revisar();
+    const alVolver = () => { if (document.visibilityState === 'visible') revisar(); };
+    document.addEventListener('visibilitychange', alVolver);
+    return () => { vivo = false; document.removeEventListener('visibilitychange', alVolver); };
+  }, []);
+
   const pendientes = filtrarSiguienteDiaPorGrupo(servicios);
 
   // «Enterado» confirma todo el proyecto: se refleja en todos sus días.
@@ -131,6 +146,20 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
             : servicios.length === 0 ? 'Lo que te programe tu supervisor aparece aquí.'
             : `${pendientes.length} ${pendientes.length === 1 ? 'pendiente' : 'pendientes'} · ${concluidos.length} ${concluidos.length === 1 ? 'concluido' : 'concluidos'}`}
         />
+
+        {verificacion && (
+          <Link
+            href={`/servicios/${verificacion.servicio_id}`}
+            className="mb-4 p-4 rounded-2xl bg-teal/10 border-2 border-teal/50 flex items-center gap-3 active:scale-[0.99] transition-transform"
+          >
+            <LocateFixed size={22} strokeWidth={2.4} className="text-teal shrink-0" />
+            <span className="flex-1 min-w-0">
+              <span className="block font-display font-semibold text-[15.5px]">Confirma que estás en el sitio</span>
+              <span className="block text-[13px] text-muted">Supervisión pidió verificar tu presencia. Toca para responder.</span>
+            </span>
+            <ChevronRight size={20} className="text-teal shrink-0" />
+          </Link>
+        )}
 
         <SubTabs
           activa={sub}

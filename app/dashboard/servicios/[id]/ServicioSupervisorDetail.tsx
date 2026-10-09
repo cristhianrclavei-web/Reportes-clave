@@ -15,9 +15,10 @@ import {
   Servicio, Tarea, Evento, Auditoria,
   obtenerServicioCompleto, editarServicio, reasignarTecnicos, listarTecnicos, calcularEstadoTiempo, agregarDiasAGrupo, motivoNoEditable,
   calcularProgresoTareas, eliminarProyecto, eliminarDiaDeProyecto, reprogramarDia, cerrarDiaManualmente, cancelarServicio, reactivarServicio,
+  leerAjustesOperacion,
 } from '@/lib/serviciosProgramados';
 import ProgressBar from '@/components/ProgressBar';
-import { ChevronLeft, MapPin, Play, Check, Clock, Trash2, AlertTriangle, Timer, Flag, Camera, Plus, Users, Pencil, CalendarClock, PackageCheck, Bookmark, ChevronRight, X, TrendingUp, CalendarX, Lock, PauseCircle, PlayCircle, CheckCircle2 } from 'lucide-react';
+import { ChevronLeft, MapPin, Play, Check, Clock, Trash2, AlertTriangle, Timer, Flag, Camera, Plus, Users, Pencil, CalendarClock, PackageCheck, Bookmark, ChevronRight, X, TrendingUp, CalendarX, Lock, PauseCircle, PlayCircle, CheckCircle2, MapPinOff } from 'lucide-react';
 import { calcularResultadoServicio } from '@/lib/resultadoServicio';
 import InsumosChecklist from '@/components/InsumosChecklist';
 import CostoAlmacenServicio from '@/components/almacen/CostoAlmacenServicio';
@@ -28,6 +29,9 @@ import EficienciaServicio from '@/components/EficienciaServicio';
 import VisitaSinTrabajoPanel from '@/components/VisitaSinTrabajoPanel';
 import { createClient } from '@/lib/supabaseClient';
 import { mapsLink } from '@/lib/geolocation';
+import { distanciaMetros } from '@/lib/geocerca';
+import { estadoPausa, textoTipoPausa, minutosTexto, fueraDeSitio, distanciaTexto, AJUSTES_POR_DEFECTO } from '@/lib/pausas';
+import PresenciaPanel from '@/components/PresenciaPanel';
 import { showToast } from '@/components/Toast';
 import { hoyLocal } from '@/lib/fechaHoy';
 
@@ -52,6 +56,15 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
   const router = useRouter();
   const [eliminando, setEliminando] = useState(false);
   const [viendoVideo, setViendoVideo] = useState<string | null>(null);
+  // Reloj para la pausa en curso; en estado, no leído en el render.
+  const [ahora, setAhora] = useState(0);
+  const [tolerancia, setTolerancia] = useState(AJUSTES_POR_DEFECTO.tolerancia_min);
+  useEffect(() => {
+    setAhora(Date.now());
+    const id = setInterval(() => setAhora(Date.now()), 30000);
+    leerAjustesOperacion().then((a) => setTolerancia(a.tolerancia_min)).catch(() => {});
+    return () => clearInterval(id);
+  }, []);
   const [servicio, setServicio] = useState<Servicio | null>(null);
   const [tareas, setTareas] = useState<Tarea[]>([]);
   const [eventos, setEventos] = useState<Evento[]>([]);
@@ -470,12 +483,21 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
                 {servicio.hora_fin && <span>Cierre: <b className="text-ink">{fmtHora(servicio.hora_fin)}</b></span>}
                 {servicio.minutos_pausados > 0 && <span>Pausas: <b className="text-ink">{servicio.minutos_pausados} min</b></span>}
               </div>
-              {servicio.pausado_desde && (
-                <p className="text-[13px] font-semibold text-amber mt-2.5 flex items-center gap-1.5">
-                  <PauseCircle size={14} strokeWidth={2.6} />
-                  En pausa desde {fmtHora(servicio.pausado_desde)}
-                </p>
-              )}
+              {servicio.pausado_desde && (() => {
+                const p = ahora ? estadoPausa(servicio.pausado_desde, servicio.pausa_limite_min, ahora, tolerancia) : null;
+                const pasada = !!p && p.excedidos > 0;
+                return (
+                  <p className={`text-[13px] font-semibold mt-2.5 flex items-center gap-1.5 flex-wrap ${pasada ? 'text-red' : 'text-amber'}`}>
+                    <PauseCircle size={14} strokeWidth={2.6} />
+                    En pausa ({textoTipoPausa(servicio.pausa_tipo).toLowerCase()}) desde {fmtHora(servicio.pausado_desde)}
+                    {p && servicio.pausa_limite_min ? (
+                      pasada
+                        ? <span>· {minutosTexto(p.excedidos)} de más sobre {minutosTexto(servicio.pausa_limite_min)}</span>
+                        : <span className="font-normal text-muted">· lleva {minutosTexto(p.transcurridos)} de {minutosTexto(servicio.pausa_limite_min)}</span>
+                    ) : null}
+                  </p>
+                );
+              })()}
               {estadoTiempo.tipo === 'retraso' && (
                 <p className="text-[13px] font-semibold text-red mt-2.5 flex items-center gap-1.5"><AlertTriangle size={14} strokeWidth={2.6} />Se retrasó {estadoTiempo.minutos} min sobre lo estimado</p>
               )}
@@ -796,6 +818,13 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
           </div>
         </div>
 
+        <PresenciaPanel
+          servicioId={servicio.id}
+          proyecto={servicio.proyecto}
+          tecnicos={tecnicosAsignados.map((t) => ({ id: t.tecnico_id, nombre: nombre(t.profiles) }))}
+          activo={servicio.estado === 'en_sitio' || servicio.estado === 'en_curso'}
+        />
+
         {/* Línea de tiempo */}
         {eventos.length > 0 && (
           <div className="glass rounded-2xl p-4 mb-4">
@@ -811,6 +840,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
                       : e.tipo === 'avance' ? <><Timer size={13} strokeWidth={2.6} />Avance parcial</>
                       : e.tipo === 'pausa' ? <><PauseCircle size={13} strokeWidth={2.6} />Pausa</>
                       : e.tipo === 'reanudacion' ? <><PlayCircle size={13} strokeWidth={2.6} />Reanudación</>
+                      : e.tipo === 'salida_sitio' ? <span className="text-red inline-flex items-center gap-1.5"><MapPinOff size={13} strokeWidth={2.6} />Fuera del sitio</span>
                       : <><Camera size={13} strokeWidth={2.6} />Evidencia</>}
                   </span>
                   <span className="text-muted"> · {fmtHora(e.created_at)}</span>
@@ -822,6 +852,16 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
                       </a>
                     </>
                   )}
+                  {/* Dónde estaba al registrar esto, contra el sitio programado. */}
+                  {e.ubicacion && servicio.ubicacion_programada && (() => {
+                    const d = Math.round(distanciaMetros(e.ubicacion!, servicio.ubicacion_programada!));
+                    const fuera = fueraDeSitio(d, (e.ubicacion as any).accuracy, servicio.radio_geocerca_m || 120);
+                    return (
+                      <span className={`ml-1.5 text-[11.5px] font-semibold px-2 py-0.5 rounded-full ${fuera ? 'bg-red/12 text-red' : 'bg-teal/12 text-teal'}`}>
+                        {fuera ? `A ${distanciaTexto(d)} del sitio` : 'En sitio'}
+                      </span>
+                    );
+                  })()}
                   {e.nota && <p className="text-ink/80 mt-0.5">{e.nota}</p>}
                   {e.foto_path && fotoUrls[e.foto_path] && e.video_path && (
                     <button type="button" onClick={() => fotoUrls[e.video_path!] && setViendoVideo(fotoUrls[e.video_path!])} aria-label="Ver video" className="relative block w-full max-w-[240px] mt-2">
