@@ -141,6 +141,44 @@ export default function FacturasList({
               No hay reportes pendientes de facturar
             </div>
           )}
+          {porFacturar && porFacturar.length > 0 && (
+          <VistaCondicional
+            tabla={
+              <TablaLista<PorFacturarCliente>
+                filas={porFacturar}
+                keyFn={(g) => g.clienteId || g.cliente}
+                columnas={[
+                  { header: 'Cliente', render: (g) => <span className="font-semibold">{g.cliente}</span> },
+                  { header: 'Reportes', render: (g) => <span className="tabular-nums font-semibold">{g.reportes.length}</span> },
+                  { header: 'Más antiguo', render: (g) => formatFecha(g.reportes[0].desde) },
+                  {
+                    header: 'Folios',
+                    render: (g) => (
+                      <span className="flex flex-wrap gap-x-2.5 gap-y-1">
+                        {g.reportes.slice(0, 8).map((r) => (
+                          <Link key={r.id} href={`/dashboard/reportes?reporte=${r.id}`} className="font-mono text-[12px] text-teal hover:underline">
+                            {r.folio || r.id.slice(0, 8).toUpperCase()}
+                          </Link>
+                        ))}
+                        {g.reportes.length > 8 && <span className="text-[12px] text-muted">+{g.reportes.length - 8}</span>}
+                      </span>
+                    ),
+                  },
+                ]}
+                accion={(g) => g.clienteId ? (
+                  <a
+                    href={`/dashboard/facturacion?cliente=${g.clienteId}&reporte=${g.reportes.map((r) => r.id).join(',')}`}
+                    className="inline-flex items-center gap-1 text-teal text-[13px] font-semibold whitespace-nowrap"
+                  >
+                    <Plus size={14} strokeWidth={2.6} />
+                    Armar factura
+                  </a>
+                ) : (
+                  <span className="text-[12px] font-semibold text-amber whitespace-nowrap">Sin cliente ligado</span>
+                )}
+              />
+            }
+            tarjetas={
           <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3 items-start">
             {(porFacturar || []).map((g) => (
               <div key={g.clienteId || g.cliente} className="rounded-2xl bg-surface border border-line p-4">
@@ -175,6 +213,9 @@ export default function FacturasList({
               </div>
             ))}
           </div>
+            }
+          />
+          )}
         </>
       )}
 

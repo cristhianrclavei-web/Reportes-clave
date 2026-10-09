@@ -1,5 +1,7 @@
 'use client';
 
+import TablaLista from '@/components/TablaLista';
+import { VistaCondicional } from '@/lib/vistaSupervisor';
 import EstadoVacio from '@/components/EstadoVacio';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, AlertTriangle, PackageX, ClipboardList, Archive, ChevronDown, Search, X, ChevronRight } from 'lucide-react';
@@ -152,9 +154,37 @@ export default function Vales({ modo }: { modo: 'tecnico' | 'almacen' }) {
       {grupos.filter((g) => g.vales.length > 0).map((g) => (
         <div key={g.titulo} className="mb-4">
           <p className="text-[12px] font-semibold uppercase tracking-wider text-muted mb-2">{g.titulo} ({g.vales.length})</p>
-          <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-2.5">
+          <VistaCondicional
+          tabla={
+            <TablaLista<Vale>
+              filas={g.vales}
+              keyFn={(v) => `${g.titulo}-${v.id}`}
+              onDetalle={(v) => setAbierto(v.id)}
+              columnas={[
+                { header: 'Folio', render: (v) => <span className="font-mono text-teal">{v.folio}</span> },
+                { header: 'Cliente', render: (v) => <span className="font-semibold">{v.cliente_nombre}</span> },
+                ...(modo === 'almacen' ? [{ header: 'Solicita', render: (v: Vale) => v.tecnico || '—' }] : []),
+                { header: 'Artículos', render: (v) => <span className="text-muted">{v.items.length}: {v.items.slice(0, 2).map((i) => i.articulo?.descripcion).join(', ')}{v.items.length > 2 ? '…' : ''}</span> },
+                {
+                  header: 'Estado',
+                  render: (v) => (
+                    <span className="flex flex-wrap items-center gap-1.5">
+                      <span className={`text-[11.5px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${ETIQUETA_ESTADO[v.estado].cls}`}>{ETIQUETA_ESTADO[v.estado].label}</span>
+                      {valeVencido(v) && <span className="text-[11.5px] font-semibold text-red whitespace-nowrap">Vencido</span>}
+                      {v.extension_estado === 'pendiente' && <span className="text-[11.5px] font-semibold text-amber whitespace-nowrap">Pide más días</span>}
+                    </span>
+                  ),
+                },
+                { header: 'Fecha', render: (v) => <span className="tabular-nums whitespace-nowrap">{fecha(v.created_at)}</span> },
+              ]}
+            />
+          }
+          tarjetas={
+<div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-2.5">
             {g.vales.map((v) => <Tarjeta key={`${g.titulo}-${v.id}`} v={v} verTecnico={modo === 'almacen'} onAbrir={() => setAbierto(v.id)} />)}
           </div>
+          }
+        />
         </div>
       ))}
 

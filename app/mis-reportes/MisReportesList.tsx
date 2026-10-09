@@ -1,5 +1,7 @@
 'use client';
 
+import TablaLista from '@/components/TablaLista';
+import { VistaCondicional } from '@/lib/vistaSupervisor';
 import BotonAyuda from '@/components/BotonAyuda';
 import { useAliasClientes } from '@/lib/useAliasClientes';
 import { coincideBusqueda } from '@/lib/busqueda';
@@ -207,6 +209,31 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
               />
             )}
 
+            {filtered.length > 0 && (
+            <VistaCondicional
+              tabla={
+                <TablaLista<Report>
+                  filas={filtered}
+                  keyFn={(r) => r.id}
+                  onDetalle={(r) => setOpen(r)}
+                  columnas={[
+                    { header: 'Fecha', render: (r) => <span className="tabular-nums whitespace-nowrap">{(r.fecha || '').split('-').reverse().join('/')}</span> },
+                    { header: 'Cliente', render: (r) => <span className="font-semibold">{r.empresa_cliente}</span> },
+                    { header: 'Folio', render: (r) => <span className="font-mono text-teal">{r.data?.claveFormato || r.id.slice(0, 8).toUpperCase()}</span> },
+                    { header: 'Hora', render: (r) => (r.data?.horaLlegada ? `${r.data.horaLlegada} hrs` : '—') },
+                    {
+                      header: 'Estado',
+                      render: (r) => (
+                        <span className="flex flex-wrap gap-x-3 gap-y-1 text-[12.5px] font-semibold">
+                          {estadoDe(r) === 'completo' ? <span className="text-teal">Completado</span> : <span className="text-amber">Por revisar</span>}
+                          {faltaFirma(r) && <span className="text-red">Falta firma del cliente</span>}
+                        </span>
+                      ),
+                    },
+                  ]}
+                />
+              }
+              tarjetas={<>
             {porMes.map((g) => (
               <section key={g.clave} className="mb-7">
                 <RotuloGrupo cuenta={g.reportes.length}>{g.titulo}</RotuloGrupo>
@@ -250,6 +277,9 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
                 </div>
               </section>
             ))}
+              </>}
+            />
+            )}
           </>
         )}
       </div>

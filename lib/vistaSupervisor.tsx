@@ -1,37 +1,52 @@
 'use client';
 
-import { createContext, useContext, ReactNode } from 'react';
+import { ReactNode, useSyncExternalStore } from 'react';
 
 export type VistaSupervisor = 'clasica' | 'nueva';
 
 export const KEY_VISTA_SUPERVISOR = 'vistaSupervisorPreferida';
 
-export type VistaSupervisorCtx = { vista: VistaSupervisor; setVista: (v: VistaSupervisor) => void };
+// Preferencia de listas: tarjetas ('clasica') o tabla ('nueva'). Vive en un
+// almacén propio (localStorage + avisos) y no en un contexto, para que la
+// lea cualquier pantalla: las del supervisor, las del técnico y el menú de la
+// cuenta, que no comparten envoltura. Quien la cambie avisa a todos los
+// que la están leyendo, también en otras pestañas.
+//
+// En el servidor y en el primer dibujo del navegador vale 'clasica'; React
+// la corrige al montar, así no hay diferencia de hidratación.
 
-// SupervisorShell es el único dueño del estado real (useState + localStorage,
-// ver ese archivo): este contexto solo lo reparte hacia abajo. Así el cuerpo
-// de cada pantalla (las listas) puede leer la misma preferencia que decide
-// el sidebar y reaccionar en vivo cuando alguien toca el botón de cambiar
-// vista — antes cada quien tenía su propio useState con localStorage, y el
-// toggle cambiaba el sidebar pero no el cuerpo, porque eran dos estados
-// independientes que nunca se enteraban entre sí.
-export const VistaSupervisorContext = createContext<VistaSupervisorCtx>({
-  vista: 'clasica',
-  setVista: () => {},
-});
+const oyentes = new Set<() => void>();
 
-export function useVistaSupervisor(): [VistaSupervisor, (v: VistaSupervisor) => void] {
-  const { vista, setVista } = useContext(VistaSupervisorContext);
-  return [vista, setVista];
+function leer(): VistaSupervisor {
+  try {
+    return localStorage.getItem(KEY_VISTA_SUPERVISOR) === 'nueva' ? 'nueva' : 'clasica';
+  } catch {
+    return 'clasica'; // modo privado: se queda en tarjetas
+  }
 }
 
-// Ojo al usar esto: un componente NO puede leer con useVistaSupervisor() el
-// contexto que su propio hijo <SupervisorShell> todavía no ha creado — para
-// cuando ese hook corre, SupervisorShell (y su Provider) ni existen en el
-// árbol. Por eso las pantallas de lista no deciden tabla-vs-tarjetas en su
-// propio nivel superior: envuelven ambas versiones (ya construidas, sin
-// depender de `vista`) en este componente, que sí queda anidado DENTRO del
-// Provider una vez que React lo monta como hijo de SupervisorShell.
+function suscribir(avisar: () => void): () => void {
+  oyentes.add(avisar);
+  const otraPestana = (e: StorageEvent) => { if (e.key === KEY_VISTA_SUPERVISOR) avisar(); };
+  window.addEventListener('storage', otraPestana);
+  return () => {
+    oyentes.delete(avisar);
+    window.removeEventListener('storage', otraPestana);
+  };
+}
+
+function guardar(v: VistaSupervisor) {
+  try { localStorage.setItem(KEY_VISTA_SUPERVISOR, v); } catch { /* no crítico */ }
+  oyentes.forEach((f) => f());
+}
+
+export function useVistaSupervisor(): [VistaSupervisor, (v: VistaSupervisor) => void] {
+  const vista = useSyncExternalStore<VistaSupervisor>(suscribir, leer, () => 'clasica');
+  return [vista, guardar];
+}
+
+// Dibuja la tabla o las tarjetas según la preferencia. Las dos versiones se
+// pasan ya construidas.
 export function VistaCondicional({ tabla, tarjetas }: { tabla: ReactNode; tarjetas: ReactNode }) {
   const [vista] = useVistaSupervisor();
   return <>{vista === 'nueva' ? tabla : tarjetas}</>;

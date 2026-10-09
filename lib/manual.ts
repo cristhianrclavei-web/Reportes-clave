@@ -362,7 +362,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
         resumen: 'Ajustes personales.',
         pasos: [
           'El botón de sol o luna cambia entre tema claro y oscuro.',
-          'En computadora, el botón de al lado cambia las listas entre tarjetas y tabla.',
+          'En computadora, el botón de al lado cambia las listas entre tarjetas y tabla. La misma opción está en el menú de tu cuenta («Ver listas como tabla»), también para el personal técnico.',
           'Activa las notificaciones para recibir avisos aunque la app esté cerrada.',
         ],
       },

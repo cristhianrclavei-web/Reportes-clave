@@ -1,5 +1,7 @@
 'use client';
 
+import TablaLista from '@/components/TablaLista';
+import { VistaCondicional } from '@/lib/vistaSupervisor';
 import { useAliasClientes } from '@/lib/useAliasClientes';
 import { coincideBusqueda } from '@/lib/busqueda';
 import { useEffect, useMemo, useState } from 'react';
@@ -135,7 +137,23 @@ export default function LevantamientosSeccion({ soloPropios }: { soloPropios: bo
       )}
 
       {!cargando && filtrados.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+        <VistaCondicional
+          tabla={
+            <TablaLista<(typeof filtrados)[number]>
+              filas={filtrados}
+              keyFn={(l) => l.id}
+              onDetalle={(l) => setAbierto(l.id)}
+              anchoMin={560}
+              columnas={[
+                { header: 'Fecha', render: (l) => <span className="tabular-nums whitespace-nowrap">{formatFecha(l.fecha)}</span> },
+                { header: 'Cliente / empresa', render: (l) => <span className="font-semibold">{l.empresa}</span> },
+                { header: 'Folio', render: (l) => <span className="font-mono text-teal">{l.folio}</span> },
+                ...(soloPropios ? [] : [{ header: 'Elaboró', render: (l: (typeof filtrados)[number]) => nombreCreador(l.profiles) }]),
+              ]}
+            />
+          }
+          tarjetas={
+<div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
           {filtrados.map((l) => (
             <button
               key={l.id}
@@ -159,6 +177,8 @@ export default function LevantamientosSeccion({ soloPropios }: { soloPropios: bo
             </button>
           ))}
         </div>
+          }
+        />
       )}
 
       {abierto && (

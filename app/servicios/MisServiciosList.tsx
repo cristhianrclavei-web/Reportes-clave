@@ -1,5 +1,7 @@
 'use client';
 
+import TablaLista from '@/components/TablaLista';
+import { VistaCondicional } from '@/lib/vistaSupervisor';
 import EncabezadoSeccion, { BOTON_PRINCIPAL, RotuloGrupo } from '@/components/tecnico/EncabezadoSeccion';
 import BotonAyuda from '@/components/BotonAyuda';
 import MenuCuenta from '@/components/MenuCuenta';
@@ -140,6 +142,35 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
         )}
         {error && <p className="text-red text-sm">{error}</p>}
 
+        {!loading && (pendientes.length > 0 || concluidos.length > 0) && (
+        <VistaCondicional
+          tabla={
+            <TablaLista<Servicio>
+              filas={[...pendientes, ...concluidos]}
+              keyFn={(s) => s.id}
+              hrefFn={(s) => `/servicios/${s.id}`}
+              columnas={[
+                { header: 'Servicio', render: (s) => <span className="font-semibold">{s.proyecto}</span> },
+                {
+                  header: 'Estado',
+                  render: (s) => (
+                    <span className={`text-[12px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${ESTADO_CFG[s.estado].cls}`}>{ESTADO_CFG[s.estado].label}</span>
+                  ),
+                },
+                { header: 'Fecha', render: (s) => <span className="tabular-nums whitespace-nowrap">{formatFecha(s.fecha)}{s.dias_totales > 1 ? ` · día ${s.numero_dia}/${s.dias_totales}` : ''}</span> },
+                { header: 'Hora', render: (s) => ((s as any).hora_programada ? String((s as any).hora_programada).slice(0, 5) : '—') },
+                {
+                  header: 'Avance',
+                  render: (s) => {
+                    const pr = progresoPorGrupo[s.grupo_id];
+                    return pr && pr.total > 0 ? <span className={`font-semibold tabular-nums ${pr.pct >= 100 ? 'text-teal' : 'text-amber'}`}>{pr.pct}% · {pr.completadas}/{pr.total}</span> : '—';
+                  },
+                },
+                { header: 'Estimado', render: (s) => `${s.duracion_estimada_min} min` },
+              ]}
+            />
+          }
+          tarjetas={<>
         {!loading && pendientes.length > 0 && (
           <div className="mb-8">
             <RotuloGrupo cuenta={pendientes.length}>Pendientes</RotuloGrupo>
@@ -205,6 +236,10 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
               ))}
             </div>
           </div>
+        )}
+
+          </>}
+        />
         )}
 
         {!loading && servicios.length === 0 && !error && (

@@ -1,5 +1,7 @@
 'use client';
 
+import TablaLista from '@/components/TablaLista';
+import { VistaCondicional } from '@/lib/vistaSupervisor';
 import { coincideBusqueda } from '@/lib/busqueda';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -210,7 +212,30 @@ export default function ClientesList({ userName }: { userName?: string }) {
       )}
 
       {!loading && filtrados.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <VistaCondicional
+          tabla={
+            <TablaLista<(typeof filtrados)[number]>
+              filas={filtrados}
+              keyFn={(c) => c.id}
+              hrefFn={(c) => `/dashboard/proyectos/${c.id}`}
+              columnas={[
+                {
+                  header: 'Cliente',
+                  render: (c) => (
+                    <span className="font-semibold">
+                      {c.nombre}
+                      {c.pendiente_revision && <span className="ml-2 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber/15 text-amber whitespace-nowrap">Por revisar</span>}
+                    </span>
+                  ),
+                },
+                { header: 'Dirección', render: (c) => <span className="text-muted">{c.direccion || '—'}</span> },
+                { header: 'Sistemas', render: (c) => (c.sistemas.length > 0 ? c.sistemas.slice(0, 4).join(', ') + (c.sistemas.length > 4 ? ` +${c.sistemas.length - 4}` : '') : '—') },
+                { header: 'Proyectos', render: (c) => <span className="tabular-nums font-semibold">{c.total_proyectos}</span> },
+              ]}
+            />
+          }
+          tarjetas={
+<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtrados.map((c) => (
             <Link
               key={c.id}
@@ -263,6 +288,8 @@ export default function ClientesList({ userName }: { userName?: string }) {
             </Link>
           ))}
         </div>
+          }
+        />
       )}
 
       {showNuevo && (

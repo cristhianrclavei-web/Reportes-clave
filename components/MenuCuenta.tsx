@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { BookOpen, ChevronRight, UserRound } from 'lucide-react';
+import { BookOpen, ChevronRight, UserRound, LayoutGrid, Rows3 } from 'lucide-react';
+import { useVistaSupervisor } from '@/lib/vistaSupervisor';
 import ThemeToggle from '@/components/ThemeToggle';
 import LogoutButton from '@/components/LogoutButton';
 import { useMiId, usePerfil, urlFoto } from '@/lib/perfiles';
@@ -25,6 +26,7 @@ export default function MenuCuenta({ nombre, respaldo = 'Mi cuenta' }: { nombre?
   const perfil = usePerfil(useMiId());
   const foto = urlFoto(perfil?.foto_path);
   const ini = iniciales(nombre || '');
+  const [vista, setVista] = useVistaSupervisor();
 
   useEffect(() => {
     if (!abierto) return;
@@ -88,6 +90,14 @@ export default function MenuCuenta({ nombre, respaldo = 'Mi cuenta' }: { nombre?
           Manual de uso
         </Link>
         <ThemeToggle className={`${fila} [&>svg]:w-[18px] [&>svg]:h-[18px] [&>svg]:shrink-0 [&>svg]:text-muted`} conTexto />
+        {/* Listas en tarjetas o en tabla. Solo en computadora: en el celular
+            una tabla obliga a deslizar de lado. */}
+        <button type="button" role="menuitem" onClick={() => setVista(vista === 'nueva' ? 'clasica' : 'nueva')} className={`${fila} hidden lg:flex`}>
+          {vista === 'nueva'
+            ? <LayoutGrid size={18} strokeWidth={2.1} className="text-muted shrink-0" />
+            : <Rows3 size={18} strokeWidth={2.1} className="text-muted shrink-0" />}
+          {vista === 'nueva' ? 'Ver listas como tarjetas' : 'Ver listas como tabla'}
+        </button>
 
         <div className="h-px bg-line my-1.5" />
 

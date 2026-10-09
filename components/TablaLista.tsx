@@ -21,6 +21,8 @@ export default function TablaLista<T>({
   keyFn,
   hrefFn,
   onDetalle,
+  accion,
+  anchoMin = 720,
 }: {
   columnas: ColumnaTabla<T>[];
   filas: T[];
@@ -29,10 +31,13 @@ export default function TablaLista<T>({
   // Se pasa exactamente uno de los dos.
   hrefFn?: (fila: T) => string;
   onDetalle?: (fila: T) => void;
+  // Última celda a la medida (un botón distinto de «Ver detalles»).
+  accion?: (fila: T) => ReactNode;
+  anchoMin?: number;
 }) {
   return (
     <div className="rounded-2xl border border-line overflow-hidden overflow-x-auto">
-      <table className="w-full text-[13.5px] border-collapse min-w-[720px]">
+      <table className="w-full text-[13.5px] border-collapse" style={{ minWidth: anchoMin }}>
         <thead>
           <tr className="bg-surface-2 text-muted text-[11px] uppercase tracking-wider">
             {columnas.map((c, i) => (
@@ -52,7 +57,7 @@ export default function TablaLista<T>({
                 </td>
               ))}
               <td className="px-4 py-3 text-right">
-                {hrefFn ? (
+                {accion ? accion(f) : hrefFn ? (
                   <Link
                     href={hrefFn(f)}
                     className="group/link inline-flex items-center gap-1 text-teal text-[13px] font-semibold whitespace-nowrap transition-transform active:scale-95"

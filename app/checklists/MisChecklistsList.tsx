@@ -1,5 +1,7 @@
 'use client';
 
+import TablaLista from '@/components/TablaLista';
+import { VistaCondicional } from '@/lib/vistaSupervisor';
 import EncabezadoSeccion from '@/components/tecnico/EncabezadoSeccion';
 import EstadoVacio from '@/components/EstadoVacio';
 import BotonAyuda from '@/components/BotonAyuda';
@@ -110,6 +112,31 @@ export default function MisChecklistsList({ userName }: { userName?: string }) {
           />
         )}
 
+        {lista.length > 0 && (
+        <VistaCondicional
+          tabla={
+            <TablaLista<MiChecklist>
+              filas={lista}
+              keyFn={(c) => c.grupoId}
+              onDetalle={(c) => setAbierto(c)}
+              columnas={[
+                { header: 'Servicio', render: (c) => <span className="font-semibold">{c.proyecto}</span> },
+                { header: 'Fecha', render: (c) => <span className="whitespace-nowrap">{c.diasTotales > 1 ? `Día ${c.numeroDia}/${c.diasTotales} · ` : ''}{fmtFecha(c.fecha)}</span> },
+                {
+                  header: 'Estado',
+                  render: (c) => {
+                    const est = estadoDelDia(c);
+                    return <span className={`text-[12px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${est.cls}`}>{est.label}</span>;
+                  },
+                },
+                { header: 'Herramienta', render: (c) => <span className="tabular-nums">{c.herramienta}</span> },
+                { header: 'Material', render: (c) => <span className="tabular-nums">{c.material}</span> },
+                { header: 'Equipo', render: (c) => <span className="tabular-nums">{c.equipo}</span> },
+                { header: 'Solicitudes', render: (c) => (c.solicitudesPendientes > 0 ? <span className="text-amber font-semibold">{c.solicitudesPendientes} por autorizar</span> : '—') },
+              ]}
+            />
+          }
+          tarjetas={<>
         <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3">
           {lista.map((c) => {
             const est = estadoDelDia(c);
@@ -160,6 +187,9 @@ export default function MisChecklistsList({ userName }: { userName?: string }) {
             );
           })}
         </div>
+          </>}
+        />
+        )}
         </>)}
       </div>
 

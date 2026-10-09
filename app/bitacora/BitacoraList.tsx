@@ -1,5 +1,7 @@
 'use client';
 
+import TablaLista from '@/components/TablaLista';
+import { VistaCondicional } from '@/lib/vistaSupervisor';
 import EncabezadoSeccion, { BOTON_PRINCIPAL, RotuloGrupo } from '@/components/tecnico/EncabezadoSeccion';
 import BotonAyuda from '@/components/BotonAyuda';
 import EmptyIllustration from '@/components/EmptyIllustration';
@@ -142,6 +144,27 @@ export default function BitacoraList({ userName }: { userName: string }) {
         {loading && <p className="text-center text-muted py-10 text-sm">Cargando...</p>}
         {!loading && error && actividades.length === 0 && <p className="text-red text-sm">{error}</p>}
 
+        {!loading && actividades.length > 0 && (
+        <VistaCondicional
+          tabla={
+            <TablaLista<(typeof actividades)[number]>
+              filas={[...activas, ...concluidas]}
+              keyFn={(a) => a.id}
+              hrefFn={(a) => `/bitacora/${a.id}`}
+              columnas={[
+                { header: 'Actividad', render: (a) => <span className="font-semibold">{a.titulo}</span> },
+                { header: 'Proyecto / cliente', render: (a) => a.proyecto },
+                {
+                  header: 'Estado',
+                  render: (a) => (
+                    <span className={`text-[12px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${ESTADO_CHIP[a.estado].className}`}>{ESTADO_CHIP[a.estado].label}</span>
+                  ),
+                },
+                { header: 'Fecha', render: (a) => <span className="tabular-nums whitespace-nowrap">{new Date(a.created_at).toLocaleDateString('es-MX')}</span> },
+              ]}
+            />
+          }
+          tarjetas={<>
         {!loading && activas.length > 0 && (
           <div className="mb-8">
             <RotuloGrupo cuenta={activas.length}>En curso</RotuloGrupo>
@@ -184,6 +207,10 @@ export default function BitacoraList({ userName }: { userName: string }) {
               ))}
             </div>
           </div>
+        )}
+
+          </>}
+        />
         )}
 
         {!loading && actividades.length === 0 && (
