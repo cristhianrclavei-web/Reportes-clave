@@ -19,6 +19,7 @@ import AvisosPendientes from '@/components/AvisosPendientes';
 import ServiciosSinReporteSection from '@/components/ServiciosSinReporteSection';
 import { listarAgendaSupervisor, DiaAgenda } from '@/lib/serviciosProgramados';
 import KpiEficiencia from '@/components/KpiEficiencia';
+import KpiTiempoEquipo from '@/components/KpiTiempoEquipo';
 import BitacoraSupervisorSection from '@/components/BitacoraSupervisorSection';
 import SupervisorShell from '@/components/SupervisorShell';
 import { CalendarClock, MessageSquareWarning, PackagePlus, AlertTriangle, PackageOpen, ChevronRight, CalendarCheck, BarChart3, Receipt, Users, FileText } from 'lucide-react';
@@ -315,6 +316,7 @@ export default function ResumenList({
         <KpiSection reports={reports} />
         <KpiOperativos servicios={servicios} reports={reports} />
         <KpiEficiencia servicios={servicios} />
+        <KpiTiempoEquipo servicios={servicios} />
         <BitacoraSupervisorSection />
 
     </SupervisorShell>

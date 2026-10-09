@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabaseClient';
+import { tipoActividad } from '@/lib/tiposActividad';
+import IconoTipo from '@/components/bitacora/IconoTipo';
 
 type ActividadConTecnico = {
   id: string;
@@ -12,6 +14,8 @@ type ActividadConTecnico = {
   hora_inicio: string;
   hora_fin: string | null;
   created_by: string;
+  tipo?: string | null;
+  cierre_automatico?: boolean;
   profiles?: { full_name: string } | { full_name: string }[] | null;
 };
 
@@ -37,22 +41,29 @@ function EstadoChip({ estado }: { estado: ActividadConTecnico['estado'] }) {
       : estado === 'pausada'
       ? { label: 'Pausada', cls: 'bg-amber/15 text-amber' }
       : { label: 'Concluida', cls: 'bg-surface-2 text-muted' };
-  return <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${cfg.cls}`}>{cfg.label}</span>;
+  return <span className={`text-[11.5px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${cfg.cls}`}>{cfg.label}</span>;
 }
 
 function ActividadCard({ a, mostrarTecnico }: { a: ActividadConTecnico; mostrarTecnico: boolean }) {
   return (
-    <Link href={`/bitacora/${a.id}`} className="block glass rounded-2xl p-4 active:scale-[0.98] transition-transform">
-      <div className="flex justify-between items-start gap-2 mb-1.5">
-        <strong className="font-display font-bold text-[14px]">{a.titulo}</strong>
-        <EstadoChip estado={a.estado} />
-      </div>
-      <p className="text-[12px] text-muted">{a.proyecto}{mostrarTecnico ? ` · ${nombreTecnico(a.profiles)}` : ''}</p>
-      <p className="text-[11px] text-faint mt-1">
-        {a.estado === 'concluida' && a.hora_fin
-          ? `Concluida hace ${tiempoTranscurrido(a.hora_fin)}`
-          : `Iniciada hace ${tiempoTranscurrido(a.hora_inicio)}`}
-      </p>
+    <Link href={`/bitacora/${a.id}`} className="flex items-start gap-3 glass rounded-2xl p-4 active:scale-[0.98] transition-transform">
+      <span className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-white" style={{ backgroundColor: tipoActividad(a.tipo).color }}>
+        <IconoTipo tipo={tipoActividad(a.tipo).clave} size={17} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex justify-between items-start gap-2 mb-1">
+          <strong className="font-display font-bold text-[14.5px] leading-snug">{a.titulo}</strong>
+          <EstadoChip estado={a.estado} />
+        </span>
+        <span className="block text-[12.5px] text-muted">{tipoActividad(a.tipo).nombre} · {a.proyecto}{mostrarTecnico ? ` · ${nombreTecnico(a.profiles)}` : ''}</span>
+        <span className={`block text-[12px] mt-1 ${a.cierre_automatico ? 'text-amber' : 'text-faint'}`}>
+          {a.cierre_automatico
+            ? 'Se cerró sola: falta confirmar la hora'
+            : a.estado === 'concluida' && a.hora_fin
+              ? `Concluida hace ${tiempoTranscurrido(a.hora_fin)}`
+              : `Iniciada hace ${tiempoTranscurrido(a.hora_inicio)}`}
+        </span>
+      </span>
     </Link>
   );
 }
@@ -68,7 +79,9 @@ export default function BitacoraSupervisorSection() {
     const supabase = createClient();
     supabase
       .from('actividades')
-      .select('id, proyecto, titulo, estado, hora_inicio, hora_fin, created_by, profiles(full_name)')
+      // '*' y no una lista: así no falla si la base aún no tiene las columnas
+      // nuevas (tipo, cierre_automatico).
+      .select('*, profiles(full_name)')
       .order('hora_inicio', { ascending: false })
       .limit(200)
       .then(({ data, error }) => {

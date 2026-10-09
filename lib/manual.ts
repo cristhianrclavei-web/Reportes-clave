@@ -105,7 +105,14 @@ export const MANUAL_TECNICO: SeccionManual[] = [
       {
         titulo: 'Bitácora',
         resumen: 'Para registrar lo que haces fuera de un servicio (oficina, taller, traslados).',
-        pasos: ['Toca «Iniciar nueva actividad», describe qué harás y ve agregando avances o fotos.', 'Al terminar, ciérrala.'],
+        pasos: [
+          'Toca el tipo de actividad (traslado, compra, oficina o taller, capacitación, apoyo a cliente u otro), ponle nombre y, si aplica, el cliente. Se registran la hora y tu ubicación.',
+          'Dentro de la actividad usa «Foto rápida»: abre la cámara y la foto se guarda sola; el comentario lo agregas después. Con «Pausar» detienes el tiempo y con «Concluir» la cierras.',
+          '«Mi día» junta tus servicios y tus actividades en una línea de tiempo, con lo que quedó sin registrar entre ellos.',
+          'Un día con actividad en la bitácora ya no te pide reporte ni justificación.',
+          'Si una actividad se queda abierta, se cierra sola al terminar el día y te pide confirmar a qué hora terminaste; mientras no la confirmes, su tiempo no cuenta.',
+          'Si un apoyo terminó siendo un trabajo, en la actividad ya concluida usa «Hacer un reporte con esta actividad»: el reporte abre con el cliente, las notas y las fotos ya puestas.',
+        ],
       },
       {
         titulo: 'Horas extra, vacaciones y permisos',
@@ -169,6 +176,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
           'Abajo: las gráficas de la semana y el desempeño operativo. El botón ⓘ de cada tarjeta explica cómo se calcula.',
           '«Eficiencia de servicios» lee cada día concluido de las últimas 8 semanas como a favor, en contra o desviado por causa externa, según lo que el técnico respondió al cerrar. Muestra los motivos más frecuentes y el detalle por técnico o por cliente.',
           '«Visitas en falso» cuenta los días en que el personal llegó y no se pudo trabajar, por cliente.',
+          '«En qué se va el tiempo» reparte las horas del equipo de los últimos 7 días entre servicios y lo registrado en bitácora (traslados, compras, oficina, capacitación, apoyos). Abre una actividad de «Bitácora del personal» para programar un servicio a partir de ella.',
           'La pantalla se actualiza sola cuando llega un reporte.',
         ],
       },

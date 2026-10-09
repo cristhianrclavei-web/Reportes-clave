@@ -134,7 +134,7 @@ export default function CoberturaReportes({
 
   const seleccion = sel ? tecnicos.find((t) => t.id === sel.tecnico)?.dias.get(sel.fecha) : undefined;
   const nombreReporte = (id: string) => reportes.find((r) => r.id === id)?.empresa_cliente || 'Reporte';
-  const etiquetaMotivo = (m: string | null) => (m === 'visita_sin_trabajo' ? 'Visita sin trabajo' : MOTIVOS.find((x) => x.valor === m)?.label || m || '');
+  const etiquetaMotivo = (m: string | null) => (m === 'visita_sin_trabajo' ? 'Visita sin trabajo' : m === 'bitacora' ? 'Actividad en bitácora' : MOTIVOS.find((x) => x.valor === m)?.label || m || '');
 
   async function recordar(f: Fila) {
     const clave = `${f.tecnico_id}|${f.fecha}`;

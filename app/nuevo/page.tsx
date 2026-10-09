@@ -1,5 +1,7 @@
 'use client';
 
+import { obtenerActividad, ligarReporteAActividad } from '@/lib/actividades';
+import { tipoActividad } from '@/lib/tiposActividad';
 import { debeReporte } from '@/lib/visitaSinTrabajo';
 import SelectorOpciones from '@/components/SelectorOpciones';
 import { reducirFoto } from '@/lib/reducirFoto';
@@ -330,6 +332,9 @@ export default function NuevoReportePage() {
   // editables: se pueden quitar o ajustar el comentario antes de guardar.
   const [fotosServicio, setFotosServicio] = useState<FotoDelDia[]>([]);
   const [cargandoFotosServicio, setCargandoFotosServicio] = useState(false);
+  // Reporte que nace de una actividad de bitácora (?actividad=<id>): al
+  // guardarlo, la actividad queda ligada a él.
+  const [actividadId, setActividadId] = useState<string | null>(null);
 
   // ---------------- Borrador en el dispositivo ----------------
   // Todo lo capturado se guarda solo en el celular mientras se llena; si la
@@ -654,6 +659,37 @@ export default function NuevoReportePage() {
   useEffect(() => {
     const f = new URLSearchParams(window.location.search).get('fecha');
     if (f && /^\d{4}-\d{2}-\d{2}$/.test(f)) setFecha(f);
+  }, []);
+
+  // Desde la bitácora se llega con ?actividad=<id>: se ponen el cliente, la
+  // fecha, las horas, las notas como actividades y las fotos ya tomadas (no
+  // se vuelven a subir: ya viven en el almacenamiento).
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('actividad');
+    if (!id) return;
+    (async () => {
+      try {
+        const { actividad: a, eventos } = await obtenerActividad(id);
+        const hhmm = (iso: string) => new Date(iso).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false });
+        setActividadId(a.id);
+        if (a.cliente_id || a.proyecto !== tipoActividad(a.tipo).nombre) setEmpresaCliente(a.proyecto);
+        if (a.cliente_id) setClienteId(a.cliente_id);
+        setFecha(hoyLocal(new Date(a.hora_inicio)));
+        setHoraLlegada(hhmm(a.hora_inicio));
+        if (a.hora_fin && !a.cierre_automatico) setHoraSalida(hhmm(a.hora_fin));
+        const avances = [...eventos].reverse().filter((e) => e.tipo === 'avance');
+        const notas = [a.titulo, ...avances.filter((e) => e.nota).map((e) => e.nota as string)];
+        setActividades(notas.length ? notas : ['']);
+        const conFoto = avances.filter((e) => e.foto_path);
+        if (conFoto.length > 0) {
+          const { data } = await supabase.storage.from('evidencias').createSignedUrls(conFoto.map((e) => e.foto_path as string), 3600);
+          setFotosServicio(conFoto.map((e, i) => ({ path: e.foto_path as string, caption: e.nota || '', previewUrl: data?.[i]?.signedUrl || '' })).filter((x) => x.previewUrl));
+        }
+      } catch {
+        // Si la actividad no se puede leer, el formulario queda en blanco.
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -1116,6 +1152,11 @@ export default function NuevoReportePage() {
           resetAll();
           return;
         }
+      }
+
+      if (actividadId) {
+        // No es crítico: el reporte ya se guardó; solo no quedó ligada.
+        await ligarReporteAActividad(actividadId, reportId).catch(() => {});
       }
 
       if (servicioSeleccionadoId) {
@@ -1694,10 +1735,10 @@ export default function NuevoReportePage() {
         <div className={cardCls}>
           <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Fotos de evidencia</p>
 
-          {(servicioSeleccionadoId || editarId) && (cargandoFotosServicio || fotosServicio.length > 0) && (
+          {(servicioSeleccionadoId || editarId || actividadId) && (cargandoFotosServicio || fotosServicio.length > 0) && (
             <div className="mb-4">
               <p className="text-[11px] font-semibold text-teal uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <Camera size={12} strokeWidth={2.6} /> {editarId ? 'Fotos del reporte' : 'Capturadas en este servicio'}
+                <Camera size={12} strokeWidth={2.6} /> {editarId ? 'Fotos del reporte' : actividadId ? 'Tomadas en la actividad de bitácora' : 'Capturadas en este servicio'}
               </p>
               {cargandoFotosServicio ? (
                 <p className="text-[12px] text-muted">Buscando fotos que ya tomaste en campo hoy…</p>

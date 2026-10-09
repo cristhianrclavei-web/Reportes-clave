@@ -2,6 +2,7 @@ import { reducirFoto } from './reducirFoto';
 import { createClient } from './supabaseClient';
 import { getCurrentLocation } from './geolocation';
 import { notificar } from './push';
+import { TipoActividad } from './tiposActividad';
 
 export type ActividadEvento = {
   id: string;
@@ -24,9 +25,16 @@ export type Actividad = {
   hora_fin: string | null;
   ubicacion_inicio: { lat: number; lng: number; accuracy?: number } | null;
   created_at: string;
+  // patch_bitacora_tipos.sql. Las anteriores no tienen tipo (se leen como
+  // «otro», lib/tiposActividad.ts).
+  tipo?: TipoActividad | null;
+  cliente_id?: string | null;
+  // Quedó abierta al terminar el día y se cerró sola: falta que su dueño
+  // confirme a qué hora terminó de verdad.
+  cierre_automatico?: boolean;
 };
 
-export async function crearActividad(proyecto: string, titulo: string): Promise<Actividad> {
+export async function crearActividad(proyecto: string, titulo: string, extra: { tipo?: TipoActividad; clienteId?: string | null } = {}): Promise<Actividad> {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('No hay sesión activa');
@@ -35,7 +43,10 @@ export async function crearActividad(proyecto: string, titulo: string): Promise<
 
   const { data, error } = await supabase
     .from('actividades')
-    .insert({ created_by: user.id, proyecto, titulo, ubicacion_inicio: ubicacion })
+    .insert({
+      created_by: user.id, proyecto, titulo, ubicacion_inicio: ubicacion,
+      ...(extra.tipo ? { tipo: extra.tipo, cliente_id: extra.clienteId || null } : {}),
+    })
     .select()
     .single();
   if (error) throw error;
@@ -140,3 +151,60 @@ async function cambiarEstado(actividadId: string, tipo: 'pausa' | 'reanudacion' 
 export const pausarActividad = (id: string, motivo: string) => cambiarEstado(id, 'pausa', motivo.trim() || null, 'pausada');
 export const reanudarActividad = (id: string, nota: string = '') => cambiarEstado(id, 'reanudacion', nota.trim() || null, 'en_curso');
 export const concluirActividad = (id: string, notaFinal: string = '') => cambiarEstado(id, 'cierre', notaFinal.trim() || null, 'concluida');
+
+// Cierra lo que quedó abierto de días anteriores (lo hace también el cron de
+// la noche). Si la base aún no tiene la función, no pasa nada.
+export async function cerrarActividadesAbiertas(): Promise<void> {
+  try { await createClient().rpc('cerrar_actividades_abiertas'); } catch { /* sin parche o sin red */ }
+}
+
+// La actividad se cerró sola: su dueño dice a qué hora terminó de verdad.
+export async function corregirHoraFin(actividad: Pick<Actividad, 'id' | 'hora_inicio'>, horaFinIso: string): Promise<void> {
+  if (new Date(horaFinIso).getTime() < new Date(actividad.hora_inicio).getTime()) {
+    throw new Error('La hora de fin no puede ser antes del inicio.');
+  }
+  const { error } = await createClient().from('actividades').update({ hora_fin: horaFinIso, cierre_automatico: false }).eq('id', actividad.id);
+  if (error) throw error;
+}
+
+// Comentario de una foto ya guardada (la foto rápida entra sin texto).
+export async function actualizarNotaAvance(eventoId: string, nota: string): Promise<void> {
+  const { error } = await createClient().from('actividad_eventos').update({ nota: nota.trim() || null }).eq('id', eventoId).eq('tipo', 'avance');
+  if (error) throw error;
+}
+
+// Al hacer el reporte de una actividad queda ligada a él.
+export async function ligarReporteAActividad(actividadId: string, reportId: string): Promise<void> {
+  const { error } = await createClient().from('actividades').update({ report_id: reportId }).eq('id', actividadId);
+  if (error) throw error;
+}
+
+// Minutos efectivos: del inicio al fin (o a «ahora») menos las pausas.
+export function minutosEfectivos(a: Pick<Actividad, 'hora_inicio' | 'hora_fin'>, eventos: Pick<ActividadEvento, 'tipo' | 'created_at'>[], ahora: number): number {
+  const fin = a.hora_fin ? new Date(a.hora_fin).getTime() : ahora;
+  let pausado = 0;
+  let desde: number | null = null;
+  [...eventos].sort((x, y) => x.created_at.localeCompare(y.created_at)).forEach((e) => {
+    const t = new Date(e.created_at).getTime();
+    if (e.tipo === 'pausa' && desde === null) desde = t;
+    else if ((e.tipo === 'reanudacion' || e.tipo === 'cierre') && desde !== null) { pausado += Math.max(0, t - desde); desde = null; }
+  });
+  if (desde !== null) pausado += Math.max(0, fin - desde);
+  return Math.max(0, Math.round((fin - new Date(a.hora_inicio).getTime() - pausado) / 60000));
+}
+
+export type ActividadEquipo = Actividad & { tecnico: string };
+
+// Actividades de todo el equipo desde una fecha (supervisión).
+export async function listarActividadesEquipo(desdeIso: string): Promise<ActividadEquipo[]> {
+  const { data, error } = await createClient()
+    .from('actividades')
+    .select('*, profiles(full_name)')
+    .gte('hora_inicio', desdeIso)
+    .order('hora_inicio', { ascending: false });
+  if (error) throw error;
+  return ((data as any[]) || []).map(({ profiles, ...a }) => ({
+    ...(a as Actividad),
+    tecnico: (Array.isArray(profiles) ? profiles[0]?.full_name : profiles?.full_name) || 'Personal técnico',
+  }));
+}
