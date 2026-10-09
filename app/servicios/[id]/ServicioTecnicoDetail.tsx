@@ -23,6 +23,18 @@ import {
   Plus, X, CircleDashed, Clock, Flag, CalendarClock, PackageCheck, ChevronRight,
   PauseCircle, PlayCircle, ClipboardList, MessageSquarePlus, CloudOff, Ban } from 'lucide-react';
 
+// Acceso secundario de la pantalla: ícono arriba y nombre corto. Van juntos en
+// una fila para no apilar botones a todo lo ancho antes de las tareas.
+const ACCESO = 'min-h-[68px] px-2 py-2.5 rounded-2xl bg-surface border border-line flex flex-col items-center justify-center gap-1.5 text-center text-[12.5px] font-medium leading-tight text-ink/85 transition-all hover:border-line-strong active:scale-95 disabled:opacity-60';
+
+const ESTADO_CHIP: Record<Servicio['estado'], { label: string; cls: string }> = {
+  programado: { label: 'Por iniciar', cls: 'bg-amber/15 text-amber' },
+  en_sitio: { label: 'En sitio', cls: 'bg-amber/15 text-amber' },
+  en_curso: { label: 'En curso', cls: 'bg-teal/15 text-teal' },
+  concluido: { label: 'Concluido', cls: 'bg-surface-2 text-muted' },
+  cancelado: { label: 'Cancelado', cls: 'bg-surface-2 text-faint' },
+};
+
 const MOTIVOS_PAUSA = ['Comida', 'Emergencia personal', 'Trámite fuera de sitio', 'Otro'];
 import ModalOverlay from '@/components/ModalOverlay';
 import { calcularResultadoServicio } from '@/lib/resultadoServicio';
@@ -33,6 +45,7 @@ import { showToast } from '@/components/Toast';
 import { distanciaMetros } from '@/lib/geocerca';
 import { ModalCierre, ModalMotivoLlegada, ModalVisitaSinTrabajo, VisitaSinTrabajo } from '@/components/CierreServicio';
 import { TEXTO_VISITA } from '@/lib/visitaSinTrabajo';
+import { RotuloGrupo } from '@/components/tecnico/EncabezadoSeccion';
 import { MARGEN_MIN, desfaseLlegada } from '@/lib/eficiencia';
 import {
   FotoPendiente, EVENTO_FOTOS_PENDIENTES, tomarFotoRapida, listarFotosPendientes,
@@ -545,22 +558,42 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
         </div>
       </div>
 
-      {/* Avance: informativo, subordinado a la acción principal */}
-      {progreso.total > 0 && (
-        <div className="px-4 pt-4">
-          <div className="flex items-baseline justify-between mb-1.5">
-            <p className="text-[13px] text-muted">
-              {progreso.completadas} de {progreso.total} tareas
-              {servicio.dias_totales > 1 ? ' · todo el proyecto' : ''}
-            </p>
-            <span className={`font-display font-bold text-[15px] ${progreso.pct >= 100 ? 'text-teal' : 'text-amber'}`}>{progreso.pct}%</span>
-          </div>
-          <ProgressBar pct={progreso.pct} />
-        </div>
-      )}
-
       <div className="px-4 pt-4">
-        {servicio.descripcion && <p className="text-[14px] text-ink/75 mb-4 leading-relaxed">{servicio.descripcion}</p>}
+        {/* Resumen del día: estado, qué se va a hacer, horas y avance en una
+            sola tarjeta, para no repartirlo en renglones sueltos. */}
+        <div className="mb-4 rounded-2xl bg-surface border border-line p-4">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-[14.5px] text-ink/85 leading-relaxed min-w-0">{servicio.descripcion || servicio.proyecto}</p>
+            <span className={`shrink-0 text-[12px] font-semibold px-2.5 py-1 rounded-full ${ESTADO_CHIP[servicio.estado].cls}`}>{ESTADO_CHIP[servicio.estado].label}</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2 mt-3.5">
+            {([
+              ['Llegada', servicio.hora_llegada ? fmtHora(servicio.hora_llegada) : '—'],
+              ['Inicio', servicio.hora_inicio ? fmtHora(servicio.hora_inicio) : '—'],
+              servicio.hora_fin ? ['Cierre', fmtHora(servicio.hora_fin)] : ['Estimado', `${servicio.duracion_estimada_min} min`],
+            ] as const).map(([rotulo, valor]) => (
+              <div key={rotulo} className="rounded-xl bg-surface-2/70 px-3 py-2">
+                <p className="text-[11px] uppercase tracking-wider text-muted">{rotulo}</p>
+                <p className="font-display font-bold text-[16px] tabular-nums leading-tight mt-0.5">{valor}</p>
+              </div>
+            ))}
+          </div>
+          {servicio.minutos_pausados > 0 && !servicio.pausado_desde && (
+            <p className="text-[12.5px] text-muted mt-2.5">{servicio.minutos_pausados} min en pausa (no cuentan como retraso)</p>
+          )}
+          {progreso.total > 0 && (
+            <div className="mt-3.5">
+              <div className="flex items-baseline justify-between mb-1.5">
+                <p className="text-[13px] text-muted">
+                  {progreso.completadas} de {progreso.total} tareas
+                  {servicio.dias_totales > 1 ? ' · todo el proyecto' : ''}
+                </p>
+                <span className={`font-display font-bold text-[15px] ${progreso.pct >= 100 ? 'text-teal' : 'text-amber'}`}>{progreso.pct}%</span>
+              </div>
+              <ProgressBar pct={progreso.pct} />
+            </div>
+          )}
+        </div>
 
         {/* Solo mientras el día no se haya trabajado: después ya no hay nada
             que reprogramar y el canal correcto es el retraso. */}
@@ -592,11 +625,15 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
 
         {/* Avisar de un problema con este día. Va antes de la acción primaria:
             si el día no se va a poder, eso se resuelve antes de marcar llegada. */}
-        <AvisoServicio
-          servicioId={servicioId}
-          fechaServicio={servicio.fecha}
-          estado={servicio.estado}
-        />
+        {/* Con el trabajo ya iniciado el canal es «No se pudo trabajar» o
+            el retraso; dejar los dos confundía. */}
+        {(servicio.estado === 'programado' || servicio.estado === 'en_sitio') && (
+          <AvisoServicio
+            servicioId={servicioId}
+            fechaServicio={servicio.fecha}
+            estado={servicio.estado}
+          />
+        )}
 
         {/* Acción primaria: lo primero que el técnico debe hacer ahora */}
         {/* Fuera de la fecha programada no se puede arrancar el servicio */}
@@ -659,13 +696,6 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
             Ya pasó el tiempo estimado sin iniciar. Usa «Terminar servicio» para cerrarlo con justificación.
           </p>
         )}
-        {servicio.hora_llegada && (
-          <p className="text-[13px] text-muted mb-4 flex items-center gap-1.5">
-            <Clock size={14} strokeWidth={2.2} className="shrink-0" />
-            Llegada {fmtHora(servicio.hora_llegada)}{servicio.hora_inicio && ` · Inicio ${fmtHora(servicio.hora_inicio)}`}
-            {servicio.minutos_pausados > 0 && !servicio.pausado_desde && ` · ${servicio.minutos_pausados} min en pausa`}
-          </p>
-        )}
 
         {/* Pausa del servicio: para salidas legítimas (ej. comida) sin que
             cuenten como retraso. No hay forma confiable de detectarlo solo
@@ -688,30 +718,30 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
                 Reanudar servicio
               </button>
             </div>
-          ) : (
-            <button
-              onClick={() => setShowPausa(true)}
-              disabled={busy}
-              className="w-full min-h-[48px] mb-4 rounded-xl border border-dashed border-line-strong text-ink/75 text-[14px] font-medium flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
-            >
-              <PauseCircle size={17} strokeWidth={2.3} />
-              Pausar servicio (comida, etc.)
-            </button>
-          )
+          ) : null
         )}
 
         {/* Llegó y no hay forma de trabajar (falta equipo del cliente, no hay
             acceso…): salida propia, para no confundirla con «Terminar». */}
-        {(servicio.estado === 'en_sitio' || servicio.estado === 'en_curso') && (
-          <button
-            onClick={() => setSinTrabajo(true)}
-            disabled={busy}
-            className="w-full min-h-[48px] mb-4 rounded-xl border border-dashed border-red/45 text-red text-[14px] font-medium flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
-          >
-            <Ban size={16} strokeWidth={2.4} />
-            No se pudo trabajar
-          </button>
-        )}
+        <div className={`grid gap-2 mb-6 ${servicio.estado === 'en_curso' && !servicio.pausado_desde ? 'grid-cols-3' : servicio.estado === 'en_sitio' || servicio.estado === 'en_curso' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          {servicio.estado === 'en_curso' && !servicio.pausado_desde && (
+            <button onClick={() => setShowPausa(true)} disabled={busy} className={ACCESO}>
+              <PauseCircle size={20} strokeWidth={2.2} className="text-amber" />
+              <span>Pausar</span>
+            </button>
+          )}
+          {/* La herramienta vive en su propia sección; aquí solo el acceso. */}
+          <Link href="/checklists" className={ACCESO}>
+            <PackageCheck size={20} strokeWidth={2.2} className="text-teal" />
+            <span>Herramienta y material</span>
+          </Link>
+          {(servicio.estado === 'en_sitio' || servicio.estado === 'en_curso') && (
+            <button onClick={() => setSinTrabajo(true)} disabled={busy} className={ACCESO}>
+              <Ban size={20} strokeWidth={2.2} className="text-red" />
+              <span>No se pudo trabajar</span>
+            </button>
+          )}
+        </div>
 
         {servicio.estado === 'concluido' && servicio.visita_estado && (
           <div className={`mb-4 p-3.5 rounded-2xl border ${servicio.visita_estado === 'rechazado' ? 'bg-red/10 border-red/30' : servicio.visita_estado === 'liberado' ? 'bg-teal/10 border-teal/30' : 'bg-amber/10 border-amber/30'}`}>
@@ -737,20 +767,8 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
 
         {error && <p className="text-red text-[13px] mb-3">{error}</p>}
 
-        {/* La herramienta vive en su propia sección para no saturar esta
-            pantalla; aquí solo queda el acceso. */}
-        <Link
-          href="/checklists"
-          className="flex items-center justify-between gap-2 mb-6 px-4 min-h-[52px] rounded-2xl bg-surface-2 border border-line active:scale-[0.99] transition-transform"
-        >
-          <span className="flex items-center gap-2.5 text-[14.5px] font-medium">
-            <PackageCheck size={18} strokeWidth={2.3} className="text-teal" />
-            Herramienta, material y equipo
-          </span>
-          <ChevronRight size={17} strokeWidth={2.4} className="text-muted" />
-        </Link>
-
         {/* Checklist estilo rondín */}
+        {tareas.length > 0 && <RotuloGrupo cuenta={tareas.length}>Tareas</RotuloGrupo>}
         {servicio.dias_totales > 1 && (
           <p className="text-[11.5px] text-muted mb-2.5">
             Lo pendiente sigue disponible los demás días.
@@ -993,7 +1011,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
           camino del checklist (antes competía arriba con el avance) */}
       {(servicio.estado === 'en_curso' || (servicio.estado === 'en_sitio' && tiempoExcedido)) && (
         <div className="fixed bottom-0 left-0 right-0 z-30 glass-strong px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
-          <div className="max-w-2xl lg:max-w-4xl mx-auto">
+          <div className="max-w-2xl mx-auto">
             <input ref={fotoRapidaRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFotoRapida} />
             {/* El hueco a la derecha es del botón flotante del asistente: sin
                 él queda encima de «Terminar». */}

@@ -19,7 +19,7 @@ import { showToast } from '@/components/Toast';
 import SavingOverlay from '@/components/SavingOverlay';
 import ReportPreviewModal, { PreviewData } from '@/components/ReportPreviewModal';
 import { listarMisServicios, vincularReporteAServicio, Servicio, filtrarSiguienteDiaPorGrupo, listarTecnicosDeServicio, listarFotosDelDia, FotoDelDia } from '@/lib/serviciosProgramados';
-import { X, Camera, Images, Plus, AlertTriangle, Eye, ChevronDown, Tag, History } from 'lucide-react';
+import { X, Camera, Images, Plus, AlertTriangle, Eye, ChevronDown, Tag, History, Check } from 'lucide-react';
 import { generarUUID } from '@/lib/uuid';
 import { registrarAccionGlobal } from '@/lib/auditoriaGlobal';
 import { notificar } from '@/lib/push';
@@ -54,8 +54,10 @@ const SEGURIDAD_OPTS = ['CCTV', 'Automatización', 'Alarma&Det', 'Control de acc
 const SISTEMAS_CATALOGO = SEGURIDAD_OPTS.filter((x) => x !== 'Otra');
 const inputCls =
   'w-full px-3.5 py-2.5 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal-glow text-[15px] transition-colors placeholder:text-faint';
-const labelCls = 'block text-[11px] font-semibold uppercase tracking-wider text-muted mb-1.5';
-const cardCls = 'glass rounded-2xl p-4';
+// Etiquetas en minúsculas y tamaño de lectura: con tantos campos, las
+// mayúsculas chicas hacían que todo el formulario «gritara» igual.
+const labelCls = 'block text-[13px] font-medium text-ink/70 mb-1.5';
+const cardCls = 'glass rounded-2xl p-4 lg:p-5';
 // El paso «Formato» solo aparece cuando un mantenimiento preventivo lleva
 // formato de mantenimiento.
 type PasoKey = 'datos' | 'trabajo' | 'formato' | 'evidencia' | 'firmas';
@@ -84,7 +86,7 @@ function Plegable({ titulo, cuenta, children }: { titulo: string; cuenta: number
     </div>
   );
 }
-const cardTitleCls = 'font-display font-semibold text-[13px] uppercase tracking-wider text-teal mb-3.5 flex items-center gap-2';
+const cardTitleCls = 'font-display font-semibold text-[16px] tracking-wide text-ink mb-4 flex items-center gap-2.5';
 
 function chipCls(selected: boolean) {
   return `px-3.5 py-2 rounded-full text-[13px] font-medium mr-2 mb-2 inline-block cursor-pointer active:scale-95 transition-all border ${
@@ -1249,7 +1251,9 @@ export default function NuevoReportePage() {
         )}
 
         {/* Pasos del reporte */}
-        <div className="flex gap-1.5" role="tablist" aria-label="Pasos del reporte">
+        {/* Cada paso es un círculo numerado unido al siguiente por una línea
+            que se va llenando; los ya hechos llevan palomita. */}
+        <div className="flex items-start lg:max-w-3xl lg:mx-auto lg:w-full" role="tablist" aria-label="Pasos del reporte">
           {PASOS.map((key, i) => {
             const n = i + 1;
             const nombre = ETIQUETA_PASO[key];
@@ -1262,11 +1266,20 @@ export default function NuevoReportePage() {
                 role="tab"
                 aria-selected={activo}
                 onClick={() => irAPaso(n)}
-                className="flex-1 min-w-0 text-left"
+                className="group relative flex-1 min-w-0 flex flex-col items-center gap-1.5"
               >
-                <span className={`block h-1.5 rounded-full mb-1.5 transition-colors ${activo || hecho ? 'bg-teal' : 'bg-line-strong'}`} />
-                <span className={`block text-[12px] font-semibold truncate ${activo ? 'text-teal' : hecho ? 'text-ink/80' : 'text-muted'}`}>
-                  {n}. {nombre}
+                {i > 0 && (
+                  <span className={`absolute top-[15px] right-1/2 w-full h-[2px] -z-0 transition-colors ${activo || hecho ? 'bg-teal' : 'bg-line-strong'}`} aria-hidden="true" />
+                )}
+                <span className={`relative z-10 w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-bold font-display transition-all ${
+                  activo ? 'bg-teal text-inkOnAccent shadow-glow-teal scale-110'
+                    : hecho ? 'bg-teal text-inkOnAccent'
+                    : 'bg-surface-2 border border-line-strong text-muted group-hover:border-teal/50'
+                }`}>
+                  {hecho ? <Check size={15} strokeWidth={3.2} /> : n}
+                </span>
+                <span className={`block text-[12.5px] truncate max-w-full ${activo ? 'text-teal font-semibold' : hecho ? 'text-ink/80 font-medium' : 'text-muted font-medium'}`}>
+                  {nombre}
                 </span>
               </button>
             );
@@ -1911,7 +1924,10 @@ export default function NuevoReportePage() {
         className="fixed bottom-0 inset-x-0 z-30 bg-bg border-t border-line px-4 pt-3"
         style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
       >
-        <div className="max-w-2xl lg:max-w-none lg:px-6 lg:justify-end mx-auto flex items-center gap-2.5">
+        <div className="max-w-2xl lg:max-w-none lg:px-6 mx-auto flex items-center gap-2.5">
+          <p className="hidden lg:block mr-auto text-[13px] text-muted">
+            Paso {paso} de {PASOS.length} · <span className="text-ink/85 font-medium">{ETIQUETA_PASO[pasoKey]}</span>
+          </p>
           {paso === 1 ? (
             <Link href="/mis-reportes" className="min-h-[50px] px-4 rounded-2xl border border-line-strong text-[14px] font-medium text-ink/80 flex items-center">
               Cancelar
