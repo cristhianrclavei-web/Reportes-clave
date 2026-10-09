@@ -1,6 +1,8 @@
 'use client';
 
 import EstadoVacio from '@/components/EstadoVacio';
+import TablaLista from '@/components/TablaLista';
+import { VistaCondicional } from '@/lib/vistaSupervisor';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Clock, CalendarDays, Bell, Download, ChevronRight, Inbox } from 'lucide-react';
 import { AvatarTecnico } from '@/components/AvatarTecnico';
@@ -213,6 +215,26 @@ export default function Solicitudes({ nombre }: { nombre: string }) {
         <p className="text-[11px] font-semibold uppercase tracking-wider text-muted mb-2">Mis solicitudes · {visibles.length}</p>
       )}
 
+      {visibles.length > 0 && (
+      <VistaCondicional
+        tabla={
+          <TablaLista<Solicitud>
+            filas={visibles}
+            keyFn={(s) => s.id}
+            onDetalle={(s) => setAbierta(s.id)}
+            columnas={[
+              { header: 'Folio', render: (s) => <span className="font-mono text-teal whitespace-nowrap">{s.folio}</span> },
+              ...(vista === 'mias' ? [] : [{ header: 'Solicita', render: (s: Solicitud) => <span className="font-semibold">{s.solicitante?.full_name || '—'}</span> }]),
+              { header: 'Tipo', render: (s) => <span className={vista === 'mias' ? 'font-semibold' : ''}>{TIPO_LABEL[s.tipo]}</span> },
+              { header: 'Detalle', render: (s) => <span className="text-muted">{resumenLinea(s)}</span> },
+              {
+                header: 'Estado',
+                render: (s) => <span className={`text-[11.5px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${ESTADO_SOLICITUD[s.estado].cls}`}>{ESTADO_SOLICITUD[s.estado].label}</span>,
+              },
+            ]}
+          />
+        }
+        tarjetas={
       <div className="flex flex-col gap-2.5 lg:grid lg:grid-cols-2">
         {visibles.map((s) => {
           const est = ESTADO_SOLICITUD[s.estado];
@@ -238,6 +260,9 @@ export default function Solicitudes({ nombre }: { nombre: string }) {
           );
         })}
       </div>
+        }
+      />
+      )}
 
       {nuevo && <FormSolicitud tipo={nuevo} nombre={nombre} onClose={() => setNuevo(null)} onListo={() => { setNuevo(null); cargar(); }} />}
       {corrigiendo && (

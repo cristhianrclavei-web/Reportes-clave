@@ -312,6 +312,31 @@ function HistorialVales({
 
           {lista.length === 0 && <p className="text-[13.5px] text-muted text-center py-8">Nada coincide.</p>}
 
+          {lista.length > 0 && (
+          <VistaCondicional
+            tabla={
+              <TablaLista<Vale>
+                filas={lista.slice(0, limite)}
+                keyFn={(v) => v.id}
+                onDetalle={(v) => onAbrir(v.id)}
+                columnas={[
+                  { header: 'Folio', render: (v) => <span className="font-mono text-teal">{v.folio}</span> },
+                  { header: 'Cliente', render: (v) => <span className="font-semibold">{v.cliente_nombre}</span> },
+                  ...(verTecnico ? [{ header: 'Solicitó', render: (v: Vale) => v.tecnico || '—' }] : []),
+                  { header: 'Artículos', render: (v) => <span className="text-muted">{v.items.slice(0, 2).map((i) => i.articulo?.descripcion).join(', ')}{v.items.length > 2 ? ` +${v.items.length - 2}` : ''}</span> },
+                  { header: 'Piezas', render: (v) => <span className="tabular-nums">{v.items.reduce((n, i) => n + Number(i.cantidad_entregada ?? i.cantidad_solicitada ?? 0), 0)}</span> },
+                  { header: 'Cierre', render: (v) => <span className="tabular-nums whitespace-nowrap">{new Date(fechaFin(v)).toLocaleDateString('es-MX')}</span> },
+                  {
+                    header: 'Estado',
+                    render: (v) => {
+                      const est = ESTADO_HIST[v.estado] || ETIQUETA_ESTADO[v.estado];
+                      return <span className={`text-[11.5px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${est.cls}`}>{est.label}</span>;
+                    },
+                  },
+                ]}
+              />
+            }
+            tarjetas={<>
           {meses.map((m) => (
             <div key={m.clave} className="mb-3 last:mb-0">
               <p className="text-[11.5px] font-semibold uppercase tracking-wider text-muted mb-1.5 capitalize">{m.titulo} · {m.vales.length}</p>
@@ -336,6 +361,9 @@ function HistorialVales({
               </div>
             </div>
           ))}
+            </>}
+          />
+          )}
 
           {lista.length > limite && (
             <button type="button" onClick={() => setLimite((l) => l + 20)}
