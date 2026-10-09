@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { syncPendingReports } from '@/lib/syncOfflineReports';
 import { getOfflineReports } from '@/lib/offlineQueue';
+import { sincronizarFotosPendientes } from '@/lib/fotosPendientes';
 import { showToast } from './Toast';
 
 export default function OfflineSyncManager() {
@@ -10,6 +11,12 @@ export default function OfflineSyncManager() {
 
   useEffect(() => {
     async function trySync() {
+      // Fotos rápidas de servicios tomadas sin señal (cola aparte).
+      sincronizarFotosPendientes()
+        .then(({ subidas }) => {
+          if (subidas > 0) showToast(`${subidas} foto${subidas > 1 ? 's' : ''} pendiente${subidas > 1 ? 's' : ''} ya se subi${subidas > 1 ? 'eron' : 'ó'}`, 'success');
+        })
+        .catch(() => {});
       if (syncingRef.current) return; // evita sincronizar dos veces al mismo tiempo
       const pending = await getOfflineReports();
       if (pending.length === 0) return;

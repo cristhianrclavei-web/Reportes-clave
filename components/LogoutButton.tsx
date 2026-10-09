@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabaseClient';
 import { countOfflineReports } from '@/lib/offlineQueue';
+import { contarFotosPendientes } from '@/lib/fotosPendientes';
 import { clearOfflineData } from '@/lib/clearOfflineData'; // NUEVO - OWASP A04
 import { desactivarNotificaciones } from '@/lib/push';
 import ModalOverlay from '@/components/ModalOverlay';
@@ -32,8 +33,9 @@ export default function LogoutButton({ compacto = false, className, conTexto = f
   useEffect(() => {
     if (!preguntando) return;
     let vivo = true;
-    countOfflineReports()
-      .then((n) => { if (vivo) setPendientes(n); })
+    // Cuenta también las fotos rápidas de servicios tomadas sin señal.
+    Promise.all([countOfflineReports(), contarFotosPendientes()])
+      .then(([reportes, fotos]) => { if (vivo) setPendientes(reportes + fotos); })
       .catch(() => { if (vivo) setPendientes(null); });
     return () => { vivo = false; };
   }, [preguntando]);
@@ -144,8 +146,8 @@ export default function LogoutButton({ compacto = false, className, conTexto = f
                   <AlertTriangle size={17} strokeWidth={2.5} className="shrink-0 mt-0.5" />
                   <span>
                     {pendientes === 1
-                      ? 'Tienes 1 reporte sin subir'
-                      : `Tienes ${pendientes} reportes sin subir`}
+                      ? 'Tienes 1 reporte o foto sin subir'
+                      : `Tienes ${pendientes} reportes o fotos sin subir`}
                   </span>
                 </p>
                 <p className="text-[13px] text-ink/80 mt-2 leading-relaxed">

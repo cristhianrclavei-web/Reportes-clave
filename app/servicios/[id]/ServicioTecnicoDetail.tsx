@@ -21,7 +21,7 @@ import AvisoServicio from '@/components/AvisoServicio';
 import {
   ChevronLeft, MapPin, Play, Check, Lock, Camera, AlertTriangle,
   Plus, X, CircleDashed, Clock, Flag, CalendarClock, PackageCheck, ChevronRight,
-  PauseCircle, PlayCircle, ClipboardList, MessageSquarePlus } from 'lucide-react';
+  PauseCircle, PlayCircle, ClipboardList, MessageSquarePlus, CloudOff } from 'lucide-react';
 
 const MOTIVOS_PAUSA = ['Comida', 'Emergencia personal', 'Trámite fuera de sitio', 'Otro'];
 import ModalOverlay from '@/components/ModalOverlay';
@@ -33,6 +33,10 @@ import { showToast } from '@/components/Toast';
 import { distanciaMetros } from '@/lib/geocerca';
 import { ModalCierre, ModalMotivoLlegada } from '@/components/CierreServicio';
 import { MARGEN_MIN, desfaseLlegada } from '@/lib/eficiencia';
+import {
+  FotoPendiente, EVENTO_FOTOS_PENDIENTES, tomarFotoRapida, listarFotosPendientes,
+  sincronizarFotosPendientes, descartarFotoPendiente,
+} from '@/lib/fotosPendientes';
 
 const MOTIVOS_RETRASO = [
   'Falta de material',
@@ -115,6 +119,8 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
   const [subiendoFotos, setSubiendoFotos] = useState(0);
   const [comentando, setComentando] = useState<string | null>(null);
   const [textoComentario, setTextoComentario] = useState('');
+  // Fotos rápidas tomadas sin señal: están en el teléfono, esperando subir.
+  const [pendientes, setPendientes] = useState<FotoPendiente[]>([]);
 
   // null = aún no se sabe (no se muestra nada).
   const [enterado, setEnterado] = useState<boolean | null>(null);
@@ -165,6 +171,30 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
   useEffect(() => {
     cargar();
   }, []);
+
+  // Cola de fotos sin señal: se lee al abrir y cada vez que cambia (una foto
+  // nueva, o el sincronizador subió algo: entonces también se recarga la
+  // lista de evidencias).
+  useEffect(() => {
+    let cuantas = -1;
+    async function leer() {
+      const lista = await listarFotosPendientes(servicioId);
+      if (cuantas > lista.length) cargar(true);
+      cuantas = lista.length;
+      setPendientes(lista);
+    }
+    leer();
+    window.addEventListener(EVENTO_FOTOS_PENDIENTES, leer);
+    return () => window.removeEventListener(EVENTO_FOTOS_PENDIENTES, leer);
+  }, [servicioId]);
+
+  // El aviso «online» del navegador no siempre llega con señal débil: mientras
+  // haya fotos en espera se reintenta cada medio minuto.
+  useEffect(() => {
+    if (pendientes.length === 0) return;
+    const id = setInterval(() => { sincronizarFotosPendientes().catch(() => {}); }, 30000);
+    return () => clearInterval(id);
+  }, [pendientes.length]);
 
   // Reloj en vivo para detectar tiempo excedido sin recargar la página.
   useEffect(() => {
@@ -269,17 +299,22 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
 
   // Foto rápida: el botón abre la cámara de una vez y la foto se guarda sola,
   // sin comentario y sin detener la pantalla. Se pueden tomar varias seguidas.
+  // Sin señal se queda en el teléfono y sube al volver la conexión.
   async function handleFotoRapida(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
     setSubiendoFotos((n) => n + 1);
     try {
-      await agregarEvidenciaExtra(servicioId, '', file);
-      showToast('Foto guardada', 'success');
-      await cargar(true);
+      const como = await tomarFotoRapida(servicioId, file);
+      if (como === 'pendiente') {
+        showToast('Sin señal: la foto quedó guardada en el teléfono y se sube sola', 'success');
+      } else {
+        showToast('Foto guardada', 'success');
+        await cargar(true);
+      }
     } catch (err: any) {
-      alert('No se pudo guardar la foto: ' + (err?.message || 'revisa tu conexión') + '. Tómala de nuevo.');
+      alert('No se pudo guardar la foto: ' + (err?.message || 'error') + '. Tómala de nuevo.');
     } finally {
       setSubiendoFotos((n) => n - 1);
     }
@@ -804,6 +839,43 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
           </div>
         )}
 
+        {pendientes.length > 0 && (
+          <div className="mt-5 p-3 rounded-xl bg-amber/10 border border-amber/30">
+            <p className="text-[13px] text-amber font-semibold flex items-center gap-1.5">
+              <CloudOff size={15} strokeWidth={2.5} />
+              {pendientes.length === 1 ? '1 foto guardada en el teléfono' : `${pendientes.length} fotos guardadas en el teléfono`}
+            </p>
+            <p className="text-[12.5px] text-ink/75 mt-1 leading-relaxed">
+              Se suben solas al volver la señal. No cierres sesión mientras tanto; el comentario se agrega cuando ya subieron.
+            </p>
+            <div className="flex flex-wrap gap-2 mt-2.5">
+              {pendientes.map((f) => (
+                <div key={f.localId} className="w-[84px]">
+                  <img src={f.fileDataUrl} alt="Foto por subir" className="w-[84px] h-[84px] object-cover rounded-lg border border-amber/40" />
+                  <p className="text-[11px] text-muted mt-1 text-center">{fmtHora(f.tomadaEn)}</p>
+                  {f.error && (
+                    <button
+                      onClick={() => { if (window.confirm('No se pudo subir: ' + f.error + '\n\n¿Quitar esta foto del teléfono?')) descartarFotoPendiente(f.localId); }}
+                      className="w-full text-[11px] text-red font-semibold underline"
+                    >
+                      No subió · quitar
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={async () => {
+                const { subidas } = await sincronizarFotosPendientes();
+                if (subidas === 0) showToast('Todavía no hay señal para subirlas', 'error');
+              }}
+              className="mt-2.5 min-h-[40px] px-3.5 rounded-lg border border-amber/50 text-amber text-[12.5px] font-semibold active:scale-95 transition-transform"
+            >
+              Intentar subir ahora
+            </button>
+          </div>
+        )}
+
         {eventos.filter((e) => e.tipo === 'evidencia' || e.tipo === 'avance').length > 0 && (
           <div className="mt-5">
             <div className="text-[11px] uppercase tracking-wider text-muted mb-2">Evidencias y avances registrados</div>
@@ -892,7 +964,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
                   className="flex-[1.6] min-h-[56px] rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15.5px] flex items-center justify-center gap-2.5 active:scale-95 transition-transform shadow-glow-teal"
                 >
                   <Camera size={21} strokeWidth={2.5} />
-                  {subiendoFotos > 0 ? `Guardando ${subiendoFotos} foto${subiendoFotos > 1 ? 's' : ''}…` : 'Foto rápida'}
+                  {subiendoFotos > 0 ? `Guardando ${subiendoFotos} foto${subiendoFotos > 1 ? 's' : ''}…` : pendientes.length > 0 ? `Foto rápida · ${pendientes.length} por subir` : 'Foto rápida'}
                 </button>
               )}
               <button
@@ -1069,7 +1141,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
       {/* Modal: resultado del día (obligatorio) y motivos si hubo desviación. */}
       {preguntandoCierre && (
         <ModalCierre
-          sinFotos={servicio.estado === 'en_curso' && !eventos.some((e) => e.foto_path) && !tareas.some((t) => t.foto_path)}
+          sinFotos={servicio.estado === 'en_curso' && pendientes.length === 0 && !eventos.some((e) => e.foto_path) && !tareas.some((t) => t.foto_path)}
           onTomarFoto={() => { setPreguntandoCierre(false); fotoRapidaRef.current?.click(); }}
           servicio={servicio}
           totalTareas={tareas.length}

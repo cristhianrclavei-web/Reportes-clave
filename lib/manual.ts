@@ -26,7 +26,7 @@ export const MANUAL_TECNICO: SeccionManual[] = [
           'Cuando empieces a trabajar toca «Iniciar».',
           'Si tienes que detenerte (falta material, no hay acceso), usa «Pausar» y después «Reanudar».',
           'Marca las tareas conforme las termines; algunas piden foto.',
-          'Para evidencias usa «Foto rápida» (abajo): abre la cámara y la foto se guarda sola. El comentario lo puedes agregar después en la lista, mientras no termines el servicio.',
+          'Para evidencias usa «Foto rápida» (abajo): abre la cámara y la foto se guarda sola. El comentario lo puedes agregar después en la lista, mientras no termines el servicio. Si no hay señal, la foto se queda guardada en el teléfono y se sube sola al volver la conexión: no cierres sesión hasta que suba.',
           'Si llegaste más de 15 minutos después de la hora acordada, la app te pregunta qué pasó (tráfico, el cliente no estaba, permisos…). Elige el motivo para continuar.',
           'Al terminar toca «Concluir» y responde cómo quedó el trabajo: terminado, pendiente o no se pudo realizar. Si no se terminó o cierras más de 15 minutos tarde, elige el motivo.',
           'Después haz tu reporte.',
