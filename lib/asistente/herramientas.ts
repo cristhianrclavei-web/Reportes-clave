@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { MARCA, hoyNegocio } from '@/lib/marca';
 import { buscarProductosSyscom, syscomConfigurado } from '@/lib/syscom';
 import { enviarPush } from '@/lib/pushServidor';
+import { cablesDe, soporteriaDe, textoCable, textoSoporteria, textoTuberia, tuberiasDe } from '@/lib/materialesReporte';
 import { calcularTotales, normalizarEnlace, precioUnitarioDesdeCosto } from '@/lib/cotizaciones';
 
 // Funciones de consulta del asistente. Reglas de este archivo:
@@ -96,6 +97,26 @@ const UNIDADES_COTIZACION = ['Pza', 'Lote', 'Serv', 'Mts', 'Hrs', 'Juego'];
 
 const folioDe = (id: string) => id.slice(0, 8).toUpperCase();
 
+// Material capturado en el formulario del reporte (sección de materiales),
+// leído con las mismas funciones que usan el PDF y el detalle: entienden el
+// formato nuevo y el de los reportes viejos. Solo se devuelve lo que tiene
+// algo, para que «no hay tubería» y «no se capturó» no se confundan.
+function materialesDe(r: any): Record<string, unknown> {
+  const conDato = (t: string) => t.trim().length > 0;
+  const cable = cablesDe(r).filter((c) => c.tipo || c.articulo || c.cantidad).map(textoCable).filter(conDato);
+  const tuberia = tuberiasDe(r).filter((t) => t.tipo || t.articulo || t.cantidad).map(textoTuberia).filter(conDato);
+  const soporteria = soporteriaDe(r).filter((x) => x.desc || x.articulo || x.cantidad).map(textoSoporteria).filter(conDato);
+  const equipos = (Array.isArray(r.equipos) ? r.equipos : [])
+    .map((e: any) => [e?.cant, e?.desc, e?.marca, e?.modelo, e?.serie && `serie ${e.serie}`].filter(Boolean).join(' '))
+    .filter(conDato);
+  return {
+    ...(cable.length ? { cable_instalado: cable } : {}),
+    ...(tuberia.length ? { tuberia: tuberia } : {}),
+    ...(soporteria.length ? { soporteria_y_fijacion: soporteria } : {}),
+    ...(equipos.length ? { equipo_instalado: equipos.slice(0, 25) } : {}),
+  };
+}
+
 // Dirección dentro de la app que abre el detalle de un reporte. Cada rol
 // tiene su lista: la del supervisor y la de «Mis reportes» del técnico.
 const enlaceReporte = (id: string, esSupervisor: boolean) =>
@@ -179,7 +200,7 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
   const buscarReportes = betaZodTool({
     name: 'buscar_reportes',
     description:
-      'Reportes de servicio: qué se hizo en una visita, última visita a un cliente, cuántos reportes hizo una persona, reportes sin firma del cliente o sin finalizar. Un técnico solo ve los suyos.',
+      'Reportes de servicio: qué se hizo en una visita, última visita a un cliente, cuántos reportes hizo una persona, reportes sin firma del cliente o sin finalizar, y el material que se capturó en cada uno (cable, tubería, soportería y equipo instalado, con tipo y cantidad). Un técnico solo ve los suyos.',
     inputSchema: z.object({
       cliente: z.string().optional().describe('Nombre o parte del nombre del cliente'),
       persona: z.string().optional().describe('Nombre de quien hizo el reporte'),
@@ -194,7 +215,7 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
       let q = supabase
         .from('reports')
         .select(
-          'id, fecha, empresa_cliente, tipo_servicio, sub_tipo_servicio, created_by, sistema:data->sistemaSeguridad, actividades:data->actividades, personal:data->personal, observaciones:data->>observaciones, concluido:data->>servicioConcluido, firmo_cliente:data->>firmaClienteNombre, cliente_ausente:data->>clienteAusente, factura:data->>facturaEstado',
+          'id, fecha, empresa_cliente, tipo_servicio, sub_tipo_servicio, created_by, sistema:data->sistemaSeguridad, actividades:data->actividades, personal:data->personal, observaciones:data->>observaciones, tuberias:data->tuberias, tuberia:data->tuberia, cables:data->cables, cable1:data->cable1, cable2:data->cable2, soporteria:data->soporteria, equipos:data->equipos, concluido:data->>servicioConcluido, firmo_cliente:data->>firmaClienteNombre, cliente_ausente:data->>clienteAusente, factura:data->>facturaEstado',
           { count: 'exact' },
         )
         .order('fecha', { ascending: false })
@@ -224,6 +245,7 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
           personal: recorta(r.personal),
           actividades: recorta(r.actividades),
           observaciones: recorta(r.observaciones),
+          ...materialesDe(r),
           finalizado: r.concluido === 'true',
           firmo_cliente: r.firmo_cliente || null,
           cliente_ausente: r.cliente_ausente === 'true',
