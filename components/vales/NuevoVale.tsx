@@ -211,9 +211,11 @@ function AvisarAlmacen({ inicial, contexto, onClose }: {
   const [cantidad, setCantidad] = useState('1');
   const [unidad, setUnidad] = useState(inicial.unidad);
   const [guardando, setGuardando] = useState(false);
+  const { progreso, avance } = useAvanceGuardado();
   const [error, setError] = useState<string | null>(null);
   async function enviar() {
     if (descripcion.trim().length < 2) { setError('Escribe qué necesitas.'); return; }
+    avance(35, 'Avisando al almacenista');
     setGuardando(true);
     try {
       await solicitarAlta({
@@ -222,6 +224,8 @@ function AvisarAlmacen({ inicial, contexto, onClose }: {
         unidad,
         contexto: [contexto.trim(), inicial.sinExistencia ? 'sin existencia en almacén' : 'no está en el catálogo'].filter(Boolean).join(' · '),
       });
+      avance(100, 'Avisamos al almacenista');
+      await pausaFinal();
       showToast('Avisamos al almacenista', 'success');
       onClose();
     } catch (e: any) {
@@ -231,6 +235,7 @@ function AvisarAlmacen({ inicial, contexto, onClose }: {
   }
   return (
     <ModalOverlay onClose={() => !guardando && onClose()}>
+      <SavingOverlay show={guardando} pct={progreso.pct} label={progreso.etapa} />
       <div className="glass-strong rounded-3xl w-full max-w-sm p-5">
         <div className="flex items-start gap-2.5 mb-3">
           <AlertTriangle size={20} className="text-amber shrink-0 mt-0.5" />

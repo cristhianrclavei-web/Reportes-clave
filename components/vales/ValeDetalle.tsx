@@ -39,7 +39,6 @@ export default function ValeDetalle({
 }) {
   const [guardando, setGuardando] = useState(false);
   const { progreso, avance } = useAvanceGuardado();
-  const [pantalla, setPantalla] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const est = ETIQUETA_ESTADO[vale.estado];
   const vencido = valeVencido(vale);
@@ -47,29 +46,28 @@ export default function ValeDetalle({
   const [recargaT, setRecargaT] = useState(0);
   useEffect(() => { traspasosDeVale(vale.id).then(setTraspasos); }, [vale.id, recargaT]);
 
-  // `conPantalla`: los guardados largos (devolución con fotos) muestran la
-  // pantalla de avance; las acciones de un toque solo bloquean los botones.
-  async function ejecutar(fn: (avance: Avance) => Promise<void>, ok: string, conPantalla = false) {
-    avance(4, 'Preparando…');
-    setPantalla(conPantalla);
+  // Toda acción muestra la pantalla de avance. `conEtapas`: la acción reporta
+  // sus propios pasos (devolución con fotos); las de un toque van de un tirón.
+  async function ejecutar(fn: (avance: Avance) => Promise<void>, ok: string, conEtapas = false) {
+    avance(conEtapas ? 4 : 35, conEtapas ? 'Preparando…' : 'Guardando…');
     setGuardando(true);
     setError(null);
     try {
       await fn(avance);
-      if (conPantalla) { avance(100, ok); await pausaFinal(); }
+      avance(100, ok);
+      await pausaFinal();
       showToast(ok, 'success');
       onCambio();
     } catch (e: any) {
       setError(e?.message || 'No se pudo completar');
     } finally {
       setGuardando(false);
-      setPantalla(false);
     }
   }
 
   return (
     <ModalOverlay onClose={() => !guardando && onClose()}>
-      <SavingOverlay show={guardando && pantalla} pct={progreso.pct} label={progreso.etapa} />
+      <SavingOverlay show={guardando} pct={progreso.pct} label={progreso.etapa} />
       <div className="glass-strong rounded-3xl w-full max-w-lg p-5 max-h-[92vh] overflow-y-auto">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -162,7 +160,7 @@ export default function ValeDetalle({
               <Devolver vale={vale} guardando={guardando} ejecutar={ejecutar} />
               {vale.estado === 'en_uso' && (
                 <Prestar vale={vale} pendientes={traspasos} guardando={guardando}
-                  ejecutar={(fn, ok, conPantalla) => ejecutar(async (av) => { await fn(av); setRecargaT((k) => k + 1); }, ok, conPantalla)} />
+                  ejecutar={(fn, ok, conEtapas) => ejecutar(async (av) => { await fn(av); setRecargaT((k) => k + 1); }, ok, conEtapas)} />
               )}
               {vale.extension_estado !== 'pendiente' && <MasDias vale={vale} guardando={guardando} ejecutar={ejecutar} />}
             </>
@@ -190,7 +188,7 @@ export default function ValeDetalle({
   );
 }
 
-type Ejecutar = (fn: (avance: Avance) => Promise<void>, ok: string, conPantalla?: boolean) => void;
+type Ejecutar = (fn: (avance: Avance) => Promise<void>, ok: string, conEtapas?: boolean) => void;
 
 function FotosDevolucion({ paths }: { paths: string[] }) {
   const [urls, setUrls] = useState<string[]>([]);
