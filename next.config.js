@@ -33,7 +33,8 @@ const csp = [
   // nominatim: búsqueda de direcciones (gratis, sin llave) al capturar la
   // ubicación de un sitio programado.
   `connect-src 'self' ${SUPABASE_ORIGIN} ${SUPABASE_WSS} https://nominatim.openstreetmap.org`,
-  "media-src 'self' blob:",
+  // Supabase: los videos de evidencia se reproducen desde su enlace firmado.
+  `media-src 'self' blob: ${SUPABASE_ORIGIN}`,
   "worker-src 'self' blob:",
   "manifest-src 'self'",
   "object-src 'none'",
@@ -81,11 +82,15 @@ const nextConfig = {
           // servicios. Bloquearla romperia el registro de ubicacion.
           // microphone=(self): el asistente lo usa para dictar la pregunta;
           // con microphone=() el navegador niega el microfono sin preguntar.
+          // camera=(self): la grabadora de video de evidencia abre la camara
+          // dentro de la app (asi el video sale ya comprimido); con camera=()
+          // el navegador la niega sin preguntar. Las fotos no la necesitaban
+          // porque usan la camara del telefono.
           {
             key: 'Permissions-Policy',
             value: [
               'geolocation=(self)',
-              'camera=()',
+              'camera=(self)',
               'microphone=(self)',
               'payment=()',
               'usb=()',

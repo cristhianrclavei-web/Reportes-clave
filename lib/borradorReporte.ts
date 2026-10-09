@@ -15,7 +15,8 @@ const STORE = 'borradores';
 // Un borrador más viejo que esto ya no se ofrece.
 const VIGENCIA_MS = 7 * 24 * 60 * 60 * 1000;
 
-export type FotoBorrador = { name: string; type: string; blob: Blob; caption: string };
+// Con `videoBlob` la evidencia es un video y `blob` es su portada.
+export type FotoBorrador = { name: string; type: string; blob: Blob; caption: string; videoBlob?: Blob; videoName?: string; videoType?: string; dur?: number };
 
 export type Borrador = {
   guardadoEn: number;

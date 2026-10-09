@@ -1,5 +1,8 @@
 'use client';
 
+import GrabadorVideo from '@/components/GrabadorVideo';
+import VisorVideo, { MarcaVideo } from '@/components/VisorVideo';
+import { VideoGrabado, VIDEOS_POR_REGISTRO } from '@/lib/videoEvidencia';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -8,7 +11,7 @@ import Logo from '@/components/Logo';
 import ModalOverlay from '@/components/ModalOverlay';
 import {
   Actividad, ActividadEvento, obtenerActividad, agregarAvance, pausarActividad, reanudarActividad,
-  concluirActividad, corregirHoraFin, actualizarNotaAvance, minutosEfectivos,
+  concluirActividad, corregirHoraFin, actualizarNotaAvance, minutosEfectivos, agregarVideoAvance,
 } from '@/lib/actividades';
 import { tipoActividad } from '@/lib/tiposActividad';
 import { duracionTexto } from '@/lib/lineaDelDia';
@@ -20,7 +23,7 @@ import IconoTipo from '@/components/bitacora/IconoTipo';
 import { RotuloGrupo } from '@/components/tecnico/EncabezadoSeccion';
 import {
   Play, Pause, Check, Camera, X, Circle, Images, RotateCcw, ChevronLeft, Flag, NotebookPen,
-  MessageSquarePlus, FileText, AlertTriangle, CalendarPlus,
+  MessageSquarePlus, FileText, AlertTriangle, CalendarPlus, Video,
 } from 'lucide-react';
 
 // Detalle de una actividad de bitácora. Mismo acomodo que el detalle de un
@@ -74,6 +77,8 @@ export default function ActividadDetail({
   const [concluyendo, setConcluyendo] = useState(false);
   const [notaFinal, setNotaFinal] = useState('');
   const [horaReal, setHoraReal] = useState('');
+  const [grabandoVideo, setGrabandoVideo] = useState(false);
+  const [viendoVideo, setViendoVideo] = useState<string | null>(null);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,7 +98,7 @@ export default function ActividadDetail({
       setEventos(evs);
       if (a.hora_fin) setHoraReal(horaLocal(a.hora_fin));
 
-      const paths = evs.filter((e) => e.foto_path).map((e) => e.foto_path as string);
+      const paths = [...evs.filter((e) => e.foto_path).map((e) => e.foto_path as string), ...evs.filter((e) => e.video_path).map((e) => e.video_path as string)];
       if (paths.length > 0) {
         const supabase = createClient();
         const { data } = await supabase.storage.from('evidencias').createSignedUrls(paths, 3600);
@@ -161,6 +166,27 @@ export default function ActividadDetail({
     } finally {
       setSubiendoFotos((n) => n - 1);
     }
+  }
+
+  async function handleVideo(v: VideoGrabado) {
+    setGrabandoVideo(false);
+    setSubiendoFotos((n) => n + 1);
+    try {
+      await agregarVideoAvance(actividad.id, v);
+      showToast('Video guardado', 'success');
+      await cargar(true);
+    } catch (err: any) {
+      alert('No se pudo guardar el video: ' + (err?.message || 'revisa tu conexión') + '. Grábalo de nuevo.');
+    } finally {
+      setSubiendoFotos((n) => n - 1);
+    }
+  }
+  function abrirGrabadora() {
+    if (eventos.filter((e) => e.video_path).length >= VIDEOS_POR_REGISTRO) {
+      showToast(`Esta actividad ya tiene ${VIDEOS_POR_REGISTRO} videos, que es el máximo`, 'error');
+      return;
+    }
+    setGrabandoVideo(true);
   }
 
   async function handlePausar() {
@@ -407,7 +433,13 @@ export default function ActividadDetail({
                       {ev.tipo === 'cierre' && !ev.nota && <div className="text-[14px] font-medium mt-1">Actividad concluida</div>}
                     </>
                   )}
-                  {ev.foto_path && fotoUrls[ev.foto_path] && (
+                  {ev.foto_path && fotoUrls[ev.foto_path] && ev.video_path && (
+                    <button type="button" onClick={() => fotoUrls[ev.video_path!] && setViendoVideo(fotoUrls[ev.video_path!])} aria-label="Ver video" className="relative block w-full max-w-[320px] mt-2">
+                      <img src={fotoUrls[ev.foto_path]} alt="Video de evidencia" className="w-full h-[150px] object-cover rounded-xl border border-line" />
+                      <MarcaVideo dur={ev.video_duracion} />
+                    </button>
+                  )}
+                  {ev.foto_path && fotoUrls[ev.foto_path] && !ev.video_path && (
                     <a href={fotoUrls[ev.foto_path]} target="_blank" rel="noreferrer" className="block mt-2">
                       <img src={fotoUrls[ev.foto_path]} alt="Evidencia" className="w-full max-w-[320px] h-[150px] object-cover rounded-xl border border-line" />
                     </a>
@@ -440,7 +472,15 @@ export default function ActividadDetail({
                 className="flex-[1.6] min-h-[56px] rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15.5px] flex items-center justify-center gap-2.5 active:scale-95 transition-transform shadow-glow-teal"
               >
                 <Camera size={21} strokeWidth={2.5} />
-                {subiendoFotos > 0 ? `Guardando ${subiendoFotos} foto${subiendoFotos > 1 ? 's' : ''}…` : 'Foto rápida'}
+                {subiendoFotos > 0 ? 'Guardando…' : 'Foto rápida'}
+              </button>
+              <button
+                onClick={abrirGrabadora}
+                aria-label="Grabar video de evidencia"
+                title="Grabar video"
+                className="shrink-0 w-[56px] min-h-[56px] rounded-2xl border border-teal/50 bg-teal/10 text-teal flex items-center justify-center active:scale-95 transition-transform"
+              >
+                <Video size={22} strokeWidth={2.3} />
               </button>
               <button
                 onClick={() => setConcluyendo(true)}
@@ -454,6 +494,9 @@ export default function ActividadDetail({
           </div>
         </div>
       )}
+
+      {grabandoVideo && <GrabadorVideo onListo={handleVideo} onCerrar={() => setGrabandoVideo(false)} />}
+      {viendoVideo && <VisorVideo url={viendoVideo} onCerrar={() => setViendoVideo(null)} />}
 
       {concluyendo && (
         <ModalOverlay onClose={() => !busy && setConcluyendo(false)}>

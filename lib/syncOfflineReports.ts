@@ -3,6 +3,7 @@ import { reducirFoto } from './reducirFoto';
 import { getOfflineReports, deleteOfflineReport, PendingReport } from './offlineQueue';
 import { vincularReporteAServicio } from './serviciosProgramados';
 import { generarUUID } from './uuid';
+import { subirVideo, extensionDeVideo } from './videoEvidencia';
 
 function iniciales(nombre: string): string {
   return nombre
@@ -52,7 +53,7 @@ async function syncOne(item: PendingReport): Promise<void> {
 
   // Las que ya estaban subidas al servicio solo se referencian, sin volver a
   // subirlas; las nuevas (tomadas sin conexión) sí hay que subirlas ahora.
-  const fotoData: { path: string; caption: string }[] = [...(item.fotosExistentes || [])];
+  const fotoData: { path: string; caption: string; video?: string | null; dur?: number | null }[] = [...(item.fotosExistentes || [])];
   if (item.fotos && item.fotos.length > 0) {
     for (let i = 0; i < item.fotos.length; i++) {
       const f = item.fotos[i];
@@ -64,7 +65,17 @@ async function syncOne(item: PendingReport): Promise<void> {
       const { error: upErr } = await supabase.storage.from('evidencias').upload(path, blob, {
         contentType: blob.type || 'image/jpeg',
       });
-      if (!upErr) fotoData.push({ path, caption: f.caption });
+      if (upErr) continue;
+      // Video tomado sin conexión: se sube junto a su portada.
+      if (f.videoDataUrl) {
+        try {
+          const tipo = f.videoType || 'video/mp4';
+          const video = await subirVideo(String(reportId), new File([dataUrlToBlob(f.videoDataUrl)], `video.${extensionDeVideo(tipo)}`, { type: tipo }));
+          fotoData.push({ path, caption: f.caption, video, dur: f.dur || null });
+          continue;
+        } catch { /* si el video no sube, queda al menos su portada */ }
+      }
+      fotoData.push({ path, caption: f.caption });
     }
   }
   if (fotoData.length > 0) {

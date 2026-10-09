@@ -14,6 +14,10 @@ export type PendingFoto = {
   fileType: string;
   fileDataUrl: string;
   caption: string;
+  // Evidencia en video: lo de arriba es su portada y esto, el video.
+  videoDataUrl?: string;
+  videoType?: string;
+  dur?: number;
 };
 
 export type PendingReport = {
@@ -34,7 +38,7 @@ export type PendingReport = {
   // Fotos que ya estaban subidas al servicio (avances, evidencia, tareas) al
   // momento de guardar sin conexión: solo llevan su path, no dataURL, porque
   // ya viven en Storage y no hace falta volver a subirlas al sincronizar.
-  fotosExistentes?: { path: string; caption: string }[];
+  fotosExistentes?: { path: string; caption: string; video?: string | null; dur?: number | null }[];
   servicioProgramadoId?: string | null;
 };
 

@@ -1,5 +1,6 @@
 'use client';
 
+import VisorVideo, { MarcaVideo } from '@/components/VisorVideo';
 import { fechaDMA } from '@/lib/etiquetaMantenimiento';
 import ConfirmacionTecnicos from '@/components/ConfirmacionTecnicos';
 import { useEffect, useState } from 'react';
@@ -50,6 +51,7 @@ function fmtHora(iso: string) {
 export default function ServicioSupervisorDetail({ servicioId }: { servicioId: string }) {
   const router = useRouter();
   const [eliminando, setEliminando] = useState(false);
+  const [viendoVideo, setViendoVideo] = useState<string | null>(null);
   const [servicio, setServicio] = useState<Servicio | null>(null);
   const [tareas, setTareas] = useState<Tarea[]>([]);
   const [eventos, setEventos] = useState<Evento[]>([]);
@@ -121,7 +123,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
     setDuracionMin(s.duracion_estimada_min);
     setTecnicoIdsSel(tc.map((x) => x.tecnico_id));
 
-    const paths = [...t.filter((x) => x.foto_path).map((x) => x.foto_path as string), ...e.filter((x) => x.foto_path).map((x) => x.foto_path as string)];
+    const paths = [...t.filter((x) => x.foto_path).map((x) => x.foto_path as string), ...e.filter((x) => x.foto_path).map((x) => x.foto_path as string), ...e.filter((x) => x.video_path).map((x) => x.video_path as string)];
     if (paths.length > 0) {
       const supabase = createClient();
       const { data } = await supabase.storage.from('evidencias').createSignedUrls(paths, 3600);
@@ -821,7 +823,13 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
                     </>
                   )}
                   {e.nota && <p className="text-ink/80 mt-0.5">{e.nota}</p>}
-                  {e.foto_path && fotoUrls[e.foto_path] && (
+                  {e.foto_path && fotoUrls[e.foto_path] && e.video_path && (
+                    <button type="button" onClick={() => fotoUrls[e.video_path!] && setViendoVideo(fotoUrls[e.video_path!])} aria-label="Ver video" className="relative block w-full max-w-[240px] mt-2">
+                      <img src={fotoUrls[e.foto_path]} alt="Video de evidencia" className="w-full h-[120px] object-cover rounded-lg border border-line" />
+                      <MarcaVideo dur={e.video_duracion} />
+                    </button>
+                  )}
+                  {e.foto_path && fotoUrls[e.foto_path] && !e.video_path && (
                     <img src={fotoUrls[e.foto_path]} className="w-full max-w-[240px] h-[120px] object-cover rounded-lg border border-line mt-2" />
                   )}
                 </div>
@@ -986,6 +994,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
           </div>
         </ModalOverlay>
       )}
+      {viendoVideo && <VisorVideo url={viendoVideo} onCerrar={() => setViendoVideo(null)} />}
     </div>
   );
 }

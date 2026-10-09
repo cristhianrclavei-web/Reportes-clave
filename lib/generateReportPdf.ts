@@ -389,7 +389,10 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
 
   // ================= FOTOS DE EVIDENCIA =================
   const fotosRaw: any[] = data.fotos || [];
-  const fotos = fotosRaw.map((f) => (typeof f === 'string' ? { path: f, caption: '' } : { path: f.path, caption: f.caption || '' }));
+  // Un video sale con su portada y un aviso: el PDF no lo puede reproducir.
+  const fotos = fotosRaw.map((f) => (typeof f === 'string'
+    ? { path: f, caption: '' }
+    : { path: f.path, caption: f.video ? `VIDEO${f.dur ? ` (${Math.floor(f.dur / 60)}:${String(Math.round(f.dur) % 60).padStart(2, '0')})` : ''} · disponible en la plataforma${f.caption ? ` — ${f.caption}` : ''}` : f.caption || '' }));
 
   async function embedPhoto(original: Uint8Array) {
     const bytes = await comprimirFoto(original);

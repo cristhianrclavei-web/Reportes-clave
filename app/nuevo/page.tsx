@@ -1,5 +1,8 @@
 'use client';
 
+import GrabadorVideo from '@/components/GrabadorVideo';
+import { MarcaVideo } from '@/components/VisorVideo';
+import { VideoGrabado, VIDEOS_POR_REGISTRO, VIDEO_MAX_SEG, subirVideo } from '@/lib/videoEvidencia';
 import { obtenerActividad, ligarReporteAActividad } from '@/lib/actividades';
 import { tipoActividad } from '@/lib/tiposActividad';
 import { debeReporte } from '@/lib/visitaSinTrabajo';
@@ -21,7 +24,7 @@ import { showToast } from '@/components/Toast';
 import SavingOverlay from '@/components/SavingOverlay';
 import ReportPreviewModal, { PreviewData } from '@/components/ReportPreviewModal';
 import { listarMisServicios, vincularReporteAServicio, Servicio, filtrarSiguienteDiaPorGrupo, listarTecnicosDeServicio, listarFotosDelDia, FotoDelDia } from '@/lib/serviciosProgramados';
-import { X, Camera, Images, Plus, AlertTriangle, Eye, ChevronDown, Tag, History, Check } from 'lucide-react';
+import { X, Camera, Images, Plus, AlertTriangle, Eye, ChevronDown, Tag, History, Check, Video } from 'lucide-react';
 import { generarUUID } from '@/lib/uuid';
 import { registrarAccionGlobal } from '@/lib/auditoriaGlobal';
 import { notificar } from '@/lib/push';
@@ -54,6 +57,25 @@ const SEGURIDAD_OPTS = ['CCTV', 'Automatización', 'Alarma&Det', 'Control de acc
 
 // Sistemas del catálogo (sin «Otra», que ahora se escribe en el propio selector).
 const SISTEMAS_CATALOGO = SEGURIDAD_OPTS.filter((x) => x !== 'Otra');
+// Una evidencia del reporte tal como se guarda en data.fotos. Con `video`,
+// `path` es la portada del video.
+type EvidenciaReporte = { path: string; caption: string; video?: string | null; dur?: number | null };
+
+function aEvidencia(f: FotoDelDia): EvidenciaReporte {
+  return { path: f.path, caption: f.caption.trim(), ...(f.video ? { video: f.video, dur: f.dur || null } : {}) };
+}
+
+// Si la evidencia es un video, lo sube a la carpeta del reporte. Si el video
+// no sube queda al menos su portada, como una foto más.
+async function conVideo(base: EvidenciaReporte, f: { video?: File; dur?: number }, carpeta: string): Promise<EvidenciaReporte> {
+  if (!f.video) return base;
+  try {
+    return { ...base, video: await subirVideo(carpeta, f.video), dur: f.dur || null };
+  } catch {
+    return base;
+  }
+}
+
 const inputCls =
   'w-full px-3.5 py-2.5 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal-glow text-[15px] transition-colors placeholder:text-faint';
 // Etiquetas en minúsculas y tamaño de lectura: con tantos campos, las
@@ -323,7 +345,9 @@ export default function NuevoReportePage() {
   const [avisoPaso, setAvisoPaso] = useState<string | null>(null);
   const sigIngRef = useRef<SignaturePadHandle>(null);
   const sigClienteRef = useRef<SignaturePadHandle>(null);
-  const [fotos, setFotos] = useState<{ file: File; previewUrl: string; caption: string }[]>([]);
+  // Con `video`, la evidencia es un video y `file` es su portada.
+  const [fotos, setFotos] = useState<{ file: File; previewUrl: string; caption: string; video?: File; dur?: number }[]>([]);
+  const [grabandoVideo, setGrabandoVideo] = useState(false);
   const fotoInputRef = useRef<HTMLInputElement>(null);
   const fotoGaleriaRef = useRef<HTMLInputElement>(null);
   // Fotos que ya se tomaron en campo ese día (avances, evidencia extra,
@@ -412,11 +436,11 @@ export default function NuevoReportePage() {
     const casos = Array.isArray(d.casoPuntos) && d.casoPuntos.length ? d.casoPuntos : null;
     // Fotos ya subidas: se muestran como existentes (se pueden quitar o
     // cambiar su comentario) y se pueden agregar nuevas.
-    const fotosPrevias: { path: string; caption: string }[] = Array.isArray(d.fotos) ? d.fotos : [];
+    const fotosPrevias: { path: string; caption: string; video?: string | null; dur?: number | null }[] = Array.isArray(d.fotos) ? d.fotos : [];
     let conUrl: FotoDelDia[] = [];
     if (fotosPrevias.length) {
       const { data: urls } = await supabase.storage.from('evidencias').createSignedUrls(fotosPrevias.map((f) => f.path), 3600);
-      conUrl = fotosPrevias.map((f, i) => ({ path: f.path, caption: f.caption || '', previewUrl: urls?.[i]?.signedUrl || '' }));
+      conUrl = fotosPrevias.map((f, i) => ({ path: f.path, caption: f.caption || '', previewUrl: urls?.[i]?.signedUrl || '', video: f.video || null, dur: f.dur || null }));
     }
     aplicarCampos({
       empresaCliente: r.empresa_cliente || '', clienteId: r.cliente_id || null,
@@ -468,7 +492,8 @@ export default function NuevoReportePage() {
         if (r.fotos.length) {
           setFotos(r.fotos.map((f) => {
             const file = new File([f.blob], f.name, { type: f.type });
-            return { file, previewUrl: URL.createObjectURL(file), caption: f.caption };
+            const video = f.videoBlob ? new File([f.videoBlob], f.videoName || 'video.mp4', { type: f.videoType || 'video/mp4' }) : undefined;
+            return { file, previewUrl: URL.createObjectURL(file), caption: f.caption, ...(video ? { video, dur: f.dur } : {}) };
           }));
         }
         setRecuperadoEn(r.borrador.guardadoEn);
@@ -501,7 +526,10 @@ export default function NuevoReportePage() {
     const t = setTimeout(() => {
       guardarFotosBorrador(
         borradorUid,
-        fotos.map((f) => ({ name: f.file.name, type: f.file.type, blob: f.file, caption: f.caption }))
+        fotos.map((f) => ({
+          name: f.file.name, type: f.file.type, blob: f.file, caption: f.caption,
+          ...(f.video ? { videoBlob: f.video, videoName: f.video.name, videoType: f.video.type, dur: f.dur } : {}),
+        }))
       ).catch(() => {});
     }, 500);
     return () => clearTimeout(t);
@@ -643,6 +671,13 @@ export default function NuevoReportePage() {
     if (fotoGaleriaRef.current) fotoGaleriaRef.current.value = '';
   }
 
+  // Video grabado en la app (ya comprimido): entra a la lista con su portada.
+  function handleVideoGrabado(v: VideoGrabado) {
+    setGrabandoVideo(false);
+    setFotos((prev) => [...prev, { file: v.poster, previewUrl: URL.createObjectURL(v.poster), caption: '', video: v.video, dur: v.dur }]);
+  }
+  const totalVideos = fotos.filter((f) => f.video).length + fotosServicio.filter((f) => f.video).length;
+
   function removeFoto(i: number) {
     setFotos((prev) => {
       URL.revokeObjectURL(prev[i].previewUrl);
@@ -683,7 +718,7 @@ export default function NuevoReportePage() {
         const conFoto = avances.filter((e) => e.foto_path);
         if (conFoto.length > 0) {
           const { data } = await supabase.storage.from('evidencias').createSignedUrls(conFoto.map((e) => e.foto_path as string), 3600);
-          setFotosServicio(conFoto.map((e, i) => ({ path: e.foto_path as string, caption: e.nota || '', previewUrl: data?.[i]?.signedUrl || '' })).filter((x) => x.previewUrl));
+          setFotosServicio(conFoto.map((e, i) => ({ path: e.foto_path as string, caption: e.nota || '', previewUrl: data?.[i]?.signedUrl || '', video: e.video_path || null, dur: e.video_duracion || null })).filter((x) => x.previewUrl));
         }
       } catch {
         // Si la actividad no se puede leer, el formulario queda en blanco.
@@ -923,14 +958,14 @@ export default function NuevoReportePage() {
     }
     try {
       const { revisionEstado, facturaEstado, fechaConcluido, ...formulario } = sharedData;
-      const fotoData: { path: string; caption: string }[] = fotosServicio.map((f) => ({ path: f.path, caption: f.caption.trim() }));
+      const fotoData: EvidenciaReporte[] = fotosServicio.map(aEvidencia);
       for (let i = 0; i < fotos.length; i++) {
         avanceFoto(i, fotos.length, 12, 68);
         const f = await reducirFoto(fotos[i].file);
         const ext = f.name.split('.').pop() || 'jpg';
         const path = `${editarId}/${Date.now()}-${i}.${ext}`;
         const { error: eUp } = await supabase.storage.from('evidencias').upload(path, f, { contentType: f.type || 'image/jpeg' });
-        if (!eUp) fotoData.push({ path, caption: fotos[i].caption.trim() });
+        if (!eUp) fotoData.push(await conVideo({ path, caption: fotos[i].caption.trim() }, fotos[i], String(editarId)));
       }
       avance(72, conFormato ? 'Guardando la corrección y sus formatos' : 'Guardando la corrección');
       const anterior = orig.data || {};
@@ -1044,6 +1079,7 @@ export default function NuevoReportePage() {
             fileType: f.file.type,
             fileDataUrl: await fileToDataUrl(f.file),
             caption: f.caption.trim(),
+            ...(f.video ? { videoDataUrl: await fileToDataUrl(f.video), videoType: f.video.type, dur: f.dur } : {}),
           }))
         );
 
@@ -1060,7 +1096,7 @@ export default function NuevoReportePage() {
           subTipoServicio: subTipo,
           data: sharedData,
           fotos: fotosForOffline,
-          fotosExistentes: fotosServicio.map((f) => ({ path: f.path, caption: f.caption.trim() })),
+          fotosExistentes: fotosServicio.map(aEvidencia),
           servicioProgramadoId: servicioSeleccionadoId,
         });
 
@@ -1099,7 +1135,7 @@ export default function NuevoReportePage() {
       const claveFormato = `${iniciales(userName || userEmail)}-A-${String(seq).padStart(3, '0')}`;
 
       const reportId = generarUUID();
-      const baseData = { ...sharedData, fotos: [] as { path: string; caption: string }[], claveFormato };
+      const baseData = { ...sharedData, fotos: [] as EvidenciaReporte[], claveFormato };
       avance(22, conFormato ? 'Creando el reporte y sus formatos' : 'Creando el reporte');
 
       const { error } = await withTimeout(
@@ -1127,10 +1163,7 @@ export default function NuevoReportePage() {
 
       // Fotos ya capturadas en el servicio: solo se referencia su path, ya
       // están subidas en el mismo bucket — no hace falta volver a subirlas.
-      const fotoData: { path: string; caption: string }[] = fotosServicio.map((f) => ({
-        path: f.path,
-        caption: f.caption.trim(),
-      }));
+      const fotoData: EvidenciaReporte[] = fotosServicio.map(aEvidencia);
       // Subir fotos de evidencia nuevas, si hay
       for (let i = 0; i < fotos.length; i++) {
         avanceFoto(i, fotos.length, 30, 78);
@@ -1140,7 +1173,7 @@ export default function NuevoReportePage() {
         const { error: uploadError } = await supabase.storage.from('evidencias').upload(path, f, {
           contentType: f.type || 'image/jpeg',
         });
-        if (!uploadError) fotoData.push({ path, caption: fotos[i].caption.trim() });
+        if (!uploadError) fotoData.push(await conVideo({ path, caption: fotos[i].caption.trim() }, fotos[i], String(reportId)));
       }
 
       if (fotoData.length > 0) {
@@ -1747,7 +1780,10 @@ export default function NuevoReportePage() {
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                     {fotosServicio.map((f, i) => (
                       <div key={f.path} className="relative">
-                        <img src={f.previewUrl} alt={`Foto del servicio ${i + 1}`} className="w-full h-20 object-cover rounded-lg border border-line" />
+                        <div className="relative">
+                          <img src={f.previewUrl} alt={f.video ? `Video ${i + 1}` : `Foto del servicio ${i + 1}`} className="w-full h-20 object-cover rounded-lg border border-line" />
+                          {f.video && <MarcaVideo dur={f.dur} chico />}
+                        </div>
                         <button
                           type="button"
                           onClick={() => removeFotoServicio(i)}
@@ -1806,11 +1842,24 @@ export default function NuevoReportePage() {
               Elegir de galería
             </label>
           </div>
+          <button
+            type="button"
+            onClick={() => (totalVideos >= VIDEOS_POR_REGISTRO ? setMsg(`Un reporte lleva máximo ${VIDEOS_POR_REGISTRO} videos.`) : setGrabandoVideo(true))}
+            className="w-full min-h-[48px] mt-2.5 border border-dashed border-teal/50 text-teal rounded-xl text-[14.5px] font-semibold flex items-center justify-center gap-2 active:scale-95 transition-transform"
+          >
+            <Video size={17} strokeWidth={2.3} />
+            Grabar video{totalVideos > 0 ? ` (${totalVideos} de ${VIDEOS_POR_REGISTRO})` : ''}
+          </button>
+          <p className="text-[12px] text-muted mt-1.5">Hasta {VIDEO_MAX_SEG} segundos. Se graba ya comprimido para que no pese.</p>
+          {grabandoVideo && <GrabadorVideo onListo={handleVideoGrabado} onCerrar={() => setGrabandoVideo(false)} />}
           {fotos.length > 0 && (
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mt-3">
               {fotos.map((f, i) => (
                 <div key={i} className="relative">
-                  <img src={f.previewUrl} alt={`Evidencia ${i + 1}`} className="w-full h-20 object-cover rounded-lg border border-line" />
+                  <div className="relative">
+                    <img src={f.previewUrl} alt={f.video ? `Video ${i + 1}` : `Evidencia ${i + 1}`} className="w-full h-20 object-cover rounded-lg border border-line" />
+                    {f.video && <MarcaVideo dur={f.dur} chico />}
+                  </div>
                   <button
                     type="button"
                     onClick={() => removeFoto(i)}

@@ -3,6 +3,7 @@ import { createClient } from './supabaseClient';
 import { getCurrentLocation } from './geolocation';
 import { notificar } from './push';
 import { TipoActividad } from './tiposActividad';
+import { VideoGrabado, subirVideo } from './videoEvidencia';
 
 export type ActividadEvento = {
   id: string;
@@ -10,6 +11,9 @@ export type ActividadEvento = {
   tipo: 'avance' | 'pausa' | 'reanudacion' | 'cierre';
   nota: string | null;
   foto_path: string | null;
+  // Evidencia en video (patch_video_evidencia.sql): foto_path es su portada.
+  video_path?: string | null;
+  video_duracion?: number | null;
   ubicacion: { lat: number; lng: number; accuracy?: number } | null;
   created_at: string;
 };
@@ -113,6 +117,19 @@ export async function agregarAvance(actividadId: string, nota: string, foto: Fil
     .single();
   if (error) throw error;
   return data as ActividadEvento;
+}
+
+// Video de evidencia: la portada va en foto_path y el video en video_path.
+export async function agregarVideoAvance(actividadId: string, v: VideoGrabado): Promise<void> {
+  const [ubicacion, foto_path, video_path] = await Promise.all([
+    getCurrentLocation(),
+    subirFotoEvento(actividadId, v.poster),
+    subirVideo(`actividades/${actividadId}`, v.video),
+  ]);
+  const { error } = await createClient()
+    .from('actividad_eventos')
+    .insert({ actividad_id: actividadId, tipo: 'avance', nota: null, foto_path, video_path, video_duracion: v.dur, ubicacion });
+  if (error) throw error;
 }
 
 async function cambiarEstado(actividadId: string, tipo: 'pausa' | 'reanudacion' | 'cierre', nota: string | null, nuevoEstado: Actividad['estado']) {

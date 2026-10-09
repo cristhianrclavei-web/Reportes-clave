@@ -1,5 +1,8 @@
 'use client';
 
+import GrabadorVideo from '@/components/GrabadorVideo';
+import VisorVideo, { MarcaVideo } from '@/components/VisorVideo';
+import { VideoGrabado, VIDEOS_POR_REGISTRO } from '@/lib/videoEvidencia';
 import EmptyIllustration from '@/components/EmptyIllustration';
 import EstadoVacio from '@/components/EstadoVacio';
 import { useEffect, useRef, useState } from 'react';
@@ -13,7 +16,7 @@ import {
   obtenerServicioCompleto, marcarLlegada, iniciarServicio, sigoAsignadoAServicio,
   listarMisConfirmaciones, marcarServiciosVistos,
   registrarAvanceTarea, registrarRetraso, concluirServicio, concluirServicioAnticipado, agregarEvidenciaExtra,
-  registrarMotivoLlegada, CierreServicio, actualizarNotaEvidencia, registrarVisitaSinTrabajo,
+  registrarMotivoLlegada, CierreServicio, actualizarNotaEvidencia, registrarVisitaSinTrabajo, agregarVideoEvidencia,
   calcularProgresoTareas, pausarServicio, reanudarServicio, minutosPausadosTotales,
 } from '@/lib/serviciosProgramados';
 import ProgressBar from '@/components/ProgressBar';
@@ -21,7 +24,7 @@ import AvisoServicio from '@/components/AvisoServicio';
 import {
   ChevronLeft, MapPin, Play, Check, Lock, Camera, AlertTriangle,
   Plus, X, CircleDashed, Clock, Flag, CalendarClock, PackageCheck, ChevronRight,
-  PauseCircle, PlayCircle, ClipboardList, MessageSquarePlus, CloudOff, Ban } from 'lucide-react';
+  PauseCircle, PlayCircle, ClipboardList, MessageSquarePlus, CloudOff, Ban, Video } from 'lucide-react';
 
 // Acceso secundario de la pantalla: ícono arriba y nombre corto. Van juntos en
 // una fila para no apilar botones a todo lo ancho antes de las tareas.
@@ -136,6 +139,9 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
   // Fotos rápidas tomadas sin señal: están en el teléfono, esperando subir.
   const [pendientes, setPendientes] = useState<FotoPendiente[]>([]);
   const [sinTrabajo, setSinTrabajo] = useState(false);
+  // Video de evidencia: grabadora abierta y video que se está viendo.
+  const [grabandoVideo, setGrabandoVideo] = useState(false);
+  const [viendoVideo, setViendoVideo] = useState<string | null>(null);
 
   // null = aún no se sabe (no se muestra nada).
   const [enterado, setEnterado] = useState<boolean | null>(null);
@@ -166,6 +172,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
       const paths = [
         ...t.filter((x) => x.foto_path).map((x) => x.foto_path as string),
         ...e.filter((x) => x.foto_path).map((x) => x.foto_path as string),
+        ...e.filter((x) => x.video_path).map((x) => x.video_path as string),
       ];
       if (paths.length > 0) {
         const supabase = createClient();
@@ -333,6 +340,29 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
     } finally {
       setSubiendoFotos((n) => n - 1);
     }
+  }
+
+  // El video se graba ya comprimido dentro de la app; aquí solo se sube.
+  async function handleVideo(v: VideoGrabado) {
+    setGrabandoVideo(false);
+    setSubiendoFotos((n) => n + 1);
+    try {
+      await agregarVideoEvidencia(servicioId, v);
+      showToast('Video guardado', 'success');
+      await cargar(true);
+    } catch (err: any) {
+      alert('No se pudo guardar el video: ' + (err?.message || 'revisa tu conexión') + '. Grábalo de nuevo.');
+    } finally {
+      setSubiendoFotos((n) => n - 1);
+    }
+  }
+  function abrirGrabadora() {
+    const yaHay = eventos.filter((e) => e.video_path).length;
+    if (yaHay >= VIDEOS_POR_REGISTRO) {
+      showToast(`Este día ya tiene ${VIDEOS_POR_REGISTRO} videos, que es el máximo`, 'error');
+      return;
+    }
+    setGrabandoVideo(true);
   }
 
   async function handleGuardarComentario() {
@@ -949,11 +979,16 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
                     </p>
                   )}
                   <div className="flex gap-3">
-                    {e.foto_path && fotoUrls[e.foto_path] && (
+                    {e.foto_path && fotoUrls[e.foto_path] && (e.video_path ? (
+                      <button type="button" onClick={() => fotoUrls[e.video_path!] && setViendoVideo(fotoUrls[e.video_path!])} aria-label="Ver video" className="relative shrink-0">
+                        <img src={fotoUrls[e.foto_path]} alt="Video de evidencia" className="w-[84px] h-[84px] object-cover rounded-lg border border-line" />
+                        <MarcaVideo dur={e.video_duracion} chico />
+                      </button>
+                    ) : (
                       <a href={fotoUrls[e.foto_path]} target="_blank" rel="noreferrer" className="shrink-0">
                         <img src={fotoUrls[e.foto_path]} alt="Evidencia" className="w-[84px] h-[84px] object-cover rounded-lg border border-line" />
                       </a>
-                    )}
+                    ))}
                     <div className="flex-1 min-w-0">
                       {comentando === e.id ? (
                         <>
@@ -1024,7 +1059,17 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
                   className="flex-[1.6] min-h-[56px] rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15.5px] flex items-center justify-center gap-2.5 active:scale-95 transition-transform shadow-glow-teal"
                 >
                   <Camera size={21} strokeWidth={2.5} />
-                  {subiendoFotos > 0 ? `Guardando ${subiendoFotos} foto${subiendoFotos > 1 ? 's' : ''}…` : pendientes.length > 0 ? `Foto rápida · ${pendientes.length} por subir` : 'Foto rápida'}
+                  {subiendoFotos > 0 ? 'Guardando…' : pendientes.length > 0 ? `Foto rápida · ${pendientes.length} por subir` : 'Foto rápida'}
+                </button>
+              )}
+              {servicio.estado === 'en_curso' && (
+                <button
+                  onClick={abrirGrabadora}
+                  aria-label="Grabar video de evidencia"
+                  title="Grabar video"
+                  className="shrink-0 w-[56px] min-h-[56px] rounded-2xl border border-teal/50 bg-teal/10 text-teal flex items-center justify-center active:scale-95 transition-transform"
+                >
+                  <Video size={22} strokeWidth={2.3} />
                 </button>
               )}
               <button
@@ -1197,6 +1242,9 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
           </div>
         </ModalOverlay>
       )}
+
+      {grabandoVideo && <GrabadorVideo onListo={handleVideo} onCerrar={() => setGrabandoVideo(false)} />}
+      {viendoVideo && <VisorVideo url={viendoVideo} onCerrar={() => setViendoVideo(null)} />}
 
       {sinTrabajo && (
         <ModalVisitaSinTrabajo busy={busy} onCancelar={() => setSinTrabajo(false)} onConfirmar={handleVisitaSinTrabajo} />

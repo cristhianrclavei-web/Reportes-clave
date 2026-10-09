@@ -77,3 +77,22 @@ describe('tiempo del equipo', () => {
     ]);
   });
 });
+
+import { duracionCorta, extensionDeVideo, pesoTexto } from './videoEvidencia';
+
+describe('video de evidencia', () => {
+  it('escribe duración y peso', () => {
+    expect(duracionCorta(4)).toBe('0:04');
+    expect(duracionCorta(75)).toBe('1:15');
+    expect(duracionCorta(null)).toBe('0:00');
+    expect(pesoTexto(72 * 1024)).toBe('72 KB');
+    expect(pesoTexto(3.8 * 1024 * 1024)).toBe('3.8 MB');
+  });
+
+  it('elige la extensión por el tipo del archivo', () => {
+    expect(extensionDeVideo('video/mp4;codecs=avc1')).toBe('mp4');
+    expect(extensionDeVideo('video/webm')).toBe('webm');
+    expect(extensionDeVideo('video/quicktime')).toBe('mov');
+    expect(extensionDeVideo(null)).toBe('webm');
+  });
+});

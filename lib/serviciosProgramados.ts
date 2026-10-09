@@ -7,6 +7,7 @@ import { generarUUID } from './uuid';
 import { evaluarVentanaServicio } from './ventanaServicio';
 import { notificar } from './push';
 import { textoMotivo } from './motivosServicio';
+import { VideoGrabado, subirVideo } from './videoEvidencia';
 import { VisitaEstado, debeReporte, FILTRO_DEBE_REPORTE } from './visitaSinTrabajo';
 
 export type Servicio = {
@@ -95,6 +96,9 @@ export type Evento = {
   tipo: 'llegada' | 'inicio' | 'retraso' | 'evidencia' | 'cierre' | 'avance' | 'pausa' | 'reanudacion';
   nota: string | null;
   foto_path: string | null;
+  // Evidencia en video (patch_video_evidencia.sql): foto_path es su portada.
+  video_path?: string | null;
+  video_duracion?: number | null;
   ubicacion: { lat: number; lng: number } | null;
   created_by: string | null;
   created_at: string;
@@ -1224,6 +1228,22 @@ export async function agregarEvidenciaExtra(servicioId: string, nota: string, fo
   if (error) throw error;
 }
 
+// Video de evidencia: la portada va en foto_path (así aparece en todo lo que
+// ya muestra fotos) y el video en video_path.
+export async function agregarVideoEvidencia(servicioId: string, v: VideoGrabado): Promise<void> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const [ubicacion, foto_path, video_path] = await Promise.all([
+    getCurrentLocation(),
+    subirFotoServicio(servicioId, v.poster),
+    subirVideo(`servicios/${servicioId}`, v.video),
+  ]);
+  const { error } = await supabase
+    .from('servicio_eventos')
+    .insert({ servicio_id: servicioId, tipo: 'evidencia', nota: null, foto_path, video_path, video_duracion: v.dur, ubicacion, created_by: user?.id });
+  if (error) throw error;
+}
+
 // Comentario de una evidencia ya guardada. La foto rápida se guarda sin
 // texto para no detener el trabajo; el comentario se puede poner (o corregir)
 // después, mientras el día no se haya concluido: cerrado, lo registrado es el
@@ -1624,7 +1644,8 @@ export async function buscarReportesParaVincular(servicioId: string): Promise<Re
     }));
 }
 
-export type FotoDelDia = { path: string; caption: string; previewUrl: string };
+// `video` y `dur`: la evidencia es un video y `path` es su portada.
+export type FotoDelDia = { path: string; caption: string; previewUrl: string; video?: string | null; dur?: number | null };
 
 // Fotos ya capturadas en campo ese día puntual, para precargarlas en el
 // reporte y que el técnico no tenga que volver a tomarlas: evidencia de
@@ -1648,7 +1669,7 @@ export async function listarFotosDelDia(servicio: Pick<Servicio, 'id' | 'grupo_i
       .lt('completada_en', fin.toISOString()),
     supabase
       .from('servicio_eventos')
-      .select('tipo, nota, foto_path')
+      .select('tipo, nota, foto_path, video_path, video_duracion')
       .eq('servicio_id', servicio.id)
       .not('foto_path', 'is', null),
   ]);
@@ -1659,9 +1680,13 @@ export async function listarFotosDelDia(servicio: Pick<Servicio, 'id' | 'grupo_i
     evidencia: 'Evidencia adicional',
   };
 
-  const items: { path: string; caption: string }[] = [
+  const items: { path: string; caption: string; video?: string | null; dur?: number | null }[] = [
     ...(tareas || []).map((t: any) => ({ path: t.foto_path as string, caption: t.descripcion || 'Tarea completada' })),
-    ...(eventos || []).map((e: any) => ({ path: e.foto_path as string, caption: e.nota || ETIQUETAS[e.tipo] || 'Evidencia del servicio' })),
+    ...(eventos || []).map((e: any) => ({
+      path: e.foto_path as string,
+      caption: e.nota || (e.video_path ? 'Video del servicio' : ETIQUETAS[e.tipo]) || 'Evidencia del servicio',
+      video: e.video_path || null, dur: e.video_duracion || null,
+    })),
   ];
   if (items.length === 0) return [];
 

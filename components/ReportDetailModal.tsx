@@ -1,5 +1,6 @@
 'use client';
 
+import VisorVideo, { MarcaVideo } from '@/components/VisorVideo';
 import { fechaDMA } from '@/lib/etiquetaMantenimiento';
 import { MARCA } from '@/lib/marca';
 import { tuberiasDe, cablesDe, soporteriaDe, textoTuberia, textoCable, textoSoporteria } from '@/lib/materialesReporte';
@@ -69,7 +70,8 @@ export default function ReportDetailModal({
   const [eliminando, setEliminando] = useState(false);
   const [showEtiquetas, setShowEtiquetas] = useState(false);
   const [pestana, setPestana] = useState<'reporte' | 'fotos' | 'gestion'>('reporte');
-  const [fotoUrls, setFotoUrls] = useState<{ url: string; caption: string }[] | null>(null);
+  const [fotoUrls, setFotoUrls] = useState<{ url: string; caption: string; video?: string | null; dur?: number | null }[] | null>(null);
+  const [viendoVideo, setViendoVideo] = useState<string | null>(null);
   const [loadingFotos, setLoadingFotos] = useState(false);
   const [shareMenuOpen, setShareMenuOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
@@ -312,20 +314,28 @@ export default function ReportDetailModal({
 
   async function handleVerFotos() {
     const raw: any[] = report.data?.fotos || [];
-    const items = raw.map((f) => (typeof f === 'string' ? { path: f, caption: '' } : { path: f.path, caption: f.caption || '' }));
+    const items = raw.map((f) => (typeof f === 'string'
+      ? { path: f, caption: '', video: null as string | null, dur: null as number | null }
+      : { path: f.path, caption: f.caption || '', video: (f.video || null) as string | null, dur: (f.dur || null) as number | null }));
     if (items.length === 0) {
       setFotoUrls([]);
       return;
     }
     setLoadingFotos(true);
     const supabase = createClient();
-    const { data, error } = await supabase.storage.from('evidencias').createSignedUrls(items.map((it) => it.path), 3600);
+    // Las portadas y los videos se firman juntos (las portadas van primero).
+    const videos = items.filter((it) => it.video).map((it) => it.video as string);
+    const { data, error } = await supabase.storage.from('evidencias').createSignedUrls([...items.map((it) => it.path), ...videos], 3600);
     setLoadingFotos(false);
     if (error || !data) {
       setFotoUrls([]);
       return;
     }
-    setFotoUrls(data.map((d, i) => ({ url: d.signedUrl || '', caption: items[i].caption })).filter((d) => d.url));
+    const urlDe = new Map(data.map((d) => [d.path, d.signedUrl || '']));
+    setFotoUrls(items.map((it, i) => ({
+      url: data[i]?.signedUrl || '', caption: it.caption,
+      video: it.video ? urlDe.get(it.video) || null : null, dur: it.dur,
+    })).filter((d) => d.url));
   }
 
   async function handleShare(format: 'pdf' | 'xlsx') {
@@ -778,6 +788,7 @@ export default function ReportDetailModal({
         </>)}
 
         {pestana === 'fotos' && (<>
+        {viendoVideo && <VisorVideo url={viendoVideo} onCerrar={() => setViendoVideo(null)} />}
         {loadingFotos && <p className="text-[13px] text-muted mt-4">Cargando fotos...</p>}
         {fotoUrls !== null && !loadingFotos && (
           <Section title="Fotos de evidencia">
@@ -787,9 +798,16 @@ export default function ReportDetailModal({
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
                 {fotoUrls.map((f, i) => (
                   <div key={i}>
-                    <a href={f.url} target="_blank" rel="noopener noreferrer">
-                      <img src={f.url} alt={`Evidencia ${i + 1}`} className="w-full h-[180px] object-cover rounded-xl border border-line" />
-                    </a>
+                    {f.video ? (
+                      <button type="button" onClick={() => setViendoVideo(f.video!)} aria-label="Ver video" className="relative block w-full">
+                        <img src={f.url} alt={`Video ${i + 1}`} className="w-full h-[180px] object-cover rounded-xl border border-line" />
+                        <MarcaVideo dur={f.dur} />
+                      </button>
+                    ) : (
+                      <a href={f.url} target="_blank" rel="noopener noreferrer">
+                        <img src={f.url} alt={`Evidencia ${i + 1}`} className="w-full h-[180px] object-cover rounded-xl border border-line" />
+                      </a>
+                    )}
                     {f.caption && <p className="text-[12px] text-ink/80 mt-1.5">{f.caption}</p>}
                   </div>
                 ))}

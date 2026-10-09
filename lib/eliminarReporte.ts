@@ -17,8 +17,9 @@ export async function eliminarReporte(report: {
   const supabase = createClient();
 
   const fotosRaw: any[] = report.data?.fotos || [];
+  // Portadas, fotos y los videos de evidencia.
   const fotoPaths = fotosRaw
-    .map((f) => (typeof f === 'string' ? f : f?.path))
+    .flatMap((f) => (typeof f === 'string' ? [f] : [f?.path, f?.video]))
     .filter(Boolean) as string[];
   const facturaPath: string | undefined = report.data?.facturaArchivo?.path;
 
