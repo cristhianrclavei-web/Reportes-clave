@@ -49,11 +49,14 @@ function Tooltip({ texto, visible }: { texto: string; visible: boolean }) {
       {visible && (
         <motion.span
           role="tooltip"
-          initial={{ opacity: 0, y: -4, scale: 0.96 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -4, scale: 0.96 }}
+          // El centrado va aquí (x: -50 %) y no con una clase: la animación
+          // escribe su propio `transform` y borraba el de la clase, así que
+          // la etiqueta salía corrida a la derecha del icono.
+          initial={{ opacity: 0, x: '-50%', y: -4, scale: 0.96 }}
+          animate={{ opacity: 1, x: '-50%', y: 0, scale: 1 }}
+          exit={{ opacity: 0, x: '-50%', y: -4, scale: 0.96 }}
           transition={{ duration: 0.16, ease: 'easeOut' }}
-          className="pointer-events-none absolute top-full mt-2.5 left-1/2 -translate-x-1/2 z-50 whitespace-nowrap rounded-lg bg-teal px-2.5 py-1 text-[12px] font-semibold text-inkOnAccent shadow-glow-teal"
+          className="pointer-events-none absolute top-full mt-2.5 left-1/2 z-50 whitespace-nowrap rounded-lg bg-teal px-2.5 py-1 text-[12px] font-semibold text-inkOnAccent shadow-glow-teal"
         >
           <span className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rotate-45 bg-teal" />
           <span className="relative">{texto}</span>
@@ -367,12 +370,12 @@ export default function DockNav({ userName, children }: { userName?: string; chi
             {/* Preferencias: tema y vista, en una sola cápsula */}
             <div className="flex items-center gap-1 p-1 rounded-full bg-surface border border-line">
               <BotonDock etiqueta="Manual de uso">
-                <BotonAyuda className="w-10 h-10 rounded-full flex items-center justify-center text-ink/70 hover:text-ink hover:bg-surface-2 active:scale-90 transition" />
+                <BotonAyuda sinTitulo className="w-10 h-10 rounded-full flex items-center justify-center text-ink/70 hover:text-ink hover:bg-surface-2 active:scale-90 transition" />
               </BotonDock>
               <BotonDock etiqueta="Tema claro / oscuro">
                 <ThemeToggle className="w-10 h-10 rounded-full flex items-center justify-center text-ink/70 hover:text-ink hover:bg-surface-2 active:scale-90 transition" />
               </BotonDock>
-              <BotonDock etiqueta={vista === 'nueva' ? 'Ver listas como tarjetas' : 'Ver listas como tabla'}>
+              <BotonDock etiqueta={vista === 'nueva' ? 'Ver como tarjetas' : 'Ver como tabla'}>
                 <button
                   type="button"
                   aria-label="Cambiar entre tarjetas y tabla"
