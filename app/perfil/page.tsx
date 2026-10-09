@@ -1,3 +1,4 @@
+import SelectorAcento from '@/components/SelectorAcento';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabaseServer';
@@ -88,6 +89,8 @@ export default async function PerfilPage() {
             final de la columna derecha, para compartir el mismo acomodo. */}
         <PersonalizarPerfil profile={profile}>
           <ProfileForm user={user} profile={profile} />
+
+          <SelectorAcento />
 
           {/* En el demo las cuentas son compartidas: nadie cambia su contraseña. */}
           {!DEMO.activo && <CambiarContrasena email={user.email || ''} />}

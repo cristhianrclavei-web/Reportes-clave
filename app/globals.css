@@ -77,6 +77,20 @@
   --c-sobre-acento: 255 255 255;
 }
 
+/* ---------- Color de acento por persona (lib/acento.ts) ----------
+   Cada quien elige el suyo en «Mi perfil»; se aplica con [data-acento] en
+   <html>. Solo cambia el acento: fondos, textos y el color del logo siguen
+   siendo los del tema. Van después de los temas para ganarles. En claro el
+   acento es más profundo para que se lea como texto sobre fondo blanco. */
+[data-acento="bosque"]  { --c-acento: 52 199 142; --c-acento-oscuro: 21 97 79;  --c-acento-solido: 22 120 90;  --c-sobre-acento: 6 24 18; }
+[data-acento="oceano"]  { --c-acento: 59 130 246; --c-acento-oscuro: 30 64 175; --c-acento-solido: 37 99 235;  --c-sobre-acento: 255 255 255; }
+[data-acento="ciruela"] { --c-acento: 167 139 250; --c-acento-oscuro: 91 33 182; --c-acento-solido: 124 58 237; --c-sobre-acento: 24 14 48; }
+[data-acento="brasa"]   { --c-acento: 240 128 90; --c-acento-oscuro: 154 62 32; --c-acento-solido: 214 93 52;  --c-sobre-acento: 40 16 8; }
+.light[data-acento="bosque"]  { --c-acento: 16 128 95;  --c-acento-oscuro: 12 96 72;  --c-acento-solido: 16 122 90;  --c-sobre-acento: 255 255 255; }
+.light[data-acento="oceano"]  { --c-acento: 37 99 235;  --c-acento-oscuro: 29 78 216; --c-acento-solido: 37 99 235;  --c-sobre-acento: 255 255 255; }
+.light[data-acento="ciruela"] { --c-acento: 124 58 237; --c-acento-oscuro: 109 40 217; --c-acento-solido: 124 58 237; --c-sobre-acento: 255 255 255; }
+.light[data-acento="brasa"]   { --c-acento: 190 76 38;  --c-acento-oscuro: 154 62 32; --c-acento-solido: 190 76 38;  --c-sobre-acento: 255 255 255; }
+
 html, body {
   background: rgb(var(--c-bg));
   color: rgb(var(--c-ink));

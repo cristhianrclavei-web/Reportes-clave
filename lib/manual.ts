@@ -364,6 +364,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
         resumen: 'Ajustes personales.',
         pasos: [
           'El botón de sol o luna cambia entre tema claro y oscuro.',
+          'En «Mi perfil → Color de la app» eliges el color de los botones y resaltados (original, verde o azul, morado, terracota). Se guarda en tu cuenta y te sigue en tus otros dispositivos; el logo y los documentos conservan el color de la marca.',
           'En computadora, el botón de al lado cambia las listas entre tarjetas y tabla. La misma opción está en el menú de tu cuenta («Ver listas como tabla»), también para el personal técnico.',
           'Activa las notificaciones para recibir avisos aunque la app esté cerrada.',
         ],

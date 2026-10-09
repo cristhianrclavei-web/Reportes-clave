@@ -3,6 +3,7 @@ import { Barlow_Condensed, Inter, IBM_Plex_Mono } from 'next/font/google';
 import './globals.css';
 import ToastContainer from '@/components/Toast';
 import OfflineSyncManager from '@/components/OfflineSyncManager';
+import SincronizarAcento from '@/components/SincronizarAcento';
 import SeleccionarNumeros from '@/components/SeleccionarNumeros';
 import AvisoSuscripcion from '@/components/AvisoSuscripcion';
 import Asistente from '@/components/Asistente';
@@ -62,6 +63,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   var root = document.documentElement;
                   root.classList.remove('light', 'dark');
                   root.classList.add(theme);
+                  var acento = localStorage.getItem('acento');
+                  if (acento && /^(bosque|oceano|ciruela|brasa)$/.test(acento)) root.setAttribute('data-acento', acento);
                 } catch (e) {}
               })();
             `,
@@ -88,6 +91,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ToastContainer />
         <Asistente />
         <OfflineSyncManager />
+        <SincronizarAcento />
         <SeleccionarNumeros />
         <script
           dangerouslySetInnerHTML={{
