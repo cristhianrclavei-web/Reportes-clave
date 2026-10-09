@@ -93,7 +93,8 @@ export default function LogoutButton({ compacto = false, className, conTexto = f
       console.warn('[LOGOUT] Limpieza no completo:', error);
     }
 
-    try { sessionStorage.removeItem('puedeAlmacen'); } catch { /* modo privado */ }
+    // Lo que se recordaba de esta cuenta no vale para la siguiente.
+    try { ['puedeAlmacen', 'puedeFacturar', 'miPlan'].forEach((k) => sessionStorage.removeItem(k)); } catch { /* modo privado */ }
 
     window.location.href = '/login';
   }
