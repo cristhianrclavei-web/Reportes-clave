@@ -1,5 +1,6 @@
 'use client';
 
+import EncabezadoSeccion, { BOTON_PRINCIPAL, RotuloGrupo } from '@/components/tecnico/EncabezadoSeccion';
 import BotonAyuda from '@/components/BotonAyuda';
 import MenuCuenta from '@/components/MenuCuenta';
 import { useEffect, useState } from 'react';
@@ -115,8 +116,13 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
         <TecnicoTabs active="servicios" />
       </div>
 
-      <div className="px-4 pt-5">
-        <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-wide mb-4">Mis servicios</h1>
+      <div className="px-4 pt-5 lg:pt-7">
+        <EncabezadoSeccion
+          titulo="Mis servicios"
+          detalle={loading ? 'Cargando…'
+            : servicios.length === 0 ? 'Lo que te programe tu supervisor aparece aquí.'
+            : `${pendientes.length} ${pendientes.length === 1 ? 'pendiente' : 'pendientes'} · ${concluidos.length} ${concluidos.length === 1 ? 'concluido' : 'concluidos'}`}
+        />
 
         {loading && (
           <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3" aria-busy="true">
@@ -135,16 +141,16 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
         {error && <p className="text-red text-sm">{error}</p>}
 
         {!loading && pendientes.length > 0 && (
-          <div className="mb-6">
-            <div className="text-[13px] font-semibold text-muted mb-2.5">Pendientes</div>
+          <div className="mb-8">
+            <RotuloGrupo cuenta={pendientes.length}>Pendientes</RotuloGrupo>
             <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3">
               {pendientes.map((s) => {
                 const pr = progresoPorGrupo[s.grupo_id];
                 const ventana = evaluarVentanaServicio(s);
                 return (
-                <Link key={s.id} href={`/servicios/${s.id}`} className={`group block rounded-2xl border-l-4 ${ESTADO_CFG[s.estado].borde} border-y border-r border-y-line border-r-line bg-surface p-4 shadow-glow transition-all duration-150 hover:-translate-y-1 hover:shadow-diffuse active:translate-y-0 active:scale-[0.98]`}>
-                  <div className="flex justify-between items-start gap-2.5 mb-2">
-                    <strong className="font-display font-bold text-[16px] leading-snug transition-colors group-hover:text-teal">{s.proyecto}</strong>
+                <Link key={s.id} href={`/servicios/${s.id}`} className={`group block rounded-2xl border-l-4 ${ESTADO_CFG[s.estado].borde} border-y border-r border-y-line border-r-line bg-surface p-4 lg:p-5 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-diffuse active:translate-y-0 active:scale-[0.99]`}>
+                  <div className="flex justify-between items-start gap-2.5 mb-3">
+                    <strong className="font-display font-bold text-[17px] leading-snug tracking-wide transition-colors group-hover:text-teal">{s.proyecto}</strong>
                     <span className={`text-[12px] font-semibold px-2.5 py-1 rounded-full shrink-0 flex items-center gap-1.5 ${ESTADO_CFG[s.estado].cls}`}>
                       {(() => { const I = ESTADO_CFG[s.estado].Icono; return <I size={13} strokeWidth={2.6} />; })()}
                       {ESTADO_CFG[s.estado].label}
@@ -184,10 +190,10 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
 
         {!loading && concluidos.length > 0 && (
           <div>
-            <div className="text-[13px] font-semibold text-muted mb-2.5">Concluidos</div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-2.5">
+            <RotuloGrupo cuenta={concluidos.length}>Concluidos</RotuloGrupo>
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-2.5">
               {concluidos.map((s) => (
-                <Link key={s.id} href={`/servicios/${s.id}`} className="group block rounded-xl bg-surface-2 border border-line p-3.5 opacity-80 transition-all duration-150 hover:opacity-100 hover:-translate-y-0.5 hover:shadow-diffuse active:translate-y-0 active:scale-[0.99]">
+                <Link key={s.id} href={`/servicios/${s.id}`} className="group block rounded-2xl bg-surface border border-line px-4 py-3.5 transition-all duration-150 hover:border-teal/45 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]">
                   <div className="flex justify-between items-center gap-2.5">
                     <span className="text-[14px] font-semibold flex items-center gap-2 min-w-0">
                       <ResultadoIconos resultado={calcularResultadoServicio(s, progresoPorGrupo[s.grupo_id])} size={15} />

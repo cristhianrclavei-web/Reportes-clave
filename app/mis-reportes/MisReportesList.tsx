@@ -16,17 +16,25 @@ import AvisoActualizarCredenciales from '@/components/AvisoActualizarCredenciale
 import LogoutButton from '@/components/LogoutButton';
 import ReportDetailModal, { ReportDetail } from '@/components/ReportDetailModal';
 import LevantamientosSeccion from '@/components/LevantamientosSeccion';
-import { Check, Plus, FileText, ClipboardList } from 'lucide-react';
+import { Check, Plus, FileText, ClipboardList, ChevronRight, Search, PenLine, Clock3 } from 'lucide-react';
+import EncabezadoSeccion, { BOTON_PRINCIPAL, RotuloGrupo } from '@/components/tecnico/EncabezadoSeccion';
+import EstadoVacio from '@/components/EstadoVacio';
 import TecnicoTabs from '@/components/TecnicoTabs';
 import Logo from '@/components/Logo';
 
 type Report = ReportDetail;
 
-function formatFecha(fecha: string): string {
-  if (!fecha) return '—';
-  const [y, m, d] = fecha.split('-');
-  if (!y || !m || !d) return fecha;
-  return `${d}/${m}/${y}`;
+const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+function tituloMes(clave: string): string {
+  const [y, m] = clave.split('-').map(Number);
+  return y && m ? `${MESES[m - 1]} ${y}` : 'Sin fecha';
+}
+
+function estadoDe(r: Report): 'completo' | 'revision' {
+  return r.data?.firmaRevisionData ? 'completo' : 'revision';
+}
+function faltaFirma(r: Report): boolean {
+  return !!r.data?.firmaPendiente && !r.data?.firmaClienteData;
 }
 
 export default function MisReportesList({ reports: reportsIniciales, userName, errorCarga }: { reports: Report[]; userName?: string; errorCarga?: string | null }) {
@@ -36,9 +44,9 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
   const [reports, setReports] = useState<Report[]>(reportsIniciales);
   const [search, setSearch] = useState('');
   const aliasClientes = useAliasClientes();
-  const [showFilter, setShowFilter] = useState(false);
   const [filterType, setFilterType] = useState('');
   const [open, setOpen] = useState<Report | null>(null);
+  const [filtroEstado, setFiltroEstado] = useState<'todos' | 'revision' | 'firma' | 'completo'>('todos');
   const [subseccion, setSubseccion] = useState<'reportes' | 'levantamientos'>('reportes');
 
   // Enlace directo (p. ej. desde el asistente): ?reporte=<id> abre ese reporte.
@@ -55,8 +63,16 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
   }
 
 
+  const cuentas = useMemo(() => ({
+    todos: reports.length,
+    revision: reports.filter((r) => estadoDe(r) === 'revision').length,
+    firma: reports.filter(faltaFirma).length,
+    completo: reports.filter((r) => estadoDe(r) === 'completo').length,
+  }), [reports]);
+
   const filtered = useMemo(() => {
     return reports.filter((r) => {
+      if (filtroEstado === 'firma' ? !faltaFirma(r) : filtroEstado !== 'todos' && estadoDe(r) !== filtroEstado) return false;
       if (filterType && r.tipo_servicio !== filterType) return false;
       if (search) {
         const hay = `${r.empresa_cliente} ${aliasClientes[(r as any).cliente_id] || ''} ${r.data?.claveFormato || ''}`;
@@ -64,10 +80,23 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
       }
       return true;
     });
-  }, [reports, search, filterType, aliasClientes]);
+  }, [reports, search, filterType, filtroEstado, aliasClientes]);
+
+  // Por mes del servicio: la lista se lee por bloques en vez de una pared
+  // de tarjetas iguales. Sale de la fecha del reporte, no del reloj.
+  const porMes = useMemo(() => {
+    const grupos: { clave: string; titulo: string; reportes: Report[] }[] = [];
+    filtered.forEach((r) => {
+      const clave = (r.fecha || '').slice(0, 7);
+      let g = grupos.find((x) => x.clave === clave);
+      if (!g) { g = { clave, titulo: tituloMes(clave), reportes: [] }; grupos.push(g); }
+      g.reportes.push(r);
+    });
+    return grupos;
+  }, [filtered]);
 
   return (
-    <div className="max-w-2xl lg:max-w-none lg:px-6 mx-auto pb-10">
+    <div className="max-w-2xl lg:max-w-none lg:px-6 mx-auto pb-24 lg:pb-12">
       {/* Header */}
       <div className="sticky top-0 z-20 bg-bg pb-2">
         <div
@@ -82,11 +111,20 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
         <TecnicoTabs active="reportes" />
       </div>
 
-      <div className="px-4 pt-5">
-        <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-wide mb-4">
-          Mis reportes
-        </h1>
-
+      <div className="px-4 pt-5 lg:pt-7">
+        <EncabezadoSeccion
+          titulo="Mis reportes"
+          detalle={reports.length === 0
+            ? 'Aquí quedan los reportes que vayas creando.'
+            : `${reports.length} ${reports.length === 1 ? 'reporte' : 'reportes'}${cuentas.revision ? ` · ${cuentas.revision} por revisar` : ''}${cuentas.firma ? ` · ${cuentas.firma} sin firma del cliente` : ''}`}
+          accion={
+            // En computadora «Nuevo reporte» ya está en la barra de secciones.
+            <Link href="/nuevo" className={`lg:!hidden ${BOTON_PRINCIPAL}`}>
+              <Plus size={20} strokeWidth={2.6} />
+              Crear nuevo reporte
+            </Link>
+          }
+        />
 
         <AvisoActualizarCredenciales />
         <AvisoCuentaPrueba />
@@ -114,105 +152,104 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
               </div>
             )}
 
-            {/* Botón principal: nuevo reporte (en computadora ya está en la
-                barra de secciones) */}
-            <Link
-              href="/nuevo"
-              className="lg:hidden w-full min-h-[56px] mb-5 rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[16px] tracking-wide shadow-glow-teal flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
-            >
-              <Plus size={20} strokeWidth={2.6} />
-              Crear nuevo reporte
-            </Link>
-
-            {/* Buscador + filtro */}
-            <div className="flex gap-2 mb-3">
-              <input
-                placeholder="Buscar por cliente o folio..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="flex-1 px-3.5 py-2.5 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal-glow text-[14px] placeholder:text-faint"
-              />
-              <button
-                onClick={() => setShowFilter((v) => !v)}
-                className={`px-4 py-2.5 rounded-xl border text-[13px] font-medium flex items-center gap-1.5 shrink-0 transition-colors ${
-                  showFilter || filterType ? 'bg-teal text-inkOnAccent border-teal' : 'bg-surface-2 border-line text-ink/80'
-                }`}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M4 6h16M7 12h10M10 18h4" strokeLinecap="round" />
-                </svg>
-                Filtro
-              </button>
-            </div>
-            {showFilter && (
-              <select
+            {/* Buscador y filtros: en computadora, un solo renglón */}
+            <div className="flex flex-col lg:flex-row lg:items-center gap-3 mb-6">
+              <div className="relative lg:w-[340px] xl:w-[400px] shrink-0">
+                <Search size={16} strokeWidth={2.3} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
+                <input
+                  placeholder="Buscar por cliente o folio"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-10 pr-3.5 min-h-[44px] rounded-xl bg-surface border border-line focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal-glow text-[14px] placeholder:text-faint"
+                />
+              </div>
+              <div className="flex gap-2 overflow-x-auto -mx-4 px-4 lg:mx-0 lg:px-0 lg:flex-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {([
+                  ['todos', 'Todos', cuentas.todos],
+                  ['revision', 'Por revisar', cuentas.revision],
+                  ['firma', 'Sin firma del cliente', cuentas.firma],
+                  ['completo', 'Completados', cuentas.completo],
+                ] as const).filter(([k, , n]) => k === 'todos' || n > 0).map(([k, texto, n]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setFiltroEstado(k)}
+                    aria-pressed={filtroEstado === k}
+                    className={`shrink-0 min-h-[40px] px-3.5 rounded-full border text-[13px] font-medium flex items-center gap-2 transition-colors ${
+                      filtroEstado === k ? 'bg-teal/12 border-teal/45 text-teal font-semibold' : 'bg-surface border-line text-ink/75 hover:border-line-strong'
+                    }`}
+                  >
+                    {texto}
+                    <span className={`text-[12px] tabular-nums ${filtroEstado === k ? 'text-teal' : 'text-faint'}`}>{n}</span>
+                  </button>
+                ))}
+                <select
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value)}
-                className="w-full mb-5 px-3.5 py-2.5 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[13px]"
+                aria-label="Tipo de servicio"
+                className={`shrink-0 lg:ml-auto min-h-[40px] px-3.5 rounded-full border text-[13px] font-medium focus:border-teal focus:outline-none ${
+                  filterType ? 'bg-teal/12 border-teal/45 text-teal' : 'bg-surface border-line text-ink/75'
+                }`}
               >
                 <option value="">Todos los tipos</option>
                 <option value="Instalación nueva">Instalación nueva</option>
                 <option value="Mantenimiento">Mantenimiento</option>
                 <option value="Otro">Otro</option>
               </select>
-            )}
-            {!showFilter && <div className="mb-5" />}
-
-            {/* Lista de reportes */}
-            {filtered.length === 0 && (
-              <p className="text-center text-muted py-10 text-sm">
-                {reports.length === 0 ? 'Todavía no has creado ningún reporte.' : 'Sin resultados para esa búsqueda.'}
-              </p>
-            )}
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
-              {filtered.map((r) => (
-                <div
-                  key={r.id}
-                  onClick={() => setOpen(r)}
-                  className="rounded-2xl border-l-4 border-teal bg-surface p-4 sm:p-5 cursor-pointer active:scale-[0.99] transition-transform shadow-glow"
-                >
-                  <div className="flex justify-between items-start gap-3 mb-3">
-                    <div className="min-w-0">
-                      <div className="text-[10px] uppercase tracking-wider text-muted mb-0.5">Cliente / Empresa</div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <strong className="font-display font-bold text-[17px] tracking-wide truncate">{r.empresa_cliente}</strong>
-                        {r.data?.firmaRevisionData ? (
-                          <span className="text-[12px] font-semibold px-2.5 py-1 rounded-full bg-teal/15 text-teal shrink-0 flex items-center gap-1.5"><Check size={12} strokeWidth={3} />Completado</span>
-                        ) : (
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber/15 text-amber shrink-0">Pend. revisión</span>
-                        )}
-                        {r.data?.firmaPendiente && !r.data?.firmaClienteData && (
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red/12 text-red shrink-0">Firma cliente pend.</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <div className="text-[10px] uppercase tracking-wider text-muted mb-0.5">Folio</div>
-                      <span className="text-[13px] font-mono font-semibold text-teal">{r.data?.claveFormato || r.id.slice(0, 8).toUpperCase()}</span>
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-end">
-                    <div className="flex gap-5">
-                      <div>
-                        <div className="text-[10px] uppercase tracking-wider text-muted mb-0.5">Fecha</div>
-                        <span className="text-[13px] font-medium">{formatFecha(r.fecha)}</span>
-                      </div>
-                      <div>
-                        <div className="text-[10px] uppercase tracking-wider text-muted mb-0.5">Hora</div>
-                        <span className="text-[13px] font-medium">{r.data?.horaLlegada || '—'} hrs</span>
-                      </div>
-                    </div>
-                    <span className="text-teal text-[13px] font-semibold flex items-center gap-0.5 shrink-0">
-                      Ver
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </span>
-                  </div>
-                </div>
-              ))}
+              </div>
             </div>
+
+            {filtered.length === 0 && (
+              <EstadoVacio
+                icono={<FileText size={24} strokeWidth={1.8} />}
+                titulo={reports.length === 0 ? 'Todavía no has creado ningún reporte' : 'Sin resultados'}
+                detalle={reports.length === 0 ? 'Crea el primero al terminar un servicio.' : 'Prueba con otro cliente, folio o filtro.'}
+              />
+            )}
+
+            {porMes.map((g) => (
+              <section key={g.clave} className="mb-7">
+                <RotuloGrupo cuenta={g.reportes.length}>{g.titulo}</RotuloGrupo>
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-2.5 lg:gap-3">
+                  {g.reportes.map((r) => {
+                    const completo = estadoDe(r) === 'completo';
+                    const sinFirma = faltaFirma(r);
+                    return (
+                      <button
+                        key={r.id}
+                        type="button"
+                        onClick={() => setOpen(r)}
+                        className="group text-left rounded-2xl bg-surface border border-line p-4 flex items-center gap-3.5 transition-all duration-150 hover:border-teal/45 hover:-translate-y-0.5 hover:shadow-diffuse active:translate-y-0 active:scale-[0.99]"
+                      >
+                        {/* Día del servicio, como hoja de calendario */}
+                        <span className="shrink-0 w-[46px] h-[50px] rounded-xl bg-surface-2 border border-line flex flex-col items-center justify-center leading-none">
+                          <span className="font-display font-bold text-[19px] tabular-nums">{(r.fecha || '').slice(8, 10) || '—'}</span>
+                          <span className="text-[10px] uppercase tracking-wider text-muted mt-1">{(MESES[Number((r.fecha || '').slice(5, 7)) - 1] || '').slice(0, 3)}</span>
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block font-display font-bold text-[16px] tracking-wide truncate transition-colors group-hover:text-teal">{r.empresa_cliente}</span>
+                          <span className="block text-[12.5px] text-muted mt-0.5 truncate">
+                            <span className="font-mono">{r.data?.claveFormato || r.id.slice(0, 8).toUpperCase()}</span>
+                            {r.data?.horaLlegada ? ` · ${r.data.horaLlegada} hrs` : ''}
+                          </span>
+                          <span className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2">
+                            {completo ? (
+                              <span className="text-[12px] font-semibold text-teal flex items-center gap-1"><Check size={13} strokeWidth={3} />Completado</span>
+                            ) : (
+                              <span className="text-[12px] font-semibold text-amber flex items-center gap-1"><Clock3 size={12.5} strokeWidth={2.6} />Por revisar</span>
+                            )}
+                            {sinFirma && (
+                              <span className="text-[12px] font-semibold text-red flex items-center gap-1"><PenLine size={12.5} strokeWidth={2.6} />Falta firma del cliente</span>
+                            )}
+                          </span>
+                        </span>
+                        <ChevronRight size={18} strokeWidth={2.3} className="shrink-0 text-faint transition-all group-hover:text-teal group-hover:translate-x-0.5" />
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
           </>
         )}
       </div>

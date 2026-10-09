@@ -1,5 +1,7 @@
 'use client';
 
+import EncabezadoSeccion from '@/components/tecnico/EncabezadoSeccion';
+import EstadoVacio from '@/components/EstadoVacio';
 import BotonAyuda from '@/components/BotonAyuda';
 import MenuCuenta from '@/components/MenuCuenta';
 import { useEffect, useState } from 'react';
@@ -67,9 +69,11 @@ export default function MisChecklistsList({ userName }: { userName?: string }) {
         <TecnicoTabs active="checklists" />
       </div>
 
-      <div className="px-4 pt-5">
-        <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-wide mb-1">Herramienta, material y equipo</h1>
-        <p className="text-[15px] text-muted font-medium mb-4">{userName || 'Personal técnico'}</p>
+      <div className="px-4 pt-5 lg:pt-7">
+        <EncabezadoSeccion
+          titulo="Herramienta, material y equipo"
+          detalle="Lo que pides al almacén y lo que llevas a cada servicio."
+        />
 
         <SubTabs
           activa={sub}
@@ -86,7 +90,7 @@ export default function MisChecklistsList({ userName }: { userName?: string }) {
 
 
         {loading && (
-          <div className="flex flex-col gap-3" aria-busy="true">
+          <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3" aria-busy="true">
             {[0, 1].map((i) => <div key={i} className="rounded-2xl bg-surface-2 h-[120px] animate-pulse" />)}
           </div>
         )}
@@ -99,19 +103,21 @@ export default function MisChecklistsList({ userName }: { userName?: string }) {
         )}
 
         {!loading && !error && lista.length === 0 && (
-          <p className="text-center text-muted py-10 text-[14px] leading-relaxed">
-            Aún no tienes listas de herramienta asignadas.
-          </p>
+          <EstadoVacio
+            icono={<PackageCheck size={24} strokeWidth={1.8} />}
+            titulo="Aún no tienes listas de carga"
+            detalle="Aparecen cuando tu supervisor arma la lista de un servicio."
+          />
         )}
 
-        <div className="flex flex-col gap-3">
+        <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3">
           {lista.map((c) => {
             const est = estadoDelDia(c);
             return (
               <button
                 key={c.grupoId}
                 onClick={() => setAbierto(c)}
-                className="w-full text-left rounded-2xl bg-surface border border-line p-4 active:scale-[0.99] transition-transform"
+                className="w-full text-left rounded-2xl bg-surface border border-line p-4 lg:p-5 transition-all duration-150 hover:border-teal/45 hover:-translate-y-0.5 hover:shadow-diffuse active:translate-y-0 active:scale-[0.99]"
               >
                 <div className="flex items-start justify-between gap-2.5 mb-1.5">
                   <strong className="font-display font-bold text-[16px] leading-snug min-w-0">{c.proyecto}</strong>

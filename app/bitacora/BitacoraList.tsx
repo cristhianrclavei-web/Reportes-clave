@@ -1,5 +1,6 @@
 'use client';
 
+import EncabezadoSeccion, { BOTON_PRINCIPAL, RotuloGrupo } from '@/components/tecnico/EncabezadoSeccion';
 import BotonAyuda from '@/components/BotonAyuda';
 import EmptyIllustration from '@/components/EmptyIllustration';
 import EstadoVacio from '@/components/EstadoVacio';
@@ -93,20 +94,20 @@ export default function BitacoraList({ userName }: { userName: string }) {
         <TecnicoTabs active="bitacora" />
       </div>
 
-      <div className="px-4 pt-5">
-        <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-wide mb-4">Bitácora</h1>
+      <div className="px-4 pt-5 lg:pt-7">
+        <EncabezadoSeccion
+          titulo="Bitácora"
+          detalle="Lo que haces fuera de un servicio programado, con hora y ubicación."
+          accion={!showNueva && (
+            <button onClick={() => setShowNueva(true)} className={BOTON_PRINCIPAL}>
+              <Plus size={20} strokeWidth={2.6} />
+              Iniciar nueva actividad
+            </button>
+          )}
+        />
 
-
-        {!showNueva ? (
-          <button
-            onClick={() => setShowNueva(true)}
-            className="w-full min-h-[56px] mb-5 rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[16px] tracking-wide shadow-glow-teal flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
-          >
-            <Plus size={20} strokeWidth={2.6} />
-            Iniciar nueva actividad
-          </button>
-        ) : (
-          <div className="glass rounded-2xl p-4 mb-5">
+        {showNueva && (
+          <div className="glass rounded-2xl p-4 lg:p-5 mb-6 lg:max-w-xl">
             <p className="font-display font-semibold text-[15px] mb-3">Nueva actividad</p>
             <label className="text-[11px] uppercase tracking-wider text-muted block mb-1">Proyecto / Cliente</label>
             <input
@@ -142,22 +143,22 @@ export default function BitacoraList({ userName }: { userName: string }) {
         {!loading && error && actividades.length === 0 && <p className="text-red text-sm">{error}</p>}
 
         {!loading && activas.length > 0 && (
-          <div className="mb-6">
-            <div className="text-[11px] uppercase tracking-wider text-muted mb-2.5">En curso</div>
-            <div className="flex flex-col gap-3">
+          <div className="mb-8">
+            <RotuloGrupo cuenta={activas.length}>En curso</RotuloGrupo>
+            <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3">
               {activas.map((a) => (
                 <Link
                   key={a.id}
                   href={`/bitacora/${a.id}`}
-                  className="block rounded-2xl border-l-4 border-teal bg-surface p-4 active:scale-[0.99] transition-transform"
+                  className="block rounded-2xl border border-line border-l-4 border-l-teal bg-surface p-4 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-diffuse active:translate-y-0 active:scale-[0.99]"
                 >
                   <div className="flex justify-between items-start gap-2 mb-1.5">
-                    <strong className="font-display font-bold text-[15px]">{a.titulo}</strong>
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${ESTADO_CHIP[a.estado].className}`}>
+                    <strong className="font-display font-bold text-[16px] tracking-wide leading-snug">{a.titulo}</strong>
+                    <span className={`text-[12px] font-semibold px-2.5 py-1 rounded-full shrink-0 ${ESTADO_CHIP[a.estado].className}`}>
                       {ESTADO_CHIP[a.estado].label}
                     </span>
                   </div>
-                  <p className="text-[12px] text-muted">{a.proyecto} · iniciada hace {tiempoTranscurrido(a.hora_inicio)}</p>
+                  <p className="text-[13px] text-muted">{a.proyecto} · iniciada hace {tiempoTranscurrido(a.hora_inicio)}</p>
                 </Link>
               ))}
             </div>
@@ -166,19 +167,19 @@ export default function BitacoraList({ userName }: { userName: string }) {
 
         {!loading && concluidas.length > 0 && (
           <div>
-            <div className="text-[11px] uppercase tracking-wider text-muted mb-2.5">Concluidas</div>
-            <div className="flex flex-col gap-2.5">
+            <RotuloGrupo cuenta={concluidas.length}>Concluidas</RotuloGrupo>
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-2.5">
               {concluidas.map((a) => (
                 <Link
                   key={a.id}
                   href={`/bitacora/${a.id}`}
-                  className="block rounded-xl bg-surface-2 border border-line p-3.5 active:scale-[0.99] transition-transform opacity-80"
+                  className="block rounded-2xl bg-surface border border-line px-4 py-3.5 transition-all duration-150 hover:border-teal/45 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]"
                 >
-                  <div className="flex justify-between items-center">
-                    <span className="text-[13px] font-semibold">{a.titulo}</span>
-                    <span className="text-[10px] text-muted">{new Date(a.created_at).toLocaleDateString('es-MX')}</span>
+                  <div className="flex justify-between items-center gap-3">
+                    <span className="text-[14px] font-semibold truncate">{a.titulo}</span>
+                    <span className="text-[12px] text-muted shrink-0">{new Date(a.created_at).toLocaleDateString('es-MX')}</span>
                   </div>
-                  <p className="text-[11px] text-muted">{a.proyecto}</p>
+                  <p className="text-[12.5px] text-muted truncate mt-0.5">{a.proyecto}</p>
                 </Link>
               ))}
             </div>

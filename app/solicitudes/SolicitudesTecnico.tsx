@@ -1,5 +1,6 @@
 'use client';
 
+import EncabezadoSeccion from '@/components/tecnico/EncabezadoSeccion';
 import BotonAyuda from '@/components/BotonAyuda';
 import MenuCuenta from '@/components/MenuCuenta';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -20,9 +21,8 @@ export default function SolicitudesTecnico({ userName }: { userName: string }) {
         </div>
         <TecnicoTabs active="solicitudes" />
       </div>
-      <div className="px-4 pt-5">
-        <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-wide mb-1">Solicitudes</h1>
-        <p className="text-[15px] text-muted font-medium mb-4">Horas extra, vacaciones y permisos</p>
+      <div className="px-4 pt-5 lg:pt-7">
+        <EncabezadoSeccion titulo="Solicitudes" detalle="Horas extra, vacaciones y permisos." />
         <Solicitudes nombre={userName} />
       </div>
     </div>

@@ -114,7 +114,7 @@ export default function Vales({ modo }: { modo: 'tecnico' | 'almacen' }) {
     <div>
       {modo === 'tecnico' && (
         <button type="button" onClick={() => setNuevo(true)}
-          className="w-full min-h-[50px] mb-4 rounded-2xl bg-teal text-inkOnAccent font-semibold text-[15px] shadow-glow-teal flex items-center justify-center gap-2 active:scale-[0.98]">
+          className="w-full lg:w-auto lg:px-7 min-h-[50px] lg:min-h-[46px] mb-5 rounded-2xl bg-teal text-inkOnAccent font-semibold text-[15px] lg:text-[14.5px] shadow-glow-teal flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]">
           <Plus size={19} strokeWidth={2.6} /> Pedir al almacén
         </button>
       )}

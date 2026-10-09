@@ -96,8 +96,8 @@ export default function NotificacionesToggle({ esTecnico = false }: { esTecnico?
   // invitación sí va completa porque es una acción que conviene hacer.
   if (activas) {
     return (
-      <div className="mb-4 rounded-2xl bg-surface-2 border border-line">
-        <div className="flex items-center gap-2.5 px-4 min-h-[48px]">
+      <div className={`mb-4 rounded-2xl bg-surface-2 border border-line ${abierto ? 'lg:max-w-xl' : 'lg:w-fit lg:rounded-full lg:bg-transparent'}`}>
+        <div className={`flex items-center gap-2.5 px-4 min-h-[48px] ${abierto ? '' : 'lg:min-h-[38px] lg:gap-3'}`}>
           <BellRing size={16} strokeWidth={2.4} className="text-teal shrink-0" />
           <span className="text-[13.5px] font-medium flex-1">Notificaciones activas</span>
           <button onClick={() => setAbierto((v) => !v)} className="text-[13px] font-semibold text-teal flex items-center gap-1">
@@ -144,7 +144,7 @@ export default function NotificacionesToggle({ esTecnico = false }: { esTecnico?
   // Invitación en un solo renglón: se ve, pero no le gana al contenido de la
   // pantalla, y se puede posponer.
   return (
-    <div className="mb-4 rounded-2xl bg-surface-2 border border-line flex items-center gap-2.5 pl-4 pr-1.5 min-h-[50px]">
+    <div className="mb-4 rounded-2xl bg-surface-2 border border-line flex items-center gap-2.5 pl-4 pr-1.5 min-h-[50px] lg:w-fit lg:rounded-full lg:gap-3">
       <Bell size={16} strokeWidth={2.4} className="text-teal shrink-0" />
       <p className="flex-1 min-w-0 text-[13.5px] font-medium leading-snug py-2">
         Activa las notificaciones
