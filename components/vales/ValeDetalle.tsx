@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAvanceGuardado, pausaFinal } from '@/lib/useAvanceGuardado';
 import SavingOverlay from '@/components/SavingOverlay';
 import type { Avance } from '@/lib/useAvanceGuardado';
-import { X, FileText, Camera, Images, Clock, AlertTriangle, Check, Users } from 'lucide-react';
+import { X, FileText, Camera, Images, Clock, AlertTriangle, Check, Users, BellRing } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
 import SignaturePad, { SignaturePadHandle } from '@/components/SignaturePad';
 import { showToast } from '@/components/Toast';
@@ -12,7 +12,7 @@ import { mapaDeExistencias } from '@/lib/almacen';
 import { createClient } from '@/lib/supabaseClient';
 import {
   Vale, ETIQUETA_ESTADO, MOTIVOS_FALTANTE, valeVencido,
-  firmarVale, devolverVale, subirFotoDevolucion, pedirMasDias, cancelarVale,
+  firmarVale, devolverVale, subirFotoDevolucion, pedirMasDias, recordarMasDias, cancelarVale,
   entregarVale, recibirDevolucion, resolverMasDias, urlsFotos,
   Traspaso, traspasosDeVale, companerosParaPrestamo, proponerTraspaso, cancelarTraspaso, disponiblesParaPrestar, nombreCorto,
 } from '@/lib/vales';
@@ -162,7 +162,23 @@ export default function ValeDetalle({
                 <Prestar vale={vale} pendientes={traspasos} guardando={guardando}
                   ejecutar={(fn, ok, conEtapas) => ejecutar(async (av) => { await fn(av); setRecargaT((k) => k + 1); }, ok, conEtapas)} />
               )}
-              {vale.extension_estado !== 'pendiente' && <MasDias vale={vale} guardando={guardando} ejecutar={ejecutar} />}
+              {/* Renovar el plazo. Con una solicitud en espera se dice en qué va
+                  (antes solo desaparecía el botón y parecía que no existía). */}
+              {vale.extension_estado === 'pendiente' ? (
+                <div className="rounded-xl border border-amber/40 bg-amber/5 p-3">
+                  <p className="text-[13.5px] font-semibold text-amber flex items-center gap-1.5"><Clock size={15} /> Ya pediste {vale.extension_dias} día(s) más</p>
+                  <p className="text-[12.5px] text-ink/80 mt-1 leading-snug">
+                    Falta que el almacén lo autorice; el plazo se amplía en cuanto lo apruebe.
+                    {vale.extension_motivo ? ` Motivo: ${vale.extension_motivo}` : ''}
+                  </p>
+                  <button type="button" disabled={guardando} onClick={() => ejecutar(() => recordarMasDias(vale), 'Se le recordó al almacén')}
+                    className="mt-2.5 min-h-[40px] px-3.5 rounded-xl border border-amber/50 text-amber text-[13px] font-semibold flex items-center gap-1.5 active:scale-95 transition-transform disabled:opacity-60">
+                    <BellRing size={14} /> Recordar al almacén
+                  </button>
+                </div>
+              ) : (
+                <MasDias vale={vale} vencido={vencido} guardando={guardando} ejecutar={ejecutar} />
+              )}
             </>
           )}
           {modo === 'almacen' && vale.estado === 'solicitado' && <Entregar vale={vale} guardando={guardando} ejecutar={ejecutar} />}
@@ -371,12 +387,24 @@ function Prestar({ vale, pendientes, guardando, ejecutar }: { vale: Vale; pendie
   );
 }
 
-function MasDias({ vale, guardando, ejecutar }: { vale: Vale; guardando: boolean; ejecutar: Ejecutar }) {
+function MasDias({ vale, vencido, guardando, ejecutar }: { vale: Vale; vencido: boolean; guardando: boolean; ejecutar: Ejecutar }) {
   const [abierto, setAbierto] = useState(false);
   const [dias, setDias] = useState(3);
   const [motivo, setMotivo] = useState('');
   if (!abierto) {
-    return <button type="button" onClick={() => setAbierto(true)} className="text-[13px] font-semibold text-teal py-1 flex items-center gap-1.5 self-start"><Clock size={14} /> Necesito más días</button>;
+    return (
+      <div>
+        {vale.extension_estado === 'rechazada' && (
+          <p className="text-[12.5px] text-red mb-1.5">El almacén no aprobó los {vale.extension_dias} día(s) que pediste. Puedes devolverlo o pedirlo de nuevo.</p>
+        )}
+        <button type="button" onClick={() => setAbierto(true)}
+          className={`w-full min-h-[44px] rounded-xl border text-[13.5px] font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform ${
+            vencido ? 'border-red/50 bg-red/8 text-red' : 'border-teal/45 bg-teal/8 text-teal'
+          }`}>
+          <Clock size={15} /> {vencido ? 'Renovar plazo: pedir más días' : 'Pedir más días'}
+        </button>
+      </div>
+    );
   }
   return (
     <div className="rounded-xl border border-line p-3">

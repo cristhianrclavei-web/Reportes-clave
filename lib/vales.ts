@@ -240,6 +240,19 @@ export async function pedirMasDias(vale: Vale, dias: number, motivo: string): Pr
   });
 }
 
+// La solicitud de más días sigue sin respuesta: se le recuerda al almacén.
+// No cambia nada en el vale; solo vuelve a avisar.
+export async function recordarMasDias(vale: Vale): Promise<void> {
+  await notificar({
+    destino: 'almacen',
+    tipo: 'vale_almacen',
+    titulo: `Vale ${vale.folio}: sigue esperando ${vale.extension_dias} día(s) más`,
+    mensaje: `${vale.tecnico || 'Personal técnico'} pidió ampliar el plazo y no ha tenido respuesta${vale.extension_motivo ? `: ${vale.extension_motivo}` : '.'}`,
+    url: '/dashboard/almacen?sub=vales',
+    tag: `vale-${vale.id}`,
+  });
+}
+
 export async function cancelarVale(vale: Vale, motivo: string, comoAlmacen = false): Promise<void> {
   const { error } = await createClient().rpc('cancelar_vale', { p_vale: vale.id, p_motivo: motivo });
   if (error) throw new Error(error.message);
