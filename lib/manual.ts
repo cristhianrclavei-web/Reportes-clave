@@ -22,6 +22,7 @@ export const MANUAL_TECNICO: SeccionManual[] = [
         titulo: 'Llegar, iniciar y concluir',
         resumen: 'Así queda registrado a qué hora llegaste y cuánto duró el trabajo.',
         pasos: [
+          'En Servicios, la pestaña «Calendario» muestra tu mes: toca un día para ver lo que hiciste y lo que tienes programado.',
           'Al llegar al sitio toca «Marcar llegada».',
           'Cuando empieces a trabajar toca «Iniciar».',
           'Si tienes que detenerte (falta material, no hay acceso), usa «Pausar» y después «Reanudar».',
@@ -199,7 +200,8 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
           'Toca «Agendar», elige el cliente, la fecha, la hora y a quién va (personas o una cuadrilla completa).',
           'Puedes cargar una rutina de tareas y una lista de herramienta y material.',
           'Los servicios de varios días se agendan como un solo proyecto.',
-          'En la Agenda ves la semana de todo el equipo; con «+» asignas a una persona en un día.',
+          'La Agenda abre en «Mes»: cada día muestra puntos de lo hecho, lo que viene y lo que quedó sin concluir. Toca un día para ver su detalle al lado y usa «Programar servicio este día» para agendar ahí.',
+          'En «Semana» ves la semana de todo el equipo; con «+» asignas a una persona en un día.',
         ],
         nota: 'En Agenda → Recurrentes dejas programados los mantenimientos periódicos: la app te avisa 14 días antes para agendarlos.',
       },

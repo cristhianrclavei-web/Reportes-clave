@@ -9,11 +9,14 @@ import ProgressBar from '@/components/ProgressBar';
 import {
   Servicio, listarServiciosSupervisor, listarTecnicosPorServicio,
   listarProgresoPorGrupo, ProgresoTareas, reprogramarDia, listarConfirmacionesPorServicio, ConfirmacionTecnico,
+  listarAgendaSupervisor, DiaAgenda,
 } from '@/lib/serviciosProgramados';
 import ConfirmacionTecnicos from '@/components/ConfirmacionTecnicos';
 import { construirAgenda, formatFechaAgenda, diasDeDiferencia } from '@/lib/agenda';
 import { showToast } from '@/components/Toast';
-import { MapPin, Play, Clock, Users, CalendarClock, AlertTriangle, CalendarRange, List, Repeat } from 'lucide-react';
+import { MapPin, Play, Clock, Users, CalendarClock, AlertTriangle, CalendarRange, List, Repeat, CalendarDays } from 'lucide-react';
+import CalendarioMes from '@/components/CalendarioMes';
+import { Festivo, festivosEnCache, listarFestivos } from '@/lib/avisos';
 import { hoyLocal } from '@/lib/fechaHoy';
 import DiasFestivosSection from '@/components/DiasFestivosSection';
 import SubTabs from '@/components/SubTabs';
@@ -37,7 +40,14 @@ export default function AgendaList({ userName }: { userName?: string }) {
   const [error, setError] = useState<string | null>(null);
   const [filtroTecnico, setFiltroTecnico] = useState('');
   const [search, setSearch] = useState('');
-  const [vista, setVista] = useState<'semana' | 'lista' | 'recurrentes'>('semana');
+  const [vista, setVista] = useState<'mes' | 'semana' | 'lista' | 'recurrentes'>('mes');
+  // Calendario mensual: mismos días que la lista, con su gente y festivos.
+  const [agendaMes, setAgendaMes] = useState<DiaAgenda[] | null>(null);
+  const [festivos, setFestivos] = useState<Festivo[]>(() => festivosEnCache());
+  useEffect(() => {
+    listarAgendaSupervisor().then(setAgendaMes).catch(() => setAgendaMes([]));
+    listarFestivos().then(setFestivos).catch(() => {});
+  }, []);
 
   // Reprogramación rápida desde la propia agenda: es la acción que se necesita
   // justo cuando se está viendo un día vencido.
@@ -108,12 +118,22 @@ export default function AgendaList({ userName }: { userName?: string }) {
           activa={vista}
           onCambiar={setVista}
           opciones={[
+            { k: 'mes', label: 'Mes', Icono: CalendarDays },
             { k: 'semana', label: 'Semana', Icono: CalendarRange },
             { k: 'lista', label: 'Lista', Icono: List },
             { k: 'recurrentes', label: 'Recurrentes', Icono: Repeat },
           ]}
         />
 
+        {vista === 'mes' && (
+          <CalendarioMes
+            servicios={agendaMes || []}
+            festivos={festivos}
+            cargando={agendaMes === null}
+            hrefServicio={(s) => `/dashboard/servicios/${s.id}`}
+            hrefProgramar={(fecha) => `/dashboard/servicios?agendar=1&fecha=${fecha}&volver=agenda`}
+          />
+        )}
         {vista === 'semana' && <PlanSemana />}
         {vista === 'recurrentes' && <MantenimientosRecurrentes />}
 

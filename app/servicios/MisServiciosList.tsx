@@ -23,7 +23,10 @@ import { MapPin, Play, Check, Clock, CheckCheck } from 'lucide-react';
 import { calcularResultadoServicio } from '@/lib/resultadoServicio';
 import { ResultadoIconos } from '@/components/ResultadoServicioBadges';
 import { evaluarVentanaServicio } from '@/lib/ventanaServicio';
-import { CalendarClock } from 'lucide-react';
+import { CalendarClock, CalendarDays, List } from 'lucide-react';
+import SubTabs from '@/components/SubTabs';
+import CalendarioMes from '@/components/CalendarioMes';
+import { Festivo, festivosEnCache, listarFestivos } from '@/lib/avisos';
 import TecnicoTabs from '@/components/TecnicoTabs';
 
 // Cada estado se distingue por color de borde + ícono, para leerse de reojo
@@ -47,6 +50,9 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
   const [confirmaciones, setConfirmaciones] = useState<Record<string, { visto_en: string | null; enterado_en: string | null }>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sub, setSub] = useState<'lista' | 'calendario'>('lista');
+  const [festivos, setFestivos] = useState<Festivo[]>(() => festivosEnCache());
+  useEffect(() => { listarFestivos().then(setFestivos).catch(() => {}); }, []);
 
   useEffect(() => {
     Promise.all([listarMisServicios(), listarProgresoPorGrupo(), listarMisConfirmaciones().catch(() => ({} as Awaited<ReturnType<typeof listarMisConfirmaciones>>))])
@@ -126,6 +132,20 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
             : `${pendientes.length} ${pendientes.length === 1 ? 'pendiente' : 'pendientes'} · ${concluidos.length} ${concluidos.length === 1 ? 'concluido' : 'concluidos'}`}
         />
 
+        <SubTabs
+          activa={sub}
+          onCambiar={setSub}
+          opciones={[
+            { k: 'lista', label: 'Lista', Icono: List },
+            { k: 'calendario', label: 'Calendario', Icono: CalendarDays },
+          ]}
+        />
+
+        {sub === 'calendario' && !loading && (
+          <CalendarioMes servicios={servicios} festivos={festivos} hrefServicio={(s) => `/servicios/${s.id}`} />
+        )}
+
+        {sub === 'lista' && (<>
         {loading && (
           <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3" aria-busy="true">
             {[0, 1, 2].map((i) => (
@@ -253,6 +273,7 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
             </p>
           </div>
         )}
+        </>)}
       </div>
     </div>
   );
