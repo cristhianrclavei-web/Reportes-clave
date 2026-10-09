@@ -16,7 +16,8 @@ import KpiSection from '@/components/KpiSection';
 import KpiOperativos from '@/components/KpiOperativos';
 import AvisosPendientes from '@/components/AvisosPendientes';
 import ServiciosSinReporteSection from '@/components/ServiciosSinReporteSection';
-import { listarServiciosSupervisor, Servicio } from '@/lib/serviciosProgramados';
+import { listarAgendaSupervisor, DiaAgenda } from '@/lib/serviciosProgramados';
+import KpiEficiencia from '@/components/KpiEficiencia';
 import BitacoraSupervisorSection from '@/components/BitacoraSupervisorSection';
 import SupervisorShell from '@/components/SupervisorShell';
 import { CalendarClock, MessageSquareWarning, PackagePlus, AlertTriangle, PackageOpen, ChevronRight, CalendarCheck, BarChart3, Receipt, Users, FileText } from 'lucide-react';
@@ -50,7 +51,7 @@ export default function ResumenList({
   diasVencidos?: DiaVencido[];
 }) {
   const [solicitudesInsumo, setSolicitudesInsumo] = useState<any[]>([]);
-  const [servicios, setServicios] = useState<Servicio[]>([]);
+  const [servicios, setServicios] = useState<DiaAgenda[]>([]);
 
   const [resolviendo, setResolviendo] = useState<string | null>(null);
   const [existencias, setExistencias] = useState<Record<string, number>>({});
@@ -90,7 +91,7 @@ export default function ResumenList({
     // Los indicadores de desempeño se calculan sobre los servicios ya
     // concluidos; si falla la carga, las tarjetas muestran que no hay datos
     // en lugar de romper el resumen.
-    listarServiciosSupervisor().then(setServicios).catch(() => {});
+    listarAgendaSupervisor().then(setServicios).catch(() => {});
   }, []);
 
   // Se autoriza desde aquí: obligar a abrir el proyecto, el día correcto y la
@@ -312,6 +313,7 @@ export default function ResumenList({
 
         <KpiSection reports={reports} />
         <KpiOperativos servicios={servicios} reports={reports} />
+        <KpiEficiencia servicios={servicios} />
         <BitacoraSupervisorSection />
 
     </SupervisorShell>

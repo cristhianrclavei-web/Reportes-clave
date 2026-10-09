@@ -6,6 +6,7 @@ import { registrarAccionGlobal } from './auditoriaGlobal';
 import { generarUUID } from './uuid';
 import { evaluarVentanaServicio } from './ventanaServicio';
 import { notificar } from './push';
+import { textoMotivo } from './motivosServicio';
 
 export type Servicio = {
   id: string;
@@ -39,6 +40,26 @@ export type Servicio = {
   numero_dia: number;
   dias_totales: number;
   created_at: string;
+  // Cierre y motivos de desviación (patch_eficiencia_servicios.sql). Las
+  // claves de motivo y su lectura viven en lib/eficiencia.ts. Sin capturar
+  // en los servicios anteriores a ese parche.
+  resultado?: 'terminado' | 'pendiente' | 'no_realizado' | null;
+  resultado_motivo?: string | null;
+  resultado_comentario?: string | null;
+  llegada_motivo?: string | null;
+  llegada_comentario?: string | null;
+  salida_motivo?: string | null;
+  salida_comentario?: string | null;
+};
+
+// Lo que responde el técnico al cerrar el día: siempre el resultado; los
+// motivos solo cuando no terminó o cerró fuera del horario programado.
+export type CierreServicio = {
+  resultado: 'terminado' | 'pendiente' | 'no_realizado';
+  resultadoMotivo?: string | null;
+  resultadoComentario?: string;
+  salidaMotivo?: string | null;
+  salidaComentario?: string;
 };
 
 export type Tarea = {
@@ -970,6 +991,16 @@ export async function marcarLlegada(servicioId: string) {
   });
 }
 
+// Por qué se llegó después de la hora acordada. Se pregunta después de marcar
+// la llegada (que puede ser automática por GPS), no antes.
+export async function registrarMotivoLlegada(servicioId: string, motivo: string, comentario: string): Promise<void> {
+  const { error } = await createClient()
+    .from('servicios_programados')
+    .update({ llegada_motivo: motivo, llegada_comentario: comentario.trim() || null })
+    .eq('id', servicioId);
+  if (error) throw error;
+}
+
 // Nombre de quien realiza la acción, para que el aviso diga quién y no solo qué.
 async function nombreDelUsuario(): Promise<string> {
   const supabase = createClient();
@@ -1180,7 +1211,7 @@ export async function agregarEvidenciaExtra(servicioId: string, nota: string, fo
   if (error) throw error;
 }
 
-export async function concluirServicio(servicioId: string) {
+export async function concluirServicio(servicioId: string, cierre: CierreServicio) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const ubicacion = await getCurrentLocation();
@@ -1191,7 +1222,15 @@ export async function concluirServicio(servicioId: string) {
   // más retrasado de lo que en realidad estuvo.
   await reanudarServicio(servicioId).catch(() => {});
 
-  const { error: e1 } = await supabase.from('servicios_programados').update({ hora_fin: horaFin, estado: 'concluido' }).eq('id', servicioId);
+  const { error: e1 } = await supabase.from('servicios_programados').update({
+    hora_fin: horaFin,
+    estado: 'concluido',
+    resultado: cierre.resultado,
+    resultado_motivo: cierre.resultado === 'terminado' ? null : cierre.resultadoMotivo || null,
+    resultado_comentario: cierre.resultado === 'terminado' ? null : cierre.resultadoComentario?.trim() || null,
+    salida_motivo: cierre.salidaMotivo || null,
+    salida_comentario: cierre.salidaComentario?.trim() || null,
+  }).eq('id', servicioId);
   if (e1) throw e1;
 
   const { error: e2 } = await supabase.from('servicio_eventos').insert({ servicio_id: servicioId, tipo: 'cierre', ubicacion, created_by: user?.id });
@@ -1209,6 +1248,10 @@ export async function concluirServicio(servicioId: string) {
   if (sv) {
     const et = calcularEstadoTiempo(sv as any);
     if (et.tipo === 'retraso' && et.minutos) extra = ` · ${et.minutos} min de más`;
+  }
+  // Lo que no quedó terminado es lo que el supervisor necesita saber ya.
+  if (cierre.resultado !== 'terminado') {
+    extra += ` · ${cierre.resultado === 'pendiente' ? 'quedó trabajo pendiente' : 'no se pudo realizar'}${cierre.resultadoMotivo ? ` (${textoMotivo(cierre.resultadoMotivo).toLowerCase()})` : ''}`;
   }
 
   const quien = await nombreDelUsuario();
@@ -1266,7 +1309,7 @@ export async function cerrarDiaManualmente(servicioId: string, motivo: string): 
 // se van a usar. Solo toca días en estado "programado" (nadie llegó a
 // trabajarlos); si alguno ya tiene actividad o reporte, se deja tal cual
 // en vez de fallar toda la operación por un solo día.
-export async function concluirServicioAnticipado(servicioId: string): Promise<{ diasCancelados: number }> {
+export async function concluirServicioAnticipado(servicioId: string, cierre: CierreServicio): Promise<{ diasCancelados: number }> {
   const supabase = createClient();
 
   const { data: dia, error: eDia } = await supabase
@@ -1276,7 +1319,7 @@ export async function concluirServicioAnticipado(servicioId: string): Promise<{ 
     .single();
   if (eDia) throw eDia;
 
-  await concluirServicio(servicioId);
+  await concluirServicio(servicioId, cierre);
 
   const { data: siguientes } = await supabase
     .from('servicios_programados')

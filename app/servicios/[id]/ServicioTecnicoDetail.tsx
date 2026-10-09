@@ -13,6 +13,7 @@ import {
   obtenerServicioCompleto, marcarLlegada, iniciarServicio, sigoAsignadoAServicio,
   listarMisConfirmaciones, marcarServiciosVistos,
   registrarAvanceTarea, registrarRetraso, concluirServicio, concluirServicioAnticipado, agregarEvidenciaExtra,
+  registrarMotivoLlegada, CierreServicio,
   calcularProgresoTareas, pausarServicio, reanudarServicio, minutosPausadosTotales,
 } from '@/lib/serviciosProgramados';
 import ProgressBar from '@/components/ProgressBar';
@@ -31,6 +32,8 @@ import { ResultadoBadges } from '@/components/ResultadoServicioBadges';
 import { createClient } from '@/lib/supabaseClient';
 import { showToast } from '@/components/Toast';
 import { distanciaMetros } from '@/lib/geocerca';
+import { ModalCierre, ModalMotivoLlegada } from '@/components/CierreServicio';
+import { MARGEN_MIN, desfaseLlegada } from '@/lib/eficiencia';
 
 const MOTIVOS_RETRASO = [
   'Falta de material',
@@ -66,6 +69,10 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [preguntandoAnticipado, setPreguntandoAnticipado] = useState(false);
+  // Cierre del día: primero el resultado (y motivos, si aplica); la respuesta
+  // se guarda aquí mientras se pregunta si el proyecto terminó antes.
+  const [preguntandoCierre, setPreguntandoCierre] = useState(false);
+  const [cierre, setCierre] = useState<CierreServicio | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Si al técnico lo quitaron del proyecto en una reasignación, ya no debe
   // poder operar este servicio aunque tenga la pantalla abierta o el enlace.
@@ -328,34 +335,43 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
     }
   }
 
-  async function handleConcluir() {
-    const pendientes = tareas.filter((t) => !t.completada).length;
-    const esUltimoDia = !servicio || servicio.numero_dia >= servicio.dias_totales;
-    if (pendientes > 0) {
-      const msg = esUltimoDia
-        ? `Todavía hay ${pendientes} tarea(s) sin completar y este es el último día del proyecto. ¿Concluir de todas formas?`
-        : `Quedan ${pendientes} tarea(s) pendiente(s) — su avance registrado se conserva y seguirán disponibles el siguiente día del proyecto. ¿Concluir este día?`;
-      if (!confirm(msg)) return;
-    }
+  function handleConcluir() {
+    setPreguntandoCierre(true);
+  }
 
-    // Si todavía quedan días programados de este proyecto, preguntar (con
-    // una ventana propia, no el confirm() feo del navegador) si el trabajo
-    // ya se terminó por completo — para no dejar esos días programados sin
-    // usarse cuando el proyecto se acaba antes de tiempo.
-    if (!esUltimoDia) {
+  async function handleConfirmarCierre(c: CierreServicio) {
+    setCierre(c);
+    setPreguntandoCierre(false);
+    // Si todavía quedan días programados de este proyecto y lo de hoy quedó
+    // terminado, se pregunta si el trabajo ya se acabó por completo — para
+    // no dejar esos días programados sin usarse.
+    const esUltimoDia = !servicio || servicio.numero_dia >= servicio.dias_totales;
+    if (!esUltimoDia && c.resultado === 'terminado') {
       setPreguntandoAnticipado(true);
       return;
     }
-
-    await ejecutarConclusion(false);
+    await ejecutarConclusion(false, c);
   }
 
-  async function ejecutarConclusion(anticipado: boolean) {
+  async function handleMotivoLlegada(motivo: string, comentario: string) {
+    setBusy(true);
+    try {
+      await registrarMotivoLlegada(servicioId, motivo, comentario);
+      await cargar();
+    } catch (e: any) {
+      alert('No se pudo guardar el motivo: ' + (e?.message || 'error'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function ejecutarConclusion(anticipado: boolean, respuesta: CierreServicio | null = cierre) {
     setPreguntandoAnticipado(false);
+    if (!respuesta) return;
     setBusy(true);
     try {
       if (anticipado) {
-        const { diasCancelados } = await concluirServicioAnticipado(servicioId);
+        const { diasCancelados } = await concluirServicioAnticipado(servicioId, respuesta);
         showToast(
           diasCancelados > 0
             ? `Servicio concluido — se cancelaron ${diasCancelados} día(s) que ya no se iban a usar`
@@ -363,7 +379,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
           'success'
         );
       } else {
-        await concluirServicio(servicioId);
+        await concluirServicio(servicioId, respuesta);
         showToast('Servicio concluido', 'success');
       }
       await cargar();
@@ -410,6 +426,12 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
     const diff = totalMin - minutosPausadosTotales(servicio, new Date(servicio.hora_fin).getTime()) - servicio.duracion_estimada_min;
     if (diff > 0) retrasoFinalMin = diff;
   }
+
+  // Llegó más de 15 min después de lo acordado y aún no dice por qué.
+  const desfaseDeLlegada = (servicio.estado === 'en_sitio' || servicio.estado === 'en_curso') && !servicio.llegada_motivo
+    ? desfaseLlegada(servicio)
+    : null;
+  const llegadaTardeMin = desfaseDeLlegada !== null && desfaseDeLlegada > MARGEN_MIN ? desfaseDeLlegada : null;
 
   return (
     <div className="max-w-2xl mx-auto pb-32">
@@ -953,6 +975,22 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
           </div>
         </ModalOverlay>
       )}
+
+      {/* Modal: resultado del día (obligatorio) y motivos si hubo desviación. */}
+      {preguntandoCierre && (
+        <ModalCierre
+          servicio={servicio}
+          totalTareas={tareas.length}
+          tareasPendientes={tareas.filter((t) => !t.completada).length}
+          ahora={ahora}
+          busy={busy}
+          onCancelar={() => setPreguntandoCierre(false)}
+          onConfirmar={handleConfirmarCierre}
+        />
+      )}
+
+      {/* Modal: llegó tarde y aún no dice por qué. */}
+      {llegadaTardeMin !== null && <ModalMotivoLlegada minutos={llegadaTardeMin} busy={busy} onGuardar={handleMotivoLlegada} />}
 
       {/* Modal: ¿el proyecto ya se terminó antes de lo estimado? — solo
           aparece si todavía quedan días programados sin empezar. */}

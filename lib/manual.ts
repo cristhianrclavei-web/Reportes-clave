@@ -26,7 +26,9 @@ export const MANUAL_TECNICO: SeccionManual[] = [
           'Cuando empieces a trabajar toca «Iniciar».',
           'Si tienes que detenerte (falta material, no hay acceso), usa «Pausar» y después «Reanudar».',
           'Marca las tareas conforme las termines; algunas piden foto.',
-          'Al terminar toca «Concluir» y haz tu reporte.',
+          'Si llegaste más de 15 minutos después de la hora acordada, la app te pregunta qué pasó (tráfico, el cliente no estaba, permisos…). Elige el motivo para continuar.',
+          'Al terminar toca «Concluir» y responde cómo quedó el trabajo: terminado, pendiente o no se pudo realizar. Si no se terminó o cierras más de 15 minutos tarde, elige el motivo.',
+          'Después haz tu reporte.',
         ],
         nota: 'Un servicio solo se puede iniciar el día que está programado. Si la fecha está mal, avísale a tu supervisor para que la cambie.',
       },
@@ -161,6 +163,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
         pasos: [
           'Arriba: reportes de hoy y de la semana, lo que falta por facturar y los avisos que piden una decisión.',
           'Abajo: las gráficas de la semana y el desempeño operativo. El botón ⓘ de cada tarjeta explica cómo se calcula.',
+          '«Eficiencia de servicios» lee cada día concluido de las últimas 8 semanas como a favor, en contra o desviado por causa externa, según lo que el técnico respondió al cerrar. Muestra los motivos más frecuentes y el detalle por técnico o por cliente.',
           'La pantalla se actualiza sola cuando llega un reporte.',
         ],
       },

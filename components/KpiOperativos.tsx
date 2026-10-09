@@ -51,7 +51,7 @@ function BarraDesviacion({ pct }: { pct: number }) {
 }
 
 // Medidor de media luna: qué parte de un total se cumple.
-function Medidor({ pct }: { pct: number }) {
+export function Medidor({ pct }: { pct: number }) {
   const p = Math.max(0, Math.min(100, pct));
   const R = 46, C = Math.PI * R;
   return (
@@ -66,7 +66,7 @@ function Medidor({ pct }: { pct: number }) {
   );
 }
 
-function Tarjeta({
+export function Tarjeta({
   titulo,
   Icono,
   color,

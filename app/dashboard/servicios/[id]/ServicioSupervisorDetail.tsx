@@ -23,6 +23,7 @@ import CostoAlmacenServicio from '@/components/almacen/CostoAlmacenServicio';
 import ModalOverlay from '@/components/ModalOverlay';
 import { listarPlantillas, guardarComoPlantilla, obtenerInsumos, resumenDeChecklist, PlantillaInsumos, ResumenChecklist } from '@/lib/insumos';
 import { ResultadoBadges } from '@/components/ResultadoServicioBadges';
+import EficienciaServicio from '@/components/EficienciaServicio';
 import { createClient } from '@/lib/supabaseClient';
 import { mapsLink } from '@/lib/geolocation';
 import { showToast } from '@/components/Toast';
@@ -481,6 +482,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
               {estadoTiempo.tipo === 'a_tiempo' && (
                 <div className="mt-2.5"><ResultadoBadges resultado={calcularResultadoServicio(servicio, progreso)} /></div>
               )}
+              <EficienciaServicio servicio={servicio} />
             </>
 
           ) : (
