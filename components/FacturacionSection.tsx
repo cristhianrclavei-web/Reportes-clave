@@ -1,24 +1,31 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabaseClient';
 import { registrarAccionGlobal } from '@/lib/auditoriaGlobal';
-import { Check, FileText } from 'lucide-react';
+import { Check, ReceiptText, Ban, Undo2 } from 'lucide-react';
+import { estadoFacturacion } from '@/lib/reportStatus';
 
 // Bloque de facturación del detalle de un reporte.
 //
-// Se separó de ReportDetailModal porque es la parte con frontera más limpia:
-// todo lo que necesita de fuera son tres cosas —el reporte, si el servicio ya
-// está concluido, y cómo guardar cambios en report.data—. El resto (subir el
-// PDF, registrar el motivo de no facturación, abrir el archivo) vive aquí y
-// en ningún otro lado.
+// Las facturas ya no se suben desde aquí: se arman en la sección Facturación
+// juntando todos los reportes del servicio, y cada reporte queda ligado a su
+// factura (ese caso lo pinta ReportDetailModal). Este bloque atiende lo
+// demás:
+//   · pendiente de facturar → ir a armar la factura, o registrar por qué no
+//     se va a facturar;
+//   · no se factura → el motivo, y poder regresarlo a pendiente;
+//   · facturado con el PDF que antes se subía aquí → se puede seguir abriendo.
 //
 // El botón de «marcar servicio como finalizado» aparece dentro de este bloque
 // pero no pertenece a facturación: es del flujo de revisión. Se renderiza aquí
 // porque es donde el usuario lo busca —cuando ve que no puede facturar— y se
 // recibe por props para no arrastrar ese flujo dentro del componente.
 
-export type EstadoFactura = 'pendiente' | 'facturado' | 'en_proceso' | null | undefined;
+// Motivos frecuentes: un toque llena el texto, que se puede completar.
+const MOTIVOS = ['Garantía', 'Cortesía', 'Incluido en póliza o contrato', 'Se cobra en otro servicio', 'Trabajo interno'];
+
+export type EstadoFactura = 'pendiente' | 'facturado' | 'en_proceso' | 'no_facturable' | null | undefined;
 
 type Factura = {
   estado: EstadoFactura;
@@ -41,6 +48,7 @@ export default function FacturacionSection({
   marcandoConcluido,
   onMarcarFinalizado,
   onGuardarDatos,
+  clienteId,
 }: {
   reportId: string;
   empresaCliente: string;
@@ -53,6 +61,8 @@ export default function FacturacionSection({
   marcandoConcluido: boolean;
   onMarcarFinalizado: () => void;
   onGuardarDatos: (patch: Record<string, any>) => Promise<void>;
+  // Cliente del reporte, para abrir «Nueva factura» ya con él elegido.
+  clienteId?: string | null;
 }) {
   const [factura, setFactura] = useState<Factura>(datosFactura);
   const [facturaUrl, setFacturaUrl] = useState<string | null>(null);
@@ -60,7 +70,6 @@ export default function FacturacionSection({
   const [notaTexto, setNotaTexto] = useState('');
   const [subiendo, setSubiendo] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
   // "Días sin facturar" depende de la hora del navegador, que puede no
   // coincidir con la del servidor (Vercel corre en UTC) — ver el comentario
   // en components/SelectorSemana.tsx. Mismo patrón: arranca en null (mismo
@@ -69,50 +78,10 @@ export default function FacturacionSection({
   useEffect(() => setAhora(Date.now()), []);
 
   const folio = claveFormato ? ` (folio ${claveFormato})` : '';
-
-  async function handleSubirFactura(file: File) {
-    if (file.type !== 'application/pdf') {
-      setError('El archivo debe ser un PDF.');
-      return;
-    }
-    setSubiendo(true);
-    setError(null);
-    try {
-      const supabase = createClient();
-      const path = `${reportId}/factura-${Date.now()}.pdf`;
-      const { error: upErr } = await supabase.storage
-        .from('facturas')
-        .upload(path, file, { contentType: 'application/pdf' });
-      if (upErr) throw upErr;
-
-      const fecha = new Date().toLocaleDateString('es-MX');
-      await onGuardarDatos({
-        facturaEstado: 'facturado',
-        facturaArchivo: { path, nombre: file.name, fecha },
-        facturaNota: null,
-      });
-      setFactura((f) => ({
-        ...f,
-        estado: 'facturado',
-        archivoPath: path,
-        archivoNombre: file.name,
-        archivoFecha: fecha,
-      }));
-      registrarAccionGlobal(
-        'subio_factura',
-        'reporte',
-        reportId,
-        `Subió factura del reporte de «${empresaCliente}»${folio}`
-      );
-    } catch (e: any) {
-      setError(e?.message || 'No se pudo subir la factura.');
-    } finally {
-      setSubiendo(false);
-    }
-  }
+  const estado = estadoFacturacion({ servicioConcluido: true, facturaEstado: factura.estado });
 
   async function handleGuardarNota() {
-    if (!notaTexto.trim()) {
+    if (notaTexto.trim().length < 3) {
       setError('Escribe el motivo.');
       return;
     }
@@ -121,21 +90,41 @@ export default function FacturacionSection({
     try {
       const fecha = new Date().toLocaleDateString('es-MX');
       await onGuardarDatos({
-        facturaEstado: 'en_proceso',
+        facturaEstado: 'no_facturable',
         facturaNota: notaTexto.trim(),
         facturaNotaFecha: fecha,
       });
-      setFactura((f) => ({ ...f, estado: 'en_proceso', nota: notaTexto.trim(), notaFecha: fecha }));
+      setFactura((f) => ({ ...f, estado: 'no_facturable', nota: notaTexto.trim(), notaFecha: fecha }));
       registrarAccionGlobal(
         'marco_no_facturable',
         'reporte',
         reportId,
-        `Registró motivo de no facturación en «${empresaCliente}»: ${notaTexto.trim()}`
+        `Marcó que no se factura «${empresaCliente}»${folio}: ${notaTexto.trim()}`
       );
       setShowNota(false);
       setNotaTexto('');
     } catch (e: any) {
-      setError(e?.message || 'No se pudo guardar la nota.');
+      setError(e?.message || 'No se pudo guardar el motivo.');
+    } finally {
+      setSubiendo(false);
+    }
+  }
+
+  // Se equivocaron o cambió la decisión: vuelve a quedar por facturar.
+  async function handleVolverAPendiente() {
+    setSubiendo(true);
+    setError(null);
+    try {
+      await onGuardarDatos({ facturaEstado: 'pendiente', facturaNota: null, facturaNotaFecha: null });
+      setFactura((f) => ({ ...f, estado: 'pendiente', nota: undefined, notaFecha: undefined }));
+      registrarAccionGlobal(
+        'marco_no_facturable',
+        'reporte',
+        reportId,
+        `Regresó a pendiente de facturar «${empresaCliente}»${folio}`
+      );
+    } catch (e: any) {
+      setError(e?.message || 'No se pudo guardar.');
     } finally {
       setSubiendo(false);
     }
@@ -161,7 +150,7 @@ export default function FacturacionSection({
   }
 
   function diasSinFacturar(): number | null {
-    if (factura.estado === 'facturado' || ahora === null) return null;
+    if (estado !== 'pendiente' || ahora === null) return null;
     const desde = fechaConcluido || fechaReporte;
     if (!desde) return null;
     const ms = ahora - new Date(desde + 'T00:00:00').getTime();
@@ -202,115 +191,117 @@ export default function FacturacionSection({
         )}
       </div>
 
-      {factura.estado === 'facturado' ? (
+      {error && <p className="text-red text-[12.5px] mb-2">{error}</p>}
+
+      {estado === 'facturado' && (
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Check size={17} strokeWidth={3} className="text-teal shrink-0" />
             <span className="text-[14px] font-semibold">Facturado</span>
           </div>
-          <p className="text-[12px] text-muted mb-2.5">
-            {factura.archivoNombre} · {factura.archivoFecha}
-          </p>
-
-          {error && <p className="text-red text-[12px] mb-2">{error}</p>}
-
-          {!puedeFacturar ? (
-            <p className="text-[12px] text-muted">
-              Solo quien gestiona la facturación puede abrir el archivo.
-            </p>
+          {factura.archivoNombre && (
+            <p className="text-[12.5px] text-muted mb-2.5">{factura.archivoNombre} · {factura.archivoFecha}</p>
+          )}
+          {factura.archivoPath && (!puedeFacturar ? (
+            <p className="text-[12.5px] text-muted">Solo quien gestiona la facturación puede abrir el archivo.</p>
           ) : facturaUrl ? (
-            <a
-              href={facturaUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs bg-teal text-inkOnAccent rounded-full px-4 py-2 font-semibold inline-block"
-            >
+            <a href={facturaUrl} target="_blank" rel="noopener noreferrer" className="text-[13px] bg-teal text-inkOnAccent rounded-full px-4 py-2 font-semibold inline-block">
               Abrir factura
             </a>
           ) : (
-            <button
-              onClick={handleVerFactura}
-              className="text-xs bg-teal text-inkOnAccent rounded-full px-4 py-2 font-semibold active:scale-95 transition-transform"
-            >
+            <button onClick={handleVerFactura} className="text-[13px] bg-teal text-inkOnAccent rounded-full px-4 py-2 font-semibold active:scale-95 transition-transform">
               Ver factura (PDF)
+            </button>
+          ))}
+        </div>
+      )}
+
+      {estado === 'no_facturable' && (
+        <div>
+          <p className="text-[14px] font-semibold flex items-center gap-2">
+            <Ban size={16} strokeWidth={2.5} className="text-muted shrink-0" />
+            No se factura
+          </p>
+          <p className="text-[13px] text-ink/85 mt-1.5 leading-snug">{factura.nota}</p>
+          {factura.notaFecha && <p className="text-[11.5px] text-muted mt-1">Registrado el {factura.notaFecha}</p>}
+          {puedeFacturar && (
+            <button
+              onClick={handleVolverAPendiente}
+              disabled={subiendo}
+              className="mt-3 text-[13px] border border-line-strong text-ink/80 rounded-full px-4 min-h-[40px] inline-flex items-center gap-1.5 active:scale-95 transition-transform disabled:opacity-60"
+            >
+              <Undo2 size={14} strokeWidth={2.4} />
+              {subiendo ? 'Guardando...' : 'Sí se va a facturar'}
             </button>
           )}
         </div>
-      ) : (
+      )}
+
+      {estado === 'pendiente' && (
         <div>
-          {factura.estado === 'en_proceso' && (
-            <div className="mb-3 p-3 rounded-xl bg-red/10 border border-red/25">
-              <p className="text-[12px] font-semibold text-red mb-1">En proceso — no se pudo facturar</p>
-              <p className="text-[12px] text-ink/80">{factura.nota}</p>
-              <p className="text-[11px] text-muted mt-1">{factura.notaFecha}</p>
+          <p className="text-[14px] font-semibold text-amber">Pendiente de facturar</p>
+          <p className="text-[12.5px] text-muted mt-1 mb-3 leading-snug">
+            {puedeFacturar
+              ? 'Se quita cuando este reporte queda ligado a una factura o cuando registras por qué no se factura.'
+              : 'Lo atiende quien tiene permiso de facturación.'}
+          </p>
+
+          {puedeFacturar && !showNota && (
+            <div className="flex gap-2 flex-wrap">
+              <a
+                href={clienteId ? `/dashboard/facturacion?cliente=${clienteId}&reporte=${reportId}` : '/dashboard/facturacion'}
+                className="text-[14px] bg-teal text-inkOnAccent rounded-full px-4 min-h-[44px] inline-flex items-center gap-2 font-semibold active:scale-95 transition-transform"
+              >
+                <ReceiptText size={16} strokeWidth={2.4} />
+                Armar factura
+              </a>
+              <button
+                onClick={() => setShowNota(true)}
+                className="text-[13px] border border-line-strong text-ink/80 rounded-full px-4 min-h-[44px] active:scale-95 transition-transform"
+              >
+                No se va a facturar
+              </button>
             </div>
           )}
 
-          {!puedeFacturar ? (
-            <p className="text-[12px] text-muted">
-              {factura.estado === 'en_proceso' ? 'Pendiente de resolver.' : 'Aún no se ha facturado.'}{' '}
-              Solo quienes tienen permiso de facturación pueden
-              gestionar la facturación.
-            </p>
-          ) : (
-            <>
-              {error && <p className="text-red text-[12px] mb-2">{error}</p>}
-
-              <input
-                ref={inputRef}
-                type="file"
-                accept="application/pdf"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) handleSubirFactura(f);
-                }}
+          {puedeFacturar && showNota && (
+            <div>
+              <label className="text-[13px] font-medium text-ink/75 block mb-1.5">¿Por qué no se factura?</label>
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {MOTIVOS.map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setNotaTexto(m)}
+                    className={`text-[12.5px] rounded-full px-3 py-1.5 border transition-colors ${notaTexto === m ? 'bg-teal/12 border-teal/45 text-teal font-semibold' : 'border-line bg-surface text-ink/80'}`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+              <textarea
+                value={notaTexto}
+                onChange={(e) => setNotaTexto(e.target.value)}
+                placeholder="Elige un motivo o escríbelo"
+                className="w-full px-3 py-2 rounded-xl bg-surface border border-line focus:border-teal focus:outline-none text-[13.5px] min-h-[64px]"
               />
-
-              {!showNota ? (
-                <div className="flex gap-2 flex-wrap">
-                  <button
-                    onClick={() => inputRef.current?.click()}
-                    disabled={subiendo}
-                    className="text-[14px] bg-teal text-inkOnAccent rounded-full px-4 min-h-[44px] inline-flex items-center gap-2 font-semibold active:scale-95 transition-transform disabled:opacity-60"
-                  >
-                    {subiendo ? 'Subiendo...' : <><FileText size={16} strokeWidth={2.4} />Facturar (subir PDF)</>}
-                  </button>
-                  <button
-                    onClick={() => setShowNota(true)}
-                    className="text-xs border border-line-strong text-ink/80 rounded-full px-4 py-2 active:scale-95 transition-transform"
-                  >
-                    No se puede facturar
-                  </button>
-                </div>
-              ) : (
-                <div>
-                  <label className="text-[11px] uppercase tracking-wider text-muted block mb-1.5">
-                    ¿Por qué no se puede facturar?
-                  </label>
-                  <textarea
-                    value={notaTexto}
-                    onChange={(e) => setNotaTexto(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-surface border border-line focus:border-teal focus:outline-none text-[13px] min-h-[70px]"
-                  />
-                  <div className="flex gap-2 mt-2">
-                    <button
-                      onClick={() => { setShowNota(false); setNotaTexto(''); }}
-                      className="text-xs border border-line-strong text-ink/80 rounded-full px-4 py-2 active:scale-95 transition-transform"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      onClick={handleGuardarNota}
-                      disabled={subiendo}
-                      className="text-xs bg-amber text-inkOnAccent rounded-full px-4 py-2 font-semibold active:scale-95 transition-transform disabled:opacity-60"
-                    >
-                      {subiendo ? 'Guardando...' : 'Guardar nota'}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </>
+              <p className="text-[12px] text-muted mt-1">El reporte deja de aparecer como pendiente y ya no se ofrece al armar facturas.</p>
+              <div className="flex gap-2 mt-2.5">
+                <button
+                  onClick={() => { setShowNota(false); setNotaTexto(''); setError(null); }}
+                  className="text-[13px] border border-line-strong text-ink/80 rounded-full px-4 min-h-[40px] active:scale-95 transition-transform"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleGuardarNota}
+                  disabled={subiendo}
+                  className="text-[13px] bg-teal text-inkOnAccent rounded-full px-4 min-h-[40px] font-semibold active:scale-95 transition-transform disabled:opacity-60"
+                >
+                  {subiendo ? 'Guardando...' : 'Guardar motivo'}
+                </button>
+              </div>
+            </div>
           )}
         </div>
       )}

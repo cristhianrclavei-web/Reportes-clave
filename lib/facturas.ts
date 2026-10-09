@@ -339,7 +339,7 @@ export async function vinculablesDeCliente(clienteId: string): Promise<{ reporte
   const [{ data: reps }, { data: cots }] = await Promise.all([
     supabase
       .from('reports')
-      .select('id, fecha, folio:data->>claveFormato, ing:data->>ingACargo, factura_id:data->>facturaId, factura_folio:data->>facturaFolio')
+      .select('id, fecha, folio:data->>claveFormato, ing:data->>ingACargo, factura_id:data->>facturaId, factura_folio:data->>facturaFolio, factura_estado:data->>facturaEstado')
       .eq('cliente_id', clienteId)
       .order('fecha', { ascending: false }),
     supabase
@@ -348,7 +348,12 @@ export async function vinculablesDeCliente(clienteId: string): Promise<{ reporte
       .eq('cliente_id', clienteId)
       .order('fecha', { ascending: false }),
   ]);
-  return { reportes: (reps as any) || [], cotizaciones: (cots as any) || [] };
+  // Los marcados como «no se factura» no se ofrecen para ligar: ya se
+  // decidió que no van en ninguna factura (se revierte desde el reporte).
+  const reportes = ((reps as any[]) || []).filter(
+    (r) => r.factura_id || (r.factura_estado !== 'no_facturable' && r.factura_estado !== 'en_proceso'),
+  );
+  return { reportes: reportes as any, cotizaciones: (cots as any) || [] };
 }
 
 export async function lineasDeCotizacion(cotizacionId: string): Promise<Concepto[]> {
@@ -386,4 +391,32 @@ export async function datosFiscalesCliente(clienteId: string): Promise<DatosFisc
     .eq('id', clienteId)
     .maybeSingle();
   return (data as DatosFiscales) || null;
+}
+
+// Reportes de servicios ya concluidos que nadie ha ligado a una factura ni
+// marcado como «no se factura», agrupados por cliente: el punto de partida
+// para armar facturas (se factura por servicio, con todos sus reportes).
+export type PorFacturarCliente = {
+  clienteId: string | null;
+  cliente: string;
+  reportes: { id: string; fecha: string; folio: string | null; desde: string }[];
+};
+
+export async function reportesPorFacturar(): Promise<PorFacturarCliente[]> {
+  const { data, error } = await createClient()
+    .from('reports')
+    .select('id, fecha, empresa_cliente, cliente_id, folio:data->>claveFormato, estado:data->>facturaEstado, factura_id:data->>facturaId, concluido:data->>fechaConcluido')
+    .eq('data->>servicioConcluido', 'true')
+    .order('fecha', { ascending: true });
+  if (error) throw error;
+  const mapa = new Map<string, PorFacturarCliente>();
+  ((data as any[]) || []).forEach((r) => {
+    if (r.factura_id || (r.estado && r.estado !== 'pendiente')) return;
+    const clave = r.cliente_id || `nombre:${r.empresa_cliente}`;
+    const g: PorFacturarCliente = mapa.get(clave) || { clienteId: r.cliente_id || null, cliente: r.empresa_cliente, reportes: [] };
+    g.reportes.push({ id: r.id, fecha: r.fecha, folio: r.folio || null, desde: r.concluido || r.fecha });
+    mapa.set(clave, g);
+  });
+  // Primero el cliente con el reporte más viejo sin facturar.
+  return [...mapa.values()].sort((a, b) => a.reportes[0].desde.localeCompare(b.reportes[0].desde));
 }

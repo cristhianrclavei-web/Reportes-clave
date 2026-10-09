@@ -2,16 +2,16 @@
 
 import { useAliasClientes } from '@/lib/useAliasClientes';
 import { coincideBusqueda } from '@/lib/busqueda';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import SupervisorShell from '@/components/SupervisorShell';
 import TablaLista, { ColumnaTabla } from '@/components/TablaLista';
 import EmptyIllustration from '@/components/EmptyIllustration';
 import FacturaForm from '@/components/FacturaForm';
 import { VistaCondicional } from '@/lib/vistaSupervisor';
-import { EstadoFactura, ESTADO_FACTURA_CLS, ESTADO_FACTURA_LABEL, MonedaFactura } from '@/lib/facturas';
+import { EstadoFactura, ESTADO_FACTURA_CLS, ESTADO_FACTURA_LABEL, MonedaFactura, PorFacturarCliente, reportesPorFacturar } from '@/lib/facturas';
 import SubTabs from '@/components/SubTabs';
-import { Plus, Search, ReceiptText } from 'lucide-react';
+import { Plus, Search, ReceiptText, FileClock } from 'lucide-react';
 
 type FilaFactura = {
   id: string;
@@ -56,13 +56,20 @@ export default function FacturasList({
   userName,
   errorCarga,
   clienteInicial,
+  reportesIniciales = [],
 }: {
   facturas: FilaFactura[];
   userName?: string;
   errorCarga?: string | null;
   clienteInicial?: { id: string; nombre: string } | null;
+  // Reportes ya elegidos al llegar desde «Armar factura».
+  reportesIniciales?: string[];
 }) {
-  const [seccion, setSeccion] = useState<'nueva' | 'facturas'>(clienteInicial ? 'nueva' : 'facturas');
+  const [seccion, setSeccion] = useState<'nueva' | 'facturas' | 'pendientes'>(clienteInicial ? 'nueva' : 'facturas');
+  // Reportes concluidos que nadie ha facturado ni descartado, por cliente.
+  const [porFacturar, setPorFacturar] = useState<PorFacturarCliente[] | null>(null);
+  useEffect(() => { reportesPorFacturar().then(setPorFacturar).catch(() => setPorFacturar([])); }, []);
+  const totalPorFacturar = (porFacturar || []).reduce((n, g) => n + g.reportes.length, 0);
   const [search, setSearch] = useState('');
   const [filtro, setFiltro] = useState<'todas' | EstadoFactura>('todas');
   const aliasClientes = useAliasClientes();
@@ -116,11 +123,60 @@ export default function FacturasList({
         onCambiar={setSeccion}
         opciones={[
           { k: 'facturas', label: 'Facturas', Icono: ReceiptText },
+          { k: 'pendientes', label: totalPorFacturar > 0 ? `Por facturar · ${totalPorFacturar}` : 'Por facturar', Icono: FileClock },
           { k: 'nueva', label: 'Nueva factura', Icono: Plus },
         ]}
       />
 
-      {seccion === 'nueva' && <FacturaForm modo="crear" clienteInicial={clienteInicial} />}
+      {seccion === 'nueva' && <FacturaForm modo="crear" clienteInicial={clienteInicial} reportesIniciales={reportesIniciales} />}
+
+      {seccion === 'pendientes' && (
+        <>
+          <p className="text-[13px] text-muted mb-4 leading-relaxed max-w-2xl">
+            Reportes de servicios ya concluidos que no están en ninguna factura. Arma la factura del cliente con todos sus reportes; si alguno no se va a facturar, márcalo desde el propio reporte.
+          </p>
+          {porFacturar === null && <p className="text-[13px] text-muted py-6 text-center">Cargando…</p>}
+          {porFacturar && porFacturar.length === 0 && (
+            <div className="rounded-2xl bg-teal/10 border border-teal/25 px-4 py-4 text-center text-[14px] text-teal font-semibold">
+              No hay reportes pendientes de facturar
+            </div>
+          )}
+          <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3 items-start">
+            {(porFacturar || []).map((g) => (
+              <div key={g.clienteId || g.cliente} className="rounded-2xl bg-surface border border-line p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-display font-bold text-[16px] tracking-wide truncate">{g.cliente}</p>
+                    <p className="text-[12.5px] text-muted mt-0.5">
+                      {g.reportes.length} {g.reportes.length === 1 ? 'reporte' : 'reportes'} · el más antiguo del {formatFecha(g.reportes[0].desde)}
+                    </p>
+                  </div>
+                  {g.clienteId ? (
+                    <a
+                      href={`/dashboard/facturacion?cliente=${g.clienteId}&reporte=${g.reportes.map((r) => r.id).join(',')}`}
+                      className="shrink-0 min-h-[40px] px-3.5 rounded-full bg-teal text-inkOnAccent text-[13px] font-semibold inline-flex items-center gap-1.5 active:scale-95 transition-transform"
+                    >
+                      <Plus size={15} strokeWidth={2.6} />
+                      Armar factura
+                    </a>
+                  ) : (
+                    <span className="shrink-0 text-[11.5px] font-semibold text-amber text-right max-w-[130px] leading-snug">Sin cliente ligado: lígalo en Clientes</span>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1.5 mt-3">
+                  {g.reportes.slice(0, 12).map((r) => (
+                    <Link key={r.id} href={`/dashboard/reportes?reporte=${r.id}`} className="text-[12px] px-2.5 py-1 rounded-full bg-surface-2 border border-line hover:border-teal/45 transition-colors">
+                      <span className="font-mono text-teal">{r.folio || r.id.slice(0, 8).toUpperCase()}</span>
+                      <span className="text-muted"> · {formatFecha(r.fecha).slice(0, 5)}</span>
+                    </Link>
+                  ))}
+                  {g.reportes.length > 12 && <span className="text-[12px] text-muted px-1 py-1">+{g.reportes.length - 12} más</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       {seccion === 'facturas' && (
         <>

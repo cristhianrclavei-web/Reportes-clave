@@ -107,7 +107,7 @@ export default function FacturaForm({
     setIvaPct(d.ivaPct); setNotas(d.notas);
   }
   const borrador = useBorradorFormulario({
-    clave: modo === 'crear' ? `factura:nueva${clienteInicial?.id ? `:${clienteInicial.id}` : ''}` : `factura:${f0?.id || 'editar'}`,
+    clave: modo === 'crear' ? `factura:nueva${clienteInicial?.id ? `:${clienteInicial.id}` : ''}${reportesIniciales.length ? `:r${reportesIniciales.length}-${reportesIniciales[0].slice(0, 8)}` : ''}` : `factura:${f0?.id || 'editar'}`,
     datos: datosBorrador,
     hayDatos: modo === 'crear' && !guardando && Boolean(clienteNombre.trim() || notas.trim() || conceptos.some((c) => c.descripcion.trim())),
     aplicar: aplicarBorrador,

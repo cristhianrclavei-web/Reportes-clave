@@ -739,6 +739,7 @@ export default function ReportDetailModal({
           marcandoConcluido={marcandoConcluido}
           onMarcarFinalizado={handleMarcarFinalizado}
           onGuardarDatos={updateReportData}
+          clienteId={(report as any).cliente_id || null}
         />
         )}
 

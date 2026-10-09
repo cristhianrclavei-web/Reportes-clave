@@ -5,6 +5,7 @@ import {
   motivosFrecuentes, eficienciaPorGrupo, lunesDe, visitasEnFalso,
 } from './eficiencia';
 import { debeReporte } from './visitaSinTrabajo';
+import { estadoFacturacion } from './reportStatus';
 
 function iso(fecha: string, hora: string): string {
   return new Date(`${fecha}T${hora}`).toISOString();
@@ -173,5 +174,20 @@ describe('visitas sin trabajo', () => {
     expect(debeReporte({ report_id: null, visita_estado: 'liberado' })).toBe(false);
     expect(debeReporte({ report_id: null, visita_estado: 'rechazado' })).toBe(true);
     expect(debeReporte({ report_id: 'r1', visita_estado: 'rechazado' })).toBe(false);
+  });
+});
+
+describe('facturación de un reporte', () => {
+  it('pendiente solo mientras no esté en una factura ni descartado', () => {
+    expect(estadoFacturacion({})).toBe('sin_finalizar');
+    expect(estadoFacturacion({ servicioConcluido: true })).toBe('pendiente');
+    expect(estadoFacturacion({ servicioConcluido: true, facturaEstado: 'pendiente' })).toBe('pendiente');
+    expect(estadoFacturacion({ servicioConcluido: true, facturaEstado: 'en_proceso', facturaId: 'f1' })).toBe('en_factura');
+    expect(estadoFacturacion({ servicioConcluido: true, facturaEstado: 'facturado', facturaId: 'f1' })).toBe('facturado');
+    expect(estadoFacturacion({ servicioConcluido: true, facturaEstado: 'no_facturable' })).toBe('no_facturable');
+  });
+
+  it('la nota antigua de «no se puede facturar» se lee como no facturable', () => {
+    expect(estadoFacturacion({ servicioConcluido: true, facturaEstado: 'en_proceso', facturaNota: 'garantía' })).toBe('no_facturable');
   });
 });

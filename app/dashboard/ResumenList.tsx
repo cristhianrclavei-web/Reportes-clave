@@ -1,5 +1,6 @@
 'use client';
 
+import { estadoFacturacion } from '@/lib/reportStatus';
 import { useRouter } from 'next/navigation';
 import { useEnVivo, huellaReportes } from '@/lib/useEnVivo';
 import AvisoPlegable from '@/components/AvisoPlegable';
@@ -122,7 +123,7 @@ export default function ResumenList({
   const totalToday = ahora !== null ? reports.filter((r) => r.fecha === today).length : 0;
   const totalWeek = weekAgo ? reports.filter((r) => new Date(r.created_at) >= weekAgo).length : 0;
   const tecnicosActivos = new Set(reports.map((r) => techName(r.profiles))).size;
-  const porFacturar = reports.filter((r) => r.data?.servicioConcluido && r.data?.facturaEstado !== 'facturado').length;
+  const porFacturar = reports.filter((r) => estadoFacturacion(r.data) === 'pendiente').length;
   const concluidos = reports.filter((r) => r.data?.servicioConcluido).length;
   const ayer = ahora !== null ? hoyLocal(new Date(ahora - 864e5)) : '';
   const totalAyer = ahora !== null ? reports.filter((r) => r.fecha === ayer).length : 0;

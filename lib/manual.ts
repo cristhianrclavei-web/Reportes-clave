@@ -223,7 +223,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
         pasos: [
           'En Reportes abre uno para ver datos, fotos y firmas, y descargar su PDF.',
           'En la pestaña «Revisión» lo apruebas con tu firma o pides una corrección con una nota para el técnico.',
-          'Marca la factura cuando ya esté facturado.',
+          'Al concluir el servicio el reporte queda «pendiente de facturar». Se quita solo cuando el reporte entra en una factura; si no se va a cobrar, quien factura registra el motivo en «No se va a facturar».',
         ],
       },
       {
@@ -267,7 +267,9 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
         titulo: 'Facturación',
         resumen: 'Disponible para quien tiene ese permiso.',
         pasos: [
-          'Arma la prefactura con los reportes y conceptos a facturar.',
+          '«Por facturar» lista, por cliente, los reportes de servicios concluidos que no están en ninguna factura. «Armar factura» abre la prefactura con ese cliente y sus reportes ya elegidos; quita los que no correspondan.',
+          'Arma la prefactura con los reportes y conceptos a facturar. Los reportes quedan ligados a la factura y dejan de aparecer como pendientes.',
+          'Si un reporte no se va a facturar (garantía, cortesía, póliza), ábrelo y usa «No se va a facturar»: deja de aparecer como pendiente y ya no se ofrece al armar facturas. Se puede revertir.',
           'Cuando se timbre fuera de la app, registra aquí el folio fiscal y, después, el pago.',
         ],
         nota: 'La app no timbra por sí sola: lleva el control de lo facturado y lo pendiente.',

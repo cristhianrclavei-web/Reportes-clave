@@ -5,7 +5,7 @@ import FacturasList from './FacturasList';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export default async function FacturacionPage(props: { searchParams: Promise<{ cliente?: string }> }) {
+export default async function FacturacionPage(props: { searchParams: Promise<{ cliente?: string; reporte?: string }> }) {
   const searchParams = await props.searchParams;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -40,6 +40,7 @@ export default async function FacturacionPage(props: { searchParams: Promise<{ c
       userName={myProfile?.full_name || user.email || ''}
       errorCarga={error?.message || null}
       clienteInicial={clienteInicial}
+      reportesIniciales={clienteInicial && searchParams.reporte ? searchParams.reporte.split(',').filter(Boolean).slice(0, 60) : []}
     />
   );
 }
