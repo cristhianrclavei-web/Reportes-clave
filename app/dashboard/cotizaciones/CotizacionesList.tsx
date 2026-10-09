@@ -9,7 +9,9 @@ import TablaLista, { ColumnaTabla } from '@/components/TablaLista';
 import EmptyIllustration from '@/components/EmptyIllustration';
 import CotizacionForm from '@/components/CotizacionForm';
 import { VistaCondicional } from '@/lib/vistaSupervisor';
-import { Cotizacion, LineaCotizacion, obtenerCotizacion, copiaParaOtroCliente } from '@/lib/cotizaciones';
+import { Cotizacion, EstadoCotizacion, LineaCotizacion, obtenerCotizacion, copiaParaOtroCliente, actualizarEstadoCotizacion } from '@/lib/cotizaciones';
+import TableroKanban, { ColumnaKanban, InterruptorTablero, useVistaTablero } from '@/components/TableroKanban';
+import { useRouter } from 'next/navigation';
 import { hoyLocal } from '@/lib/fechaHoy';
 import { descartarBorradorFormulario } from '@/lib/useBorradorFormulario';
 import ModalOverlay from '@/components/ModalOverlay';
@@ -47,6 +49,13 @@ const ESTADO_LABEL: Record<Cotizacion['estado'], string> = {
   enviada: 'Enviada',
   rechazada: 'Rechazada',
 };
+
+const COLUMNAS_COTIZACION: ColumnaKanban<EstadoCotizacion>[] = [
+  { clave: 'borrador', titulo: 'Borrador', punto: 'bg-faint', vacio: 'Las nuevas empiezan aquí' },
+  { clave: 'aprobada', titulo: 'Aprobada', punto: 'bg-amber', vacio: 'Se aprueban con firma, desde la cotización' },
+  { clave: 'enviada', titulo: 'Enviada', punto: 'bg-teal', vacio: 'Arrastra aquí las que ya mandaste' },
+  { clave: 'rechazada', titulo: 'Rechazada', punto: 'bg-red', vacio: 'Las que el cliente no aceptó' },
+];
 
 function EstadoChip({ estado }: { estado: Cotizacion['estado'] }) {
   return (
@@ -105,8 +114,35 @@ export default function CotizacionesList({
   const [rango, setRango] = useState<RangoSeleccionado | null>(null);
   const fechasDeCotizaciones = useMemo(() => cotizaciones.map((c) => c.fecha).filter(Boolean), [cotizaciones]);
 
+  // Tablero: el estado que se cambia arrastrando se refleja aquí sin
+  // esperar a recargar la página.
+  const router = useRouter();
+  const [vistaTablero, setVistaTablero] = useVistaTablero('cotizaciones');
+  const [estadoLocal, setEstadoLocal] = useState<Record<string, EstadoCotizacion>>({});
+
+  // Las reglas del flujo no se saltan arrastrando: se aprueba con firma y
+  // solo se manda (o se rechaza) lo ya aprobado.
+  function puedeMoverCotizacion(c: Cotizacion, destino: EstadoCotizacion): true | string {
+    if (destino === 'borrador') return 'Una cotización ya aprobada no regresa a borrador.';
+    if (c.estado === 'borrador') {
+      if (destino === 'aprobada') {
+        router.push(`/dashboard/cotizaciones/${c.id}`);
+        return 'Se aprueba con firma: te llevo a la cotización para firmarla.';
+      }
+      return 'Primero hay que aprobarla con firma.';
+    }
+    // Ya pasó por la aprobación: entre aprobada, enviada y rechazada se
+    // mueve libre (también de regreso, si se marcó por error).
+    return true;
+  }
+  async function moverCotizacion(c: Cotizacion, destino: EstadoCotizacion) {
+    await actualizarEstadoCotizacion(c.id, destino);
+    setEstadoLocal((p) => ({ ...p, [c.id]: destino }));
+    showToast(`${c.folio}: ${ESTADO_LABEL[destino].toLowerCase()}`, 'success');
+  }
+
   const filtradas = useMemo(() => {
-    return cotizaciones.filter((c) => {
+    return cotizaciones.map((c) => (estadoLocal[c.id] ? { ...c, estado: estadoLocal[c.id] } : c)).filter((c) => {
       // El rango de fechas no aplica cuando se busca por texto: quien escribe
       // el nombre de un cliente quiere encontrarlo esté en la semana que esté.
       if (!search && rango && c.fecha) {
@@ -118,7 +154,7 @@ export default function CotizacionesList({
       }
       return true;
     });
-  }, [cotizaciones, search, rango, aliasClientes]);
+  }, [cotizaciones, search, rango, aliasClientes, estadoLocal]);
 
   const columnas: ColumnaTabla<Cotizacion>[] = [
     { header: 'Cliente / Empresa', render: (c) => <span className="font-semibold">{c.empresa}</span> },
@@ -201,14 +237,17 @@ export default function CotizacionesList({
         <>
           <SelectorSemana fechas={fechasDeCotizaciones} onCambio={setRango} etiqueta="cotizaciones" />
 
-          <div className="relative mb-4">
-            <Search size={16} strokeWidth={2.4} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-faint" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por cliente, folio o quién la hizo..."
-              className="w-full pl-10 pr-3.5 min-h-[48px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[14.5px]"
-            />
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="relative flex-1 min-w-0">
+              <Search size={16} strokeWidth={2.4} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-faint" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar por cliente, folio o quién la hizo..."
+                className="w-full pl-10 pr-3.5 min-h-[48px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[14.5px]"
+              />
+            </div>
+            <InterruptorTablero vista={vistaTablero} onCambiar={setVistaTablero} />
           </div>
 
           {filtradas.length === 0 && (
@@ -229,7 +268,37 @@ export default function CotizacionesList({
             </div>
           )}
 
-          {filtradas.length > 0 && (
+          {filtradas.length > 0 && vistaTablero === 'tablero' && (
+            <TableroKanban<Cotizacion, EstadoCotizacion>
+              columnas={COLUMNAS_COTIZACION}
+              items={filtradas}
+              columnaDe={(c) => c.estado}
+              keyFn={(c) => c.id}
+              puedeMover={puedeMoverCotizacion}
+              onMover={moverCotizacion}
+              onAviso={(t, tipo) => showToast(t, tipo)}
+              pie={(lista) => {
+                const mxn = lista.filter((c) => c.moneda !== 'USD').reduce((s, c) => s + (c.total || 0), 0);
+                const usd = lista.filter((c) => c.moneda === 'USD').reduce((s, c) => s + (c.total || 0), 0);
+                return <>Suma: <b className="text-ink font-semibold">{money(mxn)}</b>{usd > 0 && <> · <b className="text-ink font-semibold">USD {money(usd)}</b></>}</>;
+              }}
+              tarjeta={(c) => (
+                <Link href={`/dashboard/cotizaciones/${c.id}`} draggable={false} className="group block px-3 pt-3 pb-1.5">
+                  <span className="flex items-start justify-between gap-2">
+                    <strong className="font-display font-bold text-[14.5px] tracking-wide leading-snug min-w-0 truncate transition-colors group-hover:text-teal">{c.empresa}</strong>
+                    <span className="text-[11.5px] font-mono font-semibold text-teal shrink-0">{c.folio}</span>
+                  </span>
+                  <span className="block text-[12px] text-muted truncate mt-0.5">{nombreCreador(c.profiles)} · {formatFecha(c.fecha)}</span>
+                  <span className="block font-display font-bold text-[15px] mt-1.5">
+                    {c.moneda === 'USD' && <span className="text-muted font-normal text-[11px]">USD </span>}
+                    {money(c.total)}
+                  </span>
+                </Link>
+              )}
+            />
+          )}
+
+          {filtradas.length > 0 && vistaTablero === 'lista' && (
             <VistaCondicional
               tabla={
                 <TablaLista

@@ -1,5 +1,6 @@
 'use client';
 
+import TableroKanban, { ColumnaKanban, InterruptorTablero, useVistaTablero } from '@/components/TableroKanban';
 import ReportesDelCliente from '@/components/ReportesDelCliente';
 import FacturasDelCliente from '@/components/FacturasDelCliente';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -12,7 +13,7 @@ import {
   ClienteContacto, obtenerClienteCompleto, actualizarPerfilCliente, subirLogoCliente, subirFotoPortadaCliente,
   eliminarFotoPortadaCliente, agregarContacto, eliminarContacto, eliminarCliente, marcarClienteRevisado,
 } from '@/lib/clientes';
-import { EstadoProyecto, SISTEMAS_SUGERIDOS, crearProyectoParaCliente } from '@/lib/proyectos';
+import { EstadoProyecto, SISTEMAS_SUGERIDOS, crearProyectoParaCliente, actualizarEstadoProyecto } from '@/lib/proyectos';
 import { DatosCliente, datosClienteVacios, datosDesdeCliente } from '@/lib/clienteDatos';
 import CamposCliente from '@/components/CamposCliente';
 import ClienteAvatar, { fondoAvatar } from '@/components/ClienteAvatar';
@@ -26,6 +27,12 @@ const ESTADO_CLS: Record<EstadoProyecto, string> = {
   en_curso: 'bg-teal/15 text-teal border-teal/30',
   concluido: 'bg-surface-2 text-muted border-line',
 };
+const COLUMNAS_PROYECTO: ColumnaKanban<EstadoProyecto>[] = [
+  { clave: 'propuesta', titulo: 'Propuesta', punto: 'bg-amber', vacio: 'Lo que está cotizándose' },
+  { clave: 'en_curso', titulo: 'En curso', punto: 'bg-teal', vacio: 'Arrastra aquí lo que ya arrancó' },
+  { clave: 'concluido', titulo: 'Concluido', punto: 'bg-teal-dark', vacio: 'Lo terminado' },
+];
+
 const ESTADO_LABEL: Record<EstadoProyecto, string> = {
   propuesta: 'Propuesta', en_curso: 'En curso', concluido: 'Concluido',
 };
@@ -43,6 +50,7 @@ function formatFecha(iso: string): string {
 export default function ClienteDetalle({ clienteId, userName }: { clienteId: string; userName?: string }) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [vistaTablero, setVistaTablero] = useVistaTablero('proyectos');
   const [error, setError] = useState<string | null>(null);
   const [datos, setDatos] = useState<Awaited<ReturnType<typeof obtenerClienteCompleto>> | null>(null);
   const fotoInputRef = useRef<HTMLInputElement>(null);
@@ -405,6 +413,43 @@ export default function ClienteDetalle({ clienteId, userName }: { clienteId: str
         </div>
       )}
 
+      {datos && datos.proyectos.length > 0 && (
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-muted">Proyectos · {datos.proyectos.length}</p>
+          <InterruptorTablero vista={vistaTablero} onCambiar={setVistaTablero} />
+        </div>
+      )}
+
+      {datos && vistaTablero === 'tablero' && datos.proyectos.length > 0 && (
+        <div className="mb-6">
+          <TableroKanban<(typeof datos.proyectos)[number], EstadoProyecto>
+            columnas={COLUMNAS_PROYECTO}
+            items={datos.proyectos}
+            columnaDe={(p) => p.estado}
+            keyFn={(p) => p.id}
+            onMover={async (p, destino) => {
+              await actualizarEstadoProyecto(p.id, destino);
+              // Se refleja aquí mismo: recargar todo borraría el tablero un instante.
+              setDatos((d) => (d ? { ...d, proyectos: d.proyectos.map((x) => (x.id === p.id ? { ...x, estado: destino, concluido_en: destino === 'concluido' ? x.concluido_en || new Date().toISOString() : null } : x)) } : d));
+              showToast(`${p.nombre}: ${ESTADO_LABEL[destino].toLowerCase()}`, 'success');
+            }}
+            onAviso={(t, tipo) => showToast(t, tipo)}
+            tarjeta={(p) => (
+              <Link href={`/dashboard/proyectos/${clienteId}/${p.id}`} draggable={false} className="group block px-3 pt-3 pb-1.5">
+                <strong className="block text-[14px] font-semibold leading-snug transition-colors group-hover:text-teal">{p.nombre}</strong>
+                <span className="block text-[12px] text-teal font-medium truncate mt-0.5">{p.sistema}</span>
+                <span className="flex flex-wrap items-center gap-1.5 mt-1.5 text-[11px] text-muted">
+                  {p.estado === 'concluido' && p.concluido_en && <span>{formatFecha(p.concluido_en)}</span>}
+                  {p.documentos_nombres.length > 0 && <span className="flex items-center gap-1"><FileText size={10} strokeWidth={2.4} /> {p.documentos_nombres.length}</span>}
+                  {p.cotizaciones_count > 0 && <span className="flex items-center gap-1"><Receipt size={10} strokeWidth={2.4} /> {p.cotizaciones_count}</span>}
+                </span>
+              </Link>
+            )}
+          />
+        </div>
+      )}
+
+      {vistaTablero === 'lista' && (
       <div className="flex flex-col gap-4 mb-6">
         {grupos.map(({ sistema, proyectos }) => (
           <div key={sistema} className={cardCls}>
@@ -447,6 +492,7 @@ export default function ClienteDetalle({ clienteId, userName }: { clienteId: str
           </div>
         ))}
       </div>
+      )}
 
       <button
         onClick={handleEliminarCliente}

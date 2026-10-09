@@ -9,7 +9,11 @@ import TablaLista, { ColumnaTabla } from '@/components/TablaLista';
 import EmptyIllustration from '@/components/EmptyIllustration';
 import FacturaForm from '@/components/FacturaForm';
 import { VistaCondicional } from '@/lib/vistaSupervisor';
-import { EstadoFactura, ESTADO_FACTURA_CLS, ESTADO_FACTURA_LABEL, MonedaFactura, PorFacturarCliente, reportesPorFacturar } from '@/lib/facturas';
+import { EstadoFactura, ESTADO_FACTURA_CLS, ESTADO_FACTURA_LABEL, MonedaFactura, PorFacturarCliente, reportesPorFacturar, cambiarEstadoFactura } from '@/lib/facturas';
+import TableroKanban, { ColumnaKanban, InterruptorTablero, useVistaTablero } from '@/components/TableroKanban';
+import { useRouter } from 'next/navigation';
+import { showToast } from '@/components/Toast';
+import { hoyLocal } from '@/lib/fechaHoy';
 import SubTabs from '@/components/SubTabs';
 import { Plus, Search, ReceiptText, FileClock } from 'lucide-react';
 
@@ -51,8 +55,14 @@ const FILTROS: { key: 'todas' | EstadoFactura; label: string }[] = [
   { key: 'cancelada', label: 'Canceladas' },
 ];
 
+const COLUMNAS_FACTURA: ColumnaKanban<EstadoFactura>[] = [
+  { clave: 'borrador', titulo: 'Prefactura', punto: 'bg-amber', vacio: 'Las que faltan por timbrar' },
+  { clave: 'timbrada', titulo: 'Timbrada · por cobrar', punto: 'bg-teal', vacio: 'Se timbran desde la factura, con su folio fiscal' },
+  { clave: 'pagada', titulo: 'Pagada', punto: 'bg-teal-dark', vacio: 'Arrastra aquí las que ya te pagaron' },
+];
+
 export default function FacturasList({
-  facturas,
+  facturas: facturasIniciales,
   userName,
   errorCarga,
   clienteInicial,
@@ -72,7 +82,32 @@ export default function FacturasList({
   const totalPorFacturar = (porFacturar || []).reduce((n, g) => n + g.reportes.length, 0);
   const [search, setSearch] = useState('');
   const [filtro, setFiltro] = useState<'todas' | EstadoFactura>('todas');
+  // Tablero: prefactura → timbrada → pagada. Lo que se mueve se refleja aquí.
+  const router = useRouter();
+  const [vistaTablero, setVistaTablero] = useVistaTablero('facturas');
+  const [estadoLocal, setEstadoLocal] = useState<Record<string, EstadoFactura>>({});
+
+  // Timbrar pide el folio fiscal y cancelar es una decisión aparte: ninguna
+  // de las dos se hace arrastrando.
+  function puedeMoverFactura(f: FilaFactura, destino: EstadoFactura): true | string {
+    if (destino === 'borrador') return 'Una factura ya timbrada no regresa a prefactura.';
+    if (f.estado === 'borrador') {
+      router.push(`/dashboard/facturacion/${f.id}`);
+      return 'Para timbrarla se registra su folio fiscal: te llevo a la factura.';
+    }
+    return true;
+  }
+  async function moverFactura(f: FilaFactura, destino: EstadoFactura) {
+    await cambiarEstadoFactura(f.id, destino === 'pagada' ? { estado: 'pagada', fecha_pago: hoyLocal() } : { estado: destino, fecha_pago: null });
+    setEstadoLocal((p) => ({ ...p, [f.id]: destino }));
+    showToast(destino === 'pagada' ? `${f.folio}: pagada con fecha de hoy (se cambia en la factura)` : `${f.folio}: de vuelta a timbrada`, 'success');
+  }
   const aliasClientes = useAliasClientes();
+
+  const facturas = useMemo(
+    () => facturasIniciales.map((f) => (estadoLocal[f.id] ? { ...f, estado: estadoLocal[f.id] } : f)),
+    [facturasIniciales, estadoLocal],
+  );
 
   const conteo = useMemo(() => {
     const c: Record<string, number> = { todas: facturas.length };
@@ -247,17 +282,50 @@ export default function FacturasList({
             ))}
           </div>
 
-          <div className="relative mb-4">
-            <Search size={16} strokeWidth={2.4} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-faint" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por cliente o folio…"
-              className="w-full pl-10 pr-3.5 min-h-[48px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[14.5px]"
-            />
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="relative flex-1 min-w-0">
+              <Search size={16} strokeWidth={2.4} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-faint" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar por cliente o folio…"
+                className="w-full pl-10 pr-3.5 min-h-[48px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[14.5px]"
+              />
+            </div>
+            <InterruptorTablero vista={vistaTablero} onCambiar={setVistaTablero} />
           </div>
 
-          {filtradas.length === 0 ? (
+          {filtradas.length > 0 && vistaTablero === 'tablero' ? (
+            <>
+              <TableroKanban<FilaFactura, EstadoFactura>
+                columnas={COLUMNAS_FACTURA}
+                items={filtradas.filter((f) => f.estado !== 'cancelada')}
+                columnaDe={(f) => f.estado}
+                keyFn={(f) => f.id}
+                puedeMover={puedeMoverFactura}
+                onMover={moverFactura}
+                onAviso={(t, tipo) => showToast(t, tipo)}
+                pie={(lista) => {
+                  const mxn = lista.filter((f) => f.moneda === 'MXN').reduce((n, f) => n + f.total, 0);
+                  const usd = lista.filter((f) => f.moneda === 'USD').reduce((n, f) => n + f.total, 0);
+                  return <>Suma: <b className="text-ink font-semibold">{money(mxn, 'MXN')}</b>{usd > 0 && <> · <b className="text-ink font-semibold">{money(usd, 'USD')}</b></>}</>;
+                }}
+                tarjeta={(f) => (
+                  <Link href={`/dashboard/facturacion/${f.id}`} draggable={false} className="group block px-3 pt-3 pb-1.5">
+                    <span className="flex items-start justify-between gap-2">
+                      <strong className="font-display font-bold text-[14.5px] tracking-wide leading-snug min-w-0 truncate transition-colors group-hover:text-teal">{f.receptor_nombre}</strong>
+                      <span className="text-[11.5px] font-mono font-semibold text-teal shrink-0">{f.folio}</span>
+                    </span>
+                    <span className="block text-[12px] text-muted truncate mt-0.5">{formatFecha(f.fecha)}{f.folio_fiscal ? ` · CFDI ${f.folio_fiscal}` : ''}</span>
+                    <span className="block font-display font-bold text-[15px] mt-1.5">{money(f.total, f.moneda)}</span>
+                  </Link>
+                )}
+              />
+              {filtradas.some((f) => f.estado === 'cancelada') && (
+                <p className="text-[12.5px] text-muted mt-1">Las canceladas no van en el tablero; están en la vista de lista con el filtro «Canceladas».</p>
+              )}
+            </>
+          ) : filtradas.length === 0 ? (
             <div className="flex flex-col items-center py-14 text-center">
               <div className="w-14 h-14 rounded-2xl bg-surface-2 border border-line flex items-center justify-center mb-3.5">
                 <EmptyIllustration variante="cotizacion" />

@@ -269,6 +269,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
         titulo: 'Facturación',
         resumen: 'Disponible para quien tiene ese permiso.',
         pasos: [
+          'En Cotizaciones, Facturas y los proyectos de un cliente, el interruptor «Lista / Tablero» cambia a columnas por estado. Arrastra una tarjeta a otra columna para cambiar su estado; en celular usa «Mover a…». Lo que pide un paso propio no se salta arrastrando: una cotización se aprueba con firma y una factura se timbra registrando su folio fiscal (el tablero te lleva ahí).',
           '«Por facturar» lista, por cliente, los reportes de servicios concluidos que no están en ninguna factura. «Armar factura» abre la prefactura con ese cliente y sus reportes ya elegidos; quita los que no correspondan.',
           'Arma la prefactura con los reportes y conceptos a facturar. Los reportes quedan ligados a la factura y dejan de aparecer como pendientes.',
           'Si un reporte no se va a facturar (garantía, cortesía, póliza), ábrelo y usa «No se va a facturar»: deja de aparecer como pendiente y ya no se ofrece al armar facturas. Se puede revertir.',
