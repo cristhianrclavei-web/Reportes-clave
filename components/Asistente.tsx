@@ -912,6 +912,17 @@ export default function Asistente() {
                 {escuchando ? <Square size={16} fill="currentColor" /> : <Mic size={19} />}
               </button>
             )}
+            {/* Donde el navegador no trae dictado, el micrófono no desaparece:
+                queda atenuado y al tocarlo explica por qué y qué hacer. */}
+            {!puedeDictar && (
+              <button
+                type="button" aria-label="El dictado no está disponible en este navegador"
+                onClick={() => setAvisoVoz('Este navegador no permite dictar ni conversar por voz. Abre la app en Google Chrome (o instálala desde Chrome) para usar el micrófono.')}
+                className="w-11 h-11 shrink-0 rounded-full flex items-center justify-center border border-line bg-surface-2 text-muted/60 transition active:scale-90"
+              >
+                <MicOff size={18} />
+              </button>
+            )}
             {/* Con texto o foto, el botón principal envía; vacío, abre la
                 conversación por voz (si el navegador puede dictar). */}
             {texto.trim() || adjuntos.length > 0 || !puedeDictar ? (
