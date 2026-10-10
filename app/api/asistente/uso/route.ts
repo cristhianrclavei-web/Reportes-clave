@@ -8,8 +8,8 @@ export const dynamic = 'force-dynamic';
 // Panel de uso del asistente. Lo ve solo quien administra el asistente: las
 // cuentas cuyo correo esté en ASISTENTE_PANEL_CORREOS (separados por coma).
 // No es un permiso de rol porque incluye lo que pregunta cada persona y el
-// gasto de la cuenta de Claude.
-const CORREOS_PANEL = (process.env.ASISTENTE_PANEL_CORREOS || 'cristhianmonster503@gmail.com')
+// gasto de la cuenta de Claude. Sin la variable, nadie ve el panel.
+const CORREOS_PANEL = (process.env.ASISTENTE_PANEL_CORREOS || '')
   .split(',').map((c) => c.trim().toLowerCase()).filter(Boolean);
 
 // Respuestas donde el asistente no pudo ayudar: sirven de guía para mejorarlo.
