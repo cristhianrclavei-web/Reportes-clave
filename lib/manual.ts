@@ -181,6 +181,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
           'Arriba: reportes de hoy y de la semana, lo que falta por facturar y los avisos que piden una decisión.',
           '«Productividad del equipo» muestra servicios concluidos, horas en sitio y reportes entregados de los últimos 7, 14 o 30 días, cada uno comparado con el periodo anterior. Toca una de las tres cifras para verla día por día en la gráfica; la línea punteada es el periodo anterior.',
           '«Reportes por técnico» cuenta cuántos reportes hizo cada persona desde su propia cuenta; no importa quién lo firma.',
+          'En «KPIs operativos» puedes ver hoy, esta semana o un mes completo: toca «Mes» y usa las flechas para elegir cuál.',
           'Abajo: las gráficas de la semana y el desempeño operativo. Pasa el cursor (o toca) sobre una columna, barra o punto para ver qué se midió ahí. El botón ⓘ de cada tarjeta explica cómo se calcula.',
           '«Eficiencia de servicios» lee cada día concluido de las últimas 8 semanas como a favor, en contra o desviado por causa externa, según lo que el técnico respondió al cerrar. Muestra los motivos más frecuentes y el detalle por técnico o por cliente.',
           '«Visitas en falso» cuenta los días en que el personal llegó y no se pudo trabajar, por cliente.',

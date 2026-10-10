@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Users } from 'lucide-react';
+import { Users, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ReportDetail, techName } from './ReportDetailModal';
 import BotonInfo from '@/components/BotonInfo';
 import { hoyLocal } from '@/lib/fechaHoy';
@@ -45,6 +45,19 @@ function formatDuracion(mins: number): string {
   return `${h} h ${m} min`;
 }
 
+// «2026-10» → «octubre 2026».
+function nombreMes(mes: string): string {
+  const [y, m] = mes.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString('es-MX', { month: 'long', year: 'numeric' }).replace(' de ', ' ');
+}
+
+// El mes anterior (-1) o el siguiente (+1) a «2026-10».
+function moverMes(mes: string, pasos: number): string {
+  const [y, m] = mes.split('-').map(Number);
+  const d = new Date(y, m - 1 + pasos, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 function isCompletado(r: Report): boolean {
   // "Completado" ahora significa que el Ing. Everardo Sánchez ya revisó y firmó el reporte.
   return Boolean(r.data?.firmaRevisionData);
@@ -54,7 +67,9 @@ function tieneObservaciones(r: Report): boolean {
 }
 
 export default function KpiSection({ reports }: { reports: Report[] }) {
-  const [periodo, setPeriodo] = useState<'dia' | 'semana'>('semana');
+  const [periodo, setPeriodo] = useState<'dia' | 'semana' | 'mes'>('semana');
+  // Mes elegido cuando el periodo es «mes» (AAAA-MM); null = el mes en curso.
+  const [mesElegido, setMesElegido] = useState<string | null>(null);
   // "Hoy"/"esta semana" dependen de la hora del navegador, que puede no
   // coincidir con la del servidor (Vercel corre en UTC) — ver el comentario
   // en components/SelectorSemana.tsx. Mismo patrón: arranca en null (mismo
@@ -75,13 +90,21 @@ export default function KpiSection({ reports }: { reports: Report[] }) {
       });
   }, []);
 
+  const mesActual = ahora === null ? '' : hoyLocal(new Date(ahora)).slice(0, 7);
+  const mes = mesElegido || mesActual;
+  // Cómo se nombra el periodo en los títulos de las tarjetas.
+  let textoPeriodo = 'esta semana';
+  if (periodo === 'dia') textoPeriodo = 'hoy';
+  if (periodo === 'mes' && mes) textoPeriodo = nombreMes(mes);
+
   const kpiReports = useMemo(() => {
     if (ahora === null) return [];
     const today = hoyLocal(new Date(ahora));
+    if (periodo === 'mes') return reports.filter((r) => (r.fecha || '').startsWith(mes));
     const weekAgo = new Date(ahora - 7 * 864e5);
     if (periodo === 'dia') return reports.filter((r) => r.fecha === today);
     return reports.filter((r) => new Date(r.created_at) >= weekAgo);
-  }, [reports, periodo, ahora]);
+  }, [reports, periodo, ahora, mes]);
 
   // Reportes por técnico, según la cuenta desde la que se capturó (no quién
   // firma). Salen todos los técnicos y cualquiera que haya hecho un reporte,
@@ -137,12 +160,20 @@ export default function KpiSection({ reports }: { reports: Report[] }) {
 
   const totalConformidad = conformes + conObservaciones + sinFirma;
 
-  // Últimos 7 días: cuántos reportes hubo cada día y cuánto duró en promedio
-  // el servicio. Siempre es la semana, sin importar el periodo elegido.
+  // Cuántos reportes hubo cada día y cuánto duró en promedio el servicio: los
+  // últimos 7 días o, con el periodo «mes», todos los días de ese mes.
   const dias = useMemo(() => {
     if (ahora === null) return [];
-    return Array.from({ length: 7 }, (_, i) => {
-      const fecha = hoyLocal(new Date(ahora - (6 - i) * 864e5));
+    const hoy = hoyLocal(new Date(ahora));
+    let fechas: string[] = [];
+    if (periodo === 'mes') {
+      const [año, numMes] = mes.split('-').map(Number);
+      const diasDelMes = new Date(año, numMes, 0).getDate();
+      fechas = Array.from({ length: diasDelMes }, (_, i) => `${mes}-${String(i + 1).padStart(2, '0')}`);
+    } else {
+      fechas = Array.from({ length: 7 }, (_, i) => hoyLocal(new Date(ahora - (6 - i) * 864e5)));
+    }
+    return fechas.map((fecha) => {
       const delDia = reports.filter((r) => r.fecha === fecha);
       const dur = delDia.map(reportDurationMinutes).filter((d): d is number => d !== null);
       const [y, m, d] = fecha.split('-').map(Number);
@@ -153,11 +184,12 @@ export default function KpiSection({ reports }: { reports: Report[] }) {
         letra: ['D', 'L', 'M', 'M', 'J', 'V', 'S'][new Date(y, m - 1, d).getDay()],
         dia: d,
         nombre: new Date(y, m - 1, d).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'short' }),
-        esHoy: i === 6,
+        esHoy: fecha === hoy,
       };
     });
-  }, [reports, ahora]);
+  }, [reports, ahora, periodo, mes]);
   const maxDia = Math.max(1, ...dias.map((d) => d.n));
+  const espacioDias = periodo === 'mes' ? 'gap-[3px] sm:gap-1.5' : 'gap-2 sm:gap-3';
   const totalSemana = dias.reduce((a, d) => a + d.n, 0);
 
   // Qué sistemas se atendieron en el periodo (un reporte puede llevar varios).
@@ -176,10 +208,25 @@ export default function KpiSection({ reports }: { reports: Report[] }) {
 
   return (
     <ZonaGraficas className="mb-6">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between gap-x-3 gap-y-2 flex-wrap mb-3">
         <h2 className="font-display font-semibold text-[15px] tracking-wide">KPIs operativos</h2>
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {/* Con «Mes» se elige cuál: flechas para ir a meses anteriores. */}
+          {periodo === 'mes' && mes && (
+            <div className="flex items-center gap-0.5 bg-surface-2 rounded-full p-1 border border-line">
+              <button type="button" onClick={() => setMesElegido(moverMes(mes, -1))} aria-label="Mes anterior"
+                className="w-7 h-7 rounded-full flex items-center justify-center text-muted hover:text-ink hover:bg-surface transition-colors">
+                <ChevronLeft size={16} />
+              </button>
+              <span className="px-1.5 text-[12px] font-medium min-w-[104px] text-center first-letter:uppercase" aria-live="polite">{nombreMes(mes)}</span>
+              <button type="button" onClick={() => setMesElegido(moverMes(mes, 1))} disabled={mes >= mesActual} aria-label="Mes siguiente"
+                className="w-7 h-7 rounded-full flex items-center justify-center text-muted hover:text-ink hover:bg-surface transition-colors disabled:opacity-30 disabled:pointer-events-none">
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          )}
         <div className="flex items-center gap-1 bg-surface-2 rounded-full p-1 border border-line">
-          {(['dia', 'semana'] as const).map((p) => (
+          {(['dia', 'semana', 'mes'] as const).map((p) => (
             <button
               key={p}
               onClick={() => setPeriodo(p)}
@@ -187,31 +234,33 @@ export default function KpiSection({ reports }: { reports: Report[] }) {
                 periodo === p ? 'bg-teal text-inkOnAccent' : 'text-muted'
               }`}
             >
-              {p === 'dia' ? 'Hoy' : 'Esta semana'}
+              {p === 'dia' ? 'Hoy' : p === 'semana' ? 'Esta semana' : 'Mes'}
             </button>
           ))}
         </div>
+        </div>
       </div>
 
-      {/* Fila 1: el ritmo de la semana y en qué se trabajó */}
+      {/* Fila 1: el ritmo del periodo y en qué se trabajó */}
       <div className="grid grid-cols-1 lg:grid-cols-[1.6fr_1fr] gap-3 mb-3">
         {/* Reportes por día: columnas */}
         <Marco className="glass rounded-2xl p-4 lg:p-5 flex flex-col">
           <div className="flex items-start justify-between gap-3 mb-4">
             <div>
-              <div className="text-[10px] uppercase tracking-wider text-muted mb-1">Reportes por día · últimos 7 días</div>
+              <div className="text-[10px] uppercase tracking-wider text-muted mb-1">Reportes por día · {periodo === 'mes' ? nombreMes(mes) : 'últimos 7 días'}</div>
               <p className="leading-none">
                 <Contador valor={totalSemana} className="font-display text-[30px] font-bold" />
-                <span className="text-[12.5px] text-muted"> reporte{totalSemana === 1 ? '' : 's'} en la semana</span>
+                <span className="text-[12.5px] text-muted"> reporte{totalSemana === 1 ? '' : 's'} en {periodo === 'mes' ? 'el mes' : 'la semana'}</span>
               </p>
             </div>
             <BotonInfo titulo="Reportes por día">
-              Cuántos reportes de servicio se entregaron cada día de la última semana, por la fecha
-              del servicio. La columna de hoy va resaltada.
+              Cuántos reportes de servicio se entregaron cada día, por la fecha del servicio: la
+              última semana o, si eliges «Mes», todos los días de ese mes. La columna de hoy va
+              resaltada.
             </BotonInfo>
           </div>
           <div className="relative flex-1 flex flex-col">
-            <div className="flex-1 flex items-end gap-2 sm:gap-3 min-h-[150px] border-b border-line-strong">
+            <div className={`flex-1 flex items-end min-h-[150px] border-b border-line-strong ${espacioDias}`}>
               {dias.map((d, i) => (
                 <Punto key={d.fecha} grupo="dias" className="relative flex-1 h-full flex flex-col justify-end items-center"
                   etiqueta={`${d.nombre}: ${d.n} reporte${d.n === 1 ? '' : 's'}`}
@@ -221,14 +270,17 @@ export default function KpiSection({ reports }: { reports: Report[] }) {
                       filas={[
                         { color: COLOR.acento, texto: 'Reportes entregados', valor: d.n },
                         ...(d.duracion !== null ? [{ texto: 'Duración promedio', valor: formatDuracion(d.duracion) }] : []),
-                        ...(totalSemana > 0 ? [{ texto: 'Parte de la semana', valor: `${Math.round((d.n / totalSemana) * 100)}%` }] : []),
+                        ...(totalSemana > 0 ? [{ texto: periodo === 'mes' ? 'Parte del mes' : 'Parte de la semana', valor: `${Math.round((d.n / totalSemana) * 100)}%` }] : []),
                       ]}
-                      nota={d.n === 0 ? 'Sin reportes ese día.' : d.n === maxDia ? 'El día más productivo de la semana.' : undefined}
+                      nota={d.n === 0 ? 'Sin reportes ese día.' : d.n === maxDia ? `El día más productivo ${periodo === 'mes' ? 'del mes' : 'de la semana'}.` : undefined}
                     />
                   }>
                   {(activo, otro) => (
                     <>
-                      <span className={`text-[12px] font-semibold tabular-nums mb-1 transition-colors ${d.n === 0 ? 'text-faint' : activo ? 'text-teal' : ''}`}>{d.n}</span>
+                      {/* Con todo un mes no caben los números: se ven al señalar la columna. */}
+                      {(periodo !== 'mes' || activo) && (
+                        <span className={`text-[12px] font-semibold tabular-nums mb-1 transition-colors ${d.n === 0 ? 'text-faint' : activo ? 'text-teal' : ''}`}>{d.n}</span>
+                      )}
                       <Crece eje="y" orden={i} data-ancla="" pct={d.n === 0 ? 2 : Math.max(6, (d.n / maxDia) * 100 * 0.82)}
                         className={`w-full max-w-[56px] rounded-t-[5px] transition-[background-color,opacity,box-shadow] duration-200 ${
                           activo ? 'bg-teal shadow-glow-teal' : d.esHoy ? 'bg-teal' : 'bg-teal/45'} ${otro ? 'opacity-55' : ''}`} />
@@ -237,11 +289,12 @@ export default function KpiSection({ reports }: { reports: Report[] }) {
                 </Punto>
               ))}
             </div>
-            <div className="flex gap-2 sm:gap-3 mt-1.5">
+            <div className={`flex mt-1.5 ${espacioDias}`}>
               {dias.map((d) => (
-                <div key={d.fecha} className={`flex-1 text-center text-[11px] leading-tight ${d.esHoy ? 'text-teal font-semibold' : 'text-muted'}`}>
-                  {d.letra} {d.dia}
-                  {d.esHoy && <span className="block text-[10px]">hoy</span>}
+                <div key={d.fecha} className={`flex-1 min-w-0 text-center leading-tight whitespace-nowrap ${periodo === 'mes' ? 'text-[10px]' : 'text-[11px]'} ${d.esHoy ? 'text-teal font-semibold' : 'text-muted'}`}>
+                  {/* En el mes solo se rotulan el 1, cada 5 días y hoy. */}
+                  {periodo !== 'mes' && <>{d.letra} {d.dia}{d.esHoy && <span className="block text-[10px]">hoy</span>}</>}
+                  {periodo === 'mes' && (d.dia === 1 || d.dia % 5 === 0 || d.esHoy) && d.dia}
                 </div>
               ))}
             </div>
@@ -251,7 +304,7 @@ export default function KpiSection({ reports }: { reports: Report[] }) {
         {/* Sistemas atendidos: barras horizontales, de más a menos */}
         <Marco className="glass rounded-2xl p-4 lg:p-5">
           <div className="flex items-center gap-1.5 mb-4">
-            <div className="text-[10px] uppercase tracking-wider text-muted">Sistemas atendidos · {periodo === 'dia' ? 'hoy' : 'esta semana'}</div>
+            <div className="text-[10px] uppercase tracking-wider text-muted">Sistemas atendidos · {textoPeriodo}</div>
             <BotonInfo titulo="Sistemas atendidos">
               En qué tipo de sistema se trabajó, según lo que marca cada reporte. Un reporte puede
               contar en más de un sistema.
@@ -295,7 +348,7 @@ export default function KpiSection({ reports }: { reports: Report[] }) {
         <Marco className="glass rounded-2xl p-4 lg:p-5">
           <div className="flex items-center gap-1.5 mb-4">
             <Users size={14} strokeWidth={2.2} className="text-teal" />
-            <div className="text-[10px] uppercase tracking-wider text-muted">Reportes por técnico · {periodo === 'dia' ? 'hoy' : 'esta semana'}</div>
+            <div className="text-[10px] uppercase tracking-wider text-muted">Reportes por técnico · {textoPeriodo}</div>
             <BotonInfo titulo="Reportes por técnico">
               Cuántos reportes hizo cada persona desde su propia cuenta. Cuenta la cuenta con la
               que se capturó el reporte, no quién lo firma: si alguien firma un reporte hecho en
