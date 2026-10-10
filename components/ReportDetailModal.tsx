@@ -13,9 +13,11 @@ import { createClient } from '@/lib/supabaseClient';
 import { vincularReporteAServicio, Servicio, listarServiciosVinculables } from '@/lib/serviciosProgramados';
 import { eliminarReporte } from '@/lib/eliminarReporte';
 import { registrarAccionGlobal } from '@/lib/auditoriaGlobal';
-import { Check, X, CircleX, FileText, FileSpreadsheet, Share2, Trash2, Unlock, LockKeyhole, MessageSquareWarning, Camera, FolderKanban, ClipboardCheck, Tag, ReceiptText, Pencil } from 'lucide-react';
+import { Check, X, CircleX, FileText, FileSpreadsheet, Share2, Trash2, Unlock, LockKeyhole, MessageSquareWarning, Camera, FolderKanban, ClipboardCheck, Tag, ReceiptText, Pencil, EyeOff, SlidersHorizontal } from 'lucide-react';
 import { solicitarCorreccion, habilitarCorreccion, cancelarCorreccion, aplicarCorreccion } from '@/lib/correcciones';
 import { showToast } from '@/components/Toast';
+import { BotonIncluir, ChipEtapa, HojaEvidencia } from '@/components/EvidenciaEditor';
+import { MetaFoto, evidenciasDe, metaLimpia, areasUsadas } from '@/lib/evidencias';
 import FacturacionSection from '@/components/FacturacionSection';
 import RevisionFinalSection, { Revision } from '@/components/RevisionFinalSection';
 import { hoyLocal } from '@/lib/fechaHoy';
@@ -70,7 +72,9 @@ export default function ReportDetailModal({
   const [eliminando, setEliminando] = useState(false);
   const [showEtiquetas, setShowEtiquetas] = useState(false);
   const [pestana, setPestana] = useState<'reporte' | 'fotos' | 'gestion'>('reporte');
-  const [fotoUrls, setFotoUrls] = useState<{ url: string; caption: string; video?: string | null; dur?: number | null }[] | null>(null);
+  // `idx` es la posición de la evidencia en data.fotos (para guardar sus cambios).
+  const [fotoUrls, setFotoUrls] = useState<({ idx: number; url: string; caption: string; video?: string | null; dur?: number | null } & MetaFoto)[] | null>(null);
+  const [fotoAbierta, setFotoAbierta] = useState<number | null>(null);
   const [viendoVideo, setViendoVideo] = useState<string | null>(null);
   const [loadingFotos, setLoadingFotos] = useState(false);
   const [shareMenuOpen, setShareMenuOpen] = useState(false);
@@ -313,10 +317,7 @@ export default function ReportDetailModal({
 
 
   async function handleVerFotos() {
-    const raw: any[] = report.data?.fotos || [];
-    const items = raw.map((f) => (typeof f === 'string'
-      ? { path: f, caption: '', video: null as string | null, dur: null as number | null }
-      : { path: f.path, caption: f.caption || '', video: (f.video || null) as string | null, dur: (f.dur || null) as number | null }));
+    const items = evidenciasDe(report.data?.fotos).map((f, idx) => ({ ...f, idx, video: f.video || null, dur: f.dur || null }));
     if (items.length === 0) {
       setFotoUrls([]);
       return;
@@ -333,9 +334,32 @@ export default function ReportDetailModal({
     }
     const urlDe = new Map(data.map((d) => [d.path, d.signedUrl || '']));
     setFotoUrls(items.map((it, i) => ({
-      url: data[i]?.signedUrl || '', caption: it.caption,
+      idx: it.idx, url: data[i]?.signedUrl || '', caption: it.caption,
       video: it.video ? urlDe.get(it.video) || null : null, dur: it.dur,
+      ...metaLimpia(it),
     })).filter((d) => d.url));
+  }
+
+  // Cambios de supervisión sobre una evidencia ya guardada (comentario,
+  // etapa, área y si sale en el PDF del cliente). La foto nunca se borra.
+  function editarFoto(idx: number, cambio: Partial<MetaFoto> & { caption?: string }) {
+    setFotoUrls((prev) => (prev || []).map((f) => (f.idx === idx ? { ...f, ...cambio } : f)));
+  }
+  async function guardarFoto(idx: number, cambio: Partial<MetaFoto> & { caption?: string } = {}) {
+    const actual = fotoUrls?.find((f) => f.idx === idx);
+    if (!actual) return;
+    const final = { ...actual, ...cambio };
+    try {
+      const fotos = evidenciasDe(report.data?.fotos).map((f, i) => {
+        if (i !== idx) return f;
+        const { etapa, area, interna, ts, ...resto } = f;
+        return { ...resto, caption: final.caption.trim(), ...metaLimpia({ etapa: final.etapa, area: final.area, interna: final.interna, ts }) };
+      });
+      report.data = await updateReportData({ fotos });
+    } catch (e: any) {
+      showToast('No se pudo guardar: ' + (e?.message || 'error'), 'error');
+      await handleVerFotos();
+    }
   }
 
   async function handleShare(format: 'pdf' | 'xlsx') {
@@ -797,22 +821,73 @@ export default function ReportDetailModal({
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
                 {fotoUrls.map((f, i) => (
-                  <div key={i}>
-                    {f.video ? (
-                      <button type="button" onClick={() => setViendoVideo(f.video!)} aria-label="Ver video" className="relative block w-full">
-                        <img src={f.url} alt={`Video ${i + 1}`} className="w-full h-[180px] object-cover rounded-xl border border-line" />
-                        <MarcaVideo dur={f.dur} />
-                      </button>
-                    ) : (
-                      <a href={f.url} target="_blank" rel="noopener noreferrer">
-                        <img src={f.url} alt={`Evidencia ${i + 1}`} className="w-full h-[180px] object-cover rounded-xl border border-line" />
-                      </a>
-                    )}
+                  <div key={f.idx}>
+                    <div className="relative rounded-xl overflow-hidden border border-line">
+                      {f.video ? (
+                        <button type="button" onClick={() => setViendoVideo(f.video!)} aria-label="Ver video" className="relative block w-full">
+                          <img src={f.url} alt={`Video ${i + 1}`} className={`w-full h-[180px] object-cover ${f.interna ? 'opacity-50' : ''}`} />
+                          <MarcaVideo dur={f.dur} />
+                        </button>
+                      ) : (
+                        <a href={f.url} target="_blank" rel="noopener noreferrer" className="block">
+                          <img src={f.url} alt={`Evidencia ${i + 1}`} className={`w-full h-[180px] object-cover ${f.interna ? 'opacity-50' : ''}`} />
+                        </a>
+                      )}
+                      {esSupervisor ? (
+                        <>
+                          <BotonIncluir
+                            interna={f.interna}
+                            className="absolute top-1.5 left-1.5"
+                            onCambiar={() => { editarFoto(f.idx, { interna: !f.interna }); guardarFoto(f.idx, { interna: !f.interna }); }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setFotoAbierta(f.idx)}
+                            aria-label="Etapa y área de la foto"
+                            title="Etapa y área"
+                            className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/45 text-white flex items-center justify-center backdrop-blur-sm active:scale-90 transition-transform"
+                          >
+                            <SlidersHorizontal size={13} strokeWidth={2.4} />
+                          </button>
+                        </>
+                      ) : f.interna ? (
+                        <span title="No sale en el PDF del cliente" className="absolute top-1.5 left-1.5 w-7 h-7 rounded-full bg-amber text-white flex items-center justify-center">
+                          <EyeOff size={14} strokeWidth={2.4} />
+                        </span>
+                      ) : null}
+                      {(f.etapa || f.area) && (
+                        <div className={`absolute bottom-1.5 left-1.5 ${f.video ? 'right-14' : 'right-1.5'} flex items-center gap-1 pointer-events-none`}>
+                          <ChipEtapa etapa={f.etapa} />
+                          {f.area && <span className="min-w-0 truncate px-1.5 py-[1px] rounded-md text-[9.5px] font-semibold bg-black/55 text-white">{f.area}</span>}
+                        </div>
+                      )}
+                    </div>
                     {f.caption && <p className="text-[12px] text-ink/80 mt-1.5">{f.caption}</p>}
                   </div>
                 ))}
               </div>
             )}
+            {fotoUrls.some((f) => f.interna) && (
+              <p className="text-[12px] text-muted mt-3 flex items-center gap-1.5">
+                <EyeOff size={13} strokeWidth={2.4} className="text-amber shrink-0" />
+                {fotoUrls.filter((f) => f.interna).length} solo en la app: no {fotoUrls.filter((f) => f.interna).length === 1 ? 'sale' : 'salen'} en el PDF.
+              </p>
+            )}
+            {(() => {
+              const f = fotoAbierta === null ? null : fotoUrls.find((x) => x.idx === fotoAbierta);
+              if (!f) return null;
+              return (
+                <HojaEvidencia
+                  src={f.url}
+                  caption={f.caption}
+                  meta={f}
+                  areas={areasUsadas(fotoUrls)}
+                  onCaption={(v) => editarFoto(f.idx, { caption: v })}
+                  onMeta={(cambio) => editarFoto(f.idx, cambio)}
+                  onCerrar={() => { setFotoAbierta(null); guardarFoto(f.idx); }}
+                />
+              );
+            })()}
           </Section>
         )}
 

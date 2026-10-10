@@ -1,5 +1,7 @@
 'use client';
 
+import type { MetaFoto, EvidenciaGuardada } from './evidencias';
+
 // Almacén local (IndexedDB) para reportes creados sin conexión a internet.
 // Se guarda todo lo necesario para poder terminarlo de subir después: los
 // datos del formulario, quién lo creó, y las fotos (como dataURL, ya que
@@ -14,6 +16,8 @@ export type PendingFoto = {
   fileType: string;
   fileDataUrl: string;
   caption: string;
+  // Etapa, área, «solo en la app» y cuándo se tomó (lib/evidencias).
+  meta?: MetaFoto;
   // Evidencia en video: lo de arriba es su portada y esto, el video.
   videoDataUrl?: string;
   videoType?: string;
@@ -38,7 +42,7 @@ export type PendingReport = {
   // Fotos que ya estaban subidas al servicio (avances, evidencia, tareas) al
   // momento de guardar sin conexión: solo llevan su path, no dataURL, porque
   // ya viven en Storage y no hace falta volver a subirlas al sincronizar.
-  fotosExistentes?: { path: string; caption: string; video?: string | null; dur?: number | null }[];
+  fotosExistentes?: EvidenciaGuardada[];
   servicioProgramadoId?: string | null;
 };
 

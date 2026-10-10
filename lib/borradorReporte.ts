@@ -16,7 +16,7 @@ const STORE = 'borradores';
 const VIGENCIA_MS = 7 * 24 * 60 * 60 * 1000;
 
 // Con `videoBlob` la evidencia es un video y `blob` es su portada.
-export type FotoBorrador = { name: string; type: string; blob: Blob; caption: string; videoBlob?: Blob; videoName?: string; videoType?: string; dur?: number };
+export type FotoBorrador = { name: string; type: string; blob: Blob; caption: string; meta?: import('./evidencias').MetaFoto; videoBlob?: Blob; videoName?: string; videoType?: string; dur?: number };
 
 export type Borrador = {
   guardadoEn: number;

@@ -1645,7 +1645,7 @@ export async function buscarReportesParaVincular(servicioId: string): Promise<Re
 }
 
 // `video` y `dur`: la evidencia es un video y `path` es su portada.
-export type FotoDelDia = { path: string; caption: string; previewUrl: string; video?: string | null; dur?: number | null };
+export type FotoDelDia = { path: string; caption: string; previewUrl: string; video?: string | null; dur?: number | null } & import('./evidencias').MetaFoto;
 
 // Fotos ya capturadas en campo ese día puntual, para precargarlas en el
 // reporte y que el técnico no tenga que volver a tomarlas: evidencia de
@@ -1669,7 +1669,7 @@ export async function listarFotosDelDia(servicio: Pick<Servicio, 'id' | 'grupo_i
       .lt('completada_en', fin.toISOString()),
     supabase
       .from('servicio_eventos')
-      .select('tipo, nota, foto_path, video_path, video_duracion')
+      .select('tipo, nota, foto_path, video_path, video_duracion, created_at')
       .eq('servicio_id', servicio.id)
       .not('foto_path', 'is', null),
   ]);
@@ -1680,12 +1680,12 @@ export async function listarFotosDelDia(servicio: Pick<Servicio, 'id' | 'grupo_i
     evidencia: 'Evidencia adicional',
   };
 
-  const items: { path: string; caption: string; video?: string | null; dur?: number | null }[] = [
-    ...(tareas || []).map((t: any) => ({ path: t.foto_path as string, caption: t.descripcion || 'Tarea completada' })),
+  const items: { path: string; caption: string; video?: string | null; dur?: number | null; ts?: string | null }[] = [
+    ...(tareas || []).map((t: any) => ({ path: t.foto_path as string, caption: t.descripcion || 'Tarea completada', ts: t.completada_en || null })),
     ...(eventos || []).map((e: any) => ({
       path: e.foto_path as string,
       caption: e.nota || (e.video_path ? 'Video del servicio' : ETIQUETAS[e.tipo]) || 'Evidencia del servicio',
-      video: e.video_path || null, dur: e.video_duracion || null,
+      video: e.video_path || null, dur: e.video_duracion || null, ts: e.created_at || null,
     })),
   ];
   if (items.length === 0) return [];

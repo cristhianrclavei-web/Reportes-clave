@@ -1,7 +1,8 @@
 'use client';
 
 import GrabadorVideo from '@/components/GrabadorVideo';
-import { MarcaVideo } from '@/components/VisorVideo';
+import { MiniaturaEvidencia, HojaEvidencia } from '@/components/EvidenciaEditor';
+import { EvidenciaGuardada, MetaFoto, metaLimpia, evidenciasDe, areasUsadas } from '@/lib/evidencias';
 import { VideoGrabado, VIDEOS_POR_REGISTRO, VIDEO_MAX_SEG, subirVideo } from '@/lib/videoEvidencia';
 import { obtenerActividad, ligarReporteAActividad } from '@/lib/actividades';
 import { tipoActividad } from '@/lib/tiposActividad';
@@ -24,7 +25,7 @@ import { showToast } from '@/components/Toast';
 import SavingOverlay from '@/components/SavingOverlay';
 import ReportPreviewModal, { PreviewData } from '@/components/ReportPreviewModal';
 import { listarMisServicios, vincularReporteAServicio, Servicio, filtrarSiguienteDiaPorGrupo, listarTecnicosDeServicio, listarFotosDelDia, FotoDelDia } from '@/lib/serviciosProgramados';
-import { X, Camera, Images, Plus, AlertTriangle, Eye, ChevronDown, Tag, History, Check, Video } from 'lucide-react';
+import { X, Camera, Images, Plus, AlertTriangle, Eye, EyeOff, ChevronDown, Tag, History, Check, Video } from 'lucide-react';
 import { generarUUID } from '@/lib/uuid';
 import { registrarAccionGlobal } from '@/lib/auditoriaGlobal';
 import { notificar } from '@/lib/push';
@@ -59,10 +60,10 @@ const SEGURIDAD_OPTS = ['CCTV', 'Automatización', 'Alarma&Det', 'Control de acc
 const SISTEMAS_CATALOGO = SEGURIDAD_OPTS.filter((x) => x !== 'Otra');
 // Una evidencia del reporte tal como se guarda en data.fotos. Con `video`,
 // `path` es la portada del video.
-type EvidenciaReporte = { path: string; caption: string; video?: string | null; dur?: number | null };
+type EvidenciaReporte = EvidenciaGuardada;
 
 function aEvidencia(f: FotoDelDia): EvidenciaReporte {
-  return { path: f.path, caption: f.caption.trim(), ...(f.video ? { video: f.video, dur: f.dur || null } : {}) };
+  return { path: f.path, caption: f.caption.trim(), ...(f.video ? { video: f.video, dur: f.dur || null } : {}), ...metaLimpia(f) };
 }
 
 // Si la evidencia es un video, lo sube a la carpeta del reporte. Si el video
@@ -346,7 +347,9 @@ export default function NuevoReportePage() {
   const sigIngRef = useRef<SignaturePadHandle>(null);
   const sigClienteRef = useRef<SignaturePadHandle>(null);
   // Con `video`, la evidencia es un video y `file` es su portada.
-  const [fotos, setFotos] = useState<{ file: File; previewUrl: string; caption: string; video?: File; dur?: number }[]>([]);
+  const [fotos, setFotos] = useState<({ file: File; previewUrl: string; caption: string; video?: File; dur?: number } & MetaFoto)[]>([]);
+  // Evidencia con la hoja de etapa y área abierta: lista ('s' = ya subidas, 'n' = nuevas) e índice.
+  const [fotoAbierta, setFotoAbierta] = useState<{ lista: 's' | 'n'; i: number } | null>(null);
   const [grabandoVideo, setGrabandoVideo] = useState(false);
   const fotoInputRef = useRef<HTMLInputElement>(null);
   const fotoGaleriaRef = useRef<HTMLInputElement>(null);
@@ -436,11 +439,11 @@ export default function NuevoReportePage() {
     const casos = Array.isArray(d.casoPuntos) && d.casoPuntos.length ? d.casoPuntos : null;
     // Fotos ya subidas: se muestran como existentes (se pueden quitar o
     // cambiar su comentario) y se pueden agregar nuevas.
-    const fotosPrevias: { path: string; caption: string; video?: string | null; dur?: number | null }[] = Array.isArray(d.fotos) ? d.fotos : [];
+    const fotosPrevias = evidenciasDe(d.fotos);
     let conUrl: FotoDelDia[] = [];
     if (fotosPrevias.length) {
       const { data: urls } = await supabase.storage.from('evidencias').createSignedUrls(fotosPrevias.map((f) => f.path), 3600);
-      conUrl = fotosPrevias.map((f, i) => ({ path: f.path, caption: f.caption || '', previewUrl: urls?.[i]?.signedUrl || '', video: f.video || null, dur: f.dur || null }));
+      conUrl = fotosPrevias.map((f, i) => ({ ...f, previewUrl: urls?.[i]?.signedUrl || '', video: f.video || null, dur: f.dur || null }));
     }
     aplicarCampos({
       empresaCliente: r.empresa_cliente || '', clienteId: r.cliente_id || null,
@@ -493,7 +496,7 @@ export default function NuevoReportePage() {
           setFotos(r.fotos.map((f) => {
             const file = new File([f.blob], f.name, { type: f.type });
             const video = f.videoBlob ? new File([f.videoBlob], f.videoName || 'video.mp4', { type: f.videoType || 'video/mp4' }) : undefined;
-            return { file, previewUrl: URL.createObjectURL(file), caption: f.caption, ...(video ? { video, dur: f.dur } : {}) };
+            return { file, previewUrl: URL.createObjectURL(file), caption: f.caption, ...(f.meta || {}), ...(video ? { video, dur: f.dur } : {}) };
           }));
         }
         setRecuperadoEn(r.borrador.guardadoEn);
@@ -527,7 +530,7 @@ export default function NuevoReportePage() {
       guardarFotosBorrador(
         borradorUid,
         fotos.map((f) => ({
-          name: f.file.name, type: f.file.type, blob: f.file, caption: f.caption,
+          name: f.file.name, type: f.file.type, blob: f.file, caption: f.caption, meta: metaLimpia(f),
           ...(f.video ? { videoBlob: f.video, videoName: f.video.name, videoType: f.video.type, dur: f.dur } : {}),
         }))
       ).catch(() => {});
@@ -665,7 +668,8 @@ export default function NuevoReportePage() {
 
   function handleFotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || []);
-    const nuevas = files.map((file) => ({ file, previewUrl: URL.createObjectURL(file), caption: '' }));
+    // La fecha del archivo es la de la toma (o la de ahora, si viene de la cámara).
+    const nuevas = files.map((file) => ({ file, previewUrl: URL.createObjectURL(file), caption: '', ts: new Date(file.lastModified || Date.now()).toISOString() }));
     setFotos((prev) => [...prev, ...nuevas]);
     if (fotoInputRef.current) fotoInputRef.current.value = '';
     if (fotoGaleriaRef.current) fotoGaleriaRef.current.value = '';
@@ -674,7 +678,7 @@ export default function NuevoReportePage() {
   // Video grabado en la app (ya comprimido): entra a la lista con su portada.
   function handleVideoGrabado(v: VideoGrabado) {
     setGrabandoVideo(false);
-    setFotos((prev) => [...prev, { file: v.poster, previewUrl: URL.createObjectURL(v.poster), caption: '', video: v.video, dur: v.dur }]);
+    setFotos((prev) => [...prev, { file: v.poster, previewUrl: URL.createObjectURL(v.poster), caption: '', video: v.video, dur: v.dur, ts: new Date().toISOString() }]);
   }
   const totalVideos = fotos.filter((f) => f.video).length + fotosServicio.filter((f) => f.video).length;
 
@@ -683,6 +687,11 @@ export default function NuevoReportePage() {
       URL.revokeObjectURL(prev[i].previewUrl);
       return prev.filter((_, idx) => idx !== i);
     });
+  }
+
+  function metaFoto(lista: 's' | 'n', i: number, cambio: Partial<MetaFoto>) {
+    if (lista === 's') setFotosServicio((prev) => prev.map((f, idx) => (idx === i ? { ...f, ...cambio } : f)));
+    else setFotos((prev) => prev.map((f, idx) => (idx === i ? { ...f, ...cambio } : f)));
   }
 
   function updateFotoCaption(i: number, caption: string) {
@@ -718,7 +727,7 @@ export default function NuevoReportePage() {
         const conFoto = avances.filter((e) => e.foto_path);
         if (conFoto.length > 0) {
           const { data } = await supabase.storage.from('evidencias').createSignedUrls(conFoto.map((e) => e.foto_path as string), 3600);
-          setFotosServicio(conFoto.map((e, i) => ({ path: e.foto_path as string, caption: e.nota || '', previewUrl: data?.[i]?.signedUrl || '', video: e.video_path || null, dur: e.video_duracion || null })).filter((x) => x.previewUrl));
+          setFotosServicio(conFoto.map((e, i) => ({ path: e.foto_path as string, caption: e.nota || '', previewUrl: data?.[i]?.signedUrl || '', video: e.video_path || null, dur: e.video_duracion || null, ts: e.created_at || null })).filter((x) => x.previewUrl));
         }
       } catch {
         // Si la actividad no se puede leer, el formulario queda en blanco.
@@ -905,8 +914,8 @@ export default function NuevoReportePage() {
       subTipo,
       data: buildSharedData(),
       fotos: [
-        ...fotosServicio.map((f) => ({ previewUrl: f.previewUrl, caption: f.caption })),
-        ...fotos.map((f) => ({ previewUrl: f.previewUrl, caption: f.caption })),
+        ...fotosServicio.map((f) => ({ previewUrl: f.previewUrl, caption: f.caption, ...metaLimpia(f) })),
+        ...fotos.map((f) => ({ previewUrl: f.previewUrl, caption: f.caption, ...metaLimpia(f) })),
       ],
       firmaIngListo: Boolean(sigIngRef.current && !sigIngRef.current.isEmpty()),
       firmaClienteListo: !clienteAusente && Boolean(sigClienteRef.current && !sigClienteRef.current.isEmpty()),
@@ -965,7 +974,7 @@ export default function NuevoReportePage() {
         const ext = f.name.split('.').pop() || 'jpg';
         const path = `${editarId}/${Date.now()}-${i}.${ext}`;
         const { error: eUp } = await supabase.storage.from('evidencias').upload(path, f, { contentType: f.type || 'image/jpeg' });
-        if (!eUp) fotoData.push(await conVideo({ path, caption: fotos[i].caption.trim() }, fotos[i], String(editarId)));
+        if (!eUp) fotoData.push(await conVideo({ path, caption: fotos[i].caption.trim(), ...metaLimpia(fotos[i]) }, fotos[i], String(editarId)));
       }
       avance(72, conFormato ? 'Guardando la corrección y sus formatos' : 'Guardando la corrección');
       const anterior = orig.data || {};
@@ -1079,6 +1088,7 @@ export default function NuevoReportePage() {
             fileType: f.file.type,
             fileDataUrl: await fileToDataUrl(f.file),
             caption: f.caption.trim(),
+            meta: metaLimpia(f),
             ...(f.video ? { videoDataUrl: await fileToDataUrl(f.video), videoType: f.video.type, dur: f.dur } : {}),
           }))
         );
@@ -1173,7 +1183,7 @@ export default function NuevoReportePage() {
         const { error: uploadError } = await supabase.storage.from('evidencias').upload(path, f, {
           contentType: f.type || 'image/jpeg',
         });
-        if (!uploadError) fotoData.push(await conVideo({ path, caption: fotos[i].caption.trim() }, fotos[i], String(reportId)));
+        if (!uploadError) fotoData.push(await conVideo({ path, caption: fotos[i].caption.trim(), ...metaLimpia(fotos[i]) }, fotos[i], String(reportId)));
       }
 
       if (fotoData.length > 0) {
@@ -1777,29 +1787,21 @@ export default function NuevoReportePage() {
                 <p className="text-[12px] text-muted">Buscando fotos que ya tomaste en campo hoy…</p>
               ) : (
                 <>
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                     {fotosServicio.map((f, i) => (
-                      <div key={f.path} className="relative">
-                        <div className="relative">
-                          <img src={f.previewUrl} alt={f.video ? `Video ${i + 1}` : `Foto del servicio ${i + 1}`} className="w-full h-20 object-cover rounded-lg border border-line" />
-                          {f.video && <MarcaVideo dur={f.dur} chico />}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => removeFotoServicio(i)}
-                          aria-label="Quitar foto"
-                          className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red text-white text-[11px] leading-none active:scale-90 transition-transform"
-                        >
-                          <X size={19} strokeWidth={2.6} />
-                        </button>
-                        <input
-                          type="text"
-                          placeholder="Comentario..."
-                          value={f.caption}
-                          onChange={(e) => updateFotoServicioCaption(i, e.target.value)}
-                          className="w-full mt-1.5 px-2 py-1 text-[11px] rounded-md bg-surface-2 border border-line focus:border-teal focus:outline-none"
-                        />
-                      </div>
+                      <MiniaturaEvidencia
+                        key={f.path}
+                        src={f.previewUrl}
+                        alt={f.video ? `Video ${i + 1}` : `Foto del servicio ${i + 1}`}
+                        video={!!f.video}
+                        dur={f.dur}
+                        caption={f.caption}
+                        meta={f}
+                        onCaption={(v) => updateFotoServicioCaption(i, v)}
+                        onInterna={() => metaFoto('s', i, { interna: !f.interna })}
+                        onDatos={() => setFotoAbierta({ lista: 's', i })}
+                        onQuitar={() => removeFotoServicio(i)}
+                      />
                     ))}
                   </div>
                   <p className="text-[11px] text-muted mt-2.5">{editarId ? 'Son las fotos que ya tenía el reporte: quita las que sobren o agrega nuevas abajo.' : 'Se agregaron solas porque ya las tomaste en el servicio de hoy — quita las que no apliquen.'}</p>
@@ -1853,31 +1855,46 @@ export default function NuevoReportePage() {
           <p className="text-[12px] text-muted mt-1.5">Hasta {VIDEO_MAX_SEG} segundos. Se graba ya comprimido para que no pese.</p>
           {grabandoVideo && <GrabadorVideo onListo={handleVideoGrabado} onCerrar={() => setGrabandoVideo(false)} />}
           {fotos.length > 0 && (
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mt-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mt-3">
               {fotos.map((f, i) => (
-                <div key={i} className="relative">
-                  <div className="relative">
-                    <img src={f.previewUrl} alt={f.video ? `Video ${i + 1}` : `Evidencia ${i + 1}`} className="w-full h-20 object-cover rounded-lg border border-line" />
-                    {f.video && <MarcaVideo dur={f.dur} chico />}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => removeFoto(i)}
-                    className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red text-white text-[11px] leading-none active:scale-90 transition-transform"
-                  >
-                    <X size={19} strokeWidth={2.6} />
-                  </button>
-                  <input
-                    type="text"
-                    placeholder="Comentario..."
-                    value={f.caption}
-                    onChange={(e) => updateFotoCaption(i, e.target.value)}
-                    className="w-full mt-1.5 px-2 py-1 text-[11px] rounded-md bg-surface-2 border border-line focus:border-teal focus:outline-none"
-                  />
-                </div>
+                <MiniaturaEvidencia
+                  key={f.previewUrl}
+                  src={f.previewUrl}
+                  alt={f.video ? `Video ${i + 1}` : `Evidencia ${i + 1}`}
+                  video={!!f.video}
+                  dur={f.dur}
+                  caption={f.caption}
+                  meta={f}
+                  onCaption={(v) => updateFotoCaption(i, v)}
+                  onInterna={() => metaFoto('n', i, { interna: !f.interna })}
+                  onDatos={() => setFotoAbierta({ lista: 'n', i })}
+                  onQuitar={() => removeFoto(i)}
+                />
               ))}
             </div>
           )}
+          {[...fotosServicio, ...fotos].some((f) => f.interna) && (
+            <p className="text-[12px] text-muted mt-3 flex items-center gap-1.5">
+              <EyeOff size={13} strokeWidth={2.4} className="text-amber shrink-0" />
+              {[...fotosServicio, ...fotos].filter((f) => f.interna).length} solo en la app: no van en el PDF.
+            </p>
+          )}
+          {(() => {
+            const f = fotoAbierta ? (fotoAbierta.lista === 's' ? fotosServicio : fotos)[fotoAbierta.i] : null;
+            if (!fotoAbierta || !f) return null;
+            const { lista, i } = fotoAbierta;
+            return (
+              <HojaEvidencia
+                src={f.previewUrl}
+                caption={f.caption}
+                meta={f}
+                areas={areasUsadas([...fotosServicio, ...fotos])}
+                onCaption={(v) => (lista === 's' ? updateFotoServicioCaption(i, v) : updateFotoCaption(i, v))}
+                onMeta={(cambio) => metaFoto(lista, i, cambio)}
+                onCerrar={() => setFotoAbierta(null)}
+              />
+            );
+          })()}
         </div>
 
         {/* Estatus del servicio/proyecto */}

@@ -1,3 +1,4 @@
+import { dibujarEvidencias } from './pdfEvidencias';
 import { PDFDocument, PDFPage, PDFFont, rgb } from 'pdf-lib';
 import {
   NAVY, GRAY_LINE, GRAY_TEXT, VERDE, ROJO, MARGIN, PAGE_W, PAGE_H,
@@ -124,19 +125,13 @@ export async function generateVisitaPdf(v: DatosVisita, fotos: Uint8Array[]): Pr
     if (y < MARGIN + 260) { page = pdf.addPage([PAGE_W, PAGE_H]); y = PAGE_H - MARGIN; }
     page.drawText('EVIDENCIA', { x: MARGIN, y, size: 6.5, font: bold, color: GRAY_TEXT });
     y -= 8;
-    const lado = (w - 3 * 8) / 4;
-    for (let i = 0; i < Math.min(4, fotos.length); i++) {
-      try {
-        const b = fotos[i];
-        const esPng = b[0] === 0x89 && b[1] === 0x50;
-        const img = esPng ? await pdf.embedPng(b) : await pdf.embedJpg(b);
-        const sc = Math.min(lado / img.width, lado / img.height);
-        const x = MARGIN + i * (lado + 8);
-        page.drawRectangle({ x, y: y - lado, width: lado, height: lado, color: rgb(0.96, 0.97, 0.97) });
-        page.drawImage(img, { x: x + (lado - img.width * sc) / 2, y: y - lado + (lado - img.height * sc) / 2, width: img.width * sc, height: img.height * sc });
-      } catch { /* formato no soportado: se omite */ }
-    }
-    y -= lado + 16;
+    await dibujarEvidencias({
+      pdfDoc: pdf, fuentes: { font, bold, display }, x: MARGIN, ancho: w,
+      pagina: () => page, y: () => y, fijarY: (v) => { y = v; },
+      espacio: (alto) => { if (y - alto < MARGIN) { page = pdf.addPage([PAGE_W, PAGE_H]); y = PAGE_H - MARGIN; } },
+      altoHoja: PAGE_H - MARGIN * 2,
+    }, fotos.slice(0, 4).map((bytes) => ({ bytes })), { desde: 0, alto: fotos.length === 1 ? 190 : 150 });
+    y -= 10;
   }
 
   // Firmas: quien atendió por parte del cliente y el personal que acudió.

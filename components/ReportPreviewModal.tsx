@@ -1,4 +1,6 @@
 'use client';
+import { EyeOff } from 'lucide-react';
+import type { MetaFoto } from '@/lib/evidencias';
 import { tuberiasDe, cablesDe, soporteriaDe, textoTuberia, textoCable, textoSoporteria } from '@/lib/materialesReporte';
 import { X } from 'lucide-react';
 import { ResumenFormatos } from './FormatoMantenimiento';
@@ -19,7 +21,7 @@ export type PreviewData = {
   tipoServicio: string | null;
   subTipo: string | null;
   data: any; // misma forma que "sharedData" del formulario
-  fotos: { previewUrl: string; caption: string }[];
+  fotos: ({ previewUrl: string; caption: string } & MetaFoto)[];
   firmaIngListo: boolean;
   firmaClienteListo: boolean;
 };
@@ -143,8 +145,13 @@ export default function ReportPreviewModal({ preview, onClose }: { preview: Prev
             <div className="text-[11px] uppercase tracking-wider text-muted mb-2.5">Fotos de evidencia</div>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
               {preview.fotos.map((f, i) => (
-                <div key={i}>
-                  <img src={f.previewUrl} alt={`Evidencia ${i + 1}`} className="w-full h-[140px] object-cover rounded-xl border border-line" />
+                <div key={i} className="relative">
+                  <img src={f.previewUrl} alt={`Evidencia ${i + 1}`} className={`w-full h-[140px] object-cover rounded-xl border border-line ${f.interna ? 'opacity-50' : ''}`} />
+                  {f.interna && (
+                    <span title="No sale en el PDF del cliente" className="absolute top-1.5 left-1.5 w-7 h-7 rounded-full bg-amber text-white flex items-center justify-center">
+                      <EyeOff size={14} strokeWidth={2.4} />
+                    </span>
+                  )}
                   {f.caption && <p className="text-[12px] text-ink/80 mt-1.5">{f.caption}</p>}
                 </div>
               ))}

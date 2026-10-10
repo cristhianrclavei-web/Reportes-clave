@@ -1,5 +1,5 @@
 import { PDFDocument } from 'pdf-lib';
-import { comprimirFoto } from './pdfFotos';
+import { dibujarEvidencias, ItemPdf } from './pdfEvidencias';
 import {
   NAVY, GRAY_LINE, GRAY_TEXT,
   MARGIN, PAGE_W, PAGE_H,
@@ -124,59 +124,34 @@ export async function generateLevantamientoPdf(
   });
   y = datosTop - datosH - 10;
 
-  // ================= FOTOS (helper compartido) =================
-  async function embedPhoto(bytes: Uint8Array) {
-    const reducida = await comprimirFoto(bytes);
-    try {
-      return await pdfDoc.embedJpg(reducida);
-    } catch {
+  // ================= FOTOS (misma galería que el reporte) =================
+  let numeroFoto = 1;
+  async function drawFotos(fotos: { path: string; caption?: string }[]) {
+    if (fotos.length === 0 || !supabase) return;
+    const items: ItemPdf[] = [];
+    for (const f of fotos) {
       try {
-        return await pdfDoc.embedPng(reducida);
-      } catch {
-        return null;
-      }
-    }
-  }
-
-  async function drawFotos(paths: string[]) {
-    if (paths.length === 0 || !supabase) return;
-    const gap = 10;
-    const colW = (contentW - gap) / 2;
-    const photoH = 120;
-
-    const downloaded: any[] = [];
-    for (const path of paths) {
-      try {
-        const { data: blob, error: dlErr } = await supabase.storage.from('evidencias').download(path);
+        const { data: blob, error: dlErr } = await supabase.storage.from('evidencias').download(f.path);
         if (dlErr || !blob) continue;
-        const bytes = new Uint8Array(await blob.arrayBuffer());
-        const img = await embedPhoto(bytes);
-        if (img) downloaded.push(img);
+        items.push({ bytes: new Uint8Array(await blob.arrayBuffer()), caption: f.caption || '' });
       } catch {
         // si una foto falla, se omite y se sigue con las demás
       }
     }
+    const r = await dibujarEvidencias({
+      pdfDoc, fuentes: { font, bold, display }, x: MARGIN, ancho: contentW,
+      pagina: () => page, y: () => y, fijarY: (v) => { y = v; },
+      espacio: ensureSpace,
+      altoHoja: PAGE_H - MARGIN * 2 - 30,
+    }, items, { desde: numeroFoto, alto: items.length <= 2 ? 170 : 140 });
+    numeroFoto = r.siguiente;
+    y -= 4;
 
-    for (let i = 0; i < downloaded.length; i += 2) {
-      const par = downloaded.slice(i, i + 2);
-      ensureSpace(photoH + 10);
-      const rowTop = y;
-      par.forEach((img, j) => {
-        const x = MARGIN + j * (colW + gap);
-        const scale = Math.min((colW - 8) / img.width, (photoH - 8) / img.height);
-        const w = img.width * scale;
-        const h = img.height * scale;
-        boxBorder(x, rowTop, colW, photoH);
-        page.drawImage(img, { x: x + (colW - w) / 2, y: rowTop - photoH + (photoH - h) / 2, width: w, height: h });
+    if (r.dibujadas < fotos.length) {
+      const n = fotos.length - r.dibujadas;
+      page.drawText(`${n} ${n === 1 ? 'foto no se pudo incluir' : 'fotos no se pudieron incluir'} en el PDF; siguen disponibles en la plataforma.`, {
+        x: MARGIN, y, size: 7, font, color: GRAY_TEXT,
       });
-      y = rowTop - photoH - 8;
-    }
-
-    if (paths.length > 0 && downloaded.length < paths.length) {
-      page.drawText(
-        `(${paths.length - downloaded.length} foto(s) no se pudieron incluir en el PDF — disponibles en la plataforma)`,
-        { x: MARGIN, y, size: 7, font, color: GRAY_TEXT }
-      );
       y -= 12;
     }
   }
@@ -219,7 +194,7 @@ export async function generateLevantamientoPdf(
       ensureSpace(16);
       page.drawText(`FOTOS DEL SISTEMA (${s.fotos.length})`, { x: MARGIN, y, size: 7.5, font: bold, color: GRAY_TEXT });
       y -= 10;
-      await drawFotos(s.fotos.map((f) => f.path));
+      await drawFotos(s.fotos);
     }
   }
 
@@ -240,7 +215,7 @@ export async function generateLevantamientoPdf(
     ensureSpace(16);
     page.drawText(`FOTOS GENERALES DEL SITIO (${levantamiento.fotos.length})`, { x: MARGIN, y, size: 7.5, font: bold, color: GRAY_TEXT });
     y -= 10;
-    await drawFotos(levantamiento.fotos.map((f) => f.path));
+    await drawFotos(levantamiento.fotos);
   }
 
   if (!supabase) {

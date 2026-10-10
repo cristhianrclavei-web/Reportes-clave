@@ -1,7 +1,9 @@
 import { tuberiasDe, cablesDe, soporteriaDe, textoTuberia, textoCable, textoSoporteria } from './materialesReporte';
 import { fechaDMA } from './etiquetaMantenimiento';
 import { PDFDocument, rgb } from 'pdf-lib';
-import { comprimirFoto } from './pdfFotos';
+import { evidenciasDe } from './evidencias';
+import { dibujarEvidencias, ItemPdf } from './pdfEvidencias';
+import { urlVideoPublico } from './videoPublico';
 import {
   NAVY, TEAL_DARK, GRAY_LINE, GRAY_TEXT, WHITE, VERDE, ROJO, LINEA_MARCA,
   MARGIN, PAGE_W, PAGE_H,
@@ -387,89 +389,64 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
     y = obsTop - obsH - 10;
   }
 
-  // ================= FOTOS DE EVIDENCIA =================
-  const fotosRaw: any[] = data.fotos || [];
-  // Un video sale con su portada y un aviso: el PDF no lo puede reproducir.
-  const fotos = fotosRaw.map((f) => (typeof f === 'string'
-    ? { path: f, caption: '' }
-    : { path: f.path, caption: f.video ? `VIDEO${f.dur ? ` (${Math.floor(f.dur / 60)}:${String(Math.round(f.dur) % 60).padStart(2, '0')})` : ''} · disponible en la plataforma${f.caption ? ` — ${f.caption}` : ''}` : f.caption || '' }));
-
-  async function embedPhoto(original: Uint8Array) {
-    const bytes = await comprimirFoto(original);
-    try {
-      return await pdfDoc.embedJpg(bytes);
-    } catch {
+  // ================= EVIDENCIA FOTOGRÁFICA =================
+  // Las fotos marcadas como internas se quedan en la app: no se descargan ni
+  // se cuentan aquí. Con una o dos evidencias, van en esta misma hoja; con
+  // más, en un anexo propio después de las firmas.
+  const evidencias = evidenciasDe(data.fotos).filter((f) => !f.interna);
+  const itemsPdf: ItemPdf[] = [];
+  if (supabase) {
+    for (const f of evidencias) {
       try {
-        return await pdfDoc.embedPng(bytes);
+        const { data: blob, error: dlErr } = await supabase.storage.from('evidencias').download(f.path);
+        if (dlErr || !blob) continue;
+        itemsPdf.push({
+          bytes: new Uint8Array(await blob.arrayBuffer()),
+          caption: f.caption, etapa: f.etapa, area: f.area, ts: f.ts,
+          video: f.video ? { dur: f.dur, url: urlVideoPublico(report.id, f.video) } : null,
+        });
       } catch {
-        return null;
+        // si una foto falla, se omite y se sigue con las demás
       }
     }
   }
+  const nVideos = evidencias.filter((f) => f.video).length;
+  const nFotos = evidencias.length - nVideos;
+  const cuentaEvidencias = [
+    nFotos ? `${nFotos} ${nFotos === 1 ? 'foto' : 'fotos'}` : '',
+    nVideos ? `${nVideos} ${nVideos === 1 ? 'video' : 'videos'}` : '',
+  ].filter(Boolean).join(' · ');
+  // Una o dos caben junto al reporte si queda lugar sobre las firmas; si no,
+  // van al anexo para no empujar las firmas a otra hoja.
+  const altoEnHoja = itemsPdf.length === 1 ? 190 : 175;
+  const evidenciaEnAnexo = itemsPdf.length > 2 || (itemsPdf.length > 0 && y - (altoEnHoja + 90) < MARGIN + SIGNATURE_ZONE_H);
+  function notaFaltantes() {
+    if (supabase && itemsPdf.length < evidencias.length) {
+      const n = evidencias.length - itemsPdf.length;
+      page.drawText(`${n} ${n === 1 ? 'evidencia no se pudo incluir' : 'evidencias no se pudieron incluir'} en el PDF; siguen disponibles en la plataforma.`, {
+        x: MARGIN, y, size: 7, font, color: GRAY_TEXT,
+      });
+      y -= 12;
+    }
+  }
 
-  if (fotos.length > 0) {
-    ensureSpace(20);
+  if (evidencias.length > 0) {
+    ensureSpace(34);
     page.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + contentW, y }, thickness: 0.75, color: GRAY_LINE });
     y -= 14;
-    page.drawText(`FOTOS DE EVIDENCIA (${fotos.length})`, { x: MARGIN, y, size: 8.5, font: bold, color: NAVY });
-    y -= 12;
-
-    const gap = 10;
-    const colW = (contentW - gap) / 2;
-    const photoH = 130;
-
-    let downloaded: { img: any; caption: string }[] = [];
-    if (supabase) {
-      for (const f of fotos) {
-        try {
-          const { data: blob, error: dlErr } = await supabase.storage.from('evidencias').download(f.path);
-          if (dlErr || !blob) continue;
-          const bytes = new Uint8Array(await blob.arrayBuffer());
-          const img = await embedPhoto(bytes);
-          if (img) downloaded.push({ img, caption: f.caption });
-        } catch {
-          // si una foto falla, se omite y se sigue con las demás
-        }
-      }
+    page.drawText('EVIDENCIA FOTOGRÁFICA', { x: MARGIN, y, size: 8.5, font: bold, color: NAVY });
+    const detalle = !supabase ? 'Disponible en la plataforma' : evidenciaEnAnexo ? `${cuentaEvidencias} · ver anexo` : cuentaEvidencias;
+    page.drawText(detalle, { x: MARGIN + contentW - font.widthOfTextAtSize(detalle, 7.5), y, size: 7.5, font, color: GRAY_TEXT });
+    y -= 10;
+    if (!evidenciaEnAnexo && itemsPdf.length > 0) {
+      await dibujarEvidencias({
+        pdfDoc, fuentes: { font, bold, display }, x: MARGIN, ancho: contentW,
+        pagina: () => page, y: () => y, fijarY: (v) => { y = v; },
+        espacio: ensureSpace,
+        altoHoja: PAGE_H - MARGIN * 2 - SIGNATURE_ZONE_H,
+      }, itemsPdf, { alto: altoEnHoja });
     }
-
-    for (let i = 0; i < downloaded.length; i += 2) {
-      const par = downloaded.slice(i, i + 2);
-      const capLines = par.map((p) => wrapText(p.caption || '(sin comentario)', font, 7.5, colW - 8));
-      const maxCapLines = Math.max(...capLines.map((l) => l.length));
-      const rowH = photoH + 6 + maxCapLines * 10 + 8;
-
-      ensureSpace(rowH);
-      const rowTop = y;
-
-      par.forEach((p, j) => {
-        const x = MARGIN + j * (colW + gap);
-        const scale = Math.min((colW - 8) / p.img.width, (photoH - 8) / p.img.height);
-        const w = p.img.width * scale;
-        const h = p.img.height * scale;
-        boxBorder(x, rowTop, colW, photoH);
-        page.drawImage(p.img, { x: x + (colW - w) / 2, y: rowTop - photoH + (photoH - h) / 2, width: w, height: h });
-        let cy = rowTop - photoH - 12;
-        (capLines[j] || []).forEach((line) => {
-          page.drawText(line, { x: x + 4, y: cy, size: 7.5, font, color: NAVY });
-          cy -= 10;
-        });
-      });
-
-      y = rowTop - rowH;
-    }
-
-    if (supabase && downloaded.length < fotos.length) {
-      page.drawText(
-        `(${fotos.length - downloaded.length} foto(s) no se pudieron incluir en el PDF — disponibles en la plataforma)`,
-        { x: MARGIN, y, size: 7, font, color: GRAY_TEXT }
-      );
-      y -= 12;
-    }
-    if (!supabase) {
-      page.drawText('Fotos disponibles en la plataforma.', { x: MARGIN, y, size: 8, font, color: GRAY_TEXT });
-      y -= 12;
-    }
+    if (!evidenciaEnAnexo) notaFaltantes();
     y -= 6;
   }
 
@@ -563,8 +540,52 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
       // sin QR si falla; el anexo sigue igual
     }
   }
+  if (evidenciaEnAnexo) await drawAnexoEvidencias();
+
   for (const f of formatosMtto) {
     await drawAnexo(f);
+  }
+
+  // Anexo de evidencia: mismo encabezado que los formatos, con el resumen de
+  // lo que trae, y las fotos en retícula hasta donde alcancen las hojas.
+  async function drawAnexoEvidencias() {
+    const BOTTOM = MARGIN + 24;
+    let hoja = 1;
+    const pie = () => {
+      page.drawText(`Evidencia fotográfica · Anexo al reporte de servicio · Folio ${folio} · Hoja ${hoja}`, {
+        x: MARGIN, y: MARGIN / 2, size: 6.5, font, color: GRAY_TEXT,
+      });
+    };
+    newPage();
+    const top = y;
+    drawBadge(page, display, MARGIN, top, 34);
+    drawWordmark(page, display, MARGIN + 44, top - 13, 12);
+    const titulo = 'EVIDENCIA FOTOGRÁFICA';
+    page.drawText(titulo, { x: PAGE_W - MARGIN - display.widthOfTextAtSize(titulo, 12.5), y: top - 10, size: 12.5, font: display, color: NAVY });
+    const sub = `Anexo al reporte · Folio ${folio}`;
+    page.drawText(sub, { x: PAGE_W - MARGIN - font.widthOfTextAtSize(sub, 7.5), y: top - 23, size: 7.5, font, color: GRAY_TEXT });
+    y = top - 48;
+    page.drawText(report.empresa_cliente || 'Cliente sin especificar', { x: MARGIN, y, size: 15, font: display, color: NAVY, maxWidth: contentW });
+    y -= 14;
+    page.drawText(`Servicio del ${fechaDMA(report.fecha)}  ·  ${cuentaEvidencias}`, { x: MARGIN, y, size: 8.5, font, color: GRAY_TEXT, maxWidth: contentW });
+    y -= 10;
+    page.drawLine({ start: { x: MARGIN, y }, end: { x: PAGE_W - MARGIN, y }, thickness: 1.5, color: NAVY });
+    y -= 14;
+
+    await dibujarEvidencias({
+      pdfDoc, fuentes: { font, bold, display }, x: MARGIN, ancho: contentW,
+      pagina: () => page, y: () => y, fijarY: (v) => { y = v; },
+      espacio: (alto) => {
+        if (y - alto < BOTTOM) {
+          pie();
+          hoja++;
+          newPage();
+        }
+      },
+      altoHoja: PAGE_H - MARGIN - BOTTOM,
+    }, itemsPdf);
+    if (y - 12 > BOTTOM) notaFaltantes();
+    pie();
   }
 
   async function drawAnexo(f: FormatoLlenado) {
