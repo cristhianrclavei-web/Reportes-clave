@@ -56,7 +56,8 @@ export async function POST(request: NextRequest) {
     .eq('endpoint', endpoint);
 
   if (errorBorrado) {
-    return NextResponse.json({ error: errorBorrado.message }, { status: 500 });
+    console.error('[push/suscribir] No se pudo limpiar la suscripción:', errorBorrado.message);
+    return NextResponse.json({ error: 'No se pudo guardar la suscripción a notificaciones. Intenta de nuevo.' }, { status: 500 });
   }
 
   const { error: errorAlta } = await admin.from('push_suscripciones').insert({
@@ -68,7 +69,8 @@ export async function POST(request: NextRequest) {
   });
 
   if (errorAlta) {
-    return NextResponse.json({ error: errorAlta.message }, { status: 500 });
+    console.error('[push/suscribir] No se pudo guardar la suscripción:', errorAlta.message);
+    return NextResponse.json({ error: 'No se pudo guardar la suscripción a notificaciones. Intenta de nuevo.' }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });
@@ -110,7 +112,8 @@ export async function DELETE(request: NextRequest) {
     .eq('endpoint', endpoint);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[push/suscribir] No se pudo dar de baja la suscripción:', error.message);
+    return NextResponse.json({ error: 'No se pudo apagar las notificaciones en este dispositivo. Intenta de nuevo.' }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });

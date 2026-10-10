@@ -60,7 +60,7 @@ export async function GET(request: NextRequest, props: { params: Promise<{ id: s
     buffer = await generateReportXlsx(report as any);
   } catch (err: any) {
     console.error('[xlsx-route] Error generando Excel:', err?.message, err?.stack);
-    return NextResponse.json({ error: 'Error al generar el Excel: ' + (err?.message || 'desconocido') }, { status: 500 });
+    return NextResponse.json({ error: 'No se pudo generar el Excel. Intenta de nuevo; si sigue fallando, avisa a quien administra la app.' }, { status: 500 });
   }
 
   // ===== AUDITORÍA (OWASP A09) =====

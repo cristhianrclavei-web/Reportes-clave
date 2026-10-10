@@ -96,10 +96,15 @@ export default function ModalArticulo({
     if (!descripcion.trim()) return;
     setGuardando(true);
     try {
+      // El costo solo se manda si lo cambiaron aquí: si la ficha se abrió sin
+      // costo (por ejemplo, porque no se pudo leer), guardar no debe borrarlo.
+      const costoInicial = articulo.costo_unitario != null ? String(articulo.costo_unitario) : '';
+      const cambioElCosto = costo.trim() !== costoInicial;
+      const costoNuevo = costo.trim() === '' ? null : Math.max(0, Number(costo) || 0);
       await editarArticulo(articulo.id, {
         descripcion: descripcion.trim(), categoria, marca: marca.trim() || null, modelo: modelo.trim() || null,
         unidad, sistema_id: sistemaId, ubicacion_id: ubicacionId, minimo: parseFloat(minimo) || 0, retornable,
-        costo_unitario: costo.trim() === '' ? null : Math.max(0, Number(costo) || 0),
+        ...(cambioElCosto ? { costo_unitario: costoNuevo } : {}),
       });
       showToast('Artículo actualizado', 'success');
       onGuardado();

@@ -80,13 +80,52 @@ export async function puedoGestionarAlmacen(): Promise<boolean> {
 
 // --- Catálogo ---
 
+// Columnas del catálogo que cualquier cuenta puede leer. El costo no va aquí
+// a propósito: la base ya no deja leerlo directo de la tabla
+// (patch_auditoria_3.sql), así que pedir «*» fallaría. Al agregar una columna
+// a almacen_articulos hay que sumarla a esta lista.
+export const COLUMNAS_ARTICULO =
+  'id, categoria, descripcion, unidad, retornable, activo, creado_por, created_at, minimo, sistema_id, marca, modelo, ubicacion_id, foto_path';
+
+// Lo mismo para los movimientos.
+const COLUMNAS_MOVIMIENTO =
+  'id, articulo_id, tipo, cantidad, inventario, grupo_id, proveedor, factura_path, orden_compra_path, nota, servicio_id, creado_por, created_at, resguardo_id, numeros_serie, vale_id, fotos';
+
+// Trae el último costo de cada artículo. Solo lo reciben almacén y
+// supervisión; a los demás la base les regresa una lista vacía.
+async function leerCostos(): Promise<Record<string, number | null>> {
+  const supabase = createClient();
+  const costos: Record<string, number | null> = {};
+
+  const { data, error } = await supabase.rpc('costos_articulos');
+  if (!error) {
+    for (const fila of (data as { articulo_id: string; costo_unitario: number | null }[]) || []) {
+      costos[fila.articulo_id] = fila.costo_unitario;
+    }
+    return costos;
+  }
+
+  // Base sin patch_auditoria_3.sql todavía: la función no existe y el costo
+  // aún se puede leer de la tabla.
+  const { data: directo, error: errorDirecto } = await supabase.from('almacen_articulos').select('id, costo_unitario');
+  if (errorDirecto) {
+    console.warn('[almacen] No se pudieron leer los costos:', error.message);
+    return costos;
+  }
+  for (const fila of (directo as { id: string; costo_unitario: number | null }[]) || []) {
+    costos[fila.id] = fila.costo_unitario;
+  }
+  return costos;
+}
+
 export async function listarArticulos(soloActivos = true): Promise<Articulo[]> {
   const supabase = createClient();
-  let q = supabase.from('almacen_articulos').select('*').order('categoria').order('descripcion');
+  let q = supabase.from('almacen_articulos').select(COLUMNAS_ARTICULO).order('categoria').order('descripcion');
   if (soloActivos) q = q.eq('activo', true);
-  const { data, error } = await q;
+  const [{ data, error }, costos] = await Promise.all([q, leerCostos()]);
   if (error) throw error;
-  return (data as Articulo[]) || [];
+  const articulos = (data as unknown as Articulo[]) || [];
+  return articulos.map((a) => ({ ...a, costo_unitario: costos[a.id] ?? null }));
 }
 
 // --- Sistemas ---
@@ -181,7 +220,7 @@ export async function crearArticulo(input: {
       foto_path: input.foto ? await subirDocumento('articulos', input.foto) : null,
       creado_por: user?.id,
     })
-    .select()
+    .select(COLUMNAS_ARTICULO)
     .single();
   if (error) throw error;
   return data as Articulo;
@@ -372,16 +411,18 @@ export async function urlDeDocumento(path: string): Promise<string | null> {
 export async function listarExistencias(): Promise<Existencia[]> {
   const supabase = createClient();
 
-  const [{ data: saldos, error: e1 }, { data: articulos, error: e2 }, { data: movs }] = await Promise.all([
+  const [{ data: saldos, error: e1 }, { data: articulos, error: e2 }, { data: movs }, costos] = await Promise.all([
     supabase.from('almacen_existencias').select('*'),
-    supabase.from('almacen_articulos').select('*'),
+    supabase.from('almacen_articulos').select(COLUMNAS_ARTICULO),
     supabase.from('almacen_movimientos').select('articulo_id, inventario, grupo_id, created_at, factura_path, orden_compra_path').eq('tipo', 'entrada'),
+    leerCostos(),
   ]);
   if (e1) throw e1;
   if (e2) throw e2;
 
+  // Desde esta lista se abre la ficha del artículo, que muestra el costo.
   const porId: Record<string, Articulo> = {};
-  ((articulos as Articulo[]) || []).forEach((a) => { porId[a.id] = a; });
+  ((articulos as unknown as Articulo[]) || []).forEach((a) => { porId[a.id] = { ...a, costo_unitario: costos[a.id] ?? null }; });
 
   // Nombre del proyecto de cada grupo con existencias reservadas.
   const grupos = Array.from(new Set(((saldos as any[]) || []).map((s) => s.grupo_id).filter(Boolean)));
@@ -468,7 +509,7 @@ export async function listarMovimientos(limite = 100): Promise<MovimientoDetalla
   const supabase = createClient();
   const { data, error } = await supabase
     .from('almacen_movimientos')
-    .select('*')
+    .select(COLUMNAS_MOVIMIENTO)
     .order('created_at', { ascending: false })
     .limit(limite);
   if (error) throw error;
@@ -481,7 +522,7 @@ export async function listarMovimientos(limite = 100): Promise<MovimientoDetalla
   const grupos = Array.from(new Set(movs.map((m) => m.grupo_id).filter(Boolean)));
 
   const [{ data: articulos }, { data: perfiles }, { data: servicios }] = await Promise.all([
-    supabase.from('almacen_articulos').select('*').in('id', idsArt),
+    supabase.from('almacen_articulos').select(COLUMNAS_ARTICULO).in('id', idsArt),
     idsPersona.length > 0 ? supabase.from('profiles').select('id, full_name').in('id', idsPersona) : Promise.resolve({ data: [] as any[] }),
     grupos.length > 0 ? supabase.from('servicios_programados').select('grupo_id, proyecto').in('grupo_id', grupos) : Promise.resolve({ data: [] as any[] }),
   ]);
@@ -535,7 +576,7 @@ export async function avisarSiBajoMinimo(): Promise<void> {
 export async function listarBajoMinimo(): Promise<ArticuloBajoMinimo[]> {
   const supabase = createClient();
   const [{ data: articulos, error }, { data: saldos }] = await Promise.all([
-    supabase.from('almacen_articulos').select('*').eq('activo', true).gt('minimo', 0),
+    supabase.from('almacen_articulos').select(COLUMNAS_ARTICULO).eq('activo', true).gt('minimo', 0),
     supabase.from('almacen_existencias').select('*').eq('inventario', 'general'),
   ]);
   if (error) throw error;

@@ -56,7 +56,7 @@ export async function GET(request: NextRequest, props: { params: Promise<{ id: s
     pdfBytes = await generateReportPdf(report as any, supabase);
   } catch (err: any) {
     console.error('[pdf-route] Error generando PDF:', err?.message, err?.stack);
-    return NextResponse.json({ error: 'Error al generar el PDF: ' + (err?.message || 'desconocido') }, { status: 500 });
+    return NextResponse.json({ error: 'No se pudo generar el PDF. Intenta de nuevo; si sigue fallando, avisa a quien administra la app.' }, { status: 500 });
   }
 
   // ===== PASO CRÍTICO: Auditar ANTES de enviar (OWASP A09) =====

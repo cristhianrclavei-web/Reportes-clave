@@ -592,7 +592,9 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
         .from('cotizacion_lineas')
         .select('sistema, descripcion, unidad, costo, margen_pct, precio_unitario, cotizaciones(folio, fecha, empresa, moneda)')
         .limit(12);
-      let qa = supabase.from('almacen_articulos').select('descripcion, marca, modelo, unidad, costo_unitario').eq('activo', true).limit(10);
+      // El costo no se lee de la tabla: lo entrega costos_articulos() solo a
+      // almacén y supervisión (patch_auditoria_3.sql).
+      let qa = supabase.from('almacen_articulos').select('id, descripcion, marca, modelo, unidad').eq('activo', true).limit(10);
       for (const p of palabras) {
         ql = ql.ilike('descripcion', patron(p));
         qa = qa.or(['descripcion', 'marca', 'modelo'].map((col) => `${col}.ilike.${patron(p)}`).join(','));
@@ -602,12 +604,14 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
             .then((ps) => ({ conectado: true, productos: ps.map((x) => ({ titulo: x.titulo, marca: x.marca, modelo: x.modelo, costo: x.precio, moneda: x.moneda, existencia: x.existencia })) }))
             .catch((e) => ({ conectado: true, error: String(e?.message || e).slice(0, 200), productos: [] }))
         : Promise.resolve({ conectado: false, productos: [] });
-      const [{ data: lineas, error }, { data: arts, error: e2 }, sy] = await Promise.all([ql, qa, syscom]);
+      const [{ data: lineas, error }, { data: arts, error: e2 }, { data: filasCosto }, sy] = await Promise.all([ql, qa, supabase.rpc('costos_articulos'), syscom]);
       if (error || e2) return falla(error || e2);
+      const costoDe = new Map<string, number | null>();
+      for (const f of (filasCosto as any[]) || []) costoDe.set(f.articulo_id, f.costo_unitario);
       return JSON.stringify({
         syscom: sy,
         cotizaciones_anteriores: ((lineas as any[]) || []).map(({ cotizaciones: c, ...l }) => ({ ...l, folio: c?.folio, fecha: c?.fecha, cliente: c?.empresa, moneda: c?.moneda })),
-        almacen: ((arts as any[]) || []).map((a) => ({ articulo: [a.descripcion, a.marca, a.modelo].filter(Boolean).join(' '), unidad: a.unidad, ultimo_costo: a.costo_unitario })),
+        almacen: ((arts as any[]) || []).map((a) => ({ articulo: [a.descripcion, a.marca, a.modelo].filter(Boolean).join(' '), unidad: a.unidad, ultimo_costo: costoDe.get(a.id) ?? null })),
       });
     },
   });

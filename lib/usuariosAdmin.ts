@@ -94,6 +94,8 @@ export async function bitacora(supabase: Awaited<ReturnType<typeof createClient>
 
 export function respuestaError(e: unknown): { estado: number; mensaje: string } {
   if (e instanceof ErrorUsuarios) return { estado: e.estado, mensaje: e.message };
-  const m = (e as any)?.message || 'Error inesperado';
-  return { estado: 500, mensaje: m };
+  // Un error que no escribimos nosotros puede traer detalles internos: se
+  // queda en el registro del servidor y al usuario le llega un texto general.
+  console.error('[usuarios] Error inesperado:', e);
+  return { estado: 500, mensaje: 'No se pudo completar la operación. Intenta de nuevo.' };
 }

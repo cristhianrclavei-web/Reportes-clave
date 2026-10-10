@@ -21,6 +21,28 @@ const MODELO = process.env.ELEVENLABS_MODELO || 'eleven_v4_turbo';
 const MODELO_RESPALDO = 'eleven_flash_v2_5';
 const MAX_LETRAS = 1000;
 
+// Tope por persona: cada audio cuesta créditos y, sin esto, una sola cuenta
+// podía pedir audios sin parar. En una conversación normal se oyen unas
+// cuantas respuestas por minuto.
+// shortcut: la cuenta vive en la memoria de cada instancia del servidor, así
+// que el tope real puede ser algo mayor; si hace falta exactitud, llevarla a
+// una tabla como asistente_uso.
+const MAX_AUDIOS = 30;
+const VENTANA_MS = 10 * 60_000;
+const audiosPorUsuario = new Map<string, number[]>();
+
+function superaElTope(userId: string): boolean {
+  const ahora = Date.now();
+  const recientes = (audiosPorUsuario.get(userId) || []).filter((t) => ahora - t < VENTANA_MS);
+  if (recientes.length >= MAX_AUDIOS) {
+    audiosPorUsuario.set(userId, recientes);
+    return true;
+  }
+  recientes.push(ahora);
+  audiosPorUsuario.set(userId, recientes);
+  return false;
+}
+
 // Se usa el punto de entrada «stream» de ElevenLabs y su respuesta se pasa
 // tal cual al navegador: el audio empieza a sonar en cuanto llegan los
 // primeros trozos, sin esperar a que se genere completo.
@@ -49,6 +71,7 @@ async function responder(texto: string): Promise<Response> {
   }
   if (!texto) return NextResponse.json({ error: 'Falta el texto.' }, { status: 400 });
   if (texto.length > MAX_LETRAS) return NextResponse.json({ error: 'Texto demasiado largo para la voz natural.' }, { status: 413 });
+  if (superaElTope(user.id)) return NextResponse.json({ error: 'Demasiados audios seguidos. Espera unos minutos; mientras, se usa la voz del teléfono.' }, { status: 429 });
 
   const t0 = Date.now();
   try {

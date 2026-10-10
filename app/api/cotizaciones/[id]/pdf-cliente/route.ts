@@ -28,7 +28,7 @@ export async function GET(request: NextRequest, props: { params: Promise<{ id: s
     pdfBytes = await generateCotizacionPdf(cotizacion, lineas);
   } catch (err: any) {
     console.error('[cotizaciones-pdf-cliente] Error generando PDF:', err?.message, err?.stack);
-    return NextResponse.json({ error: 'Error al generar el PDF: ' + (err?.message || 'desconocido') }, { status: 500 });
+    return NextResponse.json({ error: 'No se pudo generar el PDF. Intenta de nuevo; si sigue fallando, avisa a quien administra la app.' }, { status: 500 });
   }
 
   const cleanEmpresa = (cotizacion.empresa || 'cliente').replace(/[^a-z0-9]+/gi, '-');
