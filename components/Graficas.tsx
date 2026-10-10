@@ -492,6 +492,10 @@ export function LineaInteractiva({
             {indice !== null && puntos[indice]?.valor !== null && (
               <line x1={x(indice)} x2={x(indice)} y1={arr} y2={base} stroke={color} strokeWidth={1} opacity={0.5} />
             )}
+            {/* El mismo día del periodo anterior, marcado sobre la punteada. */}
+            {indice !== null && typeof previos?.[indice] === 'number' && (
+              <circle cx={x(indice)} cy={y(previos[indice] as number)} r={4.5} fill="rgb(var(--c-surface))" stroke="currentColor" className="text-muted" strokeWidth={2} />
+            )}
             {validos.map((p, k) => {
               const es = indice === p.i;
               const ultimo = k === validos.length - 1;

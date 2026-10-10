@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Clock3, FileCheck2, TrendingUp, TrendingDown, Minus, Sparkles } from 'lucide-react';
 import { DiaAgenda } from '@/lib/serviciosProgramados';
-import { serieProductividad, compararPeriodos, mejorDia, promedioPorDiaActivo, Metrica, DiaProductividad } from '@/lib/productividad';
+import { serieProductividad, compararPeriodos, mejorDia, promedioPorDiaActivo, Metrica, DiaProductividad, ReporteDia } from '@/lib/productividad';
 import { formatMinutos } from '@/lib/kpis';
 import { hoyLocal, fechaLocal } from '@/lib/fechaHoy';
 import BotonInfo from '@/components/BotonInfo';
@@ -41,7 +41,7 @@ function Cambio({ pct, actual }: { pct: number | null; actual: number }) {
   );
 }
 
-export default function KpiProductividad({ servicios, reports }: { servicios: DiaAgenda[]; reports: { fecha?: string | null }[] }) {
+export default function KpiProductividad({ servicios, reports }: { servicios: DiaAgenda[]; reports: ReporteDia[] }) {
   // «Hoy» se lee ya montado (Vercel corre en UTC).
   const [hoy, setHoy] = useState<string | null>(null);
   useEffect(() => { setHoy(hoyLocal()); }, []);
@@ -58,20 +58,37 @@ export default function KpiProductividad({ servicios, reports }: { servicios: Di
   const promedio = promedioPorDiaActivo(actuales, metrica);
   const hayAlgo = serie.some((d) => d.servicios || d.reportes || d.minutos);
 
+  // Globo de un día: primero la medida elegida contra el mismo día del periodo
+  // anterior (la línea punteada), luego las otras medidas de ese día.
   const info = (d: DiaProductividad, i: number) => {
+    const antes: DiaProductividad | undefined = previos[i];
     const clasificados = d.aFavor + d.enContra + d.externas;
+    const otras = METRICAS.filter((x) => x.clave !== metrica);
+
+    let nota: string | undefined;
+    if (antes) {
+      const diferencia = d[metrica] - antes[metrica];
+      if (diferencia === 0) nota = 'Igual que el mismo día del periodo anterior.';
+      else nota = `${m.valor(Math.abs(diferencia))} ${diferencia > 0 ? 'más' : 'menos'} que en el periodo anterior.`;
+    }
+    if (d.minutosDeReportes > 0) {
+      nota = `${nota ? `${nota} ` : ''}${formatMinutos(d.minutosDeReportes)} en sitio se tomaron de la hora de llegada y salida de los reportes.`;
+    }
+
     return (
       <InfoPunto
         titulo={`${nombreDia(d.fecha)}${d.fecha === hoy ? ' · hoy, en curso' : ''}`}
         filas={[
-          ...METRICAS.map((x) => ({ color: x.clave === metrica ? COLOR.acento : undefined, texto: x.texto, valor: x.valor(d[x.clave]) })),
+          { color: COLOR.acento, texto: m.texto, valor: m.valor(d[metrica]) },
+          ...(antes ? [{ color: '#94A0AB', texto: `Periodo anterior · ${nombreDia(antes.fecha, false)}`, valor: m.valor(antes[metrica]) }] : []),
+          ...otras.map((x) => ({ texto: x.texto, valor: x.valor(d[x.clave]) })),
           ...(clasificados > 0 ? [
             { color: COLOR.acento, texto: 'A favor del plan', valor: d.aFavor },
             ...(d.externas ? [{ color: COLOR.ambar, texto: 'Causa externa', valor: d.externas }] : []),
             ...(d.enContra ? [{ color: COLOR.rojo, texto: 'En contra', valor: d.enContra }] : []),
           ] : []),
         ]}
-        nota={previos[i] ? `${nombreDia(previos[i].fecha, false)} (periodo anterior): ${m.valor(previos[i][metrica])}` : undefined}
+        nota={nota}
       />
     );
   };
@@ -121,9 +138,10 @@ export default function KpiProductividad({ servicios, reports }: { servicios: Di
           <div className="text-[10px] uppercase tracking-wider text-muted">{m.texto} por día · últimos {ventana} días</div>
           <BotonInfo titulo="Productividad del equipo">
             Lo que el equipo cerró cada día. <b>Servicios concluidos</b> son los días de servicio que se
-            terminaron en la app. <b>Horas en sitio</b> van de la llegada al cierre, sin pausas, por cada
-            persona asignada. <b>Reportes entregados</b> cuentan por la fecha del servicio. La línea
-            punteada es el periodo anterior, para ver si se va arriba o abajo; el porcentaje compara los
+            terminaron en la app. <b>Horas en sitio</b> van de la llegada al cierre de cada servicio, sin
+            pausas; si el servicio no tiene horas registradas, se toman la llegada y la salida de
+            su reporte. <b>Reportes entregados</b> cuentan por la fecha del servicio. La línea
+            punteada es el periodo anterior, y al señalar un día se ve su dato junto al de este periodo; el porcentaje compara los
             totales de los dos periodos. Hoy todavía está en curso.
           </BotonInfo>
         </div>
