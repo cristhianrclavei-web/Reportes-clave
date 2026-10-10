@@ -143,6 +143,18 @@ describe('desviacionPorProyecto', () => {
     expect(filas.map((f) => f.proyecto)).toEqual(['Mucho desvío', 'Poco desvío']);
   });
 
+  it('reparte los servicios en antes, a tiempo y tarde, con 10% de tolerancia', () => {
+    const de = (minutos: number) => servicio({
+      duracion_estimada_min: 100,
+      hora_inicio: '2026-09-10T08:00:00-06:00',
+      hora_fin: new Date(new Date('2026-09-10T08:00:00-06:00').getTime() + minutos * 60000).toISOString(),
+    });
+    const { reparto, diferenciaMin, filas } = desviacionPorProyecto([de(80), de(95), de(110), de(130), de(150)]);
+    expect(reparto).toEqual({ antes: 1, aTiempo: 2, tarde: 2 });
+    expect(filas[0].reparto).toEqual(reparto);
+    expect(diferenciaMin).toBe(10);
+  });
+
   it('marca el resumen como no confiable por debajo de la muestra mínima', () => {
     const servicios = Array.from({ length: MUESTRA_MINIMA - 1 }, () =>
       servicio({ hora_inicio: '2026-09-10T08:00:00-06:00', hora_fin: '2026-09-10T09:00:00-06:00' })

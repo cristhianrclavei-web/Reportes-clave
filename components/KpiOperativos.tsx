@@ -4,13 +4,14 @@ import { useMemo } from 'react';
 import { Servicio } from '@/lib/serviciosProgramados';
 import {
   desviacionPorProyecto,
+  lecturaDeTiempo,
   tiempoDeArranque,
   puntualidad,
   retrabajo,
   formatMinutos,
   MUESTRA_MINIMA,
 } from '@/lib/kpis';
-import { TrendingUp, TrendingDown, Timer, Clock, FileWarning } from 'lucide-react';
+import { Hourglass, Timer, Clock, FileWarning } from 'lucide-react';
 import BotonInfo from '@/components/BotonInfo';
 import { ZonaGraficas, Marco, Punto, Crece, Aparece, Contador, Medidor, InfoPunto, COLOR } from '@/components/Graficas';
 
@@ -29,25 +30,140 @@ function Muestra({ n, descartados }: { n: number; descartados?: number }) {
   );
 }
 
-// Barra divergente centrada en cero: a la izquierda lo que cierra antes, a la
-// derecha lo que se pasa. Es la forma más legible en un teléfono angosto.
-function BarraDesviacion({ pct }: { pct: number }) {
-  const tope = 60; // más allá de ±60% la barra se satura, el número lo dice
-  const ancho = Math.min(Math.abs(pct), tope) / tope * 50;
-  const seExcede = pct > 0;
+// Las tres lecturas de un servicio contra su tiempo planeado.
+const LECTURAS = [
+  { clave: 'antes', texto: 'Antes', clase: 'bg-teal/50', css: 'rgb(var(--c-acento) / 0.5)', nota: 'Terminaron más de 10% antes del tiempo planeado.' },
+  { clave: 'aTiempo', texto: 'A tiempo', clase: 'bg-teal', css: COLOR.acento, nota: 'Terminaron en el tiempo planeado, con 10% de margen.' },
+  { clave: 'tarde', texto: 'Se pasaron', clase: 'bg-amber', css: COLOR.ambar, nota: 'Tardaron más de 10% sobre el tiempo planeado.' },
+] as const;
+
+// Una diferencia de tiempo dicha en palabras: «35 min más», «20 min menos».
+function textoDiferencia(minutos: number): string {
+  const redondo = Math.round(minutos);
+  if (redondo === 0) return 'Igual a lo planeado';
+  return `${formatMinutos(Math.abs(redondo))} ${redondo > 0 ? 'más' : 'menos'}`;
+}
+
+// Un renglón de la comparación: «Planeado» o «Real», su barra y su tiempo.
+function BarraTiempo({ texto, minutos, tope, clase, orden, activo }: {
+  texto: string; minutos: number; tope: number; clase: string; orden: number; activo: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-2 text-[11px]">
+      <span className="w-14 shrink-0 text-muted">{texto}</span>
+      <div className="flex-1 h-2.5 rounded-full bg-surface-2 overflow-hidden">
+        <Crece orden={orden} pct={(minutos / tope) * 100}
+          className={`h-full rounded-full ${clase} transition-[filter] duration-200 ${activo ? 'brightness-125' : ''}`} />
+      </div>
+      <span className="w-[72px] shrink-0 text-right tabular-nums font-medium">{formatMinutos(minutos)}</span>
+    </div>
+  );
+}
+
+// ¿Se cumple el tiempo planeado? Primero la respuesta en servicios contados
+// (cuántos terminaron antes, a tiempo o tarde) y luego, por proyecto, dos
+// barras lado a lado: lo planeado y lo que de verdad se tardó.
+function TiempoPlaneado({ datos }: { datos: ReturnType<typeof desviacionPorProyecto> }) {
+  const total = datos.resumen.n;
+  const cumplen = datos.reparto.antes + datos.reparto.aTiempo;
+  const diferencia = Math.round(datos.diferenciaMin);
+  const filas = datos.filas.slice(0, 5);
+  // Todas las barras comparten escala: la más larga llena el renglón.
+  const tope = Math.max(1, ...filas.map((f) => Math.max(f.estimadoMin, f.realMin)));
+
+  let loNormal = 'Lo normal es terminar justo en el tiempo planeado.';
+  if (diferencia !== 0) {
+    loNormal = `Lo normal es tardar ${formatMinutos(Math.abs(diferencia))} ${diferencia > 0 ? 'más' : 'menos'} de lo planeado.`;
+  }
 
   return (
-    <div className="relative h-2 rounded-full bg-surface-2 overflow-hidden">
-      <div className="absolute left-1/2 top-0 bottom-0 w-px bg-line-strong" />
-      <div
-        className={`absolute top-0 bottom-0 rounded-full ${seExcede ? 'bg-amber' : 'bg-teal'}`}
-        style={
-          seExcede
-            ? { left: '50%', width: `${ancho}%` }
-            : { right: '50%', width: `${ancho}%` }
-        }
-      />
-    </div>
+    <>
+      <div className="flex items-baseline gap-1.5 font-display font-bold leading-none mb-1.5">
+        <Contador valor={cumplen} className="text-[30px]" />
+        <span className="text-[15px] text-muted font-semibold">de {total}</span>
+      </div>
+      <p className="text-[12.5px] text-ink/85">
+        {total === 1 ? 'servicio terminó' : 'servicios terminaron'} en el tiempo planeado o antes
+      </p>
+      <p className="text-[11.5px] text-muted mt-1">{loNormal}</p>
+
+      {/* Reparto: cada tramo es un grupo de servicios. */}
+      <div className="flex h-3.5 gap-[2px] mt-3.5 mb-2">
+        {LECTURAS.filter((l) => datos.reparto[l.clave] > 0).map((l, i) => {
+          const n = datos.reparto[l.clave];
+          return (
+            <Punto key={l.clave} grupo="reparto-tiempo" className="h-full min-w-[5px]" style={{ width: `${(n / total) * 100}%` }}
+              etiqueta={`${l.texto}: ${n} de ${total} servicios`}
+              info={
+                <InfoPunto titulo={l.texto}
+                  filas={[
+                    { color: l.css, texto: 'Servicios', valor: n },
+                    { texto: 'Del total medido', valor: `${Math.round((n / total) * 100)}%` },
+                  ]}
+                  nota={l.nota} />
+              }>
+              {(activo, otro) => (
+                <Crece orden={i * 2} pct={100} data-ancla=""
+                  className={`h-full rounded-[4px] origin-bottom transition-[transform,opacity,filter] duration-200 ${l.clase} ${activo ? 'scale-y-[1.35] brightness-110' : ''} ${otro ? 'opacity-40' : ''}`} />
+              )}
+            </Punto>
+          );
+        })}
+      </div>
+      <p className="text-[11.5px] text-muted flex items-center gap-x-3.5 gap-y-1 flex-wrap">
+        {LECTURAS.map((l) => (
+          <span key={l.clave} className="flex items-center gap-1.5">
+            <span className={`w-2.5 h-2.5 rounded-[3px] ${l.clase}`} /> {l.texto} <b className="text-ink tabular-nums">{datos.reparto[l.clave]}</b>
+          </span>
+        ))}
+      </p>
+      <Muestra n={total} descartados={datos.resumen.descartados} />
+
+      {filas.length > 0 && (
+        <div className="mt-4 pt-4 border-t border-line space-y-3.5">
+          <p className="text-[10px] uppercase tracking-wider text-faint">Planeado contra real, por proyecto</p>
+          {filas.map((f, i) => {
+            const lectura = lecturaDeTiempo(f.realMin, f.estimadoMin);
+            const sePasa = lectura === 'tarde';
+            const veredicto = lectura === 'aTiempo' ? 'A tiempo' : textoDiferencia(f.realMin - f.estimadoMin);
+            return (
+              <Punto key={f.proyecto} grupo="desviacion"
+                etiqueta={`${f.proyecto}: planeado ${formatMinutos(f.estimadoMin)}, real ${formatMinutos(f.realMin)}`}
+                info={
+                  <InfoPunto titulo={f.proyecto}
+                    filas={[
+                      { texto: 'Planeado', valor: formatMinutos(f.estimadoMin) },
+                      { color: sePasa ? COLOR.ambar : COLOR.acento, texto: 'Real', valor: formatMinutos(f.realMin) },
+                      { texto: 'Diferencia', valor: textoDiferencia(f.realMin - f.estimadoMin) },
+                      ...LECTURAS.map((l) => ({ texto: `Servicios: ${l.texto.toLowerCase()}`, valor: f.reparto[l.clave] })),
+                    ]}
+                    nota={sePasa
+                      ? 'Tarda más de lo planeado: conviene ajustar el tiempo que se agenda o lo que se cotiza.'
+                      : 'Va dentro de lo planeado.'} />
+                }>
+                {(activo, otro) => (
+                  <div className={`transition-opacity duration-200 ${otro ? 'opacity-55' : ''}`}>
+                    <div className="flex justify-between items-center gap-2 mb-1.5">
+                      <span className={`text-[12.5px] truncate transition-colors ${activo ? 'text-ink font-semibold' : 'text-ink/85'}`}>{f.proyecto}</span>
+                      <span className={`shrink-0 px-1.5 py-0.5 rounded-md text-[11px] font-semibold tabular-nums ${sePasa ? 'bg-amber/15 text-amber' : 'bg-teal/15 text-teal'}`}>
+                        {veredicto}
+                      </span>
+                    </div>
+                    <div className="space-y-1" data-ancla="">
+                      <BarraTiempo texto="Planeado" minutos={f.estimadoMin} tope={tope} clase="bg-ink/30" orden={i * 2} activo={activo} />
+                      <BarraTiempo texto="Real" minutos={f.realMin} tope={tope} clase={sePasa ? 'bg-amber' : 'bg-teal'} orden={i * 2 + 1} activo={activo} />
+                    </div>
+                    {f.n < MUESTRA_MINIMA && (
+                      <p className="text-[10.5px] text-faint mt-1">Pocos datos: {f.n === 1 ? '1 servicio medido' : `${f.n} servicios medidos`}</p>
+                    )}
+                  </div>
+                )}
+              </Punto>
+            );
+          })}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -90,7 +206,7 @@ export default function KpiOperativos({
   const punt = useMemo(() => puntualidad(servicios), [servicios]);
   const retra = useMemo(() => retrabajo(reports), [reports]);
 
-  const seExcede = desviacion.resumen.valor > 0;
+  const seExcede = desviacion.diferenciaMin > 0;
 
   // Reparto del tiempo entre llegar y empezar, por rangos.
   const rangosArranque = useMemo(() => {
@@ -116,21 +232,22 @@ export default function KpiOperativos({
 
       {/* Computadora: la tarjeta larga a la izquierda y las otras tres a su lado. */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-        {/* 1. Desviación contra lo estimado */}
+        {/* 1. Tiempo planeado contra real */}
         <Tarjeta
           className="xl:row-span-2"
-          titulo="Tiempo real contra estimado"
-          Icono={seExcede ? TrendingUp : TrendingDown}
+          titulo="¿Se cumple el tiempo planeado?"
+          Icono={Hourglass}
           color={seExcede ? 'text-amber' : 'text-teal'}
           explicacion={
             <>
-              Cuánto se aleja el tiempo real del que se estimó al agendar. Un +20% significa
-              que los servicios tardan una quinta parte más de lo planeado; un número negativo,
-              que cierran antes. Se mide de iniciar a concluir, no desde que se llega: el traslado
-              y la espera en caseta no son culpa del estimado.
-              {' '}Se usa la mediana y no el promedio, para que un servicio que se fue a seis horas
-              no ensucie todo el proyecto. Abajo se ve en qué proyectos se sale más, que es donde
-              conviene ajustar lo que se estima o lo que se cotiza.
+              Compara lo que se planeó al agendar contra lo que de verdad tardó cada servicio.
+              Arriba, cuántos servicios terminaron antes, a tiempo o se pasaron; se toma como
+              «a tiempo» hasta 10% de diferencia. Abajo, por proyecto, la barra gris es lo planeado
+              y la de color lo real: si la de color es más larga, ahí se tarda más de lo previsto y
+              conviene ajustar el tiempo que se agenda o lo que se cotiza.
+              {' '}Se mide de iniciar a concluir, no desde que se llega: el traslado y la espera en
+              caseta no cuentan. «Lo normal» es el servicio de en medio (la mediana), para que uno
+              que se fue a seis horas no mueva todo.
             </>
           }
         >
@@ -139,71 +256,7 @@ export default function KpiOperativos({
               Aún no hay servicios concluidos con hora de inicio y fin.
             </p>
           ) : (
-            <>
-              <div className="font-display text-[30px] font-bold leading-none mb-1">
-                <Contador valor={desviacion.resumen.valor} formato={(n) => `${Math.round(n) > 0 ? '+' : ''}${Math.round(n)}%`} />
-              </div>
-              <p className="text-[11px] text-muted">
-                {seExcede
-                  ? 'Los servicios se pasan del tiempo estimado'
-                  : 'Los servicios cierran antes de lo estimado'}
-              </p>
-              <Muestra n={desviacion.resumen.n} descartados={desviacion.resumen.descartados} />
-
-              {desviacion.filas.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-line space-y-3">
-                  <p className="text-[10px] uppercase tracking-wider text-faint">
-                    Dónde se sale más
-                  </p>
-                  <p className="text-[11px] text-muted flex items-center gap-3 flex-wrap">
-                    <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-[2px] bg-teal" /> Tiempo real</span>
-                    <span className="flex items-center gap-1.5"><span className="w-[3px] h-3 rounded-full bg-ink" /> Estimado</span>
-                  </p>
-                  {(() => {
-                    const filas = desviacion.filas.slice(0, 5);
-                    const tope = Math.max(1, ...filas.map((f) => Math.max(f.estimadoMin, f.realMin))) * 1.08;
-                    return filas.map((f, i) => {
-                      const color = f.desviacionPct > 0 ? COLOR.ambar : COLOR.acento;
-                      return (
-                        <Punto key={f.proyecto} grupo="desviacion" etiqueta={`${f.proyecto}: estimado ${formatMinutos(f.estimadoMin)}, real ${formatMinutos(f.realMin)}`}
-                          info={
-                            <InfoPunto titulo={f.proyecto}
-                              filas={[
-                                { texto: 'Estimado', valor: formatMinutos(f.estimadoMin) },
-                                { color, texto: 'Real', valor: formatMinutos(f.realMin) },
-                                { texto: 'Diferencia', valor: `${f.realMin >= f.estimadoMin ? '+' : '−'}${formatMinutos(Math.abs(f.realMin - f.estimadoMin))}` },
-                                { texto: 'Servicios medidos', valor: f.n },
-                              ]}
-                              nota={f.desviacionPct > 0 ? 'Tarda más de lo planeado: conviene ajustar el estimado o la cotización.' : 'Cierra antes de lo estimado.'} />
-                          }>
-                          {(activo, otro) => (
-                            <div className={`transition-opacity duration-200 ${otro ? 'opacity-55' : ''}`}>
-                              <div className="flex justify-between items-baseline gap-2 mb-1.5">
-                                <span className={`text-[12.5px] truncate transition-colors ${activo ? 'text-ink font-semibold' : 'text-ink/85'}`}>{f.proyecto}</span>
-                                <span className={`text-[12.5px] font-semibold shrink-0 tabular-nums ${f.desviacionPct > 0 ? 'text-amber' : 'text-teal'}`}>
-                                  {f.desviacionPct > 0 ? '+' : ''}{Math.round(f.desviacionPct)}%
-                                </span>
-                              </div>
-                              {/* Barra = lo que tardó; marca = lo que se estimó. */}
-                              <div className="relative h-3 rounded-r-[4px] bg-surface-2" data-ancla="">
-                                <Crece orden={i} pct={(f.realMin / tope) * 100}
-                                  className={`absolute inset-y-0 left-0 rounded-r-[4px] ${f.desviacionPct > 0 ? 'bg-amber' : 'bg-teal'} transition-[filter] duration-200 ${activo ? 'brightness-125' : ''}`} />
-                                <div className={`absolute w-[3px] rounded-full bg-ink ring-2 ring-surface transition-all duration-200 ${activo ? '-top-1.5 -bottom-1.5' : '-top-1 -bottom-1'}`}
-                                  style={{ left: `calc(${(f.estimadoMin / tope) * 100}% - 1.5px)` }} />
-                              </div>
-                              <p className="text-[10.5px] text-faint mt-1.5">
-                                Estimado {formatMinutos(f.estimadoMin)} · real {formatMinutos(f.realMin)}
-                                {f.n < MUESTRA_MINIMA && ` · solo ${f.n}`}
-                              </p>
-                            </div>
-                          )}
-                        </Punto>
-                      );
-                    });
-                  })()}
-                </div>
-              )}
-            </>
+            <TiempoPlaneado datos={desviacion} />
           )}
         </Tarjeta>
 

@@ -66,21 +66,40 @@ export function formatMinutos(mins: number): string {
 // Se mide de inicio a fin, no de llegada a fin: el tiempo estimado es de
 // trabajo, y el traslado o la espera en la caseta no son culpa del estimado.
 
+// Hasta 10% de diferencia contra lo planeado cuenta como «a tiempo»: nadie
+// estima al minuto.
+export const TOLERANCIA_TIEMPO = 0.1;
+
+// Cuántos servicios terminaron antes, a tiempo o después de lo planeado.
+export type RepartoTiempo = { antes: number; aTiempo: number; tarde: number };
+
+export function lecturaDeTiempo(realMin: number, estimadoMin: number): keyof RepartoTiempo {
+  const diferencia = (realMin - estimadoMin) / estimadoMin;
+  if (diferencia > TOLERANCIA_TIEMPO) return 'tarde';
+  if (diferencia < -TOLERANCIA_TIEMPO) return 'antes';
+  return 'aTiempo';
+}
+
 export type DesviacionProyecto = {
   proyecto: string;
   estimadoMin: number;
   realMin: number;
   desviacionPct: number; // + se pasó, - cerró antes
   n: number;
+  reparto: RepartoTiempo;
 };
 
 export function desviacionPorProyecto(servicios: Servicio[]): {
   filas: DesviacionProyecto[];
   resumen: Muestra<number>; // mediana de la desviación en %
+  reparto: RepartoTiempo;
+  diferenciaMin: number; // mediana de real − planeado, en minutos
 } {
-  const porProyecto = new Map<string, { est: number[]; real: number[] }>();
+  const porProyecto = new Map<string, { est: number[]; real: number[]; reparto: RepartoTiempo }>();
   let descartados = 0;
   const todasLasDesviaciones: number[] = [];
+  const todasLasDiferencias: number[] = [];
+  const reparto: RepartoTiempo = { antes: 0, aTiempo: 0, tarde: 0 };
 
   servicios.forEach((s) => {
     if (s.estado !== 'concluido') return;
@@ -92,11 +111,15 @@ export function desviacionPorProyecto(servicios: Servicio[]): {
     }
     if (!s.duracion_estimada_min || s.duracion_estimada_min <= 0) return;
 
-    const item = porProyecto.get(s.proyecto) || { est: [], real: [] };
+    const item = porProyecto.get(s.proyecto) || { est: [], real: [], reparto: { antes: 0, aTiempo: 0, tarde: 0 } };
     item.est.push(s.duracion_estimada_min);
     item.real.push(real);
     porProyecto.set(s.proyecto, item);
 
+    const lectura = lecturaDeTiempo(real, s.duracion_estimada_min);
+    item.reparto[lectura]++;
+    reparto[lectura]++;
+    todasLasDiferencias.push(real - s.duracion_estimada_min);
     todasLasDesviaciones.push(((real - s.duracion_estimada_min) / s.duracion_estimada_min) * 100);
   });
 
@@ -110,6 +133,7 @@ export function desviacionPorProyecto(servicios: Servicio[]): {
       realMin: real,
       desviacionPct: estimado > 0 ? ((real - estimado) / estimado) * 100 : 0,
       n: v.real.length,
+      reparto: v.reparto,
     });
   });
 
@@ -124,6 +148,8 @@ export function desviacionPorProyecto(servicios: Servicio[]): {
       descartados,
       confiable: todasLasDesviaciones.length >= MUESTRA_MINIMA,
     },
+    reparto,
+    diferenciaMin: mediana(todasLasDiferencias),
   };
 }
 
