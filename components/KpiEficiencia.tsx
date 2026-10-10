@@ -9,7 +9,8 @@ import {
 } from '@/lib/eficiencia';
 import { formatMinutos, MUESTRA_MINIMA } from '@/lib/kpis';
 import { hoyLocal } from '@/lib/fechaHoy';
-import { Tarjeta, Medidor } from '@/components/KpiOperativos';
+import { Tarjeta } from '@/components/KpiOperativos';
+import { ZonaGraficas, Punto, Crece, Contador, Medidor, InfoPunto, COLOR } from '@/components/Graficas';
 
 // Eficiencia de servicios: de cada día concluido, si salió a favor, en contra
 // o se desvió por una causa externa (lib/eficiencia.ts). Solo cuenta lo que el
@@ -18,10 +19,10 @@ import { Tarjeta, Medidor } from '@/components/KpiOperativos';
 const SEMANAS = 8;
 
 const TONOS = [
-  { clave: 'positivas', texto: 'A favor', color: 'bg-teal' },
-  { clave: 'neutras', texto: 'Causa externa', color: 'bg-amber' },
-  { clave: 'negativas', texto: 'En contra', color: 'bg-red' },
-  { clave: 'sinClasificar', texto: 'Sin clasificar', color: 'bg-line-strong/70' },
+  { clave: 'positivas', texto: 'A favor', color: 'bg-teal', css: COLOR.acento },
+  { clave: 'neutras', texto: 'Causa externa', color: 'bg-amber', css: COLOR.ambar },
+  { clave: 'negativas', texto: 'En contra', color: 'bg-red', css: COLOR.rojo },
+  { clave: 'sinClasificar', texto: 'Sin clasificar', color: 'bg-line-strong/70', css: COLOR.gris },
 ] as const;
 
 function total(c: Conteo): number {
@@ -61,7 +62,7 @@ function TablaGrupos({ filas }: { filas: FilaGrupo[] }) {
         </thead>
         <tbody>
           {filas.map((f) => (
-            <tr key={f.nombre} className="border-t border-line text-right tabular-nums">
+            <tr key={f.nombre} className="border-t border-line text-right tabular-nums transition-colors hover:bg-surface-2/60">
               <td className="text-left py-2 pr-2 max-w-[150px]">
                 <span className="block truncate font-medium">{f.nombre}</span>
                 <BarraReparto c={f} className="mt-1 h-1.5" />
@@ -111,7 +112,7 @@ export default function KpiEficiencia({ servicios }: { servicios: DiaAgenda[] })
   const hayDatos = resumen.clasificados > 0;
 
   return (
-    <div className="mb-6">
+    <ZonaGraficas className="mb-6">
       <h2 className="font-display font-semibold text-[15px] tracking-wide mb-3">
         Eficiencia de servicios <span className="text-muted font-normal text-[12.5px]">· últimas {SEMANAS} semanas</span>
       </h2>
@@ -143,7 +144,18 @@ export default function KpiEficiencia({ servicios }: { servicios: DiaAgenda[] })
           ) : (
             <>
               <div className="flex items-center gap-4 flex-wrap">
-                {resumen.cumplimientoPct !== null && <Medidor pct={resumen.cumplimientoPct} />}
+                {resumen.cumplimientoPct !== null && (
+                  <Medidor pct={resumen.cumplimientoPct}
+                    info={
+                      <InfoPunto titulo="Cumplimiento del plan"
+                        filas={[
+                          { color: COLOR.acento, texto: 'A favor', valor: resumen.positivas },
+                          { color: COLOR.rojo, texto: 'En contra', valor: resumen.negativas },
+                          { color: COLOR.ambar, texto: 'Causa externa (no cuenta)', valor: resumen.neutras },
+                        ]}
+                        nota="A favor entre a favor más en contra." />
+                    } />
+                )}
                 <div className="min-w-0 flex-1 flex flex-col gap-1 text-[12.5px]">
                   {TONOS.map((t) => (
                     <div key={t.clave} className="flex items-center gap-2">
@@ -161,7 +173,7 @@ export default function KpiEficiencia({ servicios }: { servicios: DiaAgenda[] })
                   ['Perdido, causa externa', resumen.minutosPerdidosExternos, 'text-ink/80'],
                 ] as const).map(([etiqueta, min, color]) => (
                   <div key={etiqueta} className="rounded-xl bg-surface-2/60 px-2 py-2">
-                    <p className={`font-display font-bold text-[15px] tabular-nums ${color}`}>{formatMinutos(min)}</p>
+                    <p className={`font-display font-bold text-[15px] tabular-nums ${color}`}><Contador valor={min} formato={formatMinutos} /></p>
                     <p className="text-[10.5px] text-muted leading-tight mt-0.5">{etiqueta}</p>
                   </div>
                 ))}
@@ -169,23 +181,37 @@ export default function KpiEficiencia({ servicios }: { servicios: DiaAgenda[] })
 
               {/* Columnas apiladas: una por semana. */}
               <div className="mt-4 pt-4 border-t border-line">
-                <div className="flex items-end gap-2 h-[104px] border-b border-line-strong" role="img"
-                  aria-label={`Servicios por semana: ${semanas.map((s) => `semana del ${s.etiqueta}, ${s.positivas} a favor, ${s.neutras} por causa externa, ${s.negativas} en contra, ${s.sinClasificar} sin clasificar`).join('; ')}`}>
-                  {semanas.map((s) => {
+                <div className="flex items-end gap-2 h-[104px] border-b border-line-strong">
+                  {semanas.map((s, i) => {
                     const t = total(s);
+                    const base = s.positivas + s.negativas;
                     return (
-                      <div key={s.inicio} className="flex-1 h-full flex flex-col justify-end items-center"
-                        title={`Semana del ${s.etiqueta}: ${s.positivas} a favor · ${s.neutras} externa · ${s.negativas} en contra · ${s.sinClasificar} sin clasificar`}>
-                        <span className={`text-[11px] font-semibold tabular-nums mb-1 ${t === 0 ? 'text-faint' : ''}`}>{t}</span>
-                        <div className="w-full max-w-[40px] flex flex-col-reverse rounded-t-[4px] overflow-hidden gap-px transition-all duration-500"
-                          style={{ height: `${t === 0 ? 2 : Math.max(8, (t / maxSemana) * 80)}%` }}>
-                          {t === 0
-                            ? <span className="flex-1 bg-line-strong/70" />
-                            : TONOS.map((tono) => (s[tono.clave] > 0
-                              ? <span key={tono.clave} className={tono.color} style={{ flexGrow: s[tono.clave], flexBasis: 0 }} />
-                              : null))}
-                        </div>
-                      </div>
+                      <Punto key={s.inicio} grupo="semanas" className="flex-1 h-full flex flex-col justify-end items-center"
+                        etiqueta={`Semana del ${s.etiqueta}: ${s.positivas} a favor, ${s.neutras} por causa externa, ${s.negativas} en contra, ${s.sinClasificar} sin clasificar`}
+                        info={
+                          <InfoPunto titulo={`Semana del ${s.etiqueta}${i === semanas.length - 1 ? ' · en curso' : ''}`}
+                            filas={[
+                              ...TONOS.filter((tono) => s[tono.clave] > 0).map((tono) => ({ color: tono.css, texto: tono.texto, valor: s[tono.clave] })),
+                              { texto: 'Días de servicio', valor: t },
+                              ...(base > 0 ? [{ texto: 'Cumplimiento', valor: `${Math.round((s.positivas / base) * 100)}%` }] : []),
+                            ]}
+                            nota={t === 0 ? 'Sin servicios concluidos esa semana.' : undefined} />
+                        }>
+                        {(activo, otro) => (
+                          <>
+                            <span className={`text-[11px] font-semibold tabular-nums mb-1 transition-colors ${t === 0 ? 'text-faint' : activo ? 'text-teal' : ''}`}>{t}</span>
+                            <Crece eje="y" orden={i} data-ancla="" pct={t === 0 ? 2 : Math.max(8, (t / maxSemana) * 80)}
+                              className={`w-full max-w-[40px] flex flex-col-reverse rounded-t-[4px] overflow-hidden gap-px transition-[filter,opacity,box-shadow] duration-200 ${
+                                activo ? 'brightness-125 shadow-glow-teal' : ''} ${otro ? 'opacity-55' : ''}`}>
+                              {t === 0
+                                ? <span className="flex-1 bg-line-strong/70" />
+                                : TONOS.map((tono) => (s[tono.clave] > 0
+                                  ? <span key={tono.clave} className={tono.color} style={{ flexGrow: s[tono.clave], flexBasis: 0 }} />
+                                  : null))}
+                            </Crece>
+                          </>
+                        )}
+                      </Punto>
                     );
                   })}
                 </div>
@@ -222,16 +248,29 @@ export default function KpiEficiencia({ servicios }: { servicios: DiaAgenda[] })
                       {origen === 'propio' ? 'Propios · cuentan en contra' : 'Externos · no cuentan'}
                     </p>
                     <div className="flex flex-col gap-2">
-                      {lista.map((m) => (
-                        <div key={m.clave}>
-                          <div className="flex items-baseline gap-2 text-[12.5px]">
-                            <span className="flex-1 min-w-0 truncate">{m.texto}</span>
-                            <span className="font-semibold tabular-nums shrink-0">{m.n}</span>
-                          </div>
-                          <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden mt-1">
-                            <div className={`h-full rounded-full ${origen === 'propio' ? 'bg-red' : 'bg-amber'}`} style={{ width: `${(m.n / maxMotivo) * 100}%` }} />
-                          </div>
-                        </div>
+                      {lista.map((m, i) => (
+                        <Punto key={m.clave} grupo="motivos" etiqueta={`${m.texto}: ${m.n}`}
+                          info={
+                            <InfoPunto titulo={m.texto}
+                              filas={[
+                                { color: origen === 'propio' ? COLOR.rojo : COLOR.ambar, texto: 'Veces', valor: m.n },
+                                ...(m.minutos > 0 ? [{ texto: 'Tiempo de desviación', valor: formatMinutos(m.minutos) }] : []),
+                              ]}
+                              nota={origen === 'propio' ? 'Causa propia: se puede corregir.' : 'Causa externa: no cuenta en contra.'} />
+                          }>
+                          {(activo, otro) => (
+                            <div className={`transition-opacity duration-200 ${otro ? 'opacity-55' : ''}`}>
+                              <div className="flex items-baseline gap-2 text-[12.5px]">
+                                <span className={`flex-1 min-w-0 truncate ${activo ? 'font-semibold' : ''}`}>{m.texto}</span>
+                                <span className="font-semibold tabular-nums shrink-0">{m.n}</span>
+                              </div>
+                              <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden mt-1" data-ancla="">
+                                <Crece orden={i} pct={(m.n / maxMotivo) * 100}
+                                  className={`h-full rounded-full ${origen === 'propio' ? 'bg-red' : 'bg-amber'} transition-[filter] duration-200 ${activo ? 'brightness-125' : ''}`} />
+                              </div>
+                            </div>
+                          )}
+                        </Punto>
                       ))}
                     </div>
                   </div>
@@ -256,7 +295,7 @@ export default function KpiEficiencia({ servicios }: { servicios: DiaAgenda[] })
           ) : (
             <>
               <p className="flex items-baseline gap-2">
-                <span className="font-display font-bold text-[30px] leading-none tabular-nums">{enFalso.total}</span>
+                <Contador valor={enFalso.total} className="font-display font-bold text-[30px] leading-none" />
                 <span className="text-[12.5px] text-muted">{enFalso.total === 1 ? 'visita' : 'visitas'}{enFalso.minutos > 0 ? ` · ${formatMinutos(enFalso.minutos)} en sitio sin trabajo` : ''}</span>
               </p>
               <div className="flex flex-col gap-1.5 mt-3">
@@ -296,6 +335,6 @@ export default function KpiEficiencia({ servicios }: { servicios: DiaAgenda[] })
           <TablaGrupos filas={grupos} />
         </Tarjeta>
       </div>
-    </div>
+    </ZonaGraficas>
   );
 }

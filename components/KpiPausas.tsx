@@ -52,7 +52,7 @@ export default function KpiPausas() {
             </thead>
             <tbody>
               {filas.map((f) => (
-                <tr key={f.id} className="border-t border-line">
+                <tr key={f.id} className="border-t border-line transition-colors hover:bg-surface-2/60">
                   <td className="px-1 py-2 font-medium truncate max-w-[180px]">{f.nombre}</td>
                   <td className="px-1 py-2 text-right tabular-nums">{f.comidas}</td>
                   <td className={`px-1 py-2 text-right tabular-nums ${f.comidas && f.comidaPromedio > ajustes.comida_min ? 'text-amber font-semibold' : ''}`}>

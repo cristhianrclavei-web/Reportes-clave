@@ -179,7 +179,8 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
         resumen: 'Lo primero que conviene ver al entrar.',
         pasos: [
           'Arriba: reportes de hoy y de la semana, lo que falta por facturar y los avisos que piden una decisión.',
-          'Abajo: las gráficas de la semana y el desempeño operativo. El botón ⓘ de cada tarjeta explica cómo se calcula.',
+          '«Productividad del equipo» muestra servicios concluidos, horas en sitio y reportes entregados de los últimos 7, 14 o 30 días, cada uno comparado con el periodo anterior. Toca una de las tres cifras para verla día por día en la gráfica; la línea punteada es el periodo anterior.',
+          'Abajo: las gráficas de la semana y el desempeño operativo. Pasa el cursor (o toca) sobre una columna, barra o punto para ver qué se midió ahí. El botón ⓘ de cada tarjeta explica cómo se calcula.',
           '«Eficiencia de servicios» lee cada día concluido de las últimas 8 semanas como a favor, en contra o desviado por causa externa, según lo que el técnico respondió al cerrar. Muestra los motivos más frecuentes y el detalle por técnico o por cliente.',
           '«Visitas en falso» cuenta los días en que el personal llegó y no se pudo trabajar, por cliente.',
           '«En qué se va el tiempo» reparte las horas del equipo de los últimos 7 días entre servicios y lo registrado en bitácora (traslados, compras, oficina, capacitación, apoyos). Abre una actividad de «Bitácora del personal» para programar un servicio a partir de ella.',

@@ -14,6 +14,7 @@ import AvisoCuentaPrueba from '@/components/AvisoCuentaPrueba';
 import AvisoActualizarCredenciales from '@/components/AvisoActualizarCredenciales';
 import { ReportDetail, techName } from '@/components/ReportDetailModal';
 import KpiSection from '@/components/KpiSection';
+import KpiProductividad from '@/components/KpiProductividad';
 import KpiOperativos from '@/components/KpiOperativos';
 import AvisosPendientes from '@/components/AvisosPendientes';
 import ServiciosSinReporteSection from '@/components/ServiciosSinReporteSection';
@@ -316,6 +317,7 @@ export default function ResumenList({
         <AvisosPendientes />
         <ServiciosSinReporteSection />
 
+        <KpiProductividad servicios={servicios} reports={reports} />
         <KpiSection reports={reports} />
         <KpiOperativos servicios={servicios} reports={reports} />
         <KpiEficiencia servicios={servicios} />

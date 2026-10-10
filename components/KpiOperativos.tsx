@@ -12,6 +12,7 @@ import {
 } from '@/lib/kpis';
 import { TrendingUp, TrendingDown, Timer, Clock, FileWarning } from 'lucide-react';
 import BotonInfo from '@/components/BotonInfo';
+import { ZonaGraficas, Marco, Punto, Crece, Aparece, Contador, Medidor, InfoPunto, COLOR } from '@/components/Graficas';
 
 // Aviso de muestra chica. Aparece en vez de esconderse: es más honesto que una
 // cifra sola que aparenta tendencia sacada de dos servicios.
@@ -50,22 +51,6 @@ function BarraDesviacion({ pct }: { pct: number }) {
   );
 }
 
-// Medidor de media luna: qué parte de un total se cumple.
-export function Medidor({ pct }: { pct: number }) {
-  const p = Math.max(0, Math.min(100, pct));
-  const R = 46, C = Math.PI * R;
-  return (
-    <div className="relative shrink-0" style={{ width: 124, height: 70 }}>
-      <svg width={124} height={70} viewBox="0 0 124 70" aria-hidden="true">
-        <path d="M16 62a46 46 0 0 1 92 0" fill="none" stroke="currentColor" strokeWidth={12} strokeLinecap="round" className="text-line-strong" />
-        <path d="M16 62a46 46 0 0 1 92 0" fill="none" strokeWidth={12} strokeLinecap="round" className="stroke-teal"
-          strokeDasharray={`${(p / 100) * C} ${C}`} style={{ transition: 'stroke-dasharray 0.6s ease' }} />
-      </svg>
-      <span className="absolute inset-x-0 bottom-0 text-center font-display font-bold text-[26px] leading-none">{Math.round(p)}%</span>
-    </div>
-  );
-}
-
 export function Tarjeta({
   titulo,
   Icono,
@@ -82,14 +67,14 @@ export function Tarjeta({
   className?: string;
 }) {
   return (
-    <div className={`glass rounded-2xl p-4 lg:p-5 ${className}`}>
+    <Marco className={`glass rounded-2xl p-4 lg:p-5 ${className}`}>
       <div className="flex items-center gap-1.5 mb-3 flex-wrap">
         <Icono size={14} strokeWidth={2.2} className={color} />
         <div className="text-[10px] uppercase tracking-wider text-muted">{titulo}</div>
         <BotonInfo titulo={titulo}>{explicacion}</BotonInfo>
       </div>
       {children}
-    </div>
+    </Marco>
   );
 }
 
@@ -124,7 +109,7 @@ export default function KpiOperativos({
   const maxRango = Math.max(1, ...rangosArranque.map((r) => r.n));
 
   return (
-    <div className="mb-6">
+    <ZonaGraficas className="mb-6">
       <h2 className="font-display font-semibold text-[15px] tracking-wide mb-3">
         Desempeño operativo
       </h2>
@@ -156,8 +141,7 @@ export default function KpiOperativos({
           ) : (
             <>
               <div className="font-display text-[30px] font-bold leading-none mb-1">
-                {desviacion.resumen.valor > 0 ? '+' : ''}
-                {Math.round(desviacion.resumen.valor)}%
+                <Contador valor={desviacion.resumen.valor} formato={(n) => `${Math.round(n) > 0 ? '+' : ''}${Math.round(n)}%`} />
               </div>
               <p className="text-[11px] text-muted">
                 {seExcede
@@ -178,27 +162,44 @@ export default function KpiOperativos({
                   {(() => {
                     const filas = desviacion.filas.slice(0, 5);
                     const tope = Math.max(1, ...filas.map((f) => Math.max(f.estimadoMin, f.realMin))) * 1.08;
-                    return filas.map((f) => (
-                      <div key={f.proyecto} title={`${f.proyecto}: estimado ${formatMinutos(f.estimadoMin)}, real ${formatMinutos(f.realMin)}`}>
-                        <div className="flex justify-between items-baseline gap-2 mb-1.5">
-                          <span className="text-[12.5px] text-ink/85 truncate">{f.proyecto}</span>
-                          <span className="text-[12.5px] font-semibold shrink-0 tabular-nums">
-                            {f.desviacionPct > 0 ? '+' : ''}{Math.round(f.desviacionPct)}%
-                          </span>
-                        </div>
-                        {/* Barra = lo que tardó; marca = lo que se estimó. */}
-                        <div className="relative h-3 rounded-r-[4px] bg-surface-2">
-                          <div className={`absolute inset-y-0 left-0 rounded-r-[4px] ${f.desviacionPct > 0 ? 'bg-amber' : 'bg-teal'} transition-all duration-500`}
-                            style={{ width: `${(f.realMin / tope) * 100}%` }} />
-                          <div className="absolute -top-1 -bottom-1 w-[3px] rounded-full bg-ink ring-2 ring-surface"
-                            style={{ left: `calc(${(f.estimadoMin / tope) * 100}% - 1.5px)` }} />
-                        </div>
-                        <p className="text-[10.5px] text-faint mt-1.5">
-                          Estimado {formatMinutos(f.estimadoMin)} · real {formatMinutos(f.realMin)}
-                          {f.n < MUESTRA_MINIMA && ` · solo ${f.n}`}
-                        </p>
-                      </div>
-                    ));
+                    return filas.map((f, i) => {
+                      const color = f.desviacionPct > 0 ? COLOR.ambar : COLOR.acento;
+                      return (
+                        <Punto key={f.proyecto} grupo="desviacion" etiqueta={`${f.proyecto}: estimado ${formatMinutos(f.estimadoMin)}, real ${formatMinutos(f.realMin)}`}
+                          info={
+                            <InfoPunto titulo={f.proyecto}
+                              filas={[
+                                { texto: 'Estimado', valor: formatMinutos(f.estimadoMin) },
+                                { color, texto: 'Real', valor: formatMinutos(f.realMin) },
+                                { texto: 'Diferencia', valor: `${f.realMin >= f.estimadoMin ? '+' : '−'}${formatMinutos(Math.abs(f.realMin - f.estimadoMin))}` },
+                                { texto: 'Servicios medidos', valor: f.n },
+                              ]}
+                              nota={f.desviacionPct > 0 ? 'Tarda más de lo planeado: conviene ajustar el estimado o la cotización.' : 'Cierra antes de lo estimado.'} />
+                          }>
+                          {(activo, otro) => (
+                            <div className={`transition-opacity duration-200 ${otro ? 'opacity-55' : ''}`}>
+                              <div className="flex justify-between items-baseline gap-2 mb-1.5">
+                                <span className={`text-[12.5px] truncate transition-colors ${activo ? 'text-ink font-semibold' : 'text-ink/85'}`}>{f.proyecto}</span>
+                                <span className={`text-[12.5px] font-semibold shrink-0 tabular-nums ${f.desviacionPct > 0 ? 'text-amber' : 'text-teal'}`}>
+                                  {f.desviacionPct > 0 ? '+' : ''}{Math.round(f.desviacionPct)}%
+                                </span>
+                              </div>
+                              {/* Barra = lo que tardó; marca = lo que se estimó. */}
+                              <div className="relative h-3 rounded-r-[4px] bg-surface-2" data-ancla="">
+                                <Crece orden={i} pct={(f.realMin / tope) * 100}
+                                  className={`absolute inset-y-0 left-0 rounded-r-[4px] ${f.desviacionPct > 0 ? 'bg-amber' : 'bg-teal'} transition-[filter] duration-200 ${activo ? 'brightness-125' : ''}`} />
+                                <div className={`absolute w-[3px] rounded-full bg-ink ring-2 ring-surface transition-all duration-200 ${activo ? '-top-1.5 -bottom-1.5' : '-top-1 -bottom-1'}`}
+                                  style={{ left: `calc(${(f.estimadoMin / tope) * 100}% - 1.5px)` }} />
+                              </div>
+                              <p className="text-[10.5px] text-faint mt-1.5">
+                                Estimado {formatMinutos(f.estimadoMin)} · real {formatMinutos(f.realMin)}
+                                {f.n < MUESTRA_MINIMA && ` · solo ${f.n}`}
+                              </p>
+                            </div>
+                          )}
+                        </Punto>
+                      );
+                    });
                   })()}
                 </div>
               )}
@@ -218,7 +219,7 @@ export default function KpiOperativos({
           }
         >
           <div className="font-display text-[30px] font-bold leading-none mb-1">
-            {arranque.n === 0 ? '—' : formatMinutos(arranque.valor)}
+            {arranque.n === 0 ? '—' : <Contador valor={arranque.valor} formato={formatMinutos} />}
           </div>
           <p className="text-[11px] text-muted">
             Mediana entre marcar llegada e iniciar el trabajo. Cuando crece suele ser
@@ -228,14 +229,26 @@ export default function KpiOperativos({
           {/* Cómo se reparten: cuántos servicios cayeron en cada rango. */}
           {arranque.n > 0 && (
             <div className="mt-4 pt-4 border-t border-line">
-              <div className="flex items-end gap-2 h-[92px] border-b border-line-strong" role="img"
-                aria-label={`Servicios por tiempo de arranque: ${rangosArranque.map((r) => `${r.etiqueta}, ${r.n}`).join('; ')}`}>
-                {rangosArranque.map((r) => (
-                  <div key={r.etiqueta} className="flex-1 h-full flex flex-col justify-end items-center" title={`${r.etiqueta}: ${r.n} servicio${r.n === 1 ? '' : 's'}`}>
-                    <span className={`text-[11.5px] font-semibold tabular-nums mb-1 ${r.n === 0 ? 'text-faint' : ''}`}>{r.n}</span>
-                    <div className="w-full max-w-[44px] rounded-t-[4px] bg-amber transition-all duration-500"
-                      style={{ height: `${r.n === 0 ? 2 : Math.max(8, (r.n / maxRango) * 78)}%` }} />
-                  </div>
+              <div className="flex items-end gap-2 h-[92px] border-b border-line-strong">
+                {rangosArranque.map((r, i) => (
+                  <Punto key={r.etiqueta} grupo="arranque" className="flex-1 h-full flex flex-col justify-end items-center"
+                    etiqueta={`${r.etiqueta}: ${r.n} servicio${r.n === 1 ? '' : 's'}`}
+                    info={
+                      <InfoPunto titulo={`De llegar a empezar: ${r.etiqueta}${r.etiqueta.includes('min') ? '' : ' min'}`}
+                        filas={[
+                          { color: COLOR.ambar, texto: 'Servicios', valor: r.n },
+                          { texto: 'De los medidos', valor: `${Math.round((r.n / Math.max(1, arranque.n)) * 100)}%` },
+                        ]}
+                        nota={i === 0 ? 'Llegar y empezar: así se ve un servicio bien preparado.' : i >= 3 ? 'Tiempo pagado sin avance: revisar herramienta y accesos.' : undefined} />
+                    }>
+                    {(activo, otro) => (
+                      <>
+                        <span className={`text-[11.5px] font-semibold tabular-nums mb-1 transition-colors ${r.n === 0 ? 'text-faint' : activo ? 'text-amber' : ''}`}>{r.n}</span>
+                        <Crece eje="y" orden={i} data-ancla="" pct={r.n === 0 ? 2 : Math.max(8, (r.n / maxRango) * 78)}
+                          className={`w-full max-w-[44px] rounded-t-[4px] bg-amber transition-[filter,opacity] duration-200 ${activo ? 'brightness-125' : ''} ${otro ? 'opacity-55' : ''}`} />
+                      </>
+                    )}
+                  </Punto>
                 ))}
               </div>
               <div className="flex gap-2 mt-1.5">
@@ -273,7 +286,16 @@ export default function KpiOperativos({
           ) : (
             <>
               <div className="flex items-center gap-4 flex-wrap">
-                <Medidor pct={(punt.aTiempo / punt.n) * 100} />
+                <Medidor pct={(punt.aTiempo / punt.n) * 100}
+                  info={
+                    <InfoPunto titulo="Puntualidad de llegada"
+                      filas={[
+                        { color: COLOR.acento, texto: 'A tiempo', valor: punt.aTiempo },
+                        { color: COLOR.gris, texto: 'Tarde', valor: punt.tarde },
+                        { texto: 'Desfase típico', valor: formatMinutos(punt.medianaDesfaseMin) },
+                      ]}
+                      nota="Cuenta como a tiempo hasta 15 min después de la hora acordada." />
+                  } />
                 <div className="min-w-0 flex-1">
                   <p className="text-[13px] leading-snug">
                     <b>{punt.aTiempo}</b> de <b>{punt.n}</b> llegaron dentro de los 15 min acordados
@@ -315,7 +337,7 @@ export default function KpiOperativos({
                   const esc = retra.total > 120 ? 120 / retra.total : 1;
                   const rojos = Math.round(retra.sinFirmaCliente * esc);
                   const ambar = Math.round(retra.conCorreccion * esc);
-                  return <span key={i} className={`w-3 h-3 rounded-[3px] ${i < rojos ? 'bg-red' : i < rojos + ambar ? 'bg-amber' : 'bg-line-strong/70'}`} />;
+                  return <Aparece key={i} orden={i} className={`w-3 h-3 rounded-[3px] ${i < rojos ? 'bg-red' : i < rojos + ambar ? 'bg-amber' : 'bg-line-strong/70'}`} />;
                 })}
               </div>
               <div className="flex flex-col gap-1.5 text-[12.5px]">
@@ -324,7 +346,7 @@ export default function KpiOperativos({
                   ['bg-amber', 'Requirieron corrección', retra.conCorreccion, retra.pctCorreccion],
                   ['bg-line-strong/70', 'Sin incidencias', Math.max(0, retra.total - retra.sinFirmaCliente - retra.conCorreccion), null],
                 ] as const).map(([color, etiqueta, n, pct]) => (
-                  <div key={etiqueta} className="flex items-center gap-2">
+                  <div key={etiqueta} className="flex items-center gap-2 -mx-1.5 px-1.5 py-0.5 rounded-md transition-colors hover:bg-surface-2">
                     <span className={`w-2.5 h-2.5 rounded-[3px] shrink-0 ${color}`} />
                     <span className="text-ink/85 flex-1 min-w-0 truncate">{etiqueta}</span>
                     <span className="font-semibold tabular-nums shrink-0">{n}</span>
@@ -339,6 +361,6 @@ export default function KpiOperativos({
           )}
         </Tarjeta>
       </div>
-    </div>
+    </ZonaGraficas>
   );
 }
