@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ReportDetail } from './ReportDetailModal';
+import { Users } from 'lucide-react';
+import { ReportDetail, techName } from './ReportDetailModal';
 import BotonInfo from '@/components/BotonInfo';
 import { hoyLocal } from '@/lib/fechaHoy';
 import { MARCA } from '@/lib/marca';
-import { ZonaGraficas, Marco, Punto, Crece, Contador, Dona, LineaInteractiva, InfoPunto, COLOR } from '@/components/Graficas';
+import { ZonaGraficas, Marco, Punto, Crece, Contador, Dona, InfoPunto, COLOR } from '@/components/Graficas';
 
 // «Ing. Everardo Sánchez» → «Ing. Sánchez»: quien firma la revisión, en corto.
 const REVISOR_PARTES = MARCA.revisor.trim().split(/\s+/);
@@ -68,12 +69,31 @@ export default function KpiSection({ reports }: { reports: Report[] }) {
     return reports.filter((r) => new Date(r.created_at) >= weekAgo);
   }, [reports, periodo, ahora]);
 
-  const { avgLabel, avgSampleSize } = useMemo(() => {
-    const durations = kpiReports.map(reportDurationMinutes).filter((d): d is number => d !== null);
-    if (durations.length === 0) return { avgLabel: '—', avgSampleSize: 0 };
-    const avg = durations.reduce((s, d) => s + d, 0) / durations.length;
-    return { avgLabel: formatDuracion(avg), avgSampleSize: durations.length };
-  }, [kpiReports]);
+  // Reportes por técnico, según la cuenta desde la que se capturó (no quién
+  // firma). Salen todos los que alguna vez hicieron un reporte, para que quien
+  // no hizo ninguno en el periodo aparezca en cero.
+  const autores = useMemo(() => {
+    const porCuenta = new Map<string, { clave: string; nombre: string; n: number; fechas: Set<string> }>();
+    const cuentaDe = (r: Report) => {
+      const clave = r.created_by || techName(r.profiles);
+      let autor = porCuenta.get(clave);
+      if (!autor) {
+        autor = { clave, nombre: techName(r.profiles), n: 0, fechas: new Set() };
+        porCuenta.set(clave, autor);
+      }
+      return autor;
+    };
+    reports.forEach(cuentaDe);
+    kpiReports.forEach((r) => {
+      const autor = cuentaDe(r);
+      autor.n++;
+      autor.fechas.add(r.fecha);
+    });
+    return Array.from(porCuenta.values())
+      .map((a) => ({ clave: a.clave, nombre: a.nombre, n: a.n, dias: a.fechas.size }))
+      .sort((a, b) => b.n - a.n || a.nombre.localeCompare(b.nombre));
+  }, [reports, kpiReports]);
+  const maxAutor = Math.max(1, ...autores.map((a) => a.n));
 
   const { completados, pendientes, pctCompletados } = useMemo(() => {
     const total = kpiReports.length;
@@ -252,46 +272,48 @@ export default function KpiSection({ reports }: { reports: Report[] }) {
         </Marco>
       </div>
 
-      {/* Fila 2: tiempo, cierre y conformidad */}
+      {/* Fila 2: quién reporta, cierre y conformidad */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {/* Tiempo promedio de atención: cifra + tendencia */}
-        <Marco className="glass rounded-2xl p-4 lg:p-5 flex flex-col">
-          <div className="flex items-center gap-1.5 mb-3">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-amber">
-              <circle cx="12" cy="12" r="9" />
-              <path d="M12 7v5l3.5 2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <div className="text-[10px] uppercase tracking-wider text-muted">Tiempo promedio de atención</div>
-            <BotonInfo titulo="Tiempo promedio de atención">
-              Cuánto dura un servicio en sitio, de la hora de llegada a la de salida que se
-              capturan en el reporte. Solo entran los reportes con ambas horas, y se descartan
-              los de más de 14 horas: eso no es un servicio largo, es alguien que olvidó cerrar.
-              La línea muestra el promedio de cada día de la última semana.
+        {/* Reportes por técnico: quién los hace desde su cuenta */}
+        <Marco className="glass rounded-2xl p-4 lg:p-5">
+          <div className="flex items-center gap-1.5 mb-4">
+            <Users size={14} strokeWidth={2.2} className="text-teal" />
+            <div className="text-[10px] uppercase tracking-wider text-muted">Reportes por técnico · {periodo === 'dia' ? 'hoy' : 'esta semana'}</div>
+            <BotonInfo titulo="Reportes por técnico">
+              Cuántos reportes hizo cada persona desde su propia cuenta. Cuenta la cuenta con la
+              que se capturó el reporte, no quién lo firma: si alguien firma un reporte hecho en
+              el celular de un compañero, el reporte es del compañero. Quien no ha hecho ningún
+              reporte desde su cuenta no aparece en la lista.
             </BotonInfo>
           </div>
-          <div className="font-display text-[30px] font-bold leading-none mb-1.5">{avgLabel}</div>
-          <p className="text-[11px] text-muted mb-3">
-            {avgSampleSize > 0
-              ? `Desde llegada hasta salida · ${avgSampleSize} reporte${avgSampleSize > 1 ? 's' : ''} con hora registrada`
-              : 'Sin reportes con hora de llegada y salida capturadas'}
-          </p>
-          {dias.filter((d) => d.duracion !== null).length >= 2 && (
-            <div className="mt-auto">
-              <LineaInteractiva
-                alto={84} color={COLOR.ambar} desdeCero={false} formatoEje={null} cadaEtiqueta={1}
-                puntos={dias.map((d) => ({
-                  valor: d.duracion,
-                  etiqueta: `${d.letra} ${d.dia}`,
-                  info: d.duracion === null ? null : (
-                    <InfoPunto titulo={d.nombre}
+          {autores.length === 0 ? (
+            <p className="text-[13px] text-muted">Todavía no hay reportes.</p>
+          ) : (
+            <div className="flex flex-col gap-2.5">
+              {autores.map((a, i) => (
+                <Punto key={a.clave} grupo="autores" etiqueta={`${a.nombre}: ${a.n} reporte${a.n === 1 ? '' : 's'}`}
+                  info={
+                    <InfoPunto titulo={a.nombre}
                       filas={[
-                        { color: COLOR.ambar, texto: 'Duración promedio', valor: formatDuracion(d.duracion) },
-                        { texto: 'Reportes del día', valor: d.n },
-                      ]} />
-                  ),
-                }))}
-                descripcion={`Tendencia del tiempo promedio: ${dias.filter((d) => d.duracion !== null).map((d) => `${d.letra} ${d.dia} ${formatDuracion(d.duracion!)}`).join(', ')}`}
-              />
+                        { color: COLOR.acento, texto: 'Reportes desde su cuenta', valor: a.n },
+                        { texto: 'Días con reporte', valor: a.dias },
+                        ...(kpiReports.length > 0 ? [{ texto: 'De los reportes del periodo', valor: `${Math.round((a.n / kpiReports.length) * 100)}%` }] : []),
+                      ]}
+                      nota={a.n === 0 ? 'Sin reportes desde su cuenta en el periodo.' : i === 0 ? 'Quien más reportes hizo.' : undefined} />
+                  }>
+                  {(activo, otro) => (
+                    <div className={`transition-opacity duration-200 ${otro ? 'opacity-55' : ''}`}>
+                      <div className="flex justify-between items-baseline gap-2 mb-1">
+                        <span className={`text-[12.5px] truncate transition-colors ${activo ? 'text-teal font-semibold' : a.n === 0 ? 'text-muted' : 'text-ink/85'}`}>{a.nombre}</span>
+                        <span className={`text-[12.5px] font-semibold tabular-nums shrink-0 ${a.n === 0 ? 'text-faint' : ''}`}>{a.n}</span>
+                      </div>
+                      <div className="h-2.5 rounded-r-[4px] bg-surface-2 overflow-hidden" data-ancla="">
+                        <Crece orden={i} pct={(a.n / maxAutor) * 100} className={`h-full rounded-r-[4px] bg-teal transition-[filter] duration-200 ${activo ? 'brightness-125' : ''}`} />
+                      </div>
+                    </div>
+                  )}
+                </Punto>
+              ))}
             </div>
           )}
         </Marco>

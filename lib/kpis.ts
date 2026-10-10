@@ -11,6 +11,8 @@
 //    empuja a cerrar antes de tiempo y a saltarse casillas, y entonces se
 //    pierde el dato que se quería. Se agrupa por proyecto, que es donde está
 //    la causa.
+//    Única excepción, pedida por Cristhian: «Reportes por técnico» en
+//    components/KpiSection.tsx cuenta reportes por cuenta (no mide rapidez).
 //
 // 3. Una muestra chica no es un indicador. Por debajo de MUESTRA_MINIMA se
 //    devuelve el dato pero marcado, para que la pantalla no presuma una
