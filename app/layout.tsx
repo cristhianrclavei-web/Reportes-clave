@@ -100,6 +100,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 window.addEventListener('load', () => {
                   navigator.serviceWorker.register('/sw.js').catch(() => {});
                 });
+                // Al tocar una notificación con la app ya abierta, el service
+                // worker pide por aquí la pantalla del aviso (public/sw.js).
+                // Solo se aceptan pantallas de la propia app.
+                navigator.serviceWorker.addEventListener('message', (e) => {
+                  var d = e.data || {};
+                  var u = d.url;
+                  var interna = typeof u === 'string' && u.charAt(0) === '/' && u.charAt(1) !== '/' && u.charAt(1) !== '\\\\';
+                  if (d.tipo === 'abrir-pantalla' && interna) window.location.assign(u);
+                });
               }
             `,
           }}

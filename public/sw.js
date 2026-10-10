@@ -107,16 +107,34 @@ self.addEventListener('notificationclick', (event) => {
   const esInterna = typeof pedido === 'string' && pedido.startsWith('/') && pedido.charAt(1) !== '/' && pedido.charAt(1) !== '\\';
   const destino = esInterna ? pedido : '/';
 
-  // Si la app ya está abierta, se reutiliza esa ventana en lugar de abrir otra.
-  event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((ventanas) => {
-      for (const v of ventanas) {
-        if ('focus' in v) {
-          v.navigate(destino);
-          return v.focus();
-        }
-      }
-      return self.clients.openWindow(destino);
-    })
-  );
+  event.waitUntil(abrirDestino(destino));
 });
+
+// Lleva a la pantalla del aviso. Si la app ya está abierta se reutiliza esa
+// ventana en lugar de abrir otra.
+async function abrirDestino(destino) {
+  const ventanas = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  const abierta = ventanas.find((v) => 'focus' in v);
+  if (!abierta) {
+    return self.clients.openWindow(destino);
+  }
+
+  // navigate() no existe en todos los teléfonos (iPhone) y falla si la
+  // ventana aún no está a cargo de este service worker. Antes ese fallo se
+  // ignoraba y la app se quedaba en la pantalla donde estaba. Si no se
+  // puede, se le pide a la propia app que cambie de pantalla (lo escucha
+  // app/layout.tsx).
+  let navego = false;
+  try {
+    if (typeof abierta.navigate === 'function') {
+      await abierta.navigate(destino);
+      navego = true;
+    }
+  } catch (e) {
+    navego = false;
+  }
+  if (!navego) {
+    abierta.postMessage({ tipo: 'abrir-pantalla', url: destino });
+  }
+  return abierta.focus();
+}

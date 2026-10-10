@@ -1220,7 +1220,8 @@ export default function NuevoReportePage() {
         tipo: 'reporte_nuevo',
         titulo: 'Reporte de servicio nuevo',
         mensaje: `${empresaCliente.trim()}${ingACargo.trim() ? ` · ${ingACargo.trim()}` : ''}`,
-        url: '/dashboard/reportes',
+        // Abre directo este reporte (ReportesList lee ?reporte=<id>).
+        url: `/dashboard/reportes?reporte=${reportId}`,
         tag: 'reporte-nuevo',
       });
       // Equipo instalado que no está en el almacén: el reporte ya quedó
