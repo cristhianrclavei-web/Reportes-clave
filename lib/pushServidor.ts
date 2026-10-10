@@ -2,6 +2,20 @@ import webpush from 'web-push';
 import { createAdminClient, hayClienteAdmin } from './supabaseAdmin';
 import { MARCA } from './marca';
 
+// La dirección que abre un aviso al tocarlo solo puede ser una pantalla de
+// la app. Sin esto, cualquier cuenta podía mandar a los supervisores un aviso
+// que abriera un sitio ajeno (por ejemplo, una copia falsa del login).
+// «//sitio» y «/\sitio» también salen de la app, por eso se revisa el
+// segundo carácter.
+export function rutaInterna(url: unknown): string {
+  if (typeof url !== 'string') return '/';
+  const empiezaConDiagonal = url.startsWith('/');
+  const segundo = url.charAt(1);
+  const saleDeLaApp = segundo === '/' || segundo === '\\';
+  if (!empiezaConDiagonal || saleDeLaApp) return '/';
+  return url;
+}
+
 // Envío de push desde el servidor a una lista de usuarios ya resuelta (con
 // sus preferencias aplicadas). Lo usan /api/push y los avisos que dispara
 // alguien sin sesión, como el cliente que firma por enlace.
@@ -28,7 +42,7 @@ export async function enviarPush(
   const suscripciones = (subs as any[]) || [];
   if (suscripciones.length === 0) return { enviadas: 0 };
 
-  const carga = JSON.stringify({ titulo: aviso.titulo, cuerpo: aviso.mensaje, url: aviso.url || '/', tag: aviso.tag });
+  const carga = JSON.stringify({ titulo: aviso.titulo, cuerpo: aviso.mensaje, url: rutaInterna(aviso.url), tag: aviso.tag });
   let enviadas = 0;
   const caducadas: string[] = [];
 

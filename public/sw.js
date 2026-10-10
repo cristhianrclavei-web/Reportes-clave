@@ -100,7 +100,12 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const destino = (event.notification.data && event.notification.data.url) || '/';
+  // Solo se abren pantallas de la app: un aviso no debe poder llevar a otro
+  // sitio. El servidor ya lo revisa (lib/pushServidor.ts); aquí se repite
+  // por si llega un aviso que no pasó por ahí.
+  const pedido = (event.notification.data && event.notification.data.url) || '/';
+  const esInterna = typeof pedido === 'string' && pedido.startsWith('/') && pedido.charAt(1) !== '/' && pedido.charAt(1) !== '\\';
+  const destino = esInterna ? pedido : '/';
 
   // Si la app ya está abierta, se reutiliza esa ventana en lugar de abrir otra.
   event.waitUntil(

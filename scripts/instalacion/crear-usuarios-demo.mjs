@@ -60,12 +60,19 @@ for (const c of cuentas) {
     const { error } = await supabase.auth.admin.updateUserById(existente.id, { password: c.contrasena });
     console.log(error ? `✗ ${email}: ${error.message}` : `↻ ${email} (contraseña actualizada)`);
   } else {
-    const { error } = await supabase.auth.admin.createUser({
+    const { data: creado, error: eCrear } = await supabase.auth.admin.createUser({
       email,
       password: c.contrasena,
       email_confirm: true,
-      user_metadata: { full_name: c.nombre, role: c.rol },
+      user_metadata: { full_name: c.nombre },
     });
+    // Toda cuenta nace como técnico (patch_auditoria_2.sql): el rol se pone
+    // aparte, con la llave de servidor.
+    let error = eCrear;
+    if (!error && creado?.user) {
+      const { error: eRol } = await supabase.from('profiles').update({ role: c.rol }).eq('id', creado.user.id);
+      error = eRol;
+    }
     console.log(error ? `✗ ${email}: ${error.message}` : `✓ ${email}`);
   }
 }
