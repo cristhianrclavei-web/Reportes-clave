@@ -44,7 +44,27 @@ export type PendingReport = {
   // ya viven en Storage y no hace falta volver a subirlas al sincronizar.
   fotosExistentes?: EvidenciaGuardada[];
   servicioProgramadoId?: string | null;
+  // Avance de la sincronización (lib/syncOfflineReports.ts). Se guarda aquí
+  // para que un reintento continúe donde se quedó en vez de crear otro
+  // reporte o volver a subir las fotos que ya subieron.
+  sync?: AvanceSync;
 };
+
+export type AvanceSync = {
+  // Id y folio del reporte en el servidor: se fijan una sola vez.
+  reportId: string;
+  claveFormato: string;
+  // Evidencias ya subidas, por posición en `fotos`.
+  subidas: Record<number, EvidenciaGuardada>;
+  // true = el reporte ya está completo en el servidor y aquí solo quedan
+  // guardadas las fotos que el servidor no aceptó (para no perderlas).
+  terminado?: boolean;
+};
+
+// ¿Todavía hay que subir este reporte?
+export function faltaSubir(reporte: PendingReport): boolean {
+  return !reporte.sync?.terminado;
+}
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -93,7 +113,7 @@ export async function deleteOfflineReport(localId: string): Promise<void> {
 export async function countOfflineReports(): Promise<number> {
   try {
     const reports = await getOfflineReports();
-    return reports.length;
+    return reports.filter(faltaSubir).length;
   } catch {
     return 0;
   }

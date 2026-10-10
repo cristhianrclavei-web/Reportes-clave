@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { syncPendingReports } from '@/lib/syncOfflineReports';
-import { getOfflineReports } from '@/lib/offlineQueue';
+import { getOfflineReports, faltaSubir } from '@/lib/offlineQueue';
 import { sincronizarFotosPendientes } from '@/lib/fotosPendientes';
 import { showToast } from './Toast';
 
@@ -18,21 +18,27 @@ export default function OfflineSyncManager() {
         })
         .catch(() => {});
       if (syncingRef.current) return; // evita sincronizar dos veces al mismo tiempo
-      const pending = await getOfflineReports();
+      const pending = (await getOfflineReports()).filter(faltaSubir);
       if (pending.length === 0) return;
 
       syncingRef.current = true;
       try {
-        const { synced, failed } = await syncPendingReports();
+        const { synced, failed, rechazadas } = await syncPendingReports();
         if (synced > 0) {
           showToast(
             `${synced} reporte${synced > 1 ? 's' : ''} pendiente${synced > 1 ? 's' : ''} sincronizado${synced > 1 ? 's' : ''} correctamente`,
             'success'
           );
         }
+        if (rechazadas > 0) {
+          showToast(
+            `${rechazadas} foto${rechazadas > 1 ? 's' : ''} o video${rechazadas > 1 ? 's' : ''} no se pudo${rechazadas > 1 ? 'ieron' : ''} subir: el servidor no acepta ese tipo o tamaño de archivo. El reporte sí se guardó y el archivo sigue en este teléfono; avisa a tu supervisor.`,
+            'error'
+          );
+        }
         if (failed > 0) {
           showToast(
-            `No se pudieron sincronizar ${failed} reporte${failed > 1 ? 's' : ''}. Se reintentará más tarde.`,
+            `No se pudieron sincronizar ${failed} reporte${failed > 1 ? 's' : ''}. Siguen guardados en este teléfono y se reintentará al abrir la app o al recuperar la señal.`,
             'error'
           );
         }
