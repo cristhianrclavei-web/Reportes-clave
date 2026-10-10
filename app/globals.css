@@ -326,7 +326,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   from { opacity: 0; transform: translateY(-34px); }
   to { opacity: 1; transform: translateY(0); }
 }
-@keyframes fv-brillo { 0%, 78%, 100% { opacity: 0; } 86% { opacity: 0.32; } }
+@keyframes fv-brillo { 0%, 78%, 100% { opacity: 0; } 86% { opacity: 0.5; } }
 @keyframes fv-girar { to { transform: rotate(360deg); } }
 @keyframes fv-led { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
 @keyframes fv-flujo { to { stroke-dashoffset: -20; } }
