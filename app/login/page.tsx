@@ -12,7 +12,7 @@ import Logo from '@/components/Logo';
 import { DEMO, MARCA } from '@/lib/marca';
 import PortadaDemo, { ClaveAcceso, cuentaDemo } from '@/components/PortadaDemo';
 import FondoFotovoltaico from '@/components/FondoFotovoltaico';
-import { CamaraVigilancia, SirenaAlarma, ModoVigilancia } from '@/components/VigilanciaAcceso';
+import { CamaraVigilancia, SirenaAlarma, ModoVigilancia, sonarSirena, SEGUNDOS_ALARMA } from '@/components/VigilanciaAcceso';
 import { AlertTriangle, Eye, EyeOff, Loader2, Lock, Mail, ShieldAlert } from 'lucide-react';
 
 // Límite de intentos en este dispositivo: tras 5 fallos seguidos hay que
@@ -62,12 +62,29 @@ function LoginForm() {
   const relojAlarma = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sinMovimiento = !!useReducedMotion();
 
+  // Salida de audio de la sirena. Se prepara al tocar «Entrar» (los
+  // navegadores solo permiten sonido tras un gesto de la persona).
+  const audio = useRef<AudioContext | null>(null);
+  function prepararAudio() {
+    try {
+      if (!audio.current) audio.current = new AudioContext();
+      if (audio.current.state === 'suspended') void audio.current.resume();
+    } catch { /* sin audio: la alarma queda solo con luz */ }
+  }
+
   function dispararAlarma() {
     if (relojAlarma.current) clearTimeout(relojAlarma.current);
     setAlarma(true);
-    relojAlarma.current = setTimeout(() => setAlarma(false), 3200);
+    relojAlarma.current = setTimeout(() => setAlarma(false), SEGUNDOS_ALARMA * 1000);
+    // No se enciman dos sirenas si se falla otra vez antes de que termine.
+    try {
+      if (audio.current && !alarma) sonarSirena(audio.current);
+    } catch { /* sin audio: la alarma queda solo con luz */ }
   }
-  useEffect(() => () => { if (relojAlarma.current) clearTimeout(relojAlarma.current); }, []);
+  useEffect(() => () => {
+    if (relojAlarma.current) clearTimeout(relojAlarma.current);
+    audio.current?.close().catch(() => { /* ya estaba cerrado */ });
+  }, []);
 
   // Correo recordado y bloqueo vigente: se leen ya montado (no en el render).
   useEffect(() => {
@@ -87,6 +104,7 @@ function LoginForm() {
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     if (leerIntentos().hasta > Date.now()) return;
+    prepararAudio();
     await entrar(email.trim(), password, true);
   }
 

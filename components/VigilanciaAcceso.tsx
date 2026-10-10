@@ -26,7 +26,7 @@ const EJE = { x: 22, y: 30 };
 // Hacia dónde apunta la cámara, en grados. 0 = horizontal hacia el centro del
 // formulario; positivo = hacia abajo; negativo = hacia arriba y afuera.
 function anguloDe(modo: ModoVigilancia, avance: number, lado: 'izq' | 'der'): number {
-  if (modo === 'clave') return -122;
+  if (modo === 'clave') return -135;
   if (modo === 'alarma' || modo === 'bloqueo') return 47;
   if (modo === 'correo') {
     // Sigue el texto: al avanzar, la de la izquierda levanta la mira (el
@@ -51,13 +51,16 @@ export function CamaraVigilancia({
   const colorLuz = alerta || modo === 'bloqueo' ? ROJO : ACENTO;
 
   // Movimiento del cuerpo: barrido lento al vigilar, sacudida en alarma y, en
-  // lo demás, un giro con resorte hasta el ángulo que toca.
+  // lo demás, un giro parejo y sin rebote hasta el ángulo que toca. Voltear
+  // para no ver la contraseña (y regresar) es el recorrido más largo, así que
+  // lleva más tiempo: la cámara pasa por arriba y queda mirando hacia afuera.
   let giro: { rotate: number | number[] } = { rotate: angulo };
-  let ritmo: object = { type: 'spring', stiffness: 150, damping: 13, mass: 0.9 };
+  let ritmo: object = { type: 'tween', duration: modo === 'clave' ? 1.5 : 1.1, ease: [0.45, 0, 0.55, 1] };
   if (quieto) {
     ritmo = { duration: 0 };
   } else if (modo === 'vigila') {
     giro = { rotate: [angulo - 9, angulo + 9, angulo - 9] };
+    // El primer tramo (llegar al barrido) va parejo; luego se repite sin fin.
     ritmo = { duration: lado === 'izq' ? 7 : 8.5, repeat: Infinity, ease: 'easeInOut' };
   } else if (alerta) {
     giro = { rotate: [angulo, angulo - 5, angulo + 4, angulo - 3, angulo] };
@@ -156,12 +159,50 @@ export function CamaraVigilancia({
             style={{ background: 'linear-gradient(#AEB8C2, #7C8894)', borderBottom: '1.5px solid #4B5661' }}
             initial={false}
             animate={{ y: modo === 'clave' ? '0%' : '-105%' }}
-            transition={{ duration: quieto ? 0 : 0.28, delay: modo === 'clave' && !quieto ? 0.18 : 0 }}
+            transition={{ duration: quieto ? 0 : 0.5, delay: modo === 'clave' && !quieto ? 0.55 : 0 }}
           />
         </div>
       </motion.div>
     </div>
   );
+}
+
+// Cuánto duran el destello y el sonido de la alarma.
+export const SEGUNDOS_ALARMA = 3;
+
+// Sonido de sirena hecho con el sintetizador del navegador (sin archivo de
+// audio): un tono que sube y baja. `audio` debe haberse creado al tocar
+// «Entrar», porque los navegadores solo dejan sonar tras un gesto de la persona.
+export function sonarSirena(audio: AudioContext, segundos = SEGUNDOS_ALARMA) {
+  const ahora = audio.currentTime;
+  const tono = audio.createOscillator();
+  const volumen = audio.createGain();
+  const filtro = audio.createBiquadFilter();
+
+  // Onda de sierra suavizada: suena a sirena y no a pitido.
+  tono.type = 'sawtooth';
+  filtro.type = 'lowpass';
+  filtro.frequency.value = 2200;
+
+  // Sube y baja entre grave y agudo, un ciclo cada 0.6 s.
+  const CICLO = 0.6;
+  tono.frequency.setValueAtTime(620, ahora);
+  for (let t = 0; t < segundos; t += CICLO) {
+    tono.frequency.linearRampToValueAtTime(1180, ahora + t + CICLO / 2);
+    tono.frequency.linearRampToValueAtTime(620, ahora + t + CICLO);
+  }
+
+  // Entra y sale sin tronido, a volumen moderado.
+  volumen.gain.setValueAtTime(0, ahora);
+  volumen.gain.linearRampToValueAtTime(0.16, ahora + 0.06);
+  volumen.gain.setValueAtTime(0.16, ahora + segundos - 0.25);
+  volumen.gain.linearRampToValueAtTime(0, ahora + segundos);
+
+  tono.connect(filtro);
+  filtro.connect(volumen);
+  volumen.connect(audio.destination);
+  tono.start(ahora);
+  tono.stop(ahora + segundos);
 }
 
 // Sirena de baliza, montada al centro del borde de arriba del formulario.
