@@ -727,7 +727,8 @@ export async function firmarResguardo(
       tipo: 'devolucion_herramienta',
       titulo: 'Devolución de herramienta',
       mensaje: `${proyecto}: ${marcados} de ${items.length} piezas devueltas. Falta confirmar recepción.`,
-      url: '/dashboard/almacen',
+      // La recepción se confirma en la lista de herramienta del servicio.
+      url: `/dashboard/servicios/${servicioId}`,
       tag: `devolucion-${servicioId}`,
     });
   }

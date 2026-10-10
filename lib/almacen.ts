@@ -565,7 +565,8 @@ export async function avisarSiBajoMinimo(): Promise<void> {
         bajos.length === 1
           ? `${primero.articulo.descripcion}: quedan ${primero.existencia} de ${primero.articulo.minimo} ${primero.articulo.unidad}`
           : `El primero: ${primero.articulo.descripcion}, quedan ${primero.existencia} ${primero.articulo.unidad}`,
-      url: '/dashboard/almacen',
+      // La lista de artículos bajo el mínimo está en Existencias.
+      url: '/dashboard/almacen?sub=existencias',
       tag: 'stock-bajo',
     });
   } catch (e) {

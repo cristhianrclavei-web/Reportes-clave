@@ -50,8 +50,8 @@ export async function POST(request: NextRequest) {
         tag: `firma-${r.reportId}`,
       };
       await Promise.all([
-        enviarPush(tecnicos, { ...aviso, url: '/mis-reportes' }),
-        enviarPush(supervisores, { ...aviso, url: '/dashboard/reportes' }),
+        enviarPush(tecnicos, { ...aviso, url: `/mis-reportes?reporte=${r.reportId}` }),
+        enviarPush(supervisores, { ...aviso, url: `/dashboard/reportes?reporte=${r.reportId}` }),
       ]);
     }
   } catch (e) {

@@ -263,7 +263,8 @@ export async function crearServicio(input: {
       tipo: 'servicio_asignado',
       titulo: 'Te asignaron un servicio',
       mensaje: `${input.proyecto} · ${diasTotales > 1 ? `${diasTotales} días desde el ` : ''}${d}/${m}/${y}`,
-      url: '/servicios',
+      // Abre el servicio (su primer día), donde se confirma de enterado.
+      url: `/servicios/${diasCreados[0].id}`,
       tag: 'servicio-asignado',
     });
   }

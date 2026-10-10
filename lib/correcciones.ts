@@ -34,7 +34,8 @@ export async function solicitarCorreccion(
     tipo: 'correccion_solicitada',
     titulo: 'Piden corregir un reporte',
     mensaje: `${report.empresa_cliente}: ${motivo.trim()}`,
-    url: '/dashboard',
+    // Abre ese reporte, que es donde se autoriza o se cierra la corrección.
+    url: `/dashboard/reportes?reporte=${report.id}`,
     tag: 'correccion',
   });
 }
@@ -78,7 +79,7 @@ export async function habilitarCorreccion(
       tipo: 'correccion_resuelta',
       titulo: 'Ya puedes corregir tu reporte',
       mensaje: `Autorizaron la corrección de ${report.empresa_cliente}${folio}`,
-      url: '/mis-reportes',
+      url: `/mis-reportes?reporte=${report.id}`,
       tag: `correccion-${report.id}`,
     });
   }
@@ -111,7 +112,7 @@ export async function cancelarCorreccion(
       tipo: 'correccion_resuelta',
       titulo: 'Corrección cerrada',
       mensaje: `No se autorizó corregir ${report.empresa_cliente}${folio}`,
-      url: '/mis-reportes',
+      url: `/mis-reportes?reporte=${report.id}`,
       tag: `correccion-${report.id}`,
     });
   }

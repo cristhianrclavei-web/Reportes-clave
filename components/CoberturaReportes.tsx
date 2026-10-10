@@ -143,7 +143,7 @@ export default function CoberturaReportes({
       tipo: 'reporte_pendiente',
       titulo: `Falta reporte del ${fechaCorta(f.fecha)}`,
       mensaje: 'Tu supervisor te recuerda hacer el reporte o justificar el día desde la app.',
-      url: '/mis-reportes',
+      url: '/mis-reportes?pendientes=1',
       tag: `pendiente-${f.fecha}`,
     });
     setAvisados((prev) => new Set(prev).add(clave));

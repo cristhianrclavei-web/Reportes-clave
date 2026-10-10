@@ -118,7 +118,8 @@ export async function crearAviso(input: {
     mensaje: `${perfil?.full_name || 'Alguien del equipo'}: ${etiquetaCausa(input.causa)}${
       sv?.fecha ? ` · ${sv.fecha}` : ''
     }`,
-    url: '/dashboard/servicios',
+    // Los avisos se atienden en el Resumen («Avisos pendientes»), no en Servicios.
+    url: '/dashboard',
   }).catch(() => { /* el aviso ya quedó guardado; el push es extra */ });
 }
 

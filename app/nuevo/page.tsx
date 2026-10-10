@@ -1020,7 +1020,7 @@ export default function NuevoReportePage() {
         tipo: 'correccion_solicitada',
         titulo: 'Reporte corregido',
         mensaje: `${empresaCliente.trim()}${folio}: ya está corregido y pendiente de revisión`,
-        url: '/dashboard/reportes',
+        url: `/dashboard/reportes?reporte=${editarId}`,
         tag: `correccion-${editarId}`,
       });
       avance(100, 'Corrección guardada');

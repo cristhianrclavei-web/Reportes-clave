@@ -136,7 +136,7 @@ export default function ControlReportes({ reportes, onAbrirReporte }: { reportes
   async function recordar(f: (typeof filas)[number]) {
     const fechas = [...new Set(f.pendientes.map((p) => p.fecha))];
     const m = mensajePendiente('manana', fechas);
-    await notificar({ usuarios: [f.id], tipo: 'reporte_pendiente', titulo: m.titulo, mensaje: `Tu supervisor te lo recuerda. ${m.cuerpo}`, url: '/mis-reportes', tag: 'reporte-pendiente' });
+    await notificar({ usuarios: [f.id], tipo: 'reporte_pendiente', titulo: m.titulo, mensaje: `Tu supervisor te lo recuerda. ${m.cuerpo}`, url: '/mis-reportes?pendientes=1', tag: 'reporte-pendiente' });
     setAvisados((p) => new Set(p).add(f.id));
     showToast(`Recordatorio enviado a ${f.nombre}`, 'success');
   }
