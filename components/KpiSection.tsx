@@ -5,6 +5,7 @@ import { Users } from 'lucide-react';
 import { ReportDetail, techName } from './ReportDetailModal';
 import BotonInfo from '@/components/BotonInfo';
 import { hoyLocal } from '@/lib/fechaHoy';
+import { createClient } from '@/lib/supabaseClient';
 import { MARCA } from '@/lib/marca';
 import { ZonaGraficas, Marco, Punto, Crece, Contador, Dona, InfoPunto, COLOR } from '@/components/Graficas';
 
@@ -61,6 +62,19 @@ export default function KpiSection({ reports }: { reports: Report[] }) {
   const [ahora, setAhora] = useState<number | null>(null);
   useEffect(() => setAhora(Date.now()), []);
 
+  // Los técnicos dados de alta, para que en «Reportes por técnico» salga en
+  // cero quien nunca ha hecho un reporte desde su cuenta.
+  const [tecnicos, setTecnicos] = useState<{ id: string; full_name: string }[]>([]);
+  const [errorTecnicos, setErrorTecnicos] = useState(false);
+  useEffect(() => {
+    // Solo cuentas activas: quien ya fue dado de baja no debe salir en cero.
+    createClient().from('profiles').select('id, full_name').eq('role', 'tecnico').eq('activo', true)
+      .then(({ data, error }) => {
+        if (error) setErrorTecnicos(true);
+        else setTecnicos(data || []);
+      });
+  }, []);
+
   const kpiReports = useMemo(() => {
     if (ahora === null) return [];
     const today = hoyLocal(new Date(ahora));
@@ -70,8 +84,8 @@ export default function KpiSection({ reports }: { reports: Report[] }) {
   }, [reports, periodo, ahora]);
 
   // Reportes por técnico, según la cuenta desde la que se capturó (no quién
-  // firma). Salen todos los que alguna vez hicieron un reporte, para que quien
-  // no hizo ninguno en el periodo aparezca en cero.
+  // firma). Salen todos los técnicos y cualquiera que haya hecho un reporte,
+  // para que quien no hizo ninguno en el periodo aparezca en cero.
   const autores = useMemo(() => {
     const porCuenta = new Map<string, { clave: string; nombre: string; n: number; fechas: Set<string> }>();
     const cuentaDe = (r: Report) => {
@@ -83,6 +97,9 @@ export default function KpiSection({ reports }: { reports: Report[] }) {
       }
       return autor;
     };
+    tecnicos.forEach((t) => {
+      porCuenta.set(t.id, { clave: t.id, nombre: t.full_name || 'Personal técnico', n: 0, fechas: new Set() });
+    });
     reports.forEach(cuentaDe);
     kpiReports.forEach((r) => {
       const autor = cuentaDe(r);
@@ -92,7 +109,7 @@ export default function KpiSection({ reports }: { reports: Report[] }) {
     return Array.from(porCuenta.values())
       .map((a) => ({ clave: a.clave, nombre: a.nombre, n: a.n, dias: a.fechas.size }))
       .sort((a, b) => b.n - a.n || a.nombre.localeCompare(b.nombre));
-  }, [reports, kpiReports]);
+  }, [reports, kpiReports, tecnicos]);
   const maxAutor = Math.max(1, ...autores.map((a) => a.n));
 
   const { completados, pendientes, pctCompletados } = useMemo(() => {
@@ -282,10 +299,15 @@ export default function KpiSection({ reports }: { reports: Report[] }) {
             <BotonInfo titulo="Reportes por técnico">
               Cuántos reportes hizo cada persona desde su propia cuenta. Cuenta la cuenta con la
               que se capturó el reporte, no quién lo firma: si alguien firma un reporte hecho en
-              el celular de un compañero, el reporte es del compañero. Quien no ha hecho ningún
-              reporte desde su cuenta no aparece en la lista.
+              el celular de un compañero, el reporte es del compañero. Quien no ha hecho ninguno
+              desde su cuenta aparece en cero.
             </BotonInfo>
           </div>
+          {errorTecnicos && (
+            <p className="text-[11.5px] text-amber mb-3">
+              No se pudo cargar la lista de técnicos: solo aparecen quienes ya hicieron algún reporte. Recarga la página para reintentar.
+            </p>
+          )}
           {autores.length === 0 ? (
             <p className="text-[13px] text-muted">Todavía no hay reportes.</p>
           ) : (
