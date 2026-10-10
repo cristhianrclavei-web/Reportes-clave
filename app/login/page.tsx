@@ -1,6 +1,7 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { motion, useReducedMotion } from 'motion/react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabaseClient';
@@ -11,6 +12,7 @@ import Logo from '@/components/Logo';
 import { DEMO, MARCA } from '@/lib/marca';
 import PortadaDemo, { ClaveAcceso, cuentaDemo } from '@/components/PortadaDemo';
 import FondoFotovoltaico from '@/components/FondoFotovoltaico';
+import { CamaraVigilancia, SirenaAlarma, ModoVigilancia } from '@/components/VigilanciaAcceso';
 import { AlertTriangle, Eye, EyeOff, Loader2, Lock, Mail, ShieldAlert } from 'lucide-react';
 
 // Límite de intentos en este dispositivo: tras 5 fallos seguidos hay que
@@ -53,6 +55,19 @@ function LoginForm() {
   const [mayusculas, setMayusculas] = useState(false);
   // Segundos que faltan para poder intentar de nuevo (0 = sin bloqueo).
   const [espera, setEspera] = useState(0);
+  // Para las cámaras y la sirena: en qué campo se escribe y si la alarma
+  // está sonando (unos segundos tras una contraseña equivocada).
+  const [foco, setFoco] = useState<'correo' | 'clave' | null>(null);
+  const [alarma, setAlarma] = useState(false);
+  const relojAlarma = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sinMovimiento = !!useReducedMotion();
+
+  function dispararAlarma() {
+    if (relojAlarma.current) clearTimeout(relojAlarma.current);
+    setAlarma(true);
+    relojAlarma.current = setTimeout(() => setAlarma(false), 3200);
+  }
+  useEffect(() => () => { if (relojAlarma.current) clearTimeout(relojAlarma.current); }, []);
 
   // Correo recordado y bloqueo vigente: se leen ya montado (no en el render).
   useEffect(() => {
@@ -94,6 +109,7 @@ function LoginForm() {
         setError('Demasiados intentos. Espera unos minutos antes de volver a intentar.');
         return;
       }
+      dispararAlarma();
       if (contarIntentos) {
         const fallos = leerIntentos().fallos + 1;
         const bloqueoMin = fallos >= INTENTOS_LIBRES ? Math.min(15, 2 ** (fallos - INTENTOS_LIBRES)) : 0;
@@ -179,6 +195,14 @@ function LoginForm() {
     return <PortadaDemo onEntrar={abrir} entrando={entrando} ocupado={loading} error={error} />;
   }
 
+  // Qué hacen las cámaras y la sirena en este momento.
+  let modoVigilancia: ModoVigilancia = 'vigila';
+  if (foco === 'correo') modoVigilancia = 'correo';
+  if (foco === 'clave') modoVigilancia = 'clave';
+  if (!modoOlvido && espera > 0) modoVigilancia = 'bloqueo';
+  if (alarma) modoVigilancia = 'alarma';
+  const avanceCorreo = Math.min(1, email.length / 26);
+
   return (
     <div className="min-h-screen relative overflow-hidden">
       {/* Dos acentos de luz descentrados, no uno solo al centro — es lo que
@@ -196,10 +220,19 @@ function LoginForm() {
       <div className="min-h-screen flex flex-col items-center justify-center gap-3 px-5 pt-14 pb-6 lg:flex-row lg:justify-start lg:gap-0 lg:p-5 lg:pl-[6%] xl:pl-[8%] relative z-10">
       <FondoFotovoltaico className="w-full max-w-md shrink-0 lg:absolute lg:max-w-none lg:w-[50%] xl:w-[56%] 2xl:w-[64%] lg:right-[2%] lg:bottom-[8%]" />
 
-      <form
+      {/* mt-9 en celular: espacio para las cámaras y la sirena, que sobresalen
+          por arriba del formulario. */}
+      <motion.form
         onSubmit={modoOlvido ? handleRecuperar : handleLogin}
-        className="ambient-glow edge-highlight relative z-10 w-full max-w-sm lg:max-w-[400px] glass-strong rounded-3xl p-8 shadow-diffuse border-white/10"
+        className="ambient-glow edge-highlight relative z-10 w-full max-w-sm lg:max-w-[400px] mt-9 lg:mt-0 glass-strong rounded-3xl p-8 shadow-diffuse border-white/10"
+        // Contraseña equivocada: el formulario se sacude un instante.
+        animate={alarma && !sinMovimiento ? { x: [0, -10, 9, -7, 5, -3, 0] } : { x: 0 }}
+        transition={{ duration: 0.55 }}
       >
+        <CamaraVigilancia lado="izq" modo={modoVigilancia} avance={avanceCorreo} />
+        <CamaraVigilancia lado="der" modo={modoVigilancia} avance={avanceCorreo} />
+        <SirenaAlarma modo={modoVigilancia} />
+
         <div className="flex flex-col items-center mb-8">
           <div className="relative mb-5">
             {theme === 'dark' && (
@@ -231,6 +264,8 @@ function LoginForm() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            onFocus={() => setFoco('correo')}
+            onBlur={() => setFoco(null)}
             placeholder="usuario@empresa.com"
             className="w-full pl-10 pr-3.5 py-3 rounded-2xl bg-surface-2 border border-line focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal-glow text-[15px] transition-colors"
             autoComplete="email"
@@ -252,7 +287,8 @@ function LoginForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyUp={(e) => setMayusculas(e.getModifierState?.('CapsLock') === true)}
-                onBlur={() => setMayusculas(false)}
+                onFocus={() => setFoco('clave')}
+                onBlur={() => { setMayusculas(false); setFoco(null); }}
                 placeholder="••••••••"
                 className="w-full pl-10 pr-12 py-3 rounded-2xl bg-surface-2 border border-line focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal-glow text-[15px] transition-colors"
                 autoComplete="current-password"
@@ -358,7 +394,7 @@ function LoginForm() {
         >
           Aviso de privacidad
         </Link>
-      </form>
+      </motion.form>
       </div>
     </div>
   );
