@@ -57,7 +57,11 @@ export function pesoTexto(bytes: number): string {
 // registro al que pertenece, para que apliquen sus permisos).
 export async function subirVideo(carpeta: string, video: File): Promise<string> {
   const path = `${carpeta}/${Date.now()}-video.${extensionDeVideo(video.type)}`;
-  const { error } = await createClient().storage.from('evidencias').upload(path, video, { contentType: video.type || 'video/mp4' });
+  // El tipo va sin los códecs («video/webm;codecs=vp9» → «video/webm»): el
+  // almacenamiento solo acepta tipos de la lista del bucket y compara el
+  // texto tal cual (supabase/patch_limites_archivos.sql).
+  const tipo = (video.type || 'video/mp4').split(';')[0].trim();
+  const { error } = await createClient().storage.from('evidencias').upload(path, video, { contentType: tipo });
   if (error) throw new Error('No se pudo guardar el video: ' + (error.message || 'error de almacenamiento'));
   return path;
 }
