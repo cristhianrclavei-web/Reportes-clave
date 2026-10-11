@@ -14,6 +14,7 @@ type Uso = {
   dias: { dia: string; mensajes: number; costo: number }[];
   herramientas: { nombre: string; veces: number }[];
   sinRespuesta: { cuando: string; quien: string; pregunta: string; respuesta: string }[];
+  recientes?: { cuando: string; quien: string; pregunta: string; respuesta: string }[];
   pulgares?: { arriba: number; abajo: number };
   malCalificadas?: { cuando: string; quien: string; pregunta: string; respuesta: string }[];
 };
@@ -34,9 +35,16 @@ const FUNCIONES: Record<string, string> = {
 const usd = (n: number) => `US$${n.toFixed(2)}`;
 const fechaCorta = (iso: string) => { const [, m, d] = iso.split('-'); return `${d}/${m}`; };
 
+// «11 oct, 15:04» — se usa solo con datos ya cargados, nunca al dibujar en el servidor.
+function cuandoCorto(iso: string): string {
+  return new Date(iso).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
 export default function UsoAsistente() {
   const [uso, setUso] = useState<Uso | null>(null);
   const [abierto, setAbierto] = useState(false);
+  // Persona elegida para ver solo sus preguntas ('' = todas).
+  const [quienFiltro, setQuienFiltro] = useState('');
 
   useEffect(() => {
     fetch('/api/asistente/uso')
@@ -157,6 +165,39 @@ export default function UsoAsistente() {
                   </details>
                 ))}
               </div>
+            )}
+          </div>
+
+          <div>
+            <p className={titulo}>Lo que han preguntado</p>
+            {(uso.recientes?.length || 0) === 0 && <p className="text-[13px] text-muted">Nadie ha preguntado en los últimos 30 días.</p>}
+            {(uso.recientes?.length || 0) > 0 && (
+              <>
+                <select
+                  value={quienFiltro}
+                  onChange={(e) => setQuienFiltro(e.target.value)}
+                  aria-label="Ver las preguntas de"
+                  className="mb-2 w-full min-h-[40px] rounded-xl border border-line bg-surface-2 px-3 text-[13px] focus:border-teal focus:outline-none"
+                >
+                  <option value="">Todas las personas</option>
+                  {[...new Set(uso.recientes!.map((s) => s.quien))].sort().map((nombre) => <option key={nombre} value={nombre}>{nombre}</option>)}
+                </select>
+                <div className="flex max-h-[420px] flex-col gap-2 overflow-y-auto">
+                  {uso.recientes!.filter((s) => !quienFiltro || s.quien === quienFiltro).map((s, n) => (
+                    <details key={n} className="group rounded-xl border border-line bg-surface-2 px-3 py-2.5">
+                      <summary className="flex cursor-pointer list-none items-start gap-2 text-[13px] [&::-webkit-details-marker]:hidden">
+                        <span className="min-w-0 flex-1">
+                          <span className="block leading-snug">{s.pregunta}</span>
+                          <span className="mt-0.5 block text-[11.5px] text-muted">{s.quien} · {cuandoCorto(s.cuando)}</span>
+                        </span>
+                        <ChevronRight size={15} className="mt-0.5 shrink-0 text-muted transition-transform group-open:rotate-90" />
+                      </summary>
+                      <p className="mt-2 border-t border-line pt-2 text-[12.5px] leading-snug text-muted">{s.respuesta || 'Sin respuesta guardada.'}</p>
+                    </details>
+                  ))}
+                </div>
+                <p className="mt-2 text-[12px] leading-snug text-muted">Las 80 más recientes de los últimos 30 días. Toca una para ver qué le contestó.</p>
+              </>
             )}
           </div>
 

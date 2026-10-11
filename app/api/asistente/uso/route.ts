@@ -50,6 +50,9 @@ export async function GET() {
   const sinRespuesta: { cuando: string; quien: string; pregunta: string; respuesta: string }[] = [];
   const malCalificadas: { cuando: string; quien: string; pregunta: string; respuesta: string }[] = [];
   const pulgares = { arriba: 0, abajo: 0 };
+  // Las preguntas más recientes de todos, tal cual se hicieron (la lista ya
+  // viene de la más nueva a la más vieja).
+  const recientes: { cuando: string; quien: string; pregunta: string; respuesta: string }[] = [];
 
   for (const f of lista) {
     const dia = diaLocal(f.created_at);
@@ -63,6 +66,7 @@ export async function GET() {
     if (f.con_imagen) total.conFoto++;
 
     const quien = nombres.get(f.user_id) || { nombre: 'Cuenta eliminada', rol: '' };
+    if (recientes.length < 80) recientes.push({ cuando: f.created_at, quien: quien.nombre, pregunta: String(f.pregunta || '').slice(0, 240), respuesta: String(f.respuesta || '').slice(0, 320) });
     const p = porPersona.get(f.user_id) || { ...quien, hoy: 0, semana: 0, mes: 0, costoMes: 0, ultima: f.created_at };
     p.mes++; p.costoMes += costo;
     if (esSemana) p.semana++;
@@ -93,6 +97,7 @@ export async function GET() {
     dias: [...porDia].map(([dia, d]) => ({ dia, mensajes: d.mensajes, costo: r2(d.costo) })).sort((a, b) => (a.dia < b.dia ? 1 : -1)).slice(0, 14),
     herramientas: [...herramientas].map(([nombre, veces]) => ({ nombre, veces })).sort((a, b) => b.veces - a.veces).slice(0, 12),
     sinRespuesta,
+    recientes,
     pulgares,
     malCalificadas,
   });
