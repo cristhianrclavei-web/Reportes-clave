@@ -1,5 +1,7 @@
 'use client';
 
+import DiasDelProyectoEditor from '@/components/servicios/DiasDelProyectoEditor';
+import { AjusteDia, armarDiasDelProyecto, errorEnDias } from '@/lib/diasProyecto';
 import { ElegirCuadrilla } from '@/components/cuadrillas/ChipsCuadrilla';
 import { useAvanceGuardado, pausaFinal } from '@/lib/useAvanceGuardado';
 import SavingOverlay from '@/components/SavingOverlay';
@@ -189,6 +191,8 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   // true = días corridos a partir de la fecha de inicio; false = cada día se
   // captura por separado (obras que solo se atienden ciertos días).
   const [diasSeguidos, setDiasSeguidos] = useState(true);
+  // Lo que se cambió en un día suelto del proyecto (por su posición: 0 = día 1).
+  const [ajustesDia, setAjustesDia] = useState<Record<number, AjusteDia>>({});
   // Lista de carga capturada durante el alta. Vive en memoria hasta que el
   // proyecto existe: antes de crearlo no hay grupo al que asociarla.
   const [insumos, setInsumos] = useState<InsumoNuevo[]>([]);
@@ -274,13 +278,14 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fechas resultantes según el modo elegido — se usan para la vista previa
-  // y para guardar.
-  const fechasDelProyecto = useMemo(() => {
-    if (diasTotales <= 1) return fecha ? [fecha] : [];
-    if (diasSeguidos) return generarFechasSeguidas(fecha, diasTotales, omitirFinDeSemana);
-    return fechasSalteadas.filter(Boolean);
-  }, [diasTotales, diasSeguidos, fecha, omitirFinDeSemana, fechasSalteadas]);
+  // Días del proyecto ya con lo que el supervisor cambió en cada uno (fecha,
+  // llegada o salida). Sin cambios, todos siguen la fecha de inicio y el
+  // horario general. Se usan para la vista previa y para guardar.
+  const diasDelProyecto = useMemo(() => {
+    const fechasBase = diasTotales <= 1 ? (fecha ? [fecha] : []) : generarFechasSeguidas(fecha, diasTotales, omitirFinDeSemana);
+    return armarDiasDelProyecto(fechasBase, { llegada: horaProgramada, salida: horaSalidaProgramada, duracionMin }, diasTotales > 1 ? ajustesDia : {});
+  }, [diasTotales, fecha, omitirFinDeSemana, horaProgramada, horaSalidaProgramada, duracionMin, ajustesDia]);
+  const fechasDelProyecto = useMemo(() => diasDelProyecto.map((d) => d.fecha).filter(Boolean), [diasDelProyecto]);
 
   // Se revisan todas las fechas del proyecto, no solo la primera: en uno de
   // cinco días el festivo suele caer a media semana.
@@ -627,12 +632,9 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
       .filter((i) => i.descripcion.trim())
       .map((i) => ({ ...i, descripcion: i.descripcion.trim(), unidad: i.unidad.trim() || 'pza' }));
     const fechasFinales = fechasDelProyecto;
-    if (fechasFinales.length === 0) {
-      setError('Falta indicar la fecha de cada día.');
-      return;
-    }
-    if (new Set(fechasFinales).size !== fechasFinales.length) {
-      setError('Hay fechas repetidas. Cada día debe tener una fecha distinta.');
+    const errorDias = errorEnDias(diasDelProyecto);
+    if (errorDias) {
+      setError(errorDias);
       return;
     }
     const ubicacionProgramada = ubicLat.trim() && ubicLng.trim()
@@ -658,6 +660,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
         horaSalidaProgramada: horaSalidaProgramada || null,
         ubicacionProgramada,
         duracionMin,
+        dias: diasDelProyecto,
         tecnicoIds,
         tareas: tareasLimpias,
         insumos: insumosLimpios,
@@ -691,6 +694,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
       setUbicLat(''); setUbicLng(''); setUbicDireccion(''); setUbicSugerencias([]); setUbicEnlace(''); setUbicError(null);
       setDiasTotales(1);
       setDiasSeguidos(true); setFechasSalteadas([]); setOmitirFinDeSemana(false);
+      setAjustesDia({});
       setInsumos([]);
       await cargar();
     } catch (e: any) {
@@ -1064,6 +1068,17 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
               <p className="text-[12.5px] text-muted">
                 Cada día solo se puede trabajar en su fecha.
               </p>
+              {diasTotales > 1 && diasDelProyecto.length > 1 && (
+                <DiasDelProyectoEditor
+                  dias={diasDelProyecto}
+                  onAjustar={(i, cambio) => setAjustesDia((prev) => ({ ...prev, [i]: { ...prev[i], ...cambio } }))}
+                  onRestablecer={(i) => setAjustesDia((prev) => {
+                    const copia = { ...prev };
+                    delete copia[i];
+                    return copia;
+                  })}
+                />
+              )}
             </div>
 
             <div className={cardCls}>

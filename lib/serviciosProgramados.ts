@@ -163,6 +163,9 @@ export async function crearServicio(input: {
   // llegada solo, comparando su GPS contra este punto.
   ubicacionProgramada?: { lat: number; lng: number; direccion?: string } | null;
   duracionMin: number;
+  // Días con fecha u horario propio. Si viene, manda sobre `fechas` y sobre
+  // las horas y la duración generales (lib/diasProyecto.ts).
+  dias?: { fecha: string; llegada: string; salida: string; duracionMin: number }[];
   tecnicoIds: string[];
   tareas: string[];
   // Lista de carga capturada al programar. Se guarda junto con el proyecto
@@ -176,7 +179,13 @@ export async function crearServicio(input: {
 
   // Se ordenan por si el supervisor las capturó desordenadas: "Día 1" debe
   // ser siempre el más temprano.
-  const fechas = [...input.fechas].filter(Boolean).sort();
+  const diasGenerales = input.fechas.map((fecha) => ({
+    fecha, llegada: input.horaProgramada || '', salida: input.horaSalidaProgramada || '', duracionMin: input.duracionMin,
+  }));
+  const dias = (input.dias || diasGenerales)
+    .filter((d) => d.fecha)
+    .sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const fechas = dias.map((d) => d.fecha);
   if (fechas.length === 0) throw new Error('Hay que indicar al menos una fecha.');
   const diasTotales = fechas.length;
   const grupoId = generarUUID();
@@ -192,10 +201,10 @@ export async function crearServicio(input: {
         cliente_id: input.clienteId || null,
         descripcion: input.descripcion || null,
         fecha: fechas[dia - 1],
-        hora_programada: input.horaProgramada || null,
-        hora_salida_programada: input.horaSalidaProgramada || null,
+        hora_programada: dias[dia - 1].llegada || null,
+        hora_salida_programada: dias[dia - 1].salida || null,
         ubicacion_programada: input.ubicacionProgramada || null,
-        duracion_estimada_min: input.duracionMin,
+        duracion_estimada_min: dias[dia - 1].duracionMin,
         grupo_id: grupoId,
         numero_dia: dia,
         dias_totales: diasTotales,
