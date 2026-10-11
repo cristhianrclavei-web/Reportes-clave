@@ -15,7 +15,7 @@ function valor(v: string | undefined, porDefecto: string): string {
 
 export const MARCA = {
   nombre: valor(process.env.NEXT_PUBLIC_MARCA_NOMBRE, 'Clave Inteligente'),
-  appNombre: valor(process.env.NEXT_PUBLIC_MARCA_APP, 'Reportes de Servicio'),
+  appNombre: valor(process.env.NEXT_PUBLIC_MARCA_APP, 'Clave App'),
   telefonos: valor(process.env.NEXT_PUBLIC_MARCA_TELEFONOS, '3315672378, 3315672377'),
   sitioWeb: valor(process.env.NEXT_PUBLIC_MARCA_WEB, 'www.clave-i.mx'),
   correoSoporte: valor(process.env.NEXT_PUBLIC_MARCA_CORREO, 'soporte@clave-i.mx'),
@@ -51,7 +51,7 @@ export const MARCA = {
   pieCotizacion: valor(process.env.NEXT_PUBLIC_MARCA_PIE_COTIZACION, 'Tejedores 578 Col. La Paz Guadalajara Jalisco 44860 Tel: 3315781794'),
   // Letras dentro del escudo del logo y nombre corto al instalar la app.
   iniciales: valor(process.env.NEXT_PUBLIC_MARCA_INICIALES, 'CI').slice(0, 3),
-  nombreCorto: valor(process.env.NEXT_PUBLIC_MARCA_NOMBRE_CORTO, 'Reportes CI'),
+  nombreCorto: valor(process.env.NEXT_PUBLIC_MARCA_NOMBRE_CORTO, 'Clave App'),
   // Tira de íconos de servicios bajo el nombre (propia de Clave Inteligente).
   iconos: valor(process.env.NEXT_PUBLIC_MARCA_ICONOS, '1') === '1',
 };
