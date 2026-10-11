@@ -13,6 +13,7 @@ import { evaluarVentanaServicio } from './ventanaServicio';
 import { notificar } from './push';
 import { textoMotivo } from './motivosServicio';
 import { VideoGrabado, subirVideo } from './videoEvidencia';
+import { PREFIJO_ESPERA_INICIO } from './esperaInicio';
 import { VisitaEstado, debeReporte, FILTRO_DEBE_REPORTE } from './visitaSinTrabajo';
 
 export type Servicio = {
@@ -1408,6 +1409,25 @@ export async function registrarRetraso(servicioId: string, motivo: string, comen
     .from('servicio_eventos')
     .insert({ servicio_id: servicioId, tipo: 'retraso', nota, foto_path, ubicacion, created_by: user?.id });
   if (error) throw error;
+}
+
+// El técnico ya llegó pero algo no le deja empezar (ingreso, permiso,
+// contacto ausente…). Queda como justificación del servicio y se avisa a
+// supervisión, que es quien puede destrabarlo con una llamada.
+export async function registrarEsperaDeInicio(servicioId: string, motivo: string, comentario: string): Promise<void> {
+  await registrarRetraso(servicioId, PREFIJO_ESPERA_INICIO + motivo, comentario.trim(), null);
+
+  const supabase = createClient();
+  const { data: sv } = await supabase.from('servicios_programados').select('proyecto').eq('id', servicioId).single();
+  const quien = await nombreDelUsuario();
+  await notificar({
+    destino: 'supervisores',
+    tipo: 'aviso_servicio',
+    titulo: 'Inicio detenido en sitio',
+    mensaje: `${quien} no ha podido iniciar ${sv?.proyecto || 'un servicio'}: ${motivo}${comentario.trim() ? ` — ${comentario.trim()}` : ''}`,
+    url: `/dashboard/servicios/${servicioId}`,
+    tag: `espera-inicio-${servicioId}`,
+  });
 }
 
 // Evidencia adicional que el técnico agrega por su cuenta, más allá de las

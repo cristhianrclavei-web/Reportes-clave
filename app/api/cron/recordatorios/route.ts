@@ -15,6 +15,15 @@ export const dynamic = 'force-dynamic';
 // es como máximo un ciclo de retraso antes del primer aviso.
 const MARGEN_LLEGADA_MIN = 10;
 
+// «Llevas 20 min en sitio: » — o nada si no se sabe la hora de llegada o el
+// dato es absurdo (un servicio olvidado de otro día).
+function textoEspera(horaLlegada: string | null): string {
+  if (!horaLlegada) return '';
+  const minutos = Math.round((Date.now() - new Date(horaLlegada).getTime()) / 60000);
+  if (!(minutos >= 1 && minutos <= 12 * 60)) return '';
+  return `Llevas ${minutos} min en sitio: `;
+}
+
 // Recordatorio de "sigues en sitio sin iniciar el servicio". A diferencia de
 // /api/push, esta ruta no la llama un usuario logueado — la llama Supabase
 // (pg_cron + pg_net) cada 10 minutos, así que no hay sesión que validar. En
@@ -47,7 +56,7 @@ export async function POST(request: NextRequest) {
   // se le recuerda.
   const { data: sinIniciar, error: eSinIniciar } = await admin
     .from('servicios_programados')
-    .select('id, proyecto')
+    .select('id, proyecto, hora_llegada')
     .eq('estado', 'en_sitio')
     .is('hora_inicio', null);
   if (eSinIniciar) {
@@ -60,8 +69,8 @@ export async function POST(request: NextRequest) {
     // Mismo tag en cada corrida: la notificación se reemplaza en vez de
     // apilarse si el técnico sigue sin iniciar diez minutos después.
     const carga = JSON.stringify({
-      titulo: 'Sigues en sitio',
-      cuerpo: `No has iniciado «${s.proyecto}». Si ya estás trabajando, márcalo para llevar el tiempo real.`,
+      titulo: 'No has iniciado el servicio',
+      cuerpo: `${textoEspera(s.hora_llegada)}«${s.proyecto}» sigue sin iniciar. Si ya estás trabajando toca «Iniciar servicio»; si algo te detiene, avísalo con «Algo me impide iniciar».`,
       url: `/servicios/${s.id}`,
       tag: `recordatorio-${s.id}`,
     });

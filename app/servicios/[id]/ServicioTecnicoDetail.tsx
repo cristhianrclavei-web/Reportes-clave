@@ -15,7 +15,7 @@ import {
   Servicio, Tarea, Evento,
   obtenerServicioCompleto, marcarLlegada, iniciarServicio, sigoAsignadoAServicio,
   listarMisConfirmaciones, marcarServiciosVistos,
-  registrarAvanceTarea, registrarRetraso, concluirServicio, concluirServicioAnticipado, agregarEvidenciaExtra,
+  registrarAvanceTarea, registrarRetraso, registrarEsperaDeInicio, concluirServicio, concluirServicioAnticipado, agregarEvidenciaExtra,
   registrarMotivoLlegada, CierreServicio, actualizarNotaEvidencia, registrarVisitaSinTrabajo, agregarVideoEvidencia,
   calcularProgresoTareas, pausarServicio, reanudarServicio, minutosPausadosTotales,
   leerAjustesOperacion, comidasTomadas, registrarSalidaDeSitio,
@@ -47,6 +47,7 @@ const ESTADO_CHIP: Record<Servicio['estado'], { label: string; cls: string }> = 
 // Cuánto dice el técnico que tardará en una salida por material.
 const ESTIMADOS_MATERIAL = [15, 30, 45, 60, 90];
 import ModalOverlay from '@/components/ModalOverlay';
+import { MOTIVOS_ESPERA_INICIO, esperaCompleta, esEsperaDeInicio } from '@/lib/esperaInicio';
 import { calcularResultadoServicio } from '@/lib/resultadoServicio';
 import { formatMinutos } from '@/lib/kpis';
 import { evaluarVentanaServicio } from '@/lib/ventanaServicio';
@@ -114,6 +115,10 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
   const fotoInputRef = useRef<HTMLInputElement>(null);
 
   const [showRetraso, setShowRetraso] = useState(false);
+  // Ya en sitio, qué le impide empezar (lib/esperaInicio.ts).
+  const [showEspera, setShowEspera] = useState(false);
+  const [motivoEspera, setMotivoEspera] = useState<string | null>(null);
+  const [comentarioEspera, setComentarioEspera] = useState('');
   const [motivoRetraso, setMotivoRetraso] = useState(MOTIVOS_RETRASO[0]);
   const [comentarioRetraso, setComentarioRetraso] = useState('');
   const [fotoRetraso, setFotoRetraso] = useState<File | null>(null);
@@ -142,7 +147,6 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
   const [distanciaSitio, setDistanciaSitio] = useState<number | null>(null);
   const [geoError, setGeoError] = useState<string | null>(null);
   const geocercaDisparadaRef = useRef(false);
-  const geocercaInicioDisparadaRef = useRef(false);
 
   const [showEvidenciaExtra, setShowEvidenciaExtra] = useState(false);
   const [notaEvidenciaExtra, setNotaEvidenciaExtra] = useState('');
@@ -328,13 +332,11 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [servicio?.id, enCursoSinPausa]);
 
-  // Detección automática de llegada e inicio: solo mientras el técnico tiene
-  // esta pantalla abierta (no hay rastreo en segundo plano — iOS no lo
-  // permite a una PWA). Si no hay ubicación programada, el botón manual
-  // sigue siendo el único camino, como antes. Al pasar de "programado" a
-  // "en_sitio" este efecto se reinicia solo (depende de servicio.estado) y
-  // pasa a vigilar el siguiente paso: seguir dentro del radio también
-  // arranca el servicio, sin que haga falta tocar el botón.
+  // Detección automática de la llegada: solo mientras el técnico tiene esta
+  // pantalla abierta (no hay rastreo en segundo plano — iOS no lo permite a
+  // una PWA). Si no hay ubicación programada, el botón manual sigue siendo
+  // el único camino. Ya en sitio se sigue midiendo la distancia, pero el
+  // inicio es siempre manual.
   useEffect(() => {
     if (!servicio) return;
     if (servicio.estado !== 'programado' && servicio.estado !== 'en_sitio') return;
@@ -351,12 +353,11 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
         setDistanciaSitio(Math.round(d));
         setGeoError(null);
         if (d > radio) return;
+        // Solo la llegada se marca sola. El inicio lo toca el técnico: entre
+        // llegar y empezar puede haber espera en el ingreso, y eso no es trabajo.
         if (estadoAlIniciar === 'programado' && !geocercaDisparadaRef.current) {
           geocercaDisparadaRef.current = true;
           handleMarcarLlegada();
-        } else if (estadoAlIniciar === 'en_sitio' && !geocercaInicioDisparadaRef.current) {
-          geocercaInicioDisparadaRef.current = true;
-          handleIniciar();
         }
       },
       () => setGeoError('No se pudo usar tu ubicación. Puedes continuar manualmente.'),
@@ -508,6 +509,23 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
       await cargar();
     } catch (e: any) {
       alert('No se pudo guardar: ' + (e?.message || 'error'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleGuardarEspera() {
+    if (!motivoEspera || !esperaCompleta(motivoEspera, comentarioEspera)) return;
+    setBusy(true);
+    try {
+      await registrarEsperaDeInicio(servicioId, motivoEspera, comentarioEspera);
+      showToast('Avisado a tu supervisor', 'success');
+      setShowEspera(false);
+      setMotivoEspera(null);
+      setComentarioEspera('');
+      await cargar();
+    } catch (e: any) {
+      alert('No se pudo guardar: ' + (e?.message || 'revisa tu conexión e intenta de nuevo'));
     } finally {
       setBusy(false);
     }
@@ -702,6 +720,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
   }
 
   // Llegó más de 15 min después de lo acordado y aún no dice por qué.
+  const esperaRegistrada = eventos.some((e) => e.tipo === 'retraso' && esEsperaDeInicio(e.nota));
   const desfaseDeLlegada = (servicio.estado === 'en_sitio' || servicio.estado === 'en_curso') && !servicio.llegada_motivo
     ? desfaseLlegada(servicio)
     : null;
@@ -885,9 +904,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
             {servicio.ubicacion_programada && !geoError && (
               <p className="text-[12.5px] text-muted mb-2 flex items-center gap-1.5">
                 <MapPin size={13} strokeWidth={2.4} className="shrink-0" />
-                {distanciaSitio !== null && distanciaSitio <= (servicio.radio_geocerca_m || 120)
-                  ? 'Sigues en el sitio — iniciando…'
-                  : 'Se inicia solo mientras sigas dentro del sitio.'}
+                Tu llegada ya quedó registrada. Toca «Iniciar servicio» cuando empieces a trabajar.
               </p>
             )}
             {geoError && <p className="text-[12.5px] text-amber mb-2">{geoError}</p>}
@@ -898,6 +915,17 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
             >
               <Play size={19} strokeWidth={2.6} fill="currentColor" />
               Iniciar servicio
+            </button>
+            {/* Si algo lo detiene en el ingreso, que quede dicho: ese tiempo no
+                cuenta como trabajo y supervisión se entera para ayudar. */}
+            <button
+              type="button"
+              onClick={() => setShowEspera(true)}
+              disabled={busy}
+              className="w-full min-h-[46px] -mt-1.5 mb-4 rounded-2xl border border-amber/40 text-amber text-[14px] font-semibold flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
+            >
+              <AlertTriangle size={16} strokeWidth={2.4} />
+              {esperaRegistrada ? 'Avisar de otro motivo de espera' : 'Algo me impide iniciar'}
             </button>
           </>
         )}
@@ -1373,6 +1401,44 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
               >
                 {busy ? 'Guardando...' : avanceSel >= 100 ? 'Marcar como completada' : `Guardar avance (${avanceSel}%)`}
               </button>
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
+
+      {/* Modal: qué detiene el inicio */}
+      {showEspera && (
+        <ModalOverlay onClose={() => !busy && setShowEspera(false)}>
+          <div className="glass-strong rounded-3xl max-w-md w-full p-5 max-h-[90vh] overflow-y-auto">
+            <p className="font-display font-bold text-[18px] tracking-wide mb-1">¿Qué te impide iniciar?</p>
+            <p className="text-[13px] text-muted mb-3.5">Se avisa a tu supervisor y queda registrado. El tiempo de espera no cuenta como trabajo.</p>
+            <div className="flex flex-col gap-1.5">
+              {MOTIVOS_ESPERA_INICIO.map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMotivoEspera(m)}
+                  aria-pressed={motivoEspera === m}
+                  className={`min-h-[44px] px-3.5 py-2 rounded-xl border text-left text-[14px] transition-colors ${
+                    motivoEspera === m ? 'border-teal bg-teal/12 font-semibold' : 'border-line bg-surface-2/60'
+                  }`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+            <textarea
+              value={comentarioEspera}
+              onChange={(e) => setComentarioEspera(e.target.value)}
+              placeholder={motivoEspera === 'Otro' ? 'Cuéntanos qué pasó' : 'Comentario (opcional)'}
+              className="w-full px-3 py-2.5 mt-2 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[13.5px] min-h-[60px]"
+            />
+            {motivoEspera === 'Otro' && !esperaCompleta(motivoEspera, comentarioEspera) && (
+              <p className="text-[12.5px] text-amber mt-1.5">Con «Otro» hay que escribir qué pasó.</p>
+            )}
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setShowEspera(false)} disabled={busy} className="flex-1 min-h-[50px] rounded-2xl border border-line-strong text-ink/80 text-[14.5px] font-semibold active:scale-95 transition-transform disabled:opacity-60">Cancelar</button>
+              <button onClick={handleGuardarEspera} disabled={busy || !esperaCompleta(motivoEspera, comentarioEspera)} className="flex-1 min-h-[50px] rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15px] active:scale-95 transition-transform disabled:opacity-50">{busy ? 'Guardando...' : 'Avisar'}</button>
             </div>
           </div>
         </ModalOverlay>
