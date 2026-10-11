@@ -9,8 +9,6 @@ import { Sparkles, ChevronRight } from 'lucide-react';
 
 type Uso = {
   conCosto: boolean;
-  // Estimado: lo anotado por quien administra menos lo gastado desde entonces.
-  saldo?: { anotado: number; desde: string; gastado: number; restante: number; diasQueAlcanza: number | null } | null;
   total: { hoy: number; semana: number; mes: number; costoHoy: number; costoSemana: number; costoMes: number; busquedas: number; conFoto: number };
   personas: { nombre: string; rol: string; hoy: number; semana: number; mes: number; costoMes: number }[];
   dias: { dia: string; mensajes: number; costo: number }[];
@@ -66,7 +64,7 @@ export default function UsoAsistente() {
         <div className="min-w-0 flex-1">
           <p className="font-display font-bold text-[19px] tracking-wide">Uso del asistente</p>
           <p className="text-[13px] text-muted">
-            {uso.total.hoy} hoy · {uso.total.mes} en 30 días{uso.conCosto ? ` · ${usd(uso.total.costoMes)}` : ''}{uso.saldo ? ` · quedan ${usd(uso.saldo.restante)}` : ''}
+            {uso.total.hoy} hoy · {uso.total.mes} en 30 días{uso.conCosto ? ` · ${usd(uso.total.costoMes)}` : ''}
           </p>
         </div>
         <ChevronRight size={20} className={`text-muted shrink-0 transition-transform ${abierto ? 'rotate-90' : ''}`} />
@@ -74,25 +72,6 @@ export default function UsoAsistente() {
 
       {abierto && (
         <div className="border-t border-line p-5 pt-4 flex flex-col gap-6">
-          {uso.saldo ? (
-            <div className={`rounded-xl border px-4 py-3 ${uso.saldo.restante <= uso.saldo.anotado * 0.15 ? 'border-red/40 bg-red/[0.06]' : 'border-teal/35 bg-teal/[0.06]'}`}>
-              <p className="text-[10.5px] font-semibold uppercase tracking-wider text-muted">Saldo estimado</p>
-              <p className="font-display text-[28px] font-bold leading-tight">{usd(uso.saldo.restante)}</p>
-              {/* Barra: cuánto queda de lo anotado. */}
-              <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-2">
-                <div className={`h-full rounded-full ${uso.saldo.restante <= uso.saldo.anotado * 0.15 ? 'bg-red' : 'bg-teal'}`} style={{ width: `${Math.round((uso.saldo.restante / uso.saldo.anotado) * 100)}%` }} />
-              </div>
-              <p className="mt-2 text-[12.5px] leading-snug text-ink/80">
-                Gastado {usd(uso.saldo.gastado)} de {usd(uso.saldo.anotado)} desde el {cuandoCorto(uso.saldo.desde)}.
-                {uso.saldo.diasQueAlcanza !== null && ` Al ritmo de esta semana alcanza para unos ${uso.saldo.diasQueAlcanza} días.`}
-              </p>
-              <p className="mt-1 text-[11.5px] leading-snug text-muted">Es un cálculo de la app, no el saldo oficial: no cuenta las búsquedas en internet ni la voz. El real está en la consola de Anthropic. Al recargar, actualiza el saldo anotado.</p>
-            </div>
-          ) : uso.conCosto && (
-            <p className="rounded-xl border border-line bg-surface-2 px-3.5 py-3 text-[12.5px] leading-snug text-muted">
-              Para ver aquí cuánto saldo queda, anota en Vercel el saldo actual (ASISTENTE_SALDO_USD) y el momento en que lo consultaste (ASISTENTE_SALDO_FECHA). La app le resta lo que se vaya gastando.
-            </p>
-          )}
           <div className="grid grid-cols-3 gap-2.5">
             {[
               { etiqueta: 'Hoy', n: uso.total.hoy, costo: uso.total.costoHoy },

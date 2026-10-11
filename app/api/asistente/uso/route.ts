@@ -12,29 +12,6 @@ export const dynamic = 'force-dynamic';
 const CORREOS_PANEL = (process.env.ASISTENTE_PANEL_CORREOS || '')
   .split(',').map((c) => c.trim().toLowerCase()).filter(Boolean);
 
-// Saldo de la cuenta de Claude. Anthropic no ofrece forma de consultarlo con
-// la llave de la app, así que se estima: quien administra anota cuánto había
-// (ASISTENTE_SALDO_USD) y en qué momento (ASISTENTE_SALDO_FECHA, por ejemplo
-// 2026-10-11T15:00:00-06:00) y aquí se le resta lo gastado desde entonces.
-// Después de cada recarga hay que actualizar las dos variables.
-const SALDO_ANOTADO = Number(process.env.ASISTENTE_SALDO_USD);
-const SALDO_DESDE = new Date(process.env.ASISTENTE_SALDO_FECHA || '');
-
-// Suma lo gastado desde una fecha, por páginas: la base entrega pocas filas
-// por consulta y el historial puede pasar de un mes.
-async function gastadoDesde(admin: ReturnType<typeof createAdminClient>, desdeIso: string): Promise<number | null> {
-  let total = 0;
-  for (let pagina = 0; pagina < 50; pagina++) {
-    const { data, error } = await admin
-      .from('asistente_uso').select('costo_usd')
-      .gte('created_at', desdeIso).order('created_at').range(pagina * 1000, pagina * 1000 + 999);
-    if (error) return null;
-    for (const fila of (data as any[]) || []) total += Number(fila.costo_usd) || 0;
-    if (!data || data.length < 1000) break;
-  }
-  return total;
-}
-
 // Respuestas donde el asistente no pudo ayudar: sirven de guía para mejorarlo.
 const NO_SUPO = /\b(no encontr[ée]|no tengo|no puedo|no pude|no est[áa] disponible|no hay (ning[úu]n|nadie|datos)|no alcanc[ée])\b/i;
 
@@ -113,24 +90,8 @@ export async function GET() {
   }
 
   const r2 = (n: number) => Math.round(n * 100) / 100;
-
-  // Saldo estimado: solo si están las dos variables y la base ya guarda costos.
-  let saldo: { anotado: number; desde: string; gastado: number; restante: number; diasQueAlcanza: number | null } | null = null;
-  if (conCosto && Number.isFinite(SALDO_ANOTADO) && SALDO_ANOTADO > 0 && !Number.isNaN(SALDO_DESDE.getTime())) {
-    const gastado = await gastadoDesde(admin, SALDO_DESDE.toISOString());
-    if (gastado !== null) {
-      const restante = Math.max(0, SALDO_ANOTADO - gastado);
-      // Al ritmo de los últimos 7 días, ¿para cuántos días alcanza?
-      const gastoDiario = total.costoSemana / 7;
-      saldo = {
-        anotado: r2(SALDO_ANOTADO), desde: SALDO_DESDE.toISOString(), gastado: r2(gastado), restante: r2(restante),
-        diasQueAlcanza: gastoDiario > 0 ? Math.floor(restante / gastoDiario) : null,
-      };
-    }
-  }
   return NextResponse.json({
     conCosto,
-    saldo,
     total: { ...total, costoHoy: r2(total.costoHoy), costoSemana: r2(total.costoSemana), costoMes: r2(total.costoMes) },
     personas: [...porPersona.values()].map((p) => ({ ...p, costoMes: r2(p.costoMes) })).sort((a, b) => b.mes - a.mes),
     dias: [...porDia].map(([dia, d]) => ({ dia, mensajes: d.mensajes, costo: r2(d.costo) })).sort((a, b) => (a.dia < b.dia ? 1 : -1)).slice(0, 14),
