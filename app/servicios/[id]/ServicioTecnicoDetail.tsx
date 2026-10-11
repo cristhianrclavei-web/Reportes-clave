@@ -749,6 +749,16 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
   }
 
   // Llegó más de 15 min después de lo acordado y aún no dice por qué.
+  // Lo que se enlista bajo las tareas: las evidencias, y de los avances solo
+  // los que traen foto o una nota escrita. Un avance «a secas» (tarea al 50 %,
+  // tarea completada) ya se ve en la tarjeta de la tarea; repetirlo aquí solo
+  // llenaba la pantalla. Supervisión sí ve todos en su línea de tiempo.
+  const evidenciasEnLista = eventos.filter((e) => {
+    if (e.tipo === 'evidencia') return true;
+    if (e.tipo !== 'avance') return false;
+    const traeNotaEscrita = /— (avance \d+%|completada|evidencia): /.test(e.nota || '');
+    return !!e.foto_path || traeNotaEscrita;
+  });
   const esperaRegistrada = eventos.some((e) => e.tipo === 'retraso' && esEsperaDeInicio(e.nota));
   const desfaseDeLlegada = (servicio.estado === 'en_sitio' || servicio.estado === 'en_curso') && !servicio.llegada_motivo
     ? desfaseLlegada(servicio)
@@ -1281,11 +1291,11 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
           </div>
         )}
 
-        {eventos.filter((e) => e.tipo === 'evidencia' || e.tipo === 'avance').length > 0 && (
+        {evidenciasEnLista.length > 0 && (
           <div className="mt-5">
             <div className="text-[11px] uppercase tracking-wider text-muted mb-2">Evidencias y avances registrados</div>
             <div className="flex flex-col gap-2.5">
-              {eventos.filter((e) => e.tipo === 'evidencia' || e.tipo === 'avance').map((e) => (
+              {evidenciasEnLista.map((e) => (
                 <div key={e.id} className={`p-3 rounded-xl border ${e.tipo === 'avance' ? 'bg-amber/5 border-amber/25' : 'bg-surface-2 border-line'}`}>
                   {e.tipo === 'avance' && (
                     <p className="text-[12px] text-amber font-semibold mb-1.5 flex items-center gap-1.5">
