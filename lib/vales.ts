@@ -56,6 +56,8 @@ export type Vale = {
   nota_entrega: string | null;
   firma_recepcion: string | null;
   firmado_en: string | null;
+  // Quién tomó la firma cuando se firmó en el dispositivo del almacén.
+  firma_tomada_por?: string | null;
   fecha_limite: string | null;
   extension_dias: number | null;
   extension_motivo: string | null;
@@ -269,6 +271,22 @@ export async function cancelarVale(vale: Vale, motivo: string, comoAlmacen = fal
 }
 
 // ---------- Almacén ----------
+// El técnico firma de recibido en el dispositivo del almacén, frente al
+// almacenista (supabase/patch_firma_vale_en_almacen.sql). Se le avisa a su
+// celular para que le conste que su vale quedó firmado.
+export async function firmarValeEnAlmacen(vale: Vale, firma: string): Promise<void> {
+  const { error } = await createClient().rpc('firmar_vale_en_almacen', { p_vale: vale.id, p_firma: firma });
+  if (error) throw new Error(error.message);
+  await notificar({
+    usuarios: [vale.tecnico_id],
+    tipo: 'vale_almacen',
+    titulo: `Vale ${vale.folio}: firmado en almacén`,
+    mensaje: `Quedó registrada tu firma de recibido del vale de ${vale.cliente_nombre}, tomada en el almacén. Si no fuiste tú, avisa a tu supervisor.`,
+    url: '/checklists',
+    tag: `vale-${vale.id}`,
+  });
+}
+
 export async function entregarVale(vale: Vale, items: { id: string; cantidad: number }[], nota: string): Promise<void> {
   const { error } = await createClient().rpc('entregar_vale', { p_vale: vale.id, p_items: items, p_nota: nota });
   if (error) throw new Error(error.message);

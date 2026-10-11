@@ -118,7 +118,7 @@ export const MANUAL_TECNICO: SeccionManual[] = [
         pasos: [
           'Toca «Pedir al almacén», elige los artículos y la cantidad.',
           'Si se te vence el plazo para devolver, abre el vale y toca «Renovar plazo: pedir más días»: eliges cuántos y para qué. Mientras el almacén no responde, el vale dice «Ya pediste N día(s) más» y puedes tocar «Recordar al almacén».',
-          'Cuando el almacén lo surte, firmas de recibido.',
+          'Cuando el almacén lo surte, firmas de recibido: desde tu celular, o ahí mismo en el dispositivo del almacén si recibes en persona.',
           'La herramienta prestada se devuelve desde ahí mismo al terminar.',
         ],
       },
@@ -339,6 +339,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
         resumen: 'Existencias, vales y equipo instalado.',
         pasos: [
           '«Vales»: lo que pide el personal para sus servicios; se surte y se firma de recibido.',
+          'Después de surtir un vale, si quien lo pidió está contigo abre el vale y toca «Firmar aquí, en este dispositivo» para que firme de recibido en tu pantalla. Si no está, el vale se queda «Por firmar» hasta que firme desde su celular.',
           'Cuando alguien pide más días para devolver, el vale sale en «Piden más días»: ábrelo y aprueba o rechaza. Al aprobar, los días cuentan desde hoy si el plazo ya estaba vencido.',
           '«Existencias» y «Movimientos»: lo que hay y lo que entró o salió. «Entrada» da de alta material nuevo.',
           '«Ubicaciones» y «Conteo» sirven para ordenar el almacén y hacer inventario con etiquetas QR.',

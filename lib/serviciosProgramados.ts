@@ -14,6 +14,7 @@ import { notificar } from './push';
 import { textoMotivo } from './motivosServicio';
 import { VideoGrabado, subirVideo } from './videoEvidencia';
 import { TareaParaActividad, actividadesDesdeTareas } from './actividadesDeTareas';
+import { evidenciasDe } from './evidencias';
 import { PREFIJO_ESPERA_INICIO } from './esperaInicio';
 import { VisitaEstado, debeReporte, FILTRO_DEBE_REPORTE } from './visitaSinTrabajo';
 
@@ -934,7 +935,7 @@ export async function eliminarProyecto(grupoId: string): Promise<void> {
 
   const { data: dias, error: e1 } = await supabase
     .from('servicios_programados')
-    .select('id, proyecto, dias_totales')
+    .select('id, proyecto, dias_totales, report_id')
     .eq('grupo_id', grupoId);
   if (e1) throw e1;
   if (!dias || dias.length === 0) throw new Error('No se encontró el proyecto.');
@@ -948,10 +949,25 @@ export async function eliminarProyecto(grupoId: string): Promise<void> {
     supabase.from('servicio_tareas').select('foto_path').eq('grupo_id', grupoId).not('foto_path', 'is', null),
     supabase.from('servicio_eventos').select('foto_path').in('servicio_id', servicioIds).not('foto_path', 'is', null),
   ]);
+  // Las fotos que ya están en un reporte NO se borran: el reporte usa esos
+  // mismos archivos (no se copian al hacerlo) y debe seguir mostrándolas
+  // aunque el servicio desaparezca.
+  const reporteIds = dias.map((d: any) => d.report_id as string | null).filter(Boolean) as string[];
+  const enReportes = new Set<string>();
+  if (reporteIds.length > 0) {
+    const { data: reportes, error: eRep } = await supabase.from('reports').select('data').in('id', reporteIds);
+    if (eRep) throw eRep;
+    (reportes || []).forEach((r: any) => {
+      evidenciasDe(r.data?.fotos).forEach((f) => {
+        enReportes.add(f.path);
+        if (f.video) enReportes.add(f.video);
+      });
+    });
+  }
   const fotoPaths = [
     ...(tareasFotos || []).map((t: any) => t.foto_path as string),
     ...(eventosFotos || []).map((e: any) => e.foto_path as string),
-  ];
+  ].filter((ruta) => !enReportes.has(ruta));
 
   const { error: eDel } = await supabase.from('servicios_programados').delete().eq('grupo_id', grupoId);
   if (eDel) throw eDel;

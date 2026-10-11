@@ -12,7 +12,7 @@ import { mapaDeExistencias } from '@/lib/almacen';
 import { createClient } from '@/lib/supabaseClient';
 import {
   Vale, ETIQUETA_ESTADO, MOTIVOS_FALTANTE, valeVencido,
-  firmarVale, devolverVale, subirFotoDevolucion, pedirMasDias, recordarMasDias, cancelarVale,
+  firmarVale, firmarValeEnAlmacen, devolverVale, subirFotoDevolucion, pedirMasDias, recordarMasDias, cancelarVale,
   entregarVale, recibirDevolucion, resolverMasDias, urlsFotos,
   Traspaso, traspasosDeVale, companerosParaPrestamo, proponerTraspaso, cancelarTraspaso, disponiblesParaPrestar, nombreCorto,
 } from '@/lib/vales';
@@ -181,6 +181,7 @@ export default function ValeDetalle({
               )}
             </>
           )}
+          {modo === 'almacen' && vale.estado === 'por_firmar' && <FirmarEnAlmacen vale={vale} guardando={guardando} ejecutar={ejecutar} />}
           {modo === 'almacen' && vale.estado === 'solicitado' && <Entregar vale={vale} guardando={guardando} ejecutar={ejecutar} />}
           {modo === 'almacen' && vale.estado === 'devolucion_por_confirmar' && <Recibir vale={vale} guardando={guardando} ejecutar={ejecutar} />}
           {modo === 'almacen' && vale.extension_estado === 'pendiente' && (
@@ -216,6 +217,44 @@ function FotosDevolucion({ paths }: { paths: string[] }) {
         {urls.map((u, i) => u && (
           <a key={i} href={u} target="_blank" rel="noopener noreferrer"><img src={u} alt={`Devolución ${i + 1}`} className="w-full h-24 object-cover rounded-lg border border-line" /></a>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// Para cuando el técnico recibe en persona: firma aquí mismo, en la pantalla
+// del almacén. Va plegado para que nadie firme por error; si el técnico no
+// está, el vale se queda esperando su firma desde su celular, como siempre.
+function FirmarEnAlmacen({ vale, guardando, ejecutar }: { vale: Vale; guardando: boolean; ejecutar: Ejecutar }) {
+  const ref = useRef<SignaturePadHandle>(null);
+  const [abierto, setAbierto] = useState(false);
+  const [firma, setFirma] = useState<string | null>(null);
+  if (!abierto) {
+    return (
+      <div className="rounded-xl border border-line bg-surface-2/60 p-3">
+        <p className="text-[13px] text-ink/80 leading-snug mb-2">Falta la firma de recibido de <b className="text-ink">{vale.tecnico || 'quien lo pidió'}</b>. Puede firmar desde su celular, o aquí si está contigo.</p>
+        <button type="button" onClick={() => setAbierto(true)} className="w-full min-h-[44px] rounded-xl border border-teal/50 text-teal text-[14px] font-semibold active:scale-95 transition-transform">
+          Firmar aquí, en este dispositivo
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-xl border border-teal/40 bg-teal/5 p-3">
+      <p className="text-[13px] mb-2 leading-snug">Pásale el dispositivo a <b>{vale.tecnico || 'quien recibe'}</b>: que revise la columna <b>Entregado</b> y firme de recibido.</p>
+      <div className="rounded-xl overflow-hidden border border-line">
+        <SignaturePad ref={ref} titulo={`Firma de ${vale.tecnico || 'quien recibe'}`} onCambio={setFirma} />
+      </div>
+      <div className="flex gap-2 mt-2">
+        <button type="button" disabled={guardando} onClick={() => { setAbierto(false); setFirma(null); }}
+          className="flex-1 min-h-[44px] rounded-xl border border-line text-[14px] font-semibold text-ink/80 disabled:opacity-50">
+          Cancelar
+        </button>
+        <button type="button" disabled={guardando || !firma}
+          onClick={() => ejecutar(() => firmarValeEnAlmacen(vale, firma!), 'Recibido firmado en almacén')}
+          className="flex-1 min-h-[44px] rounded-xl bg-teal text-inkOnAccent text-[14px] font-semibold disabled:opacity-50">
+          Guardar firma
+        </button>
       </div>
     </div>
   );
