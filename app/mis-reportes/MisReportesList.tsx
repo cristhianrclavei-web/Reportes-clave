@@ -19,6 +19,7 @@ import LogoutButton from '@/components/LogoutButton';
 import ReportDetailModal, { ReportDetail } from '@/components/ReportDetailModal';
 import LevantamientosSeccion from '@/components/LevantamientosSeccion';
 import { Check, Plus, FileText, ChevronRight, Search, PenLine, Clock3 } from 'lucide-react';
+import TarjetasCifra from '@/components/tecnico/TarjetasCifra';
 import ReportesDondeParticipe from '@/components/tecnico/ReportesDondeParticipe';
 import EncabezadoSeccion, { BOTON_PRINCIPAL, RotuloGrupo } from '@/components/tecnico/EncabezadoSeccion';
 import EstadoVacio from '@/components/EstadoVacio';
@@ -142,29 +143,15 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
             ? 'Aquí quedan los reportes que vayas creando.'
             : (
               // Tres cifras de un vistazo; tocar una filtra la lista por ese estado.
-              <span className="grid grid-cols-3 gap-2 mt-2.5 lg:w-[460px]">
-                {([
-                  ['todos', 'Reportes', cuentas.todos, FileText, 'text-teal', 'bg-teal/12'],
-                  ['revision', 'Por revisar', cuentas.revision, Clock3, 'text-amber', 'bg-amber/12'],
-                  ['firma', 'Sin firma', cuentas.firma, PenLine, 'text-red', 'bg-red/12'],
-                ] as const).map(([k, rotulo, n, Icono, color, fondo]) => (
-                  <button
-                    key={k}
-                    type="button"
-                    onClick={() => { setSubseccion('reportes'); setFiltroEstado(k); }}
-                    aria-pressed={filtroEstado === k}
-                    className={`text-left rounded-2xl border bg-surface px-3 py-2.5 transition-all active:scale-[0.97] ${filtroEstado === k ? 'border-teal/55 shadow-diffuse' : 'border-line hover:border-line-strong'}`}
-                  >
-                    <span className="flex items-center justify-between gap-1.5">
-                      <span className={`font-display font-bold text-[24px] leading-none tabular-nums ${n > 0 ? 'text-ink' : 'text-faint'}`}>{n}</span>
-                      <span className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${n > 0 ? `${fondo} ${color}` : 'bg-surface-2 text-faint'}`}>
-                        <Icono size={14} strokeWidth={2.5} />
-                      </span>
-                    </span>
-                    <span className="block text-[11.5px] font-semibold uppercase tracking-wider text-muted mt-1.5 truncate">{rotulo}</span>
-                  </button>
-                ))}
-              </span>
+              <TarjetasCifra
+                elegida={filtroEstado}
+                onElegir={(clave) => { setSubseccion('reportes'); setFiltroEstado(clave); }}
+                cifras={[
+                  { clave: 'todos', rotulo: 'Reportes', n: cuentas.todos, Icono: FileText, color: 'text-teal', fondo: 'bg-teal/12' },
+                  { clave: 'revision', rotulo: 'Por revisar', n: cuentas.revision, Icono: Clock3, color: 'text-amber', fondo: 'bg-amber/12' },
+                  { clave: 'firma', rotulo: 'Sin firma', n: cuentas.firma, Icono: PenLine, color: 'text-red', fondo: 'bg-red/12' },
+                ]}
+              />
             )}
           accion={
             // En computadora «Nuevo reporte» ya está en la barra de secciones.

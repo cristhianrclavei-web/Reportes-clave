@@ -24,6 +24,7 @@ import { Verificacion, miVerificacionPendiente } from '@/lib/presencia';
 import { calcularResultadoServicio } from '@/lib/resultadoServicio';
 import { ResultadoBadges } from '@/components/ResultadoServicioBadges';
 import { debeReporte } from '@/lib/visitaSinTrabajo';
+import TarjetasCifra from '@/components/tecnico/TarjetasCifra';
 import DetallesServicioConcluido from '@/components/tecnico/DetallesServicioConcluido';
 import { evaluarVentanaServicio } from '@/lib/ventanaServicio';
 import { CalendarClock, CalendarDays, List, FileWarning, ChevronDown } from 'lucide-react';
@@ -148,7 +149,14 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
           titulo="Mis servicios"
           detalle={loading ? 'Cargando…'
             : servicios.length === 0 ? 'Lo que te programe tu supervisor aparece aquí.'
-            : `${pendientes.length} ${pendientes.length === 1 ? 'pendiente' : 'pendientes'} · ${concluidos.length} ${concluidos.length === 1 ? 'concluido' : 'concluidos'}`}
+            : (
+              <TarjetasCifra
+                cifras={[
+                  { clave: 'pendientes', rotulo: 'Pendientes', n: pendientes.length, Icono: Clock, color: 'text-amber', fondo: 'bg-amber/12' },
+                  { clave: 'concluidos', rotulo: 'Concluidos', n: concluidos.length, Icono: Check, color: 'text-teal', fondo: 'bg-teal/12' },
+                ]}
+              />
+            )}
         />
 
         {verificacion && (
