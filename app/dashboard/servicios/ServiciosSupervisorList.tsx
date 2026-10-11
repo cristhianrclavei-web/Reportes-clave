@@ -16,6 +16,7 @@ import SupervisorShell from '@/components/SupervisorShell';
 import SubTabs from '@/components/SubTabs';
 import Rutinas, { CargarRutina } from '@/components/rutinas/Rutinas';
 import { listarRutinas, tareasDeRutina } from '@/lib/rutinas';
+import ModalOverlay from '@/components/ModalOverlay';
 import TableroDia from '@/components/TableroDia';
 import { useRouter } from 'next/navigation';
 import { listarRecurrentes, avanzarRecurrente } from '@/lib/mantenimientosRecurrentes';
@@ -23,7 +24,7 @@ import EmptyIllustration from '@/components/EmptyIllustration';
 import SelectorSemana, { RangoSeleccionado } from '@/components/SelectorSemana';
 import { useTheme } from '@/lib/useTheme';
 import { listarFestivos, festivoDe, festivosEnCache, Festivo } from '@/lib/avisos';
-import { crearServicio, listarServiciosSupervisor, listarTecnicos, Servicio, calcularEstadoTiempo, listarProgresoPorGrupo, ProgresoTareas, listarConfirmacionesPorServicio, ConfirmacionTecnico } from '@/lib/serviciosProgramados';
+import { crearServicio, eliminarProyecto, eliminarDiaDeProyecto, listarServiciosSupervisor, listarTecnicos, Servicio, calcularEstadoTiempo, listarProgresoPorGrupo, ProgresoTareas, listarConfirmacionesPorServicio, ConfirmacionTecnico } from '@/lib/serviciosProgramados';
 import ConfirmacionTecnicos, { ResumenConfirmacion } from '@/components/ConfirmacionTecnicos';
 import ProgressBar from '@/components/ProgressBar';
 import {
@@ -190,6 +191,15 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   const [diasTotales, setDiasTotales] = useState(1);
   // true = días corridos a partir de la fecha de inicio; false = cada día se
   // captura por separado (obras que solo se atienden ciertos días).
+  // Lo que se está por eliminar desde la lista (un día suelto o el proyecto
+  // entero); abre la ventana de confirmación.
+  const [porEliminar, setPorEliminar] = useState<
+    | { tipo: 'dia'; dia: Servicio }
+    | { tipo: 'proyecto'; grupoId: string; proyecto: string; dias: number; reportes: number }
+    | null
+  >(null);
+  const [motivoEliminar, setMotivoEliminar] = useState('');
+  const [eliminando, setEliminando] = useState(false);
   const [diasSeguidos, setDiasSeguidos] = useState(true);
   // Lo que se cambió en un día suelto del proyecto (por su posición: 0 = día 1).
   const [ajustesDia, setAjustesDia] = useState<Record<number, AjusteDia>>({});
@@ -558,6 +568,26 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
       cerrarModalPlantilla();
     } catch (e: any) {
       alert('No se pudo guardar: ' + (e?.message || 'error'));
+    }
+  }
+
+  async function handleConfirmarEliminar() {
+    if (!porEliminar) return;
+    setEliminando(true);
+    try {
+      if (porEliminar.tipo === 'dia') {
+        await eliminarDiaDeProyecto(porEliminar.dia.id, motivoEliminar);
+        showToast('Día eliminado del proyecto', 'success');
+      } else {
+        await eliminarProyecto(porEliminar.grupoId);
+        showToast(porEliminar.dias > 1 ? 'Proyecto eliminado' : 'Servicio eliminado', 'success');
+      }
+      setPorEliminar(null);
+      await cargar();
+    } catch (e: any) {
+      alert('No se pudo eliminar: ' + (e?.message || 'revisa tu conexión e intenta de nuevo'));
+    } finally {
+      setEliminando(false);
     }
   }
 
@@ -1400,10 +1430,10 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
                     {g.dias.map((d) => {
                       const et = calcularEstadoTiempo(d);
                       return (
+                        <div key={d.id} className="flex items-stretch gap-1.5">
                         <Link
-                          key={d.id}
                           href={`/dashboard/servicios/${d.id}`}
-                          className="flex justify-between items-center gap-2 rounded-xl bg-surface-2 px-3.5 py-2.5 transition-all duration-150 hover:bg-surface-2/70 active:scale-[0.98]"
+                          className="flex-1 min-w-0 flex justify-between items-center gap-2 rounded-xl bg-surface-2 px-3.5 py-2.5 transition-all duration-150 hover:bg-surface-2/70 active:scale-[0.98]"
                         >
                           <div className="min-w-0">
                             <span className="text-[14.5px] font-semibold flex items-center gap-2">
@@ -1425,8 +1455,30 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
                           </div>
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-muted shrink-0"><path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" /></svg>
                         </Link>
+                        {/* Quitar un día suelto: solo en proyectos de varios días y si
+                            ese día no se ha trabajado (lo trabajado es respaldo). */}
+                        {g.dias.length > 1 && d.estado !== 'concluido' && d.estado !== 'en_curso' && !d.report_id && (
+                          <button
+                            type="button"
+                            onClick={() => { setMotivoEliminar(''); setPorEliminar({ tipo: 'dia', dia: d }); }}
+                            aria-label={`Eliminar el día ${d.numero_dia} de ${g.proyecto}`}
+                            title="Eliminar este día"
+                            className="shrink-0 w-11 rounded-xl bg-surface-2 text-muted flex items-center justify-center transition-colors hover:text-red active:scale-90"
+                          >
+                            <Trash2 size={16} strokeWidth={2.3} />
+                          </button>
+                        )}
+                        </div>
                       );
                     })}
+                    <button
+                      type="button"
+                      onClick={() => setPorEliminar({ tipo: 'proyecto', grupoId: g.grupoId, proyecto: g.proyecto, dias: g.dias.length, reportes: diasConReporte })}
+                      className="self-start mt-1 min-h-[40px] px-2 text-[13px] font-semibold text-red/90 flex items-center gap-1.5 active:scale-95 transition-transform"
+                    >
+                      <Trash2 size={14} strokeWidth={2.4} />
+                      {g.dias.length > 1 ? 'Eliminar el proyecto completo' : 'Eliminar este servicio'}
+                    </button>
                   </div>
                 )}
               </div>
@@ -1434,6 +1486,65 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
           })}
         </div>
         )}
+
+      {/* Confirmar la eliminación de un día o de todo el proyecto */}
+      {porEliminar && (
+        <ModalOverlay onClose={() => !eliminando && setPorEliminar(null)}>
+          <div className="glass-strong rounded-3xl max-w-md w-full p-5">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="w-10 h-10 rounded-full bg-red/15 text-red flex items-center justify-center shrink-0">
+                <AlertTriangle size={20} strokeWidth={2.4} />
+              </span>
+              <p className="font-display font-bold text-[18px] tracking-wide leading-tight">
+                {porEliminar.tipo === 'dia'
+                  ? `¿Eliminar el día ${porEliminar.dia.numero_dia}?`
+                  : porEliminar.dias > 1 ? '¿Eliminar el proyecto completo?' : '¿Eliminar este servicio?'}
+              </p>
+            </div>
+
+            {porEliminar.tipo === 'dia' ? (
+              <>
+                <p className="text-[13.5px] text-ink/80 leading-relaxed mb-3">
+                  Se quita el <b className="text-ink">día {porEliminar.dia.numero_dia} ({formatFecha(porEliminar.dia.fecha)})</b> de «{porEliminar.dia.proyecto}». Los demás días se renumeran y la lista de tareas no cambia. No se puede deshacer.
+                </p>
+                <label className="text-[13px] text-ink/75 block mb-1.5">¿Por qué se elimina?</label>
+                <textarea
+                  value={motivoEliminar}
+                  onChange={(e) => setMotivoEliminar(e.target.value)}
+                  placeholder="Ej. el cliente canceló ese día"
+                  className="w-full px-3 py-2.5 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[14px] min-h-[64px]"
+                />
+                {!motivoEliminar.trim() && <p className="text-[12px] text-muted mt-1">El motivo queda en el historial del proyecto.</p>}
+              </>
+            ) : (
+              <div className="text-[13.5px] text-ink/80 leading-relaxed">
+                <p>
+                  Se borra <b className="text-ink">«{porEliminar.proyecto}»</b>{porEliminar.dias > 1 ? ` con sus ${porEliminar.dias} días` : ''}, junto con su lista de tareas, evidencias y fotos. No se puede deshacer.
+                </p>
+                {porEliminar.reportes > 0 && (
+                  <p className="mt-2 p-2.5 rounded-xl bg-amber/10 border border-amber/30 text-ink/85">
+                    Tiene {porEliminar.reportes} {porEliminar.reportes === 1 ? 'reporte hecho' : 'reportes hechos'}: no se eliminan, solo quedan desvinculados del servicio.
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div className="flex gap-2 mt-5">
+              <button type="button" onClick={() => setPorEliminar(null)} disabled={eliminando} className="flex-1 min-h-[50px] rounded-2xl border border-line-strong text-ink/80 text-[14.5px] font-semibold active:scale-95 transition-transform disabled:opacity-60">
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmarEliminar}
+                disabled={eliminando || (porEliminar.tipo === 'dia' && !motivoEliminar.trim())}
+                className="flex-1 min-h-[50px] rounded-2xl bg-red text-white font-display font-semibold text-[15px] active:scale-95 transition-transform disabled:opacity-50"
+              >
+                {eliminando ? 'Eliminando...' : 'Sí, eliminar'}
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
 
       {/* Editar o crear plantilla */}
       {(plantillaEditando || creandoPlantilla) && (

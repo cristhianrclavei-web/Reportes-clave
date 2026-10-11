@@ -249,6 +249,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
           'Toca «Agendar», elige el cliente, la fecha, la hora y a quién va (personas o una cuadrilla completa).',
           'Puedes cargar una rutina de tareas y una lista de herramienta y material.',
           'Los servicios de varios días se agendan como un solo proyecto.',
+          'Para eliminar: en Servicios despliega el proyecto. El bote de basura junto a un día quita solo ese día (pide el motivo; no aparece en días ya trabajados o con reporte), y «Eliminar el proyecto completo» borra todo. Las dos piden confirmación.',
           'Al indicar más de un día aparece «Día por día»: todos siguen la fecha y el horario generales, y con el lápiz le cambias a un día suelto su fecha, su llegada o su salida (por ejemplo, el día 1 de 11:00 a 15:00 y el día 2 de 9:00 a 17:00). «Volver al horario general» deshace el cambio de ese día.',
           'La Agenda abre en «Mes»: cada día muestra puntos de lo hecho, lo que viene y lo que quedó sin concluir. Toca un día para ver su detalle al lado y usa «Programar servicio este día» para agendar ahí.',
           'En «Semana» ves la semana de todo el equipo; con «+» asignas a una persona en un día.',
