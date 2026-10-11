@@ -18,7 +18,7 @@ import AvisoActualizarCredenciales from '@/components/AvisoActualizarCredenciale
 import LogoutButton from '@/components/LogoutButton';
 import ReportDetailModal, { ReportDetail } from '@/components/ReportDetailModal';
 import LevantamientosSeccion from '@/components/LevantamientosSeccion';
-import { Check, Plus, FileText, ClipboardList, ChevronRight, Search, PenLine, Clock3, Users } from 'lucide-react';
+import { Check, Plus, FileText, ChevronRight, Search, PenLine, Clock3 } from 'lucide-react';
 import ReportesDondeParticipe from '@/components/tecnico/ReportesDondeParticipe';
 import EncabezadoSeccion, { BOTON_PRINCIPAL, RotuloGrupo } from '@/components/tecnico/EncabezadoSeccion';
 import EstadoVacio from '@/components/EstadoVacio';
@@ -157,13 +157,14 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
         <NotificacionesToggle esTecnico />
 
         <SubTabs
-          repartidas
           activa={subseccion}
           onCambiar={setSubseccion}
+          // Sin íconos: con tres pestañas y un nombre largo no caben en un
+          // celular angosto y el renglón tendría que deslizarse.
           opciones={[
-            { k: 'reportes', label: 'Reportes', Icono: FileText },
-            { k: 'participe', label: 'Participé', Icono: Users },
-            { k: 'levantamientos', label: 'Levantamientos', Icono: ClipboardList },
+            { k: 'reportes', label: 'Reportes' },
+            { k: 'participe', label: 'Reportes de\ncompañeros' },
+            { k: 'levantamientos', label: 'Levantamientos' },
           ]}
         />
 

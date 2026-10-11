@@ -13,7 +13,6 @@ export default function SubTabs<K extends string>({
   onCambiar,
   className = '',
   accion,
-  repartidas = false,
 }: {
   opciones: { k: K; label: string; Icono?: any; badge?: ReactNode }[];
   activa: K;
@@ -22,9 +21,6 @@ export default function SubTabs<K extends string>({
   // Botón al final del renglón (solo en computadora; en celular la acción
   // principal va como botón flotante).
   accion?: ReactNode;
-  // Las pestañas se reparten todo el ancho en partes iguales, en vez de
-  // quedar juntas a la izquierda (solo en celular; en computadora siguen juntas).
-  repartidas?: boolean;
 }) {
   const filaRef = useRef<HTMLDivElement | null>(null);
   const desvanecido = useDesvanecidoLateral(filaRef);
@@ -39,7 +35,7 @@ export default function SubTabs<K extends string>({
 
   return (
     <div className={`flex items-end gap-3 border-b border-line mb-5 ${className}`}>
-    <div ref={filaRef} style={desvanecido} className="flex gap-1 flex-1 min-w-0 overflow-x-auto no-scrollbar -mb-px" role="tablist">
+    <div ref={filaRef} style={desvanecido} className="flex lg:gap-1 flex-1 min-w-0 overflow-x-auto no-scrollbar -mb-px" role="tablist">
       {opciones.map(({ k, label, Icono, badge }) => {
         const on = activa === k;
         return (
@@ -48,7 +44,10 @@ export default function SubTabs<K extends string>({
             role="tab"
             aria-selected={on}
             onClick={() => onCambiar(k)}
-            className={`relative flex items-center gap-1.5 pb-2.5 pt-1.5 text-[14px] font-semibold whitespace-nowrap transition-colors ${repartidas ? 'flex-1 justify-center px-1.5 lg:flex-none lg:px-3' : 'shrink-0 px-3'} ${
+            // En celular se reparten el ancho (grow) en vez de quedar cargadas a la
+            // izquierda; si no caben, no se encogen y el renglón se desliza. Un
+            // salto de línea en el texto parte la etiqueta en dos renglones.
+            className={`relative grow shrink-0 lg:grow-0 flex items-center justify-center gap-1.5 px-2 lg:px-3 pb-2.5 pt-1.5 text-[14px] font-semibold whitespace-pre text-center leading-tight transition-colors ${
               on ? 'text-teal' : 'text-ink/60 hover:text-ink'
             }`}
           >
