@@ -52,6 +52,13 @@ function horaActualStr(): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+// Convierte un registro del servidor (fecha y hora completas) a la hora de
+// reloj «HH:MM» que usan los campos de hora del formulario.
+function horaDeRegistro(iso: string): string {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 const TIPOS = ['Instalación nueva', 'Mantenimiento', 'Otro'];
 const SUBTIPOS = ['Correctivo', 'Preventivo'];
 const SEGURIDAD_OPTS = ['CCTV', 'Automatización', 'Alarma&Det', 'Control de acceso', 'Alarma intrusión', 'Red contra incendio', 'Supresión', 'Inst. eléctricas', 'Paneles solares', 'Otra'];
@@ -576,6 +583,14 @@ export default function NuevoReportePage() {
       setEmpresaCliente(c?.nombre || s.proyecto);
       setClienteId(s.cliente_id || null);
       setContactosCliente(c?.contactos || []);
+      // Las horas salen de lo que el técnico registró en el servicio (llegada
+      // y cierre); siguen siendo editables. Al corregir mandan las del reporte.
+      if (!editarId && s.hora_llegada) {
+        setHoraLlegada(horaDeRegistro(s.hora_llegada));
+        // Un cierre dado otro día (se olvidó cerrar) no es la hora de salida.
+        const cierreMismoDia = s.hora_fin && hoyLocal(new Date(s.hora_fin)) === hoyLocal(new Date(s.hora_llegada));
+        if (s.hora_fin && cierreMismoDia) setHoraSalida(horaDeRegistro(s.hora_fin));
+      }
     }
     try {
       const nombres = await listarTecnicosDeServicio(id);

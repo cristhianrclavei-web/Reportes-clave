@@ -49,7 +49,7 @@ export const MANUAL_TECNICO: SeccionManual[] = [
         titulo: 'Hacer un reporte',
         resumen: 'Son cuatro pasos: Datos, Trabajo, Evidencia y Firmas.',
         pasos: [
-          'Toca «Nuevo reporte». Si el reporte es de un servicio asignado, elígelo arriba y se llenan solos el cliente y el personal.',
+          'Toca «Nuevo reporte». Si el reporte es de un servicio asignado, elígelo arriba y se llenan solos el cliente, el personal y las horas de llegada y salida que registraste en el servicio (las puedes corregir).',
           'Datos: cliente, contacto, horas de llegada y salida, vehículo y quién fue.',
           'Trabajo: tipo de servicio, sistema, materiales usados y la descripción de lo que hiciste.',
           'Evidencia: toma o elige las fotos y marca si el servicio ya quedó concluido.',
