@@ -1886,6 +1886,16 @@ export async function listarFotosDelDia(servicio: Pick<Servicio, 'id' | 'grupo_i
     .filter((i) => i.previewUrl);
 }
 
+// Lista de tareas de un proyecto (el checklist se comparte entre sus días),
+// para mostrarla de solo lectura en el resumen de un servicio concluido.
+export async function listarTareasDeGrupo(grupoId: string): Promise<Pick<Tarea, 'id' | 'descripcion' | 'completada'>[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('servicio_tareas').select('id, descripcion, completada').eq('grupo_id', grupoId).order('orden');
+  if (error) throw error;
+  return data || [];
+}
+
 export type EstadoTiempo = { tipo: 'a_tiempo' | 'retraso' | 'excedido' | null; minutos?: number };
 
 export type ProgresoTareas = { total: number; completadas: number; pct: number };
