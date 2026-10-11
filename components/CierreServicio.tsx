@@ -176,6 +176,15 @@ export function ModalCierre({
           ))}
         </div>
 
+        {/* En el último día la respuesta vale por todo el servicio: de ella
+            sale si el reporte queda como concluido (y pasa a facturación). */}
+        {esUltimoDia && resultado === 'terminado' && (
+          <p className="text-[12.5px] text-ink/75 leading-snug mt-3">Es el último día programado: con «Trabajo terminado» <b className="text-ink">todo el servicio queda concluido</b>.</p>
+        )}
+        {esUltimoDia && resultado === 'pendiente' && (
+          <p className="text-[12.5px] text-ink/75 leading-snug mt-3">Es el último día programado: el servicio <b className="text-ink">no queda concluido</b> y tu supervisor tendrá que programar otro día.</p>
+        )}
+
         {saleAntes && resultado === 'terminado' && (
           <p className="text-[12.5px] text-teal mt-3">Cierras {formatMinutos(-desfase!)} antes de lo programado con el trabajo terminado. Queda como tiempo a favor.</p>
         )}

@@ -32,6 +32,7 @@ import { notificar } from '@/lib/push';
 import { evaluarVentanaServicio } from '@/lib/ventanaServicio';
 import Logo from '@/components/Logo';
 import { hoyLocal } from '@/lib/fechaHoy';
+import { servicioQuedoTerminado } from '@/lib/servicioTerminado';
 import { MARCA, MARCA_MAYUS } from '@/lib/marca';
 import { SelectorFormatos, PasoFormato, pendientesFormatos } from '@/components/FormatoMantenimiento';
 import { FormatoLlenado } from '@/lib/formatosMantenimiento';
@@ -677,6 +678,11 @@ export default function NuevoReportePage() {
     { etiqueta: asignadosDisponibles.length > 0 ? 'Resto del equipo' : 'Equipo', nombres: otrosDisponibles },
   ].filter((g) => g.nombres.length > 0);
 
+  // Servicio programado ligado a este reporte. Al corregir un reporte ya
+  // guardado no aplica: ahí manda lo que el reporte ya decía.
+  const servicioLigado = editarId ? undefined : serviciosAsignados.find((s) => s.id === servicioSeleccionadoId);
+  const concluidoPorServicio = servicioLigado ? servicioQuedoTerminado(servicioLigado) : null;
+
   // Servicios que hoy sí se pueden vincular, y los que no por fecha.
   const serviciosVinculables = serviciosAsignados.filter((s) => evaluarVentanaServicio(s).permitido);
   const serviciosFueraDeFecha = serviciosAsignados.filter((s) => !evaluarVentanaServicio(s).permitido);
@@ -1070,15 +1076,18 @@ export default function NuevoReportePage() {
     setSaving(true);
     setMsg(null);
 
+    // Con servicio ligado, el estatus sale del servicio; sin él, de la pregunta del formulario.
+    const quedoConcluido = concluidoPorServicio ?? (servicioConcluido === 'si');
+
     // Datos compartidos entre el guardado en línea y el guardado local (sin conexión).
     const sharedDataBase = { ...buildSharedData(), horaSalida: horaSalidaFinal };
     const sharedData = {
       ...sharedDataBase,
       firmaIngNombre, firmaClienteNombre,
       revisionEstado: 'pendiente',
-      servicioConcluido: servicioConcluido === 'si',
-      facturaEstado: servicioConcluido === 'si' ? 'pendiente' : null,
-      fechaConcluido: servicioConcluido === 'si' ? fecha : null,
+      servicioConcluido: quedoConcluido,
+      facturaEstado: quedoConcluido ? 'pendiente' : null,
+      fechaConcluido: quedoConcluido ? fecha : null,
       firmaIngData: sigIngRef.current && !sigIngRef.current.isEmpty() ? sigIngRef.current.getDataURL() : null,
       firmaClienteData: !clienteAusente && sigClienteRef.current && !sigClienteRef.current.isEmpty() ? sigClienteRef.current.getDataURL() : null,
       ...(clienteAusente ? { firmaClienteNombre: '' } : {}),
@@ -1916,12 +1925,26 @@ export default function NuevoReportePage() {
         {/* Estatus del servicio/proyecto */}
         <div className={cardCls}>
           <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Estatus del servicio</p>
-          <label className={labelCls}>¿Ya se concluyó el servicio o proyecto?</label>
-          <p className="text-[11px] text-muted mb-2.5">Si el proyecto dura varios días, marca "No" en los reportes de avance y "Sí" hasta el reporte final.</p>
-          <div className="flex gap-2">
-            <span className={chipCls(servicioConcluido === 'si')} onClick={() => setServicioConcluido('si')}>Sí, concluido</span>
-            <span className={chipCls(servicioConcluido === 'no')} onClick={() => setServicioConcluido('no')}>No, sigue en curso</span>
-          </div>
+          {servicioLigado && concluidoPorServicio !== null ? (
+            // Con un servicio programado ligado no se pregunta: ya se sabe.
+            <p className="text-[13.5px] text-ink/85 leading-relaxed">
+              <b>{concluidoPorServicio ? 'Concluido.' : 'Sigue en curso.'}</b>{' '}
+              {concluidoPorServicio
+                ? (servicioLigado.estado === 'concluido' ? 'Se toma del servicio ligado: es su último día y el trabajo quedó terminado.' : 'Se toma del servicio ligado: es su último día programado.')
+                : servicioLigado.numero_dia < servicioLigado.dias_totales
+                  ? `Se toma del servicio ligado: es el día ${servicioLigado.numero_dia} de ${servicioLigado.dias_totales}.`
+                  : 'Se toma del servicio ligado: al cerrarlo quedó trabajo pendiente.'}
+            </p>
+          ) : (
+            <>
+              <label className={labelCls}>¿Ya se concluyó el servicio o proyecto?</label>
+              <p className="text-[11px] text-muted mb-2.5">Si el proyecto dura varios días, marca "No" en los reportes de avance y "Sí" hasta el reporte final.</p>
+              <div className="flex gap-2">
+                <span className={chipCls(servicioConcluido === 'si')} onClick={() => setServicioConcluido('si')}>Sí, concluido</span>
+                <span className={chipCls(servicioConcluido === 'no')} onClick={() => setServicioConcluido('no')}>No, sigue en curso</span>
+              </div>
+            </>
+          )}
         </div>
 
         </div>
