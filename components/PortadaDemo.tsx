@@ -1,9 +1,10 @@
 'use client';
 
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowRight, BellRing, CalendarDays, Check, ClipboardCheck, FileSignature, LayoutDashboard, Loader2,
-  MessageCircle, PackageCheck, Receipt, WifiOff, Wrench, Palette, FileText, Stamp, Truck, Plug, Info,
+  MessageCircle, PackageCheck, Play, Receipt, WifiOff, Wrench, Palette, FileText, Stamp, Truck, Plug, Info,
 } from 'lucide-react';
 import Logo from '@/components/Logo';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -63,6 +64,64 @@ function enlaceVentas(mensaje: string): string | null {
   if (VENTAS_WHATSAPP) return `https://wa.me/${VENTAS_WHATSAPP.replace(/\D/g, '')}?text=${encodeURIComponent(mensaje)}`;
   if (VENTAS_CORREO) return `mailto:${VENTAS_CORREO}?subject=${encodeURIComponent(`Información de ${MARCA.appNombre}`)}&body=${encodeURIComponent(mensaje)}`;
   return null;
+}
+
+// Video de presentación. No se descarga hasta que el visitante lo pide
+// (preload="none"): la portada debe abrir rápido aun con mala señal.
+function VideoDemo() {
+  const video = useRef<HTMLVideoElement>(null);
+  const [iniciado, setIniciado] = useState(false);
+
+  function reproducir() {
+    setIniciado(true);
+    // Si el navegador no deja reproducir, quedan los controles para intentarlo a mano.
+    video.current?.play().catch(() => {});
+  }
+
+  return (
+    <section className="pb-14 lg:pb-20">
+      <div className="text-center max-w-2xl mx-auto">
+        <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-teal mb-2">Mírala en acción</p>
+        <h2 className="font-display font-bold text-[26px] sm:text-[32px] leading-tight tracking-wide">
+          Un día de trabajo con la app, en un minuto
+        </h2>
+        <p className="mt-3 text-[15px] text-muted leading-relaxed">
+          Del reporte en el sitio a la firma del cliente, el tablero de la oficina y el almacén.
+        </p>
+      </div>
+      <div className="relative mt-8 max-w-5xl mx-auto">
+        <div className="pointer-events-none absolute -inset-6 rounded-[2.5rem] bg-teal/15 blur-3xl" />
+        <div className="relative aspect-video rounded-3xl border border-line-strong bg-black shadow-diffuse overflow-hidden">
+          <video
+            ref={video}
+            src="/demo/video.mp4"
+            poster="/demo/video-portada.jpg"
+            controls={iniciado}
+            playsInline
+            preload="none"
+            className="block w-full h-full"
+          >
+            Tu navegador no puede reproducir este video.
+          </video>
+          {!iniciado && (
+            <button
+              type="button"
+              onClick={reproducir}
+              aria-label="Reproducir el video de presentación"
+              className="group absolute inset-0 flex items-center justify-center bg-gradient-to-t from-black/55 via-black/10 to-transparent"
+            >
+              <span className="w-[72px] h-[72px] sm:w-[88px] sm:h-[88px] rounded-full bg-teal text-inkOnAccent flex items-center justify-center shadow-glow-teal group-hover:scale-110 group-active:scale-95 transition-transform duration-200">
+                <Play size={34} strokeWidth={2.4} className="translate-x-[3px]" fill="currentColor" />
+              </span>
+              <span className="absolute left-4 bottom-4 sm:left-6 sm:bottom-5 px-3 py-1.5 rounded-full bg-black/55 text-white text-[12.5px] font-semibold backdrop-blur">
+                Ver video · 58 s
+              </span>
+            </button>
+          )}
+        </div>
+      </div>
+    </section>
+  );
 }
 
 export default function PortadaDemo({
@@ -195,6 +254,8 @@ export default function PortadaDemo({
             </div>
           </div>
         </section>
+
+        <VideoDemo />
 
         {/* ---------- Qué hace ---------- */}
         <section className="pb-14 lg:pb-20">
