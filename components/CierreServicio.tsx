@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { CheckCircle2, CircleDashed, Ban, Clock, Camera, X } from 'lucide-react';
+import { CheckCircle2, CircleDashed, Ban, Clock, Camera, X, Flag } from 'lucide-react';
 import SignaturePad, { SignaturePadHandle } from '@/components/SignaturePad';
 import ModalOverlay from '@/components/ModalOverlay';
 import { Servicio, CierreServicio } from '@/lib/serviciosProgramados';
@@ -113,7 +113,9 @@ export function ModalCierre({
   ahora: number;
   busy: boolean;
   onCancelar: () => void;
-  onConfirmar: (cierre: CierreServicio) => void;
+  // `todoTerminado`: en un día intermedio, el técnico dijo que ya se acabó
+  // el servicio completo (los días que faltan se cancelan).
+  onConfirmar: (cierre: CierreServicio, todoTerminado: boolean) => void;
 }) {
   const esUltimoDia = servicio.numero_dia >= servicio.dias_totales;
   // En un proyecto de varios días lo que se responde es por el día de hoy.
@@ -123,6 +125,10 @@ export function ModalCierre({
 
   // Con todas las tareas completas la respuesta ya se sabe; se deja marcada.
   const [resultado, setResultado] = useState<ResultadoCierre | null>(totalTareas > 0 && tareasPendientes === 0 ? 'terminado' : null);
+  const [todoTerminado, setTodoTerminado] = useState(false);
+  // Cerrar todo el servicio antes de tiempo exige la lista completa: si no,
+  // quedarían tareas sin hacer y ya sin día para hacerlas.
+  const faltanTareas = todoTerminado && tareasPendientes > 0;
   const [motivoResultado, setMotivoResultado] = useState<string | null>(null);
   const [comentarioResultado, setComentarioResultado] = useState('');
   const [motivoSalida, setMotivoSalida] = useState<string | null>(null);
@@ -134,6 +140,7 @@ export function ModalCierre({
 
   const pideMotivoResultado = resultado !== null && resultado !== 'terminado';
   const listo = resultado !== null
+    && !faltanTareas
     && (!pideMotivoResultado || motivoCompleto(motivoResultado, comentarioResultado))
     && (!sePaso || motivoCompleto(motivoSalida, comentarioSalida));
 
@@ -164,17 +171,40 @@ export function ModalCierre({
             <button
               key={clave}
               type="button"
-              onClick={() => setResultado(clave)}
-              aria-pressed={resultado === clave}
+              onClick={() => { setResultado(clave); setTodoTerminado(false); }}
+              aria-pressed={resultado === clave && !todoTerminado}
               className={`min-h-[52px] px-3.5 rounded-2xl border flex items-center gap-3 text-left text-[14.5px] font-semibold transition-colors ${
-                resultado === clave ? 'border-teal bg-teal/12' : 'border-line bg-surface-2/60'
+                resultado === clave && !todoTerminado ? 'border-teal bg-teal/12' : 'border-line bg-surface-2/60'
               }`}
             >
               <Icono size={20} strokeWidth={2.3} className={`${color} shrink-0`} />
               {textos[clave]}
             </button>
           ))}
+          {/* Solo en días intermedios: el trabajo se acabó antes de lo programado. */}
+          {!esUltimoDia && (
+            <button
+              type="button"
+              onClick={() => { setResultado('terminado'); setTodoTerminado(true); }}
+              aria-pressed={todoTerminado}
+              className={`min-h-[52px] px-3.5 py-2 rounded-2xl border flex items-center gap-3 text-left transition-colors ${
+                todoTerminado ? 'border-teal bg-teal/12' : 'border-line bg-surface-2/60'
+              }`}
+            >
+              <Flag size={20} strokeWidth={2.3} className="text-teal shrink-0" />
+              <span>
+                <span className="block text-[14.5px] font-semibold">Ya se terminó todo el servicio</span>
+                <span className="block text-[12.5px] text-muted leading-snug">Los días que faltan se cancelan: ya no se van a usar.</span>
+              </span>
+            </button>
+          )}
         </div>
+
+        {faltanTareas && (
+          <p role="alert" className="text-[13px] text-red font-medium leading-snug mt-3">
+            Tienes {tareasPendientes} {tareasPendientes === 1 ? 'tarea sin terminar' : 'tareas sin terminar'}. Complétalas al 100 % para poder concluir todo el servicio.
+          </p>
+        )}
 
         {/* En el último día la respuesta vale por todo el servicio: de ella
             sale si el reporte queda como concluido (y pasa a facturación). */}
@@ -221,7 +251,7 @@ export function ModalCierre({
               resultadoComentario: pideMotivoResultado ? comentarioResultado : '',
               salidaMotivo: sePaso ? motivoSalida : null,
               salidaComentario: sePaso ? comentarioSalida : '',
-            })}
+            }, todoTerminado)}
             className="flex-1 min-h-[50px] rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15px] active:scale-95 transition-transform disabled:opacity-50"
           >
             {busy ? 'Cerrando...' : 'Concluir'}

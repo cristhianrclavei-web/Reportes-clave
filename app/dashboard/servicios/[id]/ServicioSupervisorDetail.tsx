@@ -840,7 +840,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
                       : e.tipo === 'inicio' ? <><Play size={13} strokeWidth={2.6} />Inicio</>
                       : e.tipo === 'retraso' ? <><AlertTriangle size={13} strokeWidth={2.6} />Retraso</>
                       : e.tipo === 'cierre' ? <><Flag size={13} strokeWidth={2.6} />Cierre</>
-                      : e.tipo === 'avance' ? <><Timer size={13} strokeWidth={2.6} />Avance parcial</>
+                      : e.tipo === 'avance' ? <><Timer size={13} strokeWidth={2.6} />{(e.avance_pct ?? 0) >= 100 ? 'Tarea de la lista' : 'Avance parcial'}</>
                       : e.tipo === 'pausa' ? <><PauseCircle size={13} strokeWidth={2.6} />Pausa</>
                       : e.tipo === 'reanudacion' ? <><PlayCircle size={13} strokeWidth={2.6} />Reanudación</>
                       : e.tipo === 'salida_sitio' ? <span className="text-red inline-flex items-center gap-1.5"><MapPinOff size={13} strokeWidth={2.6} />Fuera del sitio</span>

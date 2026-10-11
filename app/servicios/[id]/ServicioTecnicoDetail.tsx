@@ -15,7 +15,7 @@ import {
   Servicio, Tarea, Evento,
   obtenerServicioCompleto, marcarLlegada, iniciarServicio, sigoAsignadoAServicio,
   listarMisConfirmaciones, marcarServiciosVistos,
-  registrarAvanceTarea, registrarRetraso, registrarEsperaDeInicio, concluirServicio, concluirServicioAnticipado, agregarEvidenciaExtra,
+  registrarAvanceTarea, ligarEvidenciaATarea, registrarRetraso, registrarEsperaDeInicio, concluirServicio, concluirServicioAnticipado, agregarEvidenciaExtra,
   registrarMotivoLlegada, CierreServicio, actualizarNotaEvidencia, registrarVisitaSinTrabajo, agregarVideoEvidencia,
   calcularProgresoTareas, pausarServicio, reanudarServicio, minutosPausadosTotales,
   leerAjustesOperacion, comidasTomadas, registrarSalidaDeSitio,
@@ -97,7 +97,6 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
   const [fotoUrls, setFotoUrls] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [preguntandoAnticipado, setPreguntandoAnticipado] = useState(false);
   // Cierre del día: primero el resultado (y motivos, si aplica); la respuesta
   // se guarda aquí mientras se pregunta si el proyecto terminó antes.
   const [preguntandoCierre, setPreguntandoCierre] = useState(false);
@@ -164,6 +163,8 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
   const [sinTrabajo, setSinTrabajo] = useState(false);
   // Video de evidencia: grabadora abierta y video que se está viendo.
   const [grabandoVideo, setGrabandoVideo] = useState(false);
+  // A qué tarea y con qué comentario se guarda el video que se está grabando.
+  const [destinoVideo, setDestinoVideo] = useState<{ tareaId?: string | null; nota?: string }>({});
   const [viendoVideo, setViendoVideo] = useState<string | null>(null);
 
   // null = aún no se sabe (no se muestra nada).
@@ -396,7 +397,9 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
   function abrirTarea(t: Tarea) {
     setTareaActiva(t);
     setNotaTarea('');
-    setAvanceSel(100); // lo más común es completar; para parcial se ajusta con un toque
+    // Lo más común es completar; si ya llevaba avance se parte de ahí para
+    // que ajustarlo sea un toque.
+    setAvanceSel(t.completada || t.avance_pct === 0 ? 100 : t.avance_pct);
     setFotoTarea(null);
     setFotoTareaPreview(null);
   }
@@ -414,11 +417,24 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
     setBusy(true);
     try {
       await registrarAvanceTarea(tareaActiva, servicioId, avanceSel, fotoTarea, notaTarea);
-      showToast(avanceSel >= 100 ? 'Tarea completada' : `Avance del ${avanceSel}% registrado`, 'success');
+      showToast(tareaActiva.completada ? 'Evidencia agregada a la tarea' : avanceSel >= 100 ? 'Tarea completada' : `Avance del ${avanceSel}% registrado`, 'success');
       setTareaActiva(null);
       await cargar();
     } catch (e: any) {
       alert('No se pudo guardar: ' + (e?.message || 'error'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleLigarATarea(eventoId: string, tareaId: string | null) {
+    setBusy(true);
+    try {
+      await ligarEvidenciaATarea(eventoId, servicioId, tareaId);
+      showToast(tareaId ? 'Foto ligada a la tarea' : 'Foto sin tarea', 'success');
+      await cargar(true);
+    } catch (e: any) {
+      alert('No se pudo ligar la foto: ' + (e?.message || 'revisa tu conexión e intenta de nuevo'));
     } finally {
       setBusy(false);
     }
@@ -452,8 +468,9 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
     setGrabandoVideo(false);
     setSubiendoFotos((n) => n + 1);
     try {
-      await agregarVideoEvidencia(servicioId, v);
-      showToast('Video guardado', 'success');
+      await agregarVideoEvidencia(servicioId, v, destinoVideo);
+      showToast(destinoVideo.tareaId ? 'Video agregado a la tarea' : 'Video guardado', 'success');
+      setDestinoVideo({});
       await cargar(true);
     } catch (err: any) {
       alert('No se pudo guardar el video: ' + (err?.message || 'revisa tu conexión') + '. Grábalo de nuevo.');
@@ -461,7 +478,9 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
       setSubiendoFotos((n) => n - 1);
     }
   }
-  function abrirGrabadora() {
+  // `destino`: tarea a la que se liga el video y/o comentario que lo acompaña.
+  function abrirGrabadora(destino: { tareaId?: string | null; nota?: string } = {}) {
+    setDestinoVideo(destino);
     const yaHay = eventos.filter((e) => e.video_path).length;
     if (yaHay >= VIDEOS_POR_REGISTRO) {
       showToast(`Este día ya tiene ${VIDEOS_POR_REGISTRO} videos, que es el máximo`, 'error');
@@ -630,18 +649,12 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
     }
   }
 
-  async function handleConfirmarCierre(c: CierreServicio) {
+  // `todoTerminado` viene del cierre de un día intermedio: el trabajo se
+  // acabó antes y los días que faltan se cancelan.
+  async function handleConfirmarCierre(c: CierreServicio, todoTerminado: boolean) {
     setCierre(c);
     setPreguntandoCierre(false);
-    // Si todavía quedan días programados de este proyecto y lo de hoy quedó
-    // terminado, se pregunta si el trabajo ya se acabó por completo — para
-    // no dejar esos días programados sin usarse.
-    const esUltimoDia = !servicio || servicio.numero_dia >= servicio.dias_totales;
-    if (!esUltimoDia && c.resultado === 'terminado') {
-      setPreguntandoAnticipado(true);
-      return;
-    }
-    await ejecutarConclusion(false, c);
+    await ejecutarConclusion(todoTerminado, c);
   }
 
   async function handleMotivoLlegada(motivo: string, comentario: string) {
@@ -657,7 +670,6 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
   }
 
   async function ejecutarConclusion(anticipado: boolean, respuesta: CierreServicio | null = cierre) {
-    setPreguntandoAnticipado(false);
     if (!respuesta) return;
     setBusy(true);
     try {
@@ -1058,13 +1070,22 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
           {tareas.map((t) => {
             const puedeCompletar = servicio.estado === 'en_curso';
             const enProgreso = !t.completada && t.avance_pct > 0;
+            // Todas las evidencias de la tarea: la foto de antes (una sola, en
+            // la tarea) y las de cada avance, foto rápida o video ligado a ella.
+            const evidenciasDeLaTarea = [
+              ...(t.foto_path ? [{ foto: t.foto_path, video: null as string | null, dur: null as number | null }] : []),
+              ...eventos
+                .filter((e) => e.tarea_id === t.id && e.foto_path)
+                .map((e) => ({ foto: e.foto_path as string, video: e.video_path || null, dur: e.video_duracion || null }))
+                .reverse(),
+            ].filter((ev) => fotoUrls[ev.foto]);
             return (
             <div
               key={t.id}
-              onClick={() => !t.completada && puedeCompletar && abrirTarea(t)}
+              onClick={() => puedeCompletar && abrirTarea(t)}
               className={`rounded-xl px-4 py-3.5 min-h-[60px] flex items-center gap-3.5 border-l-[3px] ${
                 t.completada
-                  ? 'bg-teal/[0.07] border-l-teal border-y border-r border-y-teal/20 border-r-teal/20'
+                  ? `bg-teal/[0.07] border-l-teal border-y border-r border-y-teal/20 border-r-teal/20 ${puedeCompletar ? 'cursor-pointer active:scale-[0.99] transition-transform' : ''}`
                   : enProgreso && puedeCompletar
                   ? 'bg-amber/[0.07] border-l-amber border-y border-r border-y-amber/25 border-r-amber/25 cursor-pointer active:scale-[0.99] transition-transform'
                   : puedeCompletar
@@ -1095,8 +1116,21 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
                 {t.completada && t.completada_en && (
                   <p className="text-[12px] text-teal font-semibold mt-1 flex items-center gap-1.5">
                     {fmtHoraOFecha(t.completada_en, ahora)}
-                    {t.foto_path && <Camera size={13} strokeWidth={2.4} />}
                   </p>
+                )}
+                {evidenciasDeLaTarea.length > 0 && (
+                  <div className="flex gap-1.5 mt-2 overflow-x-auto">
+                    {evidenciasDeLaTarea.map((ev) => (ev.video ? (
+                      <button key={ev.foto} type="button" aria-label="Ver video de la tarea" onClick={(clic) => { clic.stopPropagation(); if (fotoUrls[ev.video!]) setViendoVideo(fotoUrls[ev.video!]); }} className="relative shrink-0">
+                        <img src={fotoUrls[ev.foto]} alt="Video de la tarea" className="w-11 h-11 object-cover rounded-lg border border-line" />
+                        <MarcaVideo dur={ev.dur} chico />
+                      </button>
+                    ) : (
+                      <a key={ev.foto} href={fotoUrls[ev.foto]} target="_blank" rel="noreferrer" onClick={(clic) => clic.stopPropagation()} className="shrink-0">
+                        <img src={fotoUrls[ev.foto]} alt="Foto de la tarea" className="w-11 h-11 object-cover rounded-lg border border-line" />
+                      </a>
+                    )))}
+                  </div>
                 )}
               </div>
 
@@ -1149,6 +1183,13 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
               <button onClick={() => fotoEvidenciaExtraRef.current?.click()} className="w-full min-h-[48px] mb-3 rounded-xl border border-dashed border-teal/50 text-teal text-[14.5px] font-medium flex items-center justify-center gap-2 active:scale-95 transition-transform">
                 <Camera size={17} strokeWidth={2.3} />
                 Tomar foto de evidencia
+              </button>
+            )}
+            {/* El video se guarda al terminar de grabar, con el comentario ya escrito. */}
+            {!fotoEvidenciaExtraPreview && (
+              <button onClick={() => { abrirGrabadora({ nota: notaEvidenciaExtra }); setShowEvidenciaExtra(false); setNotaEvidenciaExtra(''); }} className="w-full min-h-[48px] mb-3 rounded-xl border border-dashed border-teal/50 text-teal text-[14.5px] font-medium flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                <Video size={17} strokeWidth={2.3} />
+                Grabar video (hasta 30 s)
               </button>
             )}
             <div className="flex gap-2">
@@ -1215,7 +1256,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
                   {e.tipo === 'avance' && (
                     <p className="text-[12px] text-amber font-semibold mb-1.5 flex items-center gap-1.5">
                       <Flag size={13} strokeWidth={2.6} />
-                      Avance parcial
+                      {(e.avance_pct ?? 0) >= 100 ? 'Tarea de la lista' : 'Avance parcial'}
                     </p>
                   )}
                   <div className="flex gap-3">
@@ -1257,6 +1298,19 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
                               <MessageSquarePlus size={14} strokeWidth={2.4} />
                               {e.nota ? 'Editar comentario' : 'Agregar comentario'}
                             </button>
+                          )}
+                          {/* La foto rápida entra suelta; aquí se dice de qué tarea es. */}
+                          {e.tipo === 'evidencia' && servicio.estado === 'en_curso' && tareas.length > 0 && (
+                            <select
+                              value={e.tarea_id || ''}
+                              onChange={(ev) => handleLigarATarea(e.id, ev.target.value || null)}
+                              disabled={busy}
+                              aria-label="Tarea a la que pertenece esta foto"
+                              className={`mt-1.5 w-full min-h-[38px] px-2.5 rounded-lg border text-[12.5px] font-semibold focus:border-teal focus:outline-none ${e.tarea_id ? 'bg-surface border-teal/50 text-teal' : 'bg-surface border-line text-muted'}`}
+                            >
+                              <option value="">Ligar a una tarea…</option>
+                              {tareas.map((tarea) => <option key={tarea.id} value={tarea.id}>{tarea.descripcion}</option>)}
+                            </select>
                           )}
                         </>
                       )}
@@ -1304,7 +1358,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
               )}
               {servicio.estado === 'en_curso' && (
                 <button
-                  onClick={abrirGrabadora}
+                  onClick={() => abrirGrabadora()}
                   aria-label="Grabar video de evidencia"
                   title="Grabar video"
                   className="shrink-0 w-[56px] min-h-[56px] rounded-2xl border border-teal/50 bg-teal/10 text-teal flex items-center justify-center active:scale-95 transition-transform"
@@ -1333,9 +1387,14 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
             <p className="text-muted text-[13px] mb-3.5">Se registrará la hora y ubicación actual automáticamente.</p>
 
             {tareaActiva.avance_pct > 0 && !tareaActiva.completada && (
-              <p className="text-[13px] text-amber font-medium mb-3">Avance registrado hasta ahora: {tareaActiva.avance_pct}%</p>
+              <p className="text-[13px] text-amber font-medium mb-3">Avance registrado hasta ahora: {tareaActiva.avance_pct}%. Puedes cambiarlo y agregar otra foto.</p>
+            )}
+            {tareaActiva.completada && (
+              <p className="text-[13px] text-teal font-medium mb-3">Esta tarea ya está completada. Puedes agregarle otra foto o una nota.</p>
             )}
 
+            {/* El porcentaje solo se pide mientras la tarea no esté completada. */}
+            {!tareaActiva.completada && (<>
             <label className="text-[13.5px] text-ink/80 block mb-2">¿Qué tanto quedó avanzada la tarea?</label>
             <div className="flex gap-2 mb-3">
               {[25, 50, 75, 100].map((p) => (
@@ -1366,6 +1425,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
               />
               <span className={`text-[17px] font-display font-bold w-14 text-right ${avanceSel >= 100 ? 'text-teal' : 'text-amber'}`}>{avanceSel}%</span>
             </div>
+            </>)}
 
             <input ref={fotoInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFotoTareaSelect} />
 
@@ -1378,6 +1438,14 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
               <button onClick={() => fotoInputRef.current?.click()} className="w-full min-h-[48px] mb-3 rounded-xl border border-dashed border-teal/50 text-teal text-[14.5px] font-medium flex items-center justify-center gap-2 active:scale-95 transition-transform">
                 <Camera size={17} strokeWidth={2.3} />
                 Tomar foto de evidencia
+              </button>
+            )}
+            {/* El video se guarda al terminar de grabar, ligado a esta tarea; no
+                cambia su porcentaje. */}
+            {!fotoTareaPreview && (
+              <button onClick={() => { abrirGrabadora({ tareaId: tareaActiva.id, nota: notaTarea }); setTareaActiva(null); }} className="w-full min-h-[48px] mb-3 rounded-xl border border-dashed border-teal/50 text-teal text-[14.5px] font-medium flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                <Video size={17} strokeWidth={2.3} />
+                Grabar video (hasta 30 s)
               </button>
             )}
 
@@ -1394,12 +1462,12 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
               </button>
               <button
                 onClick={handleGuardarTarea}
-                disabled={busy}
+                disabled={busy || (tareaActiva.completada && !fotoTarea && !notaTarea.trim())}
                 className={`flex-1 min-h-[48px] rounded-xl text-[14.5px] font-semibold active:scale-95 transition-transform disabled:opacity-60 ${
                   avanceSel >= 100 ? 'bg-teal text-inkOnAccent' : 'bg-amber text-inkOnAccent'
                 }`}
               >
-                {busy ? 'Guardando...' : avanceSel >= 100 ? 'Marcar como completada' : `Guardar avance (${avanceSel}%)`}
+                {busy ? 'Guardando...' : tareaActiva.completada ? 'Guardar evidencia' : avanceSel >= 100 ? 'Marcar como completada' : `Guardar avance (${avanceSel}%)`}
               </button>
             </div>
           </div>
@@ -1597,36 +1665,6 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
 
       {/* Modal: ¿el proyecto ya se terminó antes de lo estimado? — solo
           aparece si todavía quedan días programados sin empezar. */}
-      {preguntandoAnticipado && (
-        <ModalOverlay onClose={() => setPreguntandoAnticipado(false)}>
-          <div className="glass-strong rounded-3xl max-w-sm w-full p-6 text-center">
-            <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-teal/15 flex items-center justify-center">
-              <ClipboardList size={26} strokeWidth={2.3} className="text-teal" />
-            </div>
-            <p className="font-display font-bold text-[18px] tracking-wide mb-2">¿Ya terminaste todo?</p>
-            <p className="text-[14px] text-ink/75 leading-relaxed mb-6">
-              Este proyecto todavía tiene días programados sin empezar. Si el trabajo de{' '}
-              <span className="font-semibold text-ink">«{servicio.proyecto}»</span> ya quedó completo, esos días se cancelan solos — ya no se van a usar.
-            </p>
-            <div className="flex flex-col gap-2.5">
-              <button
-                onClick={() => ejecutarConclusion(true)}
-                disabled={busy}
-                className="w-full min-h-[52px] rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15px] active:scale-95 transition-transform disabled:opacity-60 shadow-glow-teal"
-              >
-                Sí, ya terminé todo
-              </button>
-              <button
-                onClick={() => ejecutarConclusion(false)}
-                disabled={busy}
-                className="w-full min-h-[48px] rounded-2xl border border-line-strong text-ink/80 font-semibold text-[14.5px] active:scale-95 transition-transform disabled:opacity-60"
-              >
-                No, falta trabajo para los siguientes días
-              </button>
-            </div>
-          </div>
-        </ModalOverlay>
-      )}
     </div>
   );
 }

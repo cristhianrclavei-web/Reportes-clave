@@ -24,7 +24,7 @@ import { saveOfflineReport, fileToDataUrl, countOfflineReports } from '@/lib/off
 import { showToast } from '@/components/Toast';
 import SavingOverlay from '@/components/SavingOverlay';
 import ReportPreviewModal, { PreviewData } from '@/components/ReportPreviewModal';
-import { listarMisServicios, vincularReporteAServicio, Servicio, filtrarSiguienteDiaPorGrupo, listarTecnicosDeServicio, listarFotosDelDia, FotoDelDia } from '@/lib/serviciosProgramados';
+import { listarMisServicios, vincularReporteAServicio, Servicio, filtrarSiguienteDiaPorGrupo, listarTecnicosDeServicio, listarFotosDelDia, listarActividadesDeTareas, FotoDelDia } from '@/lib/serviciosProgramados';
 import { X, Camera, Images, Plus, AlertTriangle, Eye, EyeOff, ChevronDown, Tag, History, Check, Video } from 'lucide-react';
 import { generarUUID } from '@/lib/uuid';
 import { registrarAccionGlobal } from '@/lib/auditoriaGlobal';
@@ -599,6 +599,16 @@ export default function NuevoReportePage() {
     } catch {
       // sin conexión no se puede consultar: los campos siguen siendo manuales
       setPersonalAsignado([]);
+    }
+    // Las tareas trabajadas ese día pasan como actividades, si el técnico
+    // todavía no ha escrito ninguna (lo ya escrito no se pisa).
+    if (s && !editarId && !actividades.some((a) => a.trim())) {
+      try {
+        const deTareas = await listarActividadesDeTareas(s);
+        if (deTareas.length > 0) setActividades(deTareas);
+      } catch {
+        // sin conexión no se pueden traer: el técnico las escribe a mano
+      }
     }
     // Al corregir, las fotos son las del reporte: no se reemplazan por las del servicio.
     if (s && !editarId) {

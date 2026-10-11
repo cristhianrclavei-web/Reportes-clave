@@ -13,6 +13,7 @@ import { evaluarVentanaServicio } from './ventanaServicio';
 import { notificar } from './push';
 import { textoMotivo } from './motivosServicio';
 import { VideoGrabado, subirVideo } from './videoEvidencia';
+import { TareaParaActividad, actividadesDesdeTareas } from './actividadesDeTareas';
 import { PREFIJO_ESPERA_INICIO } from './esperaInicio';
 import { VisitaEstado, debeReporte, FILTRO_DEBE_REPORTE } from './visitaSinTrabajo';
 
@@ -110,6 +111,10 @@ export type Evento = {
   limite_min?: number | null;
   minutos?: number | null;
   foto_path: string | null;
+  // Tarea a la que pertenece la evidencia o el avance, y el porcentaje que
+  // se registró (patch_avance_en_eventos.sql). Una tarea puede tener varias.
+  tarea_id?: string | null;
+  avance_pct?: number | null;
   // Evidencia en video (patch_video_evidencia.sql): foto_path es su portada.
   video_path?: string | null;
   video_duracion?: number | null;
@@ -1336,13 +1341,13 @@ export async function registrarSalidaDeSitio(servicioId: string, distanciaM: num
   return true;
 }
 
-// Registra el avance de una tarea. Si el porcentaje llega a 100 la tarea
-// queda completada (con hora, autor, foto y ubicación como siempre); si es
-// parcial (ej. "instalé las cámaras pero falta conectarlas" = 50%), se
-// actualiza el porcentaje en la tarea y el detalle queda auditado como
-// evento 'avance' (quién, cuándo, %, nota, foto, ubicación).
+// Registra el avance de una tarea. Cada vez que se guarda queda un evento
+// «avance» ligado a la tarea (quién, cuándo, %, nota, foto, ubicación): por
+// eso una tarea puede juntar varias fotos y varios avances. Si el porcentaje
+// llega a 100 la tarea queda completada. A una tarea ya completada se le
+// pueden seguir agregando fotos y notas; su hora y autor de cierre no cambian.
 export async function registrarAvanceTarea(
-  tarea: Pick<Tarea, 'id' | 'descripcion'>,
+  tarea: Pick<Tarea, 'id' | 'descripcion' | 'completada'>,
   servicioId: string,
   avancePct: number,
   foto: File | null,
@@ -1350,36 +1355,22 @@ export async function registrarAvanceTarea(
 ) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const pct = Math.max(0, Math.min(100, Math.round(avancePct)));
+  const pct = tarea.completada ? 100 : Math.max(0, Math.min(100, Math.round(avancePct)));
   const [ubicacion, foto_path] = await Promise.all([
     getCurrentLocation(),
     foto ? subirFotoServicio(servicioId, foto) : Promise.resolve(null),
   ]);
 
-  if (pct >= 100) {
-    const { error } = await supabase
-      .from('servicio_tareas')
-      .update({
-        completada: true,
-        avance_pct: 100,
-        completada_por: user?.id,
-        completada_en: new Date().toISOString(),
-        foto_path,
-        ubicacion,
-        nota: nota.trim() || null,
-      })
-      .eq('id', tarea.id);
-    if (error) throw error;
-    return;
+  if (!tarea.completada) {
+    const cambio = pct >= 100
+      ? { completada: true, avance_pct: 100, completada_por: user?.id, completada_en: new Date().toISOString(), ubicacion, nota: nota.trim() || null }
+      : { avance_pct: pct };
+    const { error: e1 } = await supabase.from('servicio_tareas').update(cambio).eq('id', tarea.id);
+    if (e1) throw e1;
   }
 
-  const { error: e1 } = await supabase
-    .from('servicio_tareas')
-    .update({ avance_pct: pct })
-    .eq('id', tarea.id);
-  if (e1) throw e1;
-
-  const notaEvento = `«${tarea.descripcion}» — avance ${pct}%${nota.trim() ? ': ' + nota.trim() : ''}`;
+  const queSeHizo = tarea.completada ? 'evidencia' : pct >= 100 ? 'completada' : `avance ${pct}%`;
+  const notaEvento = `«${tarea.descripcion}» — ${queSeHizo}${nota.trim() ? ': ' + nota.trim() : ''}`;
   const { error: e2 } = await supabase
     .from('servicio_eventos')
     .insert({
@@ -1390,11 +1381,29 @@ export async function registrarAvanceTarea(
       ubicacion,
       created_by: user?.id,
       // En columnas y no solo en el texto: es lo que permite calcular cuánto
-      // se llevaba al cierre de cada día.
+      // se llevaba al cierre de cada día y juntar las fotos de cada tarea.
       tarea_id: tarea.id,
       avance_pct: pct,
     });
   if (e2) throw e2;
+}
+
+// Liga una foto rápida (o evidencia adicional) a una tarea de la lista, o la
+// suelta si `tareaId` es null. Solo mientras el día siga abierto.
+export async function ligarEvidenciaATarea(eventoId: string, servicioId: string, tareaId: string | null): Promise<void> {
+  const supabase = createClient();
+  const { data: sv, error: e1 } = await supabase.from('servicios_programados').select('estado').eq('id', servicioId).single();
+  if (e1) throw e1;
+  if (sv.estado === 'concluido') throw new Error('El servicio ya se concluyó; sus evidencias ya no se modifican.');
+  const { data: cambiadas, error } = await supabase
+    .from('servicio_eventos')
+    .update({ tarea_id: tareaId })
+    .eq('id', eventoId)
+    .eq('servicio_id', servicioId)
+    .eq('tipo', 'evidencia')
+    .select('id');
+  if (error) throw error;
+  if (!cambiadas || cambiadas.length === 0) throw new Error('No se pudo ligar la foto a la tarea.');
 }
 
 export async function registrarRetraso(servicioId: string, motivo: string, comentario: string, foto: File | null) {
@@ -1447,7 +1456,12 @@ export async function agregarEvidenciaExtra(servicioId: string, nota: string, fo
 
 // Video de evidencia: la portada va en foto_path (así aparece en todo lo que
 // ya muestra fotos) y el video en video_path.
-export async function agregarVideoEvidencia(servicioId: string, v: VideoGrabado): Promise<void> {
+// `extra`: la tarea a la que pertenece el video y/o un comentario.
+export async function agregarVideoEvidencia(
+  servicioId: string,
+  v: VideoGrabado,
+  extra: { tareaId?: string | null; nota?: string } = {},
+): Promise<void> {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const [ubicacion, foto_path, video_path] = await Promise.all([
@@ -1457,7 +1471,10 @@ export async function agregarVideoEvidencia(servicioId: string, v: VideoGrabado)
   ]);
   const { error } = await supabase
     .from('servicio_eventos')
-    .insert({ servicio_id: servicioId, tipo: 'evidencia', nota: null, foto_path, video_path, video_duracion: v.dur, ubicacion, created_by: user?.id });
+    .insert({
+      servicio_id: servicioId, tipo: 'evidencia', nota: extra.nota?.trim() || null, foto_path, video_path, video_duracion: v.dur,
+      ubicacion, created_by: user?.id, tarea_id: extra.tareaId || null,
+    });
   if (error) throw error;
 }
 
@@ -1861,6 +1878,26 @@ export async function buscarReportesParaVincular(servicioId: string): Promise<Re
     }));
 }
 
+// PostgREST entrega la tarea ligada como objeto o como lista de uno.
+function descripcionDeTarea(tarea: any): string {
+  const t = Array.isArray(tarea) ? tarea[0] : tarea;
+  return (t?.descripcion as string) || '';
+}
+
+// Tareas trabajadas en un día de servicio, redactadas como actividades para
+// el reporte: las completadas ese día y las que tuvieron avance ese día.
+export async function listarActividadesDeTareas(servicio: Pick<Servicio, 'id' | 'grupo_id' | 'fecha'>): Promise<string[]> {
+  const supabase = createClient();
+  const [{ data: tareas, error: e1 }, { data: eventos, error: e2 }] = await Promise.all([
+    supabase.from('servicio_tareas').select('id, descripcion, completada, avance_pct, completada_en').eq('grupo_id', servicio.grupo_id).order('orden'),
+    supabase.from('servicio_eventos').select('tarea_id').eq('servicio_id', servicio.id).not('tarea_id', 'is', null),
+  ]);
+  if (e1) throw e1;
+  if (e2) throw e2;
+  const conEventoEseDia = new Set((eventos || []).map((e: any) => e.tarea_id as string));
+  return actividadesDesdeTareas((tareas || []) as TareaParaActividad[], conEventoEseDia, servicio.fecha);
+}
+
 // `video` y `dur`: la evidencia es un video y `path` es su portada.
 export type FotoDelDia = { path: string; caption: string; previewUrl: string; video?: string | null; dur?: number | null } & import('./evidencias').MetaFoto;
 
@@ -1886,7 +1923,7 @@ export async function listarFotosDelDia(servicio: Pick<Servicio, 'id' | 'grupo_i
       .lt('completada_en', fin.toISOString()),
     supabase
       .from('servicio_eventos')
-      .select('tipo, nota, foto_path, video_path, video_duracion, created_at')
+      .select('tipo, nota, foto_path, video_path, video_duracion, created_at, servicio_tareas(descripcion)')
       .eq('servicio_id', servicio.id)
       .not('foto_path', 'is', null),
   ]);
@@ -1901,7 +1938,8 @@ export async function listarFotosDelDia(servicio: Pick<Servicio, 'id' | 'grupo_i
     ...(tareas || []).map((t: any) => ({ path: t.foto_path as string, caption: t.descripcion || 'Tarea completada', ts: t.completada_en || null })),
     ...(eventos || []).map((e: any) => ({
       path: e.foto_path as string,
-      caption: e.nota || (e.video_path ? 'Video del servicio' : ETIQUETAS[e.tipo]) || 'Evidencia del servicio',
+      // Una foto rápida ligada a una tarea, sin comentario, lleva el nombre de la tarea.
+      caption: e.nota || descripcionDeTarea(e.servicio_tareas) || (e.video_path ? 'Video del servicio' : ETIQUETAS[e.tipo]) || 'Evidencia del servicio',
       video: e.video_path || null, dur: e.video_duracion || null, ts: e.created_at || null,
     })),
   ];
