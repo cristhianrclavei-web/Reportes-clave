@@ -21,10 +21,12 @@ import ProgressBar from '@/components/ProgressBar';
 import EmptyIllustration from '@/components/EmptyIllustration';
 import { MapPin, Play, Check, Clock, CheckCheck, LocateFixed, ChevronRight } from 'lucide-react';
 import { Verificacion, miVerificacionPendiente } from '@/lib/presencia';
-import { calcularResultadoServicio } from '@/lib/resultadoServicio';
-import { ResultadoIconos } from '@/components/ResultadoServicioBadges';
+import { calcularResultadoServicio, ResultadoServicio } from '@/lib/resultadoServicio';
+import { ResultadoBadges } from '@/components/ResultadoServicioBadges';
+import { debeReporte } from '@/lib/visitaSinTrabajo';
+import { formatMinutos } from '@/lib/kpis';
 import { evaluarVentanaServicio } from '@/lib/ventanaServicio';
-import { CalendarClock, CalendarDays, List } from 'lucide-react';
+import { CalendarClock, CalendarDays, List, FileWarning } from 'lucide-react';
 import SubTabs from '@/components/SubTabs';
 import CalendarioMes from '@/components/CalendarioMes';
 import { Festivo, festivosEnCache, listarFestivos } from '@/lib/avisos';
@@ -39,6 +41,17 @@ const ESTADO_CFG: Record<Servicio['estado'], { label: string; cls: string; borde
   concluido: { label: 'Concluido', cls: 'bg-surface-2 text-muted', borde: 'border-l-line-strong', Icono: Check },
   cancelado: { label: 'Cancelado', cls: 'bg-surface-2 text-faint', borde: 'border-l-line', Icono: Check },
 };
+
+function horaCorta(iso: string): string {
+  return new Date(iso).toLocaleTimeString('es-MX', { hour: '2-digit', hour12: false, minute: '2-digit' });
+}
+
+// Color del borde de un servicio concluido: lo más grave manda.
+function bordeResultado(resultado: ResultadoServicio): string {
+  if (resultado.marcas.includes('retrasado')) return 'border-l-red';
+  if (resultado.marcas.includes('incompleto')) return 'border-l-amber';
+  return 'border-l-teal';
+}
 
 function formatFecha(fecha: string): string {
   const [y, m, d] = fecha.split('-');
@@ -271,18 +284,45 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
         {!loading && concluidos.length > 0 && (
           <div>
             <RotuloGrupo cuenta={concluidos.length}>Concluidos</RotuloGrupo>
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-2.5">
-              {concluidos.map((s) => (
-                <Link key={s.id} href={`/servicios/${s.id}`} className="group block rounded-2xl bg-surface border border-line px-4 py-3.5 transition-all duration-150 hover:border-teal/45 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]">
-                  <div className="flex justify-between items-center gap-2.5">
-                    <span className="text-[14px] font-semibold flex items-center gap-2 min-w-0">
-                      <ResultadoIconos resultado={calcularResultadoServicio(s, progresoPorGrupo[s.grupo_id])} size={15} />
-                      <span className="truncate transition-colors group-hover:text-teal">{s.proyecto}</span>
-                    </span>
-                    <span className="text-[12px] text-muted shrink-0">{s.dias_totales > 1 ? `Día ${s.numero_dia}/${s.dias_totales}` : formatFecha(s.fecha)}</span>
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
+              {concluidos.map((s) => {
+                const resultado = calcularResultadoServicio(s, progresoPorGrupo[s.grupo_id]);
+                return (
+                <Link key={s.id} href={`/servicios/${s.id}`} className={`group block rounded-2xl border-l-4 ${bordeResultado(resultado)} border-y border-r border-y-line border-r-line bg-surface p-4 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-diffuse active:translate-y-0 active:scale-[0.99]`}>
+                  <div className="flex justify-between items-start gap-2.5">
+                    <strong className="font-display font-bold text-[16px] leading-snug tracking-wide min-w-0 transition-colors group-hover:text-teal">{s.proyecto}</strong>
+                    <ChevronRight size={18} strokeWidth={2.4} className="text-faint shrink-0 mt-0.5" />
                   </div>
+                  <p className="text-[12.5px] text-muted mt-0.5 mb-2.5">
+                    {formatFecha(s.fecha)}
+                    {s.dias_totales > 1 && ` · Día ${s.numero_dia} de ${s.dias_totales}`}
+                    {s.hora_llegada && s.hora_fin && ` · ${horaCorta(s.hora_llegada)} a ${horaCorta(s.hora_fin)}`}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <ResultadoBadges resultado={resultado} />
+                    {debeReporte(s) && (
+                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12.5px] font-semibold bg-amber/15 text-amber">
+                        <FileWarning size={14} strokeWidth={2.6} />
+                        Falta el reporte
+                      </span>
+                    )}
+                  </div>
+                  {resultado.trabajadoMin !== null && (
+                    <div className="grid grid-cols-2 gap-2 mt-3">
+                      {([
+                        ['Estimado', formatMinutos(s.duracion_estimada_min)],
+                        ['Real', formatMinutos(resultado.trabajadoMin)],
+                      ] as const).map(([rotulo, valor]) => (
+                        <div key={rotulo} className="rounded-xl bg-surface-2/70 px-3 py-2">
+                          <p className="text-[11px] uppercase tracking-wider text-muted">{rotulo}</p>
+                          <p className="font-display font-bold text-[15px] tabular-nums leading-tight mt-0.5">{valor}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </Link>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
