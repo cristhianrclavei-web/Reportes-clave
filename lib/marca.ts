@@ -13,6 +13,21 @@ function valor(v: string | undefined, porDefecto: string): string {
   return limpio || porDefecto;
 }
 
+type Tema = 'clave' | 'azul' | 'naranja';
+type TipoLogo = 'escudo' | 'bloque' | 'punto';
+
+// Un valor desconocido en la variable deja la identidad de Clave Inteligente.
+function temaElegido(): Tema {
+  const pedido = valor(process.env.NEXT_PUBLIC_MARCA_TEMA, 'clave');
+  if (pedido === 'azul' || pedido === 'naranja') return pedido;
+  return 'clave';
+}
+function logoElegido(): TipoLogo {
+  const pedido = valor(process.env.NEXT_PUBLIC_MARCA_LOGO, 'escudo');
+  if (pedido === 'bloque' || pedido === 'punto') return pedido;
+  return 'escudo';
+}
+
 export const MARCA = {
   nombre: valor(process.env.NEXT_PUBLIC_MARCA_NOMBRE, 'Clave Inteligente'),
   appNombre: valor(process.env.NEXT_PUBLIC_MARCA_APP, 'Clave App'),
@@ -37,11 +52,13 @@ export const MARCA = {
     valor(process.env.NEXT_PUBLIC_MARCA_CLAVE_FORMATO, 'CRM0851') === 'CRM0851' ? '1' : '0',
   ) === '1',
   // Identidad visual de la instalación.
-  //   tema: 'clave' (verde sobre azul noche) | 'azul' (pizarra y azul eléctrico).
+  //   tema: 'clave' (verde sobre azul noche) | 'azul' (pizarra y azul eléctrico)
+  //         | 'naranja' (crema, azul marino y naranja: la identidad de Nodolab).
   //         Los colores viven en app/globals.css ([data-tema]).
-  //   logo: 'escudo' (hexágono con nodos) | 'bloque' (cuadro redondeado).
-  tema: valor(process.env.NEXT_PUBLIC_MARCA_TEMA, 'clave') === 'azul' ? ('azul' as const) : ('clave' as const),
-  logo: valor(process.env.NEXT_PUBLIC_MARCA_LOGO, 'escudo') === 'bloque' ? ('bloque' as const) : ('escudo' as const),
+  //   logo: 'escudo' (hexágono con nodos) | 'bloque' (cuadro redondeado)
+  //         | 'punto' (punto con halo y el nombre en minúsculas, como Nodolab).
+  tema: temaElegido(),
+  logo: logoElegido(),
   // Zona horaria de la operación. El servidor corre en UTC: sin esto, «hoy»
   // cambia a las 6 de la tarde de México.
   zonaHoraria: valor(process.env.NEXT_PUBLIC_MARCA_ZONA_HORARIA, 'America/Mexico_City'),
@@ -86,9 +103,12 @@ export const MARCA_MAYUS = MARCA.nombre.toUpperCase();
 
 // Colores de marca que no pasan por CSS: logo, PDF, ícono de la app y
 // colores del sistema (barra del navegador, pantalla de carga).
-export const COLORES = MARCA.tema === 'azul'
-  ? { logo: '#2563EB', logo2: '#3B82F6', acentoOscuro: '#1E40AF', fondo: '#0F172A' }
-  : { logo: '#2F7D5C', logo2: '#2F7D5C', acentoOscuro: '#12403A', fondo: '#0A121C' };
+const COLORES_POR_TEMA = {
+  clave: { logo: '#2F7D5C', logo2: '#2F7D5C', acentoOscuro: '#12403A', fondo: '#0A121C' },
+  azul: { logo: '#2563EB', logo2: '#3B82F6', acentoOscuro: '#1E40AF', fondo: '#0F172A' },
+  naranja: { logo: '#F97316', logo2: '#FB923C', acentoOscuro: '#9A3412', fondo: '#0F172A' },
+};
+export const COLORES = COLORES_POR_TEMA[MARCA.tema];
 
 // Ícono de la app. Clave Inteligente usa sus imágenes de public/icons; las
 // demás marcas, uno dibujado con sus iniciales (app/icono/[tam]/route.tsx).

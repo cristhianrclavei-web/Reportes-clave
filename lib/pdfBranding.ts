@@ -19,7 +19,7 @@ function hex(h: string) {
   return rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
 }
 // Acento oscuro de títulos y totales: sigue el tema de la instalación.
-export const TEAL_DARK = MARCA.tema === 'azul' ? hex(COLORES.acentoOscuro) : rgb(0.07, 0.25, 0.21);
+export const TEAL_DARK = MARCA.tema === 'clave' ? rgb(0.07, 0.25, 0.21) : hex(COLORES.acentoOscuro);
 export const GRAY_LINE = rgb(0.55, 0.55, 0.55);
 export const GRAY_TEXT = rgb(0.42, 0.48, 0.5);
 export const WHITE = rgb(1, 1, 1);
@@ -29,7 +29,7 @@ export const VERDE = rgb(0x2f / 255, 0x7d / 255, 0x5c / 255);
 // Color del logo y de la línea bajo el nombre: estos sí siguen a la marca.
 export const COLOR_MARCA = hex(COLORES.logo);
 export const ROJO = rgb(0xe0 / 255, 0x65 / 255, 0x4a / 255);
-export const LINEA_MARCA = MARCA.logo === 'bloque' ? COLOR_MARCA : ROJO;
+export const LINEA_MARCA = MARCA.logo === 'escudo' ? ROJO : COLOR_MARCA;
 
 export const PAGE_W = 612;
 export const PAGE_H = 792;
@@ -82,6 +82,19 @@ export function drawBadge(
   const opacity = opts.opacity ?? 1;
   const markColor = opts.markColor ?? COLOR_MARCA;
   const rotate = opts.rotate;
+
+  if (MARCA.logo === 'punto') {
+    // Mismas medidas que Punto() en Logo.tsx. Marca de agua (markColor
+    // explícito): el halo va como aro, para no tapar el contenido.
+    const contorno = opts.markColor !== undefined;
+    if (contorno) {
+      pg.drawSvgPath(circlePath(50, 50, 42), { x, y: yTop, scale, borderColor: markColor, borderWidth: 5, borderOpacity: opacity, rotate });
+    } else {
+      pg.drawSvgPath(circlePath(50, 50, 42), { x, y: yTop, scale, color: markColor, opacity: opacity * 0.2, rotate });
+    }
+    pg.drawSvgPath(circlePath(50, 50, 21), { x, y: yTop, scale, color: markColor, opacity, rotate });
+    return;
+  }
 
   if (MARCA.logo === 'bloque') {
     // Marca de agua (markColor explícito): solo el contorno, para no tapar
@@ -144,6 +157,10 @@ export function drawWordmark(pg: PDFPage, display: PDFFont, x: number, y: number
   if (MARCA.logo === 'bloque') {
     pg.drawText(MARCA_MAYUS, { x, y, size, font: display, color });
     return display.widthOfTextAtSize(MARCA_MAYUS, size);
+  }
+  if (MARCA.logo === 'punto') {
+    pg.drawText(MARCA.nombre, { x, y, size, font: display, color });
+    return display.widthOfTextAtSize(MARCA.nombre, size);
   }
   // Un poco más grande que el tamaño pedido: las versalitas ocupan menos
   // que las mayúsculas parejas y el nombre quedaba corto sobre la tira.

@@ -55,10 +55,21 @@ function Bloque({ size = 44 }: { size?: number }) {
   );
 }
 
+// Marca «punto»: punto relleno con un halo suave, sin iniciales (Nodolab).
+function Punto({ size = 44 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" aria-hidden="true">
+      <circle cx="50" cy="50" r="42" fill={COLORES.logo} fillOpacity="0.2" />
+      <circle cx="50" cy="50" r="21" fill={COLORES.logo} />
+    </svg>
+  );
+}
+
 // Escudo con nodos + iniciales. Es la marca compacta para encabezados. La
 // geometría vive en lib/logoMarca.ts (la misma que usan los PDF y el ícono).
 function Badge({ size = 44 }: { size?: number }) {
   if (MARCA.logo === 'bloque') return <Bloque size={size} />;
+  if (MARCA.logo === 'punto') return <Punto size={size} />;
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" fill="none" aria-hidden="true">
       <g stroke={VERDE_ESCUDO} strokeWidth={ESCUDO_TRAZO} strokeLinecap="round" strokeLinejoin="round">
@@ -141,6 +152,22 @@ export default function Logo({
       <span className={`inline-flex shrink-0 ${className}`}>
         <Badge size={size} />
       </span>
+    );
+  }
+
+  // Marca «punto»: el nombre tal cual, en la letra de texto y sin línea
+  // debajo, como el logotipo de Nodolab.
+  if (MARCA.logo === 'punto') {
+    return (
+      <div className={`inline-flex items-center gap-1.5 ${className}`}>
+        <Badge size={size} />
+        <p
+          className={`font-sans font-bold tracking-tight leading-none ${compactoEnMovil ? 'hidden min-[360px]:block' : ''}`}
+          style={{ fontSize: size * 0.56 }}
+        >
+          {MARCA.nombre}
+        </p>
+      </div>
     );
   }
 

@@ -148,6 +148,14 @@ function diaLargo(iso: string): string {
 // nodos (misma geometría que el logo, lib/logoMarca.ts) o, en las marcas de
 // «bloque», las iniciales con los dos nodos conectados.
 function EmblemaBlanco() {
+  if (MARCA.logo === 'punto') {
+    return (
+      <svg width="96" height="96" viewBox="0 0 100 100" fill="none" aria-hidden="true" style={{ filter: 'drop-shadow(0 2px 6px rgb(0 0 0 / 0.25))' }}>
+        <circle cx="50" cy="50" r="42" fill="#FFFFFF" fillOpacity="0.3" />
+        <circle cx="50" cy="50" r="21" fill="#FFFFFF" />
+      </svg>
+    );
+  }
   const letras = (
     <text
       textAnchor="middle" fill="#FFFFFF" fontWeight="700" letterSpacing="0.5"

@@ -16,8 +16,16 @@ import { MARCA } from './marca';
 export type Acento = 'marca' | 'bosque' | 'oceano' | 'ciruela' | 'brasa';
 
 // `muestra`: color del botón en el selector (el de tema oscuro).
+// Color «original» de cada tema y el acento que se le parece (ese se quita
+// de la lista para no ofrecer dos veces el mismo).
+const ORIGINAL = {
+  clave: { muestra: '#22B08A', repetido: 'bosque' },
+  azul: { muestra: '#3B82F6', repetido: 'oceano' },
+  naranja: { muestra: '#FB8534', repetido: 'brasa' },
+}[MARCA.tema];
+
 export const ACENTOS: { clave: Acento; nombre: string; muestra: string }[] = [
-  { clave: 'marca', nombre: 'Original', muestra: MARCA.tema === 'azul' ? '#3B82F6' : '#22B08A' },
+  { clave: 'marca', nombre: 'Original', muestra: ORIGINAL.muestra },
   { clave: 'bosque', nombre: 'Bosque', muestra: '#34C78E' },
   { clave: 'oceano', nombre: 'Océano', muestra: '#3B82F6' },
   { clave: 'ciruela', nombre: 'Ciruela', muestra: '#A78BFA' },
@@ -26,7 +34,7 @@ export const ACENTOS: { clave: Acento; nombre: string; muestra: string }[] = [
 
 // El «original» ya es verde o azul según la instalación: se quita de la
 // lista el que saldría repetido.
-export const ACENTOS_OFRECIDOS = ACENTOS.filter((a) => a.clave !== (MARCA.tema === 'azul' ? 'oceano' : 'bosque'));
+export const ACENTOS_OFRECIDOS = ACENTOS.filter((a) => a.clave !== ORIGINAL.repetido);
 
 export const KEY_ACENTO = 'acento';
 

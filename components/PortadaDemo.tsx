@@ -134,7 +134,10 @@ export default function PortadaDemo({
   error: string | null;
 }) {
   const tema = useTheme();
-  const sufijo = tema === 'light' ? 'claro' : 'oscuro';
+  // Las capturas de la portada se tomaron con cada identidad: las del tema
+  // naranja llevan su nombre; las demás son las del tema azul.
+  const claridad = tema === 'light' ? 'claro' : 'oscuro';
+  const sufijo = MARCA.tema === 'naranja' ? `naranja-${claridad}` : claridad;
   const hablar = enlaceVentas(`Hola, vi el demo de ${MARCA.appNombre} y quiero más información.`);
   const medida = enlaceVentas(`Hola, vi el demo de ${MARCA.appNombre} y quiero cotizar una personalización o integración para mi empresa.`);
   const prueba = enlaceVentas(`Hola, vi el demo de ${MARCA.appNombre} y quiero una prueba de 14 días con los datos de mi empresa.`);
@@ -379,7 +382,7 @@ export default function PortadaDemo({
 
         {/* ---------- Pie ---------- */}
         <footer className="border-t border-line py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-[12.5px] text-muted">
-          <p>{MARCA.appNombre} · demostración con la marca de ejemplo «{MARCA.nombre}»</p>
+          <p>{MARCA.nombre} · {MARCA.appNombre} · demostración con datos de ejemplo</p>
           <div className="flex items-center gap-5">
             {hablar && (
               <a href={hablar} target="_blank" rel="noopener noreferrer" className="hover:text-ink transition-colors">Contacto</a>

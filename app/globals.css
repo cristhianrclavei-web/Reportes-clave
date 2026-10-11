@@ -77,6 +77,37 @@
   --c-sobre-acento: 255 255 255;
 }
 
+/* ---------- Tema «naranja» (NEXT_PUBLIC_MARCA_TEMA=naranja) ----------
+   Identidad de Nodolab: fondo crema, tinta azul marino y naranja. En oscuro,
+   el mismo azul marino de fondo con el naranja vivo del logo. */
+[data-tema="naranja"] {
+  --logo-escudo: #F97316;
+  --c-bg: 15 23 42;            /* #0F172A */
+  --c-surface: 27 36 56;
+  --c-surface-2: 37 47 69;
+  --c-ink: 253 252 250;        /* #FDFCFA */
+  --c-muted: 178 186 201;
+  --c-faint: 128 138 158;
+  --c-acento: 251 133 52;      /* #FB8534 — legible como texto sobre azul marino */
+  --c-acento-oscuro: 154 52 18;
+  --c-acento-solido: 194 65 12;
+  --c-sobre-acento: 35 14 4;
+}
+[data-tema="naranja"].light {
+  --logo-escudo: #F97316;
+  --c-bg: 253 252 250;         /* #FDFCFA */
+  --c-surface: 255 255 255;
+  --c-surface-2: 251 243 238;  /* crema rosada de la portada de Nodolab */
+  --c-ink: 15 23 42;           /* #0F172A */
+  --c-muted: 71 85 105;
+  --c-faint: 100 116 139;
+  --c-line-rgb: 15 23 42;
+  --c-acento: 194 65 12;       /* #C2410C — el naranja quemado de sus botones */
+  --c-acento-oscuro: 154 52 18;
+  --c-acento-solido: 194 65 12;
+  --c-sobre-acento: 255 255 255;
+}
+
 /* ---------- Color de acento por persona (lib/acento.ts) ----------
    Cada quien elige el suyo en «Mi perfil»; se aplica con [data-acento] en
    <html>. Solo cambia el acento: fondos, textos y el color del logo siguen

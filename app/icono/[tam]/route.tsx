@@ -50,6 +50,21 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tam: st
     );
   }
 
+  // Marca «punto»: el punto con su halo sobre el fondo crema de la marca.
+  if (MARCA.logo === 'punto') {
+    return new ImageResponse(
+      (
+        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#FDFCFA' }}>
+          <svg width={escudo} height={escudo} viewBox="0 0 100 100" fill="none">
+            <circle cx="50" cy="50" r="42" fill={COLORES.logo} fillOpacity="0.2" />
+            <circle cx="50" cy="50" r="21" fill={COLORES.logo} />
+          </svg>
+        </div>
+      ),
+      { width: lado, height: lado },
+    );
+  }
+
   return new ImageResponse(
     (
       <div

@@ -18,6 +18,8 @@ import {
 
 // Marca «bloque» (instalaciones sin escudo): el contorno es el cuadro
 // redondeado, empezando arriba al centro.
+// Marca «punto»: el avance recorre el borde del halo, empezando arriba.
+const PUNTO_CONTORNO = 'M50 8A42 42 0 1 1 49.99 8Z';
 const BLOQUE_CONTORNO = 'M50 6H70A24 24 0 0 1 94 30V70A24 24 0 0 1 70 94H30A24 24 0 0 1 6 70V30A24 24 0 0 1 30 6Z';
 
 // Punto del recorrido (0–100) en que el contorno alcanza cada nodo, en el
@@ -64,8 +66,11 @@ function usePorcentaje(objetivo?: number): number {
 export function Contenido({ pct, label, pie = 'No cierres ni cambies de pantalla', etiquetaAria = 'Avance del guardado' }: { pct?: number; label?: string; pie?: string; etiquetaAria?: string }) {
   const visto = usePorcentaje(pct);
   const listo = visto >= 100;
-  const esBloque = MARCA.logo === 'bloque';
-  const contorno = esBloque ? BLOQUE_CONTORNO : ESCUDO_CONTORNO;
+  // «esBloque» = cualquier marca sin escudo: no lleva ramal ni nodos.
+  const esBloque = MARCA.logo !== 'escudo';
+  let contorno = ESCUDO_CONTORNO;
+  if (MARCA.logo === 'bloque') contorno = BLOQUE_CONTORNO;
+  if (MARCA.logo === 'punto') contorno = PUNTO_CONTORNO;
   const idGrad = `guardado-${useId().replace(/:/g, '')}`;
   const etapa = label || 'Guardando…';
   // Servicio «en turno»: cada ícono cubre una sexta parte del avance.
