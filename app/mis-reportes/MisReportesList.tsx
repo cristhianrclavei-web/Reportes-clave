@@ -18,7 +18,8 @@ import AvisoActualizarCredenciales from '@/components/AvisoActualizarCredenciale
 import LogoutButton from '@/components/LogoutButton';
 import ReportDetailModal, { ReportDetail } from '@/components/ReportDetailModal';
 import LevantamientosSeccion from '@/components/LevantamientosSeccion';
-import { Check, Plus, FileText, ClipboardList, ChevronRight, Search, PenLine, Clock3 } from 'lucide-react';
+import { Check, Plus, FileText, ClipboardList, ChevronRight, Search, PenLine, Clock3, Users } from 'lucide-react';
+import ReportesDondeParticipe from '@/components/tecnico/ReportesDondeParticipe';
 import EncabezadoSeccion, { BOTON_PRINCIPAL, RotuloGrupo } from '@/components/tecnico/EncabezadoSeccion';
 import EstadoVacio from '@/components/EstadoVacio';
 import TecnicoTabs from '@/components/TecnicoTabs';
@@ -39,6 +40,14 @@ function faltaFirma(r: Report): boolean {
   return !!r.data?.firmaPendiente && !r.data?.firmaClienteData;
 }
 
+// Qué significa cada aviso de la tarjeta; se muestra al tocarlo (o al pasar
+// el mouse, como texto emergente).
+type AvisoReporte = 'revision' | 'firma';
+const EXPLICACION_AVISO: Record<AvisoReporte, string> = {
+  revision: 'Tu supervisor todavía no revisa y aprueba este reporte. No tienes que hacer nada; cuando lo apruebe cambiará a «Completado».',
+  firma: 'El cliente no estaba para firmar. Abre el reporte y mándale el enlace de firma, o pídele que firme cuando lo veas.',
+};
+
 export default function MisReportesList({ reports: reportsIniciales, userName, errorCarga }: { reports: Report[]; userName?: string; errorCarga?: string | null }) {
   // Copia local: si algo del reporte cambia dentro del modal (firma de
   // revisión, facturación, corrección), se refleja aquí al instante sin
@@ -48,8 +57,21 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
   const aliasClientes = useAliasClientes();
   const [filterType, setFilterType] = useState('');
   const [open, setOpen] = useState<Report | null>(null);
+  // Aviso de una tarjeta con su explicación desplegada (uno a la vez).
+  const [avisoAbierto, setAvisoAbierto] = useState<{ id: string; aviso: AvisoReporte } | null>(null);
+  // Tocar el aviso muestra u oculta su explicación sin abrir el reporte.
+  function alTocarAviso(id: string, aviso: AvisoReporte) {
+    const abierto = avisoAbierto?.id === id && avisoAbierto.aviso === aviso;
+    return {
+      title: EXPLICACION_AVISO[aviso],
+      onClick: (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setAvisoAbierto(abierto ? null : { id, aviso });
+      },
+    };
+  }
   const [filtroEstado, setFiltroEstado] = useState<'todos' | 'revision' | 'firma' | 'completo'>('todos');
-  const [subseccion, setSubseccion] = useState<'reportes' | 'levantamientos'>('reportes');
+  const [subseccion, setSubseccion] = useState<'reportes' | 'participe' | 'levantamientos'>('reportes');
 
   // Enlace directo (p. ej. desde el asistente): ?reporte=<id> abre ese reporte.
   useEffect(() => {
@@ -135,15 +157,18 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
         <NotificacionesToggle esTecnico />
 
         <SubTabs
+          repartidas
           activa={subseccion}
           onCambiar={setSubseccion}
           opciones={[
             { k: 'reportes', label: 'Reportes', Icono: FileText },
+            { k: 'participe', label: 'Participé', Icono: Users },
             { k: 'levantamientos', label: 'Levantamientos', Icono: ClipboardList },
           ]}
         />
 
         {subseccion === 'levantamientos' && <LevantamientosSeccion soloPropios />}
+        {subseccion === 'participe' && <ReportesDondeParticipe />}
 
         {subseccion === 'reportes' && (
           <>
@@ -165,31 +190,25 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
                   className="w-full pl-10 pr-3.5 min-h-[44px] rounded-xl bg-surface border border-line focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal-glow text-[14px] placeholder:text-faint"
                 />
               </div>
-              <div className="flex gap-2 overflow-x-auto -mx-4 px-4 lg:mx-0 lg:px-0 lg:flex-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {([
-                  ['todos', 'Todos', cuentas.todos],
-                  ['revision', 'Por revisar', cuentas.revision],
-                  ['firma', 'Sin firma del cliente', cuentas.firma],
-                  ['completo', 'Completados', cuentas.completo],
-                ] as const).filter(([k, , n]) => k === 'todos' || n > 0).map(([k, texto, n]) => (
-                  <button
-                    key={k}
-                    type="button"
-                    onClick={() => setFiltroEstado(k)}
-                    aria-pressed={filtroEstado === k}
-                    className={`shrink-0 min-h-[40px] px-3.5 rounded-full border text-[13px] font-medium flex items-center gap-2 transition-colors ${
-                      filtroEstado === k ? 'bg-teal/12 border-teal/45 text-teal font-semibold' : 'bg-surface border-line text-ink/75 hover:border-line-strong'
-                    }`}
-                  >
-                    {texto}
-                    <span className={`text-[12px] tabular-nums ${filtroEstado === k ? 'text-teal' : 'text-faint'}`}>{n}</span>
-                  </button>
-                ))}
+              <div className="flex gap-2 lg:flex-1">
+                <select
+                  value={filtroEstado}
+                  onChange={(e) => setFiltroEstado(e.target.value as typeof filtroEstado)}
+                  aria-label="Estado del reporte"
+                  className={`flex-1 lg:flex-none min-w-0 min-h-[44px] px-3.5 rounded-xl border text-[13.5px] font-medium focus:border-teal focus:outline-none ${
+                    filtroEstado !== 'todos' ? 'bg-teal/12 border-teal/45 text-teal' : 'bg-surface border-line text-ink/75'
+                  }`}
+                >
+                  <option value="todos">Todos ({cuentas.todos})</option>
+                  <option value="revision">Por revisar ({cuentas.revision})</option>
+                  <option value="firma">Sin firma del cliente ({cuentas.firma})</option>
+                  <option value="completo">Completados ({cuentas.completo})</option>
+                </select>
                 <select
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value)}
                 aria-label="Tipo de servicio"
-                className={`shrink-0 lg:ml-auto min-h-[40px] px-3.5 rounded-full border text-[13px] font-medium focus:border-teal focus:outline-none ${
+                className={`flex-1 lg:flex-none min-w-0 min-h-[44px] px-3.5 rounded-xl border text-[13.5px] font-medium focus:border-teal focus:outline-none ${
                   filterType ? 'bg-teal/12 border-teal/45 text-teal' : 'bg-surface border-line text-ink/75'
                 }`}
               >
@@ -263,12 +282,15 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
                             {completo ? (
                               <span className="text-[12px] font-semibold text-teal flex items-center gap-1"><Check size={13} strokeWidth={3} />Completado</span>
                             ) : (
-                              <span className="text-[12px] font-semibold text-amber flex items-center gap-1"><Clock3 size={12.5} strokeWidth={2.6} />Por revisar</span>
+                              <span {...alTocarAviso(r.id, 'revision')} className="text-[12px] font-semibold text-amber flex items-center gap-1 underline decoration-dotted underline-offset-4"><Clock3 size={12.5} strokeWidth={2.6} />Por revisar</span>
                             )}
                             {sinFirma && (
-                              <span className="text-[12px] font-semibold text-red flex items-center gap-1"><PenLine size={12.5} strokeWidth={2.6} />Falta firma del cliente</span>
+                              <span {...alTocarAviso(r.id, 'firma')} className="text-[12px] font-semibold text-red flex items-center gap-1 underline decoration-dotted underline-offset-4"><PenLine size={12.5} strokeWidth={2.6} />Falta firma del cliente</span>
                             )}
                           </span>
+                          {avisoAbierto?.id === r.id && (
+                            <span className="block mt-2 p-2.5 rounded-xl bg-surface-2 border border-line text-[12.5px] text-ink/80 leading-relaxed">{EXPLICACION_AVISO[avisoAbierto.aviso]}</span>
+                          )}
                         </span>
                         <ChevronRight size={18} strokeWidth={2.3} className="shrink-0 text-faint transition-all group-hover:text-teal group-hover:translate-x-0.5" />
                       </button>

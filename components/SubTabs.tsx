@@ -13,6 +13,7 @@ export default function SubTabs<K extends string>({
   onCambiar,
   className = '',
   accion,
+  repartidas = false,
 }: {
   opciones: { k: K; label: string; Icono?: any; badge?: ReactNode }[];
   activa: K;
@@ -21,6 +22,9 @@ export default function SubTabs<K extends string>({
   // Botón al final del renglón (solo en computadora; en celular la acción
   // principal va como botón flotante).
   accion?: ReactNode;
+  // Las pestañas se reparten todo el ancho en partes iguales, en vez de
+  // quedar juntas a la izquierda (solo en celular; en computadora siguen juntas).
+  repartidas?: boolean;
 }) {
   const filaRef = useRef<HTMLDivElement | null>(null);
   const desvanecido = useDesvanecidoLateral(filaRef);
@@ -44,7 +48,7 @@ export default function SubTabs<K extends string>({
             role="tab"
             aria-selected={on}
             onClick={() => onCambiar(k)}
-            className={`relative shrink-0 flex items-center gap-1.5 px-3 pb-2.5 pt-1.5 text-[14px] font-semibold whitespace-nowrap transition-colors ${
+            className={`relative flex items-center gap-1.5 pb-2.5 pt-1.5 text-[14px] font-semibold whitespace-nowrap transition-colors ${repartidas ? 'flex-1 justify-center px-1.5 lg:flex-none lg:px-3' : 'shrink-0 px-3'} ${
               on ? 'text-teal' : 'text-ink/60 hover:text-ink'
             }`}
           >

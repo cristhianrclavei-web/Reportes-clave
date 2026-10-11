@@ -78,6 +78,15 @@ export const MANUAL_TECNICO: SeccionManual[] = [
         ],
       },
       {
+        titulo: 'Reportes donde participaste',
+        resumen: 'Consulta lo que se hizo en un sitio aunque el reporte lo haya capturado un compañero.',
+        pasos: [
+          'En Reportes abre la pestaña «Participé». Salen los reportes que hizo otro técnico y en los que tú también trabajaste (porque estabas asignado al servicio o tu nombre está en el personal del reporte).',
+          'De cada uno ves el cliente, la fecha, las horas, el folio, quién lo hizo y las actividades. Usa el buscador para encontrar el sitio.',
+        ],
+        nota: 'Es solo consulta: no se ven fotos, firmas ni materiales. Si necesitas el reporte completo, pídeselo a quien lo hizo o a tu supervisor.',
+      },
+      {
         titulo: 'Corregir un reporte',
         resumen: 'Cuando tu supervisor te pide un cambio.',
         pasos: [
