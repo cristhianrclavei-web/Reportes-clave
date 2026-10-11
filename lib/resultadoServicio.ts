@@ -17,6 +17,8 @@ export type MarcaResultado = 'completo' | 'incompleto' | 'retrasado';
 export type ResultadoServicio = {
   marcas: MarcaResultado[]; // vacío si el servicio aún no concluye
   retrasoMin: number | null;
+  // Minutos realmente trabajados: de inicio a cierre, sin las pausas.
+  trabajadoMin: number | null;
   pendientes: number;
 };
 
@@ -29,15 +31,17 @@ export function calcularResultadoServicio(
   progreso?: ProgresoTareas | null
 ): ResultadoServicio {
   if (servicio.estado !== 'concluido') {
-    return { marcas: [], retrasoMin: null, pendientes: 0 };
+    return { marcas: [], retrasoMin: null, trabajadoMin: null, pendientes: 0 };
   }
 
   // ¿Se pasó del tiempo estimado? (descontando pausas avisadas, ej. comida)
   let retrasoMin: number | null = null;
+  let trabajadoMin: number | null = null;
   const inicio = servicio.hora_inicio || servicio.hora_llegada;
   if (inicio && servicio.hora_fin) {
     const min = Math.round((new Date(servicio.hora_fin).getTime() - new Date(inicio).getTime()) / 60000);
     const efectivo = min - minutosPausadosTotales(servicio, new Date(servicio.hora_fin).getTime());
+    trabajadoMin = Math.max(0, efectivo);
     const exceso = efectivo - servicio.duracion_estimada_min;
     if (exceso > 0) retrasoMin = exceso;
   }
@@ -52,5 +56,5 @@ export function calcularResultadoServicio(
   if (retrasoMin !== null) marcas.push('retrasado');
   if (marcas.length === 0) marcas.push('completo');
 
-  return { marcas, retrasoMin, pendientes };
+  return { marcas, retrasoMin, trabajadoMin, pendientes };
 }

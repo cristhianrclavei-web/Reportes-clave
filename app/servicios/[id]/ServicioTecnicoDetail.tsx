@@ -48,6 +48,7 @@ const ESTADO_CHIP: Record<Servicio['estado'], { label: string; cls: string }> = 
 const ESTIMADOS_MATERIAL = [15, 30, 45, 60, 90];
 import ModalOverlay from '@/components/ModalOverlay';
 import { calcularResultadoServicio } from '@/lib/resultadoServicio';
+import { formatMinutos } from '@/lib/kpis';
 import { evaluarVentanaServicio } from '@/lib/ventanaServicio';
 import { ResultadoBadges } from '@/components/ResultadoServicioBadges';
 import { createClient } from '@/lib/supabaseClient';
@@ -991,9 +992,18 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
         {servicio.estado === 'concluido' && servicio.hora_fin && (
           <div className={`mb-4 p-4 rounded-2xl border ${resultado.marcas.includes('completo') ? 'bg-teal/10 border-teal/30' : 'bg-amber/10 border-amber/30'}`}>
             <ResultadoBadges resultado={resultado} />
-            <p className="text-[13px] text-muted mt-2.5">
-              Cierre {fmtHora(servicio.hora_fin)} · {servicio.duracion_estimada_min} min estimados
-            </p>
+            <div className="grid grid-cols-2 gap-2 mt-2.5">
+              {([
+                ['Tiempo estimado', formatMinutos(servicio.duracion_estimada_min)],
+                ['Tiempo real', resultado.trabajadoMin !== null ? formatMinutos(resultado.trabajadoMin) : '—'],
+              ] as const).map(([rotulo, valor]) => (
+                <div key={rotulo} className="rounded-xl bg-surface/70 px-3 py-2">
+                  <p className="text-[11px] uppercase tracking-wider text-muted">{rotulo}</p>
+                  <p className="font-display font-bold text-[16px] tabular-nums leading-tight mt-0.5">{valor}</p>
+                </div>
+              ))}
+            </div>
+            {servicio.minutos_pausados > 0 && <p className="text-[12px] text-muted mt-2">El tiempo real no incluye los {servicio.minutos_pausados} min de pausa.</p>}
           </div>
         )}
 

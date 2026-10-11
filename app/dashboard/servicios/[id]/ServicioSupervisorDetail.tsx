@@ -20,6 +20,7 @@ import {
 import ProgressBar from '@/components/ProgressBar';
 import { ChevronLeft, MapPin, Play, Check, Clock, Trash2, AlertTriangle, Timer, Flag, Camera, Plus, Users, Pencil, CalendarClock, PackageCheck, Bookmark, ChevronRight, X, TrendingUp, CalendarX, Lock, PauseCircle, PlayCircle, CheckCircle2, MapPinOff } from 'lucide-react';
 import { calcularResultadoServicio } from '@/lib/resultadoServicio';
+import { formatMinutos } from '@/lib/kpis';
 import InsumosChecklist from '@/components/InsumosChecklist';
 import CostoAlmacenServicio from '@/components/almacen/CostoAlmacenServicio';
 import ModalOverlay from '@/components/ModalOverlay';
@@ -406,6 +407,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
   }
 
   const progreso = calcularProgresoTareas(tareas);
+  const resultado = calcularResultadoServicio(servicio, progreso);
   const estadoTiempo = calcularEstadoTiempo(servicio);
   // Null cuando sí se puede editar; si no, el texto que explica por qué no.
   const bloqueo = motivoNoEditable(servicio.estado);
@@ -478,7 +480,8 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
               {servicio.descripcion && <p className="text-[13px] text-ink/85 mb-2">{servicio.descripcion}</p>}
               <div className="flex gap-4 text-[12px] text-muted flex-wrap">
                 <span>Fecha: <b className="text-ink">{fechaDMA(servicio.fecha)}</b></span>
-                <span>Duración estimada: <b className="text-ink">{servicio.duracion_estimada_min} min</b></span>
+                <span>Tiempo estimado: <b className="text-ink">{formatMinutos(servicio.duracion_estimada_min)}</b></span>
+                {resultado.trabajadoMin !== null && <span>Tiempo real: <b className="text-ink">{formatMinutos(resultado.trabajadoMin)}</b>{servicio.minutos_pausados > 0 ? ' (sin pausas)' : ''}</span>}
                 {servicio.hora_llegada && <span>Llegada: <b className="text-ink">{fmtHora(servicio.hora_llegada)}</b></span>}
                 {servicio.hora_fin && <span>Cierre: <b className="text-ink">{fmtHora(servicio.hora_fin)}</b></span>}
                 {servicio.minutos_pausados > 0 && <span>Pausas: <b className="text-ink">{servicio.minutos_pausados} min</b></span>}
@@ -505,7 +508,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
                 <p className="text-[13px] font-semibold text-amber mt-2.5 flex items-center gap-1.5"><Timer size={14} strokeWidth={2.6} />Ya lleva {estadoTiempo.minutos} min de más y sigue sin concluir</p>
               )}
               {estadoTiempo.tipo === 'a_tiempo' && (
-                <div className="mt-2.5"><ResultadoBadges resultado={calcularResultadoServicio(servicio, progreso)} /></div>
+                <div className="mt-2.5"><ResultadoBadges resultado={resultado} /></div>
               )}
               <EficienciaServicio servicio={servicio} />
               <VisitaSinTrabajoPanel servicio={servicio} onCambio={cargar} />

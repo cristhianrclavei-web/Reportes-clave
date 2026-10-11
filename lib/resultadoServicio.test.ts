@@ -118,4 +118,12 @@ describe('calcularResultadoServicio', () => {
     expect(r.marcas).toContain('retrasado');
     expect(r.marcas).not.toContain('completo');
   });
+
+  it('el tiempo real va de inicio a cierre y no cuenta las pausas', () => {
+    const r = calcularResultadoServicio(
+      base({ hora_inicio: '2026-09-10T09:22:00-06:00', hora_fin: '2026-09-10T17:13:00-06:00', minutos_pausados: 59, duracion_estimada_min: 450 })
+    );
+    expect(r.trabajadoMin).toBe(412);
+    expect(r.retrasoMin).toBeNull();
+  });
 });
