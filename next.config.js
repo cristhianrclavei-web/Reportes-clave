@@ -32,7 +32,7 @@ const csp = [
   "font-src 'self' data:",
   // nominatim: búsqueda de direcciones (gratis, sin llave) al capturar la
   // ubicación de un sitio programado.
-  `connect-src 'self' ${SUPABASE_ORIGIN} ${SUPABASE_WSS} https://nominatim.openstreetmap.org`,
+  `connect-src 'self' ${SUPABASE_ORIGIN} ${SUPABASE_WSS} https://nominatim.openstreetmap.org https://photon.komoot.io`,
   // Supabase: los videos de evidencia se reproducen desde su enlace firmado.
   `media-src 'self' blob: ${SUPABASE_ORIGIN}`,
   "worker-src 'self' blob:",

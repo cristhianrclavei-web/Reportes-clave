@@ -39,7 +39,7 @@ import SelectorArticulo from '@/components/SelectorArticulo';
 import { hoyLocal } from '@/lib/fechaHoy';
 import { getCurrentLocation } from '@/lib/geolocation';
 import { extraerCoordenadas, esEnlaceCortoMaps } from '@/lib/geocerca';
-import { buscarDirecciones, resolverEnlaceMapa, SugerenciaDireccion } from '@/lib/geocoding';
+import { buscarDirecciones, resolverEnlaceMapa, zonaDeTrabajo, SugerenciaDireccion } from '@/lib/geocoding';
 
 const ESTADO_CFG: Record<Servicio['estado'], { label: string; cls: string; Icono: any }> = {
   programado: { label: 'Programado', cls: 'bg-surface-2 text-muted', Icono: Clock },
@@ -445,6 +445,10 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   // Igual que escribir en el buscador de Google Maps: cada tecla dispara una
   // búsqueda con medio segundo de margen, para no mandar un request por
   // letra mientras la persona sigue escribiendo.
+  // Zona donde ya hay servicios registrados: la búsqueda de direcciones
+  // muestra primero lo que queda por ahí.
+  const zonaDeServicios = useMemo(() => zonaDeTrabajo(servicios.map((s) => s.ubicacion_programada)), [servicios]);
+
   function handleCambiarDireccion(texto: string) {
     setUbicDireccion(texto);
     setUbicError(null);
@@ -456,7 +460,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
     ubicDebounceRef.current = setTimeout(async () => {
       setUbicBuscandoDireccion(true);
       try {
-        setUbicSugerencias(await buscarDirecciones(texto));
+        setUbicSugerencias(await buscarDirecciones(texto, zonaDeServicios));
       } catch {
         setUbicSugerencias([]);
       } finally {
