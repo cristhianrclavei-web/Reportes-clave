@@ -140,7 +140,32 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
           titulo="Mis reportes"
           detalle={reports.length === 0
             ? 'Aquí quedan los reportes que vayas creando.'
-            : `${reports.length} ${reports.length === 1 ? 'reporte' : 'reportes'}${cuentas.revision ? ` · ${cuentas.revision} por revisar` : ''}${cuentas.firma ? ` · ${cuentas.firma} sin firma del cliente` : ''}`}
+            : (
+              // Tres cifras de un vistazo; tocar una filtra la lista por ese estado.
+              <span className="grid grid-cols-3 gap-2 mt-2.5 lg:w-[460px]">
+                {([
+                  ['todos', 'Reportes', cuentas.todos, FileText, 'text-teal', 'bg-teal/12'],
+                  ['revision', 'Por revisar', cuentas.revision, Clock3, 'text-amber', 'bg-amber/12'],
+                  ['firma', 'Sin firma', cuentas.firma, PenLine, 'text-red', 'bg-red/12'],
+                ] as const).map(([k, rotulo, n, Icono, color, fondo]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => { setSubseccion('reportes'); setFiltroEstado(k); }}
+                    aria-pressed={filtroEstado === k}
+                    className={`text-left rounded-2xl border bg-surface px-3 py-2.5 transition-all active:scale-[0.97] ${filtroEstado === k ? 'border-teal/55 shadow-diffuse' : 'border-line hover:border-line-strong'}`}
+                  >
+                    <span className="flex items-center justify-between gap-1.5">
+                      <span className={`font-display font-bold text-[24px] leading-none tabular-nums ${n > 0 ? 'text-ink' : 'text-faint'}`}>{n}</span>
+                      <span className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${n > 0 ? `${fondo} ${color}` : 'bg-surface-2 text-faint'}`}>
+                        <Icono size={14} strokeWidth={2.5} />
+                      </span>
+                    </span>
+                    <span className="block text-[11.5px] font-semibold uppercase tracking-wider text-muted mt-1.5 truncate">{rotulo}</span>
+                  </button>
+                ))}
+              </span>
+            )}
           accion={
             // En computadora «Nuevo reporte» ya está en la barra de secciones.
             <Link href="/nuevo" className={`lg:!hidden ${BOTON_PRINCIPAL}`}>
@@ -197,7 +222,7 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
                   onChange={(e) => setFiltroEstado(e.target.value as typeof filtroEstado)}
                   aria-label="Estado del reporte"
                   className={`flex-1 lg:flex-none min-w-0 min-h-[44px] px-3.5 rounded-xl border text-[13.5px] font-medium focus:border-teal focus:outline-none ${
-                    filtroEstado !== 'todos' ? 'bg-teal/12 border-teal/45 text-teal' : 'bg-surface border-line text-ink/75'
+                    filtroEstado !== 'todos' ? 'bg-surface border-teal/55 text-teal font-semibold' : 'bg-surface border-line text-ink/75'
                   }`}
                 >
                   <option value="todos">Todos ({cuentas.todos})</option>
@@ -210,7 +235,7 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
                 onChange={(e) => setFilterType(e.target.value)}
                 aria-label="Tipo de servicio"
                 className={`flex-1 lg:flex-none min-w-0 min-h-[44px] px-3.5 rounded-xl border text-[13.5px] font-medium focus:border-teal focus:outline-none ${
-                  filterType ? 'bg-teal/12 border-teal/45 text-teal' : 'bg-surface border-line text-ink/75'
+                  filterType ? 'bg-surface border-teal/55 text-teal font-semibold' : 'bg-surface border-line text-ink/75'
                 }`}
               >
                 <option value="">Todos los tipos</option>
