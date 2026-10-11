@@ -1,3 +1,4 @@
+import { EstadoFacturacion, estadoFacturacion } from '@/lib/reportStatus';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { betaZodTool } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { z } from 'zod';
@@ -197,10 +198,18 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
       ? `No hay nadie llamado «${nombre}»`
       : `Con rol de técnico solo se puede consultar lo propio: no hay acceso a la información de «${nombre}». No reintentes con otro nombre.`;
 
+  const TEXTO_FACTURACION: Record<EstadoFacturacion, string> = {
+    sin_finalizar: 'servicio sin finalizar (todavía no toca facturar)',
+    pendiente: 'por facturar',
+    en_factura: 'en prefactura, sin timbrar',
+    facturado: 'facturado',
+    no_facturable: 'no se factura',
+  };
+
   const buscarReportes = betaZodTool({
     name: 'buscar_reportes',
     description:
-      'Reportes de servicio: qué se hizo en una visita, última visita a un cliente, cuántos reportes hizo una persona, reportes sin firma del cliente o sin finalizar, y el material que se capturó en cada uno (cable, tubería, soportería y equipo instalado, con tipo y cantidad). Un técnico solo ve los suyos.',
+      'Reportes de servicio: qué se hizo en una visita, última visita a un cliente, cuántos reportes hizo una persona, reportes sin firma del cliente o sin finalizar, el material que se capturó en cada uno (cable, tubería, soportería y equipo instalado, con tipo y cantidad) y en qué va su facturación (campo «facturacion» de cada reporte; el filtro «facturacion» trae solo los de un estado). Para «¿cuántos…?» usa el filtro que corresponda y responde con «total_que_coinciden», que es el total real aunque se devuelvan menos. Un técnico solo ve los suyos.',
     inputSchema: z.object({
       cliente: z.string().optional().describe('Nombre o parte del nombre del cliente'),
       persona: z.string().optional().describe('Nombre de quien hizo el reporte'),
@@ -208,6 +217,8 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
       hasta: fecha.optional(),
       solo_sin_firma_cliente: z.boolean().optional(),
       solo_sin_finalizar: z.boolean().optional(),
+      facturacion: z.enum(['con_factura', 'facturado', 'en_prefactura', 'por_facturar', 'no_se_factura']).optional()
+        .describe('con_factura = ya ligados a una factura (timbrada o prefactura); facturado = factura timbrada; en_prefactura = en una prefactura sin timbrar; por_facturar = servicio concluido y sin factura; no_se_factura = se registró que no se va a facturar'),
       limite,
     }),
     run: async (i) => {
@@ -215,7 +226,7 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
       let q = supabase
         .from('reports')
         .select(
-          'id, fecha, empresa_cliente, tipo_servicio, sub_tipo_servicio, created_by, sistema:data->sistemaSeguridad, actividades:data->actividades, personal:data->personal, observaciones:data->>observaciones, tuberias:data->tuberias, tuberia:data->tuberia, cables:data->cables, cable1:data->cable1, cable2:data->cable2, soporteria:data->soporteria, equipos:data->equipos, concluido:data->>servicioConcluido, firmo_cliente:data->>firmaClienteNombre, cliente_ausente:data->>clienteAusente, factura:data->>facturaEstado',
+          'id, fecha, empresa_cliente, tipo_servicio, sub_tipo_servicio, created_by, sistema:data->sistemaSeguridad, actividades:data->actividades, personal:data->personal, observaciones:data->>observaciones, tuberias:data->tuberias, tuberia:data->tuberia, cables:data->cables, cable1:data->cable1, cable2:data->cable2, soporteria:data->soporteria, equipos:data->equipos, concluido:data->>servicioConcluido, firmo_cliente:data->>firmaClienteNombre, cliente_ausente:data->>clienteAusente, factura:data->>facturaEstado, factura_id:data->>facturaId, factura_folio:data->>facturaFolio',
           { count: 'exact' },
         )
         .order('fecha', { ascending: false })
@@ -231,6 +242,17 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
       }
       if (i.solo_sin_firma_cliente) q = q.or('data->>firmaClienteNombre.is.null,data->>firmaClienteNombre.eq.');
       if (i.solo_sin_finalizar) q = q.or('data->>servicioConcluido.is.null,data->>servicioConcluido.eq.false');
+      // Mismas reglas que lib/reportStatus.ts (estadoFacturacion), como filtros.
+      if (i.facturacion === 'con_factura') q = q.or('data->>facturaEstado.eq.facturado,data->>facturaId.not.is.null');
+      if (i.facturacion === 'facturado') q = q.eq('data->>facturaEstado', 'facturado');
+      if (i.facturacion === 'en_prefactura') q = q.not('data->>facturaId', 'is', null).or('data->>facturaEstado.is.null,data->>facturaEstado.neq.facturado');
+      if (i.facturacion === 'por_facturar') {
+        q = q.eq('data->>servicioConcluido', 'true').is('data->>facturaId', null)
+          .or('data->>facturaEstado.is.null,data->>facturaEstado.eq.pendiente');
+      }
+      if (i.facturacion === 'no_se_factura') {
+        q = q.eq('data->>servicioConcluido', 'true').is('data->>facturaId', null).in('data->>facturaEstado', ['no_facturable', 'en_proceso']);
+      }
       const { data, error, count } = await q;
       if (error) return falla(error);
       const mapa = await cargarNombres();
@@ -249,7 +271,9 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
           finalizado: r.concluido === 'true',
           firmo_cliente: r.firmo_cliente || null,
           cliente_ausente: r.cliente_ausente === 'true',
-          factura: r.factura || null,
+          // En palabras, para que no haya que interpretar la clave interna.
+          facturacion: TEXTO_FACTURACION[estadoFacturacion({ servicioConcluido: r.concluido === 'true', facturaEstado: r.factura, facturaId: r.factura_id })],
+          factura_folio: r.factura_folio || null,
         })),
         n,
         // Total real de reportes que cumplen el filtro, aunque se devuelvan menos.
