@@ -1750,37 +1750,18 @@ export async function cerrarDiaManualmente(servicioId: string, motivo: string): 
 // se van a usar. Solo toca días en estado "programado" (nadie llegó a
 // trabajarlos); si alguno ya tiene actividad o reporte, se deja tal cual
 // en vez de fallar toda la operación por un solo día.
-export async function concluirServicioAnticipado(servicioId: string, cierre: CierreServicio): Promise<{ diasCancelados: number }> {
+export async function concluirServicioAnticipado(servicioId: string, cierre: CierreServicio): Promise<{ diasCancelados: number; errorDias: string | null }> {
   const supabase = createClient();
-
-  const { data: dia, error: eDia } = await supabase
-    .from('servicios_programados')
-    .select('grupo_id, numero_dia')
-    .eq('id', servicioId)
-    .single();
-  if (eDia) throw eDia;
 
   await concluirServicio(servicioId, cierre);
 
-  const { data: siguientes } = await supabase
-    .from('servicios_programados')
-    .select('id, numero_dia')
-    .eq('grupo_id', dia.grupo_id)
-    .eq('estado', 'programado')
-    .gt('numero_dia', dia.numero_dia);
-
-  let diasCancelados = 0;
-  for (const d of (siguientes || []) as any[]) {
-    try {
-      await eliminarDiaDeProyecto(d.id, 'El servicio terminó antes de lo estimado — día ya no necesario.');
-      diasCancelados++;
-    } catch {
-      // Se deja ese día tal cual (ej. ya tiene un reporte vinculado) — no
-      // se interrumpe el cierre del proyecto por eso.
-    }
-  }
-
-  return { diasCancelados };
+  // Los días que faltan los cancela la base (función cancelar_dias_restantes,
+  // supabase/patch_cierre_anticipado_proyecto.sql): el técnico no tiene
+  // permiso de borrar ni renumerar días por su cuenta. Si esto falla, el día
+  // ya quedó concluido; se avisa para que supervisión cancele los demás.
+  const { data, error } = await supabase.rpc('cancelar_dias_restantes', { p_servicio_id: servicioId });
+  if (error) return { diasCancelados: 0, errorDias: error.message };
+  return { diasCancelados: Number(data) || 0, errorDias: null };
 }
 
 export async function vincularReporteAServicio(servicioId: string, reportId: string) {

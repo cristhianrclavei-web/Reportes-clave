@@ -691,13 +691,18 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
     setBusy(true);
     try {
       if (anticipado) {
-        const { diasCancelados } = await concluirServicioAnticipado(servicioId, respuesta);
-        showToast(
-          diasCancelados > 0
-            ? `Servicio concluido — se cancelaron ${diasCancelados} día(s) que ya no se iban a usar`
-            : 'Servicio concluido',
-          'success'
-        );
+        const { diasCancelados, errorDias } = await concluirServicioAnticipado(servicioId, respuesta);
+        if (errorDias) {
+          // El día sí se cerró; lo que falló fue cancelar los que faltaban.
+          alert('El servicio quedó concluido, pero no se pudieron cancelar los días que faltaban. Avísale a tu supervisor para que los cancele.\n\n(' + errorDias + ')');
+        } else {
+          showToast(
+            diasCancelados > 0
+              ? `Servicio concluido — se cancelaron ${diasCancelados} día(s) que ya no se iban a usar`
+              : 'Servicio concluido',
+            'success'
+          );
+        }
       } else {
         await concluirServicio(servicioId, respuesta);
         showToast('Servicio concluido', 'success');
