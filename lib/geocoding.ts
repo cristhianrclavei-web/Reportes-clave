@@ -80,10 +80,42 @@ async function buscarEnNominatim(q: string): Promise<SugerenciaDireccion[]> {
     .filter((s) => s.direccion && !Number.isNaN(s.lat) && !Number.isNaN(s.lng));
 }
 
+// Dirección de un punto (al usar «mi ubicación actual» o pegar un enlace de
+// Maps, que solo traen coordenadas). Devuelve '' si no se pudo averiguar:
+// la dirección es un dato de apoyo, las coordenadas ya bastan para guardar.
+export async function direccionDePunto(punto: Punto): Promise<string> {
+  try {
+    const url = new URL('https://photon.komoot.io/reverse');
+    url.searchParams.set('lat', String(punto.lat));
+    url.searchParams.set('lon', String(punto.lng));
+    url.searchParams.set('lang', 'default');
+    const respuesta = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
+    if (respuesta.ok) {
+      const datos = await respuesta.json();
+      const lugar = datos?.features?.[0]?.properties;
+      if (lugar) return direccionDePhoton(lugar);
+    }
+  } catch {
+    // sin red o buscador caído: se intenta con el respaldo
+  }
+  try {
+    const url = new URL('https://nominatim.openstreetmap.org/reverse');
+    url.searchParams.set('lat', String(punto.lat));
+    url.searchParams.set('lon', String(punto.lng));
+    url.searchParams.set('format', 'jsonv2');
+    const respuesta = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
+    if (!respuesta.ok) return '';
+    const datos = await respuesta.json();
+    return typeof datos?.display_name === 'string' ? datos.display_name : '';
+  } catch {
+    return '';
+  }
+}
+
 // «Plaza Galerías, Avenida Rafael Sanzio 150, La Estancia, Zapopan, Jalisco».
 export function direccionDePhoton(p: Record<string, any>): string {
   const calle = [p.street, p.housenumber].filter(Boolean).join(' ');
-  const partes = [p.name, calle, p.district, p.city || p.county, p.state].filter(Boolean) as string[];
+  const partes = [p.name, calle, p.district || p.locality, p.city || p.county, p.state].filter(Boolean) as string[];
   // El nombre de una calle suele venir repetido como «name» y «street».
   return partes.filter((parte, i) => partes.indexOf(parte) === i).join(', ');
 }

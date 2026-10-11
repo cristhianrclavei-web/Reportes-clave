@@ -430,7 +430,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
   // `evento` null: la foto está guardada en la tarea misma (formato anterior).
   async function handleQuitarEvidencia(evento: Evento | null, tareaId: string, esVideo: boolean) {
     const queEs = esVideo ? 'este video' : 'esta foto';
-    if (!window.confirm(`¿Eliminar ${queEs} de la tarea? No se puede deshacer.`)) return;
+    if (!window.confirm(`¿Eliminar ${queEs}? No se puede deshacer.`)) return;
     setBusy(true);
     try {
       if (evento) await quitarEvidenciaDeServicio(servicioId, evento);
@@ -1294,16 +1294,32 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
                     </p>
                   )}
                   <div className="flex gap-3">
-                    {e.foto_path && fotoUrls[e.foto_path] && (e.video_path ? (
-                      <button type="button" onClick={() => fotoUrls[e.video_path!] && setViendoVideo(fotoUrls[e.video_path!])} aria-label="Ver video" className="relative shrink-0">
-                        <img src={fotoUrls[e.foto_path]} alt="Video de evidencia" className="w-[84px] h-[84px] object-cover rounded-lg border border-line" />
-                        <MarcaVideo dur={e.video_duracion} chico />
-                      </button>
-                    ) : (
-                      <a href={fotoUrls[e.foto_path]} target="_blank" rel="noreferrer" className="shrink-0">
-                        <img src={fotoUrls[e.foto_path]} alt="Evidencia" className="w-[84px] h-[84px] object-cover rounded-lg border border-line" />
-                      </a>
-                    ))}
+                    {e.foto_path && fotoUrls[e.foto_path] && (
+                      <span className="relative shrink-0 self-start">
+                        {e.video_path ? (
+                          <button type="button" onClick={() => fotoUrls[e.video_path!] && setViendoVideo(fotoUrls[e.video_path!])} aria-label="Ver video" className="relative block">
+                            <img src={fotoUrls[e.foto_path]} alt="Video de evidencia" className="w-[84px] h-[84px] object-cover rounded-lg border border-line" />
+                            <MarcaVideo dur={e.video_duracion} chico />
+                          </button>
+                        ) : (
+                          <a href={fotoUrls[e.foto_path]} target="_blank" rel="noreferrer" className="block">
+                            <img src={fotoUrls[e.foto_path]} alt="Evidencia" className="w-[84px] h-[84px] object-cover rounded-lg border border-line" />
+                          </a>
+                        )}
+                        {/* Se puede quitar mientras el servicio no esté finalizado. */}
+                        {servicio.estado === 'en_curso' && (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            aria-label={e.video_path ? 'Eliminar este video' : 'Eliminar esta foto'}
+                            onClick={() => handleQuitarEvidencia(e, e.tarea_id || '', !!e.video_path)}
+                            className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-red text-white flex items-center justify-center border-2 border-surface active:scale-90 transition-transform disabled:opacity-60"
+                          >
+                            <X size={13} strokeWidth={3} />
+                          </button>
+                        )}
+                      </span>
+                    )}
                     <div className="flex-1 min-w-0">
                       {comentando === e.id ? (
                         <>

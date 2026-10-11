@@ -39,7 +39,7 @@ import SelectorArticulo from '@/components/SelectorArticulo';
 import { hoyLocal } from '@/lib/fechaHoy';
 import { getCurrentLocation } from '@/lib/geolocation';
 import { extraerCoordenadas, esEnlaceCortoMaps } from '@/lib/geocerca';
-import { buscarDirecciones, resolverEnlaceMapa, zonaDeTrabajo, SugerenciaDireccion } from '@/lib/geocoding';
+import { buscarDirecciones, direccionDePunto, resolverEnlaceMapa, zonaDeTrabajo, SugerenciaDireccion } from '@/lib/geocoding';
 
 const ESTADO_CFG: Record<Servicio['estado'], { label: string; cls: string; Icono: any }> = {
   programado: { label: 'Programado', cls: 'bg-surface-2 text-muted', Icono: Clock },
@@ -400,20 +400,29 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
       setUbicError('No se pudo obtener tu ubicación. Revisa el permiso de ubicación del navegador.');
       return;
     }
-    setUbicLat(String(loc.lat));
-    setUbicLng(String(loc.lng));
+    fijarPuntoDelSitio(loc);
+  }
+
+  // Coordenadas que no vienen de la búsqueda (ubicación actual o enlace de
+  // Maps): se guardan y, aparte, se averigua su dirección para llenar el
+  // campo. Si no se encuentra, el campo queda vacío y el punto sirve igual.
+  function fijarPuntoDelSitio(punto: { lat: number; lng: number }) {
+    setUbicLat(String(punto.lat));
+    setUbicLng(String(punto.lng));
     setUbicDireccion('');
     setUbicSugerencias([]);
+    setUbicBuscandoDireccion(true);
+    direccionDePunto(punto)
+      // Solo se escribe si mientras tanto nadie tecleó otra cosa en el campo.
+      .then((direccion) => setUbicDireccion((actual) => actual || direccion))
+      .finally(() => setUbicBuscandoDireccion(false));
   }
 
   async function handleUsarEnlaceUbicacion() {
     const directo = extraerCoordenadas(ubicEnlace);
     if (directo) {
       setUbicError(null);
-      setUbicLat(String(directo.lat));
-      setUbicLng(String(directo.lng));
-      setUbicDireccion('');
-      setUbicSugerencias([]);
+      fijarPuntoDelSitio(directo);
       return;
     }
 
@@ -433,10 +442,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
         setUbicError(resultado.error);
         return;
       }
-      setUbicLat(String(resultado.punto.lat));
-      setUbicLng(String(resultado.punto.lng));
-      setUbicDireccion('');
-      setUbicSugerencias([]);
+      fijarPuntoDelSitio(resultado.punto);
     } finally {
       setUbicResolviendoEnlace(false);
     }
