@@ -15,7 +15,7 @@ import {
   Servicio, Tarea, Evento,
   obtenerServicioCompleto, marcarLlegada, iniciarServicio, sigoAsignadoAServicio,
   listarMisConfirmaciones, marcarServiciosVistos,
-  registrarAvanceTarea, ligarEvidenciaATarea, registrarRetraso, registrarEsperaDeInicio, concluirServicio, concluirServicioAnticipado, agregarEvidenciaExtra,
+  registrarAvanceTarea, ligarEvidenciaATarea, quitarEvidenciaDeServicio, quitarFotoDeTarea, registrarRetraso, registrarEsperaDeInicio, concluirServicio, concluirServicioAnticipado, agregarEvidenciaExtra,
   registrarMotivoLlegada, CierreServicio, actualizarNotaEvidencia, registrarVisitaSinTrabajo, agregarVideoEvidencia,
   calcularProgresoTareas, pausarServicio, reanudarServicio, minutosPausadosTotales,
   leerAjustesOperacion, comidasTomadas, registrarSalidaDeSitio,
@@ -422,6 +422,23 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
       await cargar();
     } catch (e: any) {
       alert('No se pudo guardar: ' + (e?.message || 'error'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // `evento` null: la foto está guardada en la tarea misma (formato anterior).
+  async function handleQuitarEvidencia(evento: Evento | null, tareaId: string, esVideo: boolean) {
+    const queEs = esVideo ? 'este video' : 'esta foto';
+    if (!window.confirm(`¿Eliminar ${queEs} de la tarea? No se puede deshacer.`)) return;
+    setBusy(true);
+    try {
+      if (evento) await quitarEvidenciaDeServicio(servicioId, evento);
+      else await quitarFotoDeTarea(servicioId, tareaId);
+      showToast(esVideo ? 'Video eliminado' : 'Foto eliminada', 'success');
+      await cargar(true);
+    } catch (e: any) {
+      alert('No se pudo eliminar: ' + (e?.message || 'revisa tu conexión e intenta de nuevo'));
     } finally {
       setBusy(false);
     }
@@ -1073,10 +1090,11 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
             // Todas las evidencias de la tarea: la foto de antes (una sola, en
             // la tarea) y las de cada avance, foto rápida o video ligado a ella.
             const evidenciasDeLaTarea = [
-              ...(t.foto_path ? [{ foto: t.foto_path, video: null as string | null, dur: null as number | null }] : []),
+              // `evento` null = la foto vive en la tarea misma (formato anterior).
+              ...(t.foto_path ? [{ foto: t.foto_path, video: null as string | null, dur: null as number | null, evento: null as Evento | null }] : []),
               ...eventos
                 .filter((e) => e.tarea_id === t.id && e.foto_path)
-                .map((e) => ({ foto: e.foto_path as string, video: e.video_path || null, dur: e.video_duracion || null }))
+                .map((e) => ({ foto: e.foto_path as string, video: e.video_path || null, dur: e.video_duracion || null, evento: e as Evento | null }))
                 .reverse(),
             ].filter((ev) => fotoUrls[ev.foto]);
             return (
@@ -1119,17 +1137,33 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
                   </p>
                 )}
                 {evidenciasDeLaTarea.length > 0 && (
-                  <div className="flex gap-1.5 mt-2 overflow-x-auto">
-                    {evidenciasDeLaTarea.map((ev) => (ev.video ? (
-                      <button key={ev.foto} type="button" aria-label="Ver video de la tarea" onClick={(clic) => { clic.stopPropagation(); if (fotoUrls[ev.video!]) setViendoVideo(fotoUrls[ev.video!]); }} className="relative shrink-0">
-                        <img src={fotoUrls[ev.foto]} alt="Video de la tarea" className="w-11 h-11 object-cover rounded-lg border border-line" />
-                        <MarcaVideo dur={ev.dur} chico />
-                      </button>
-                    ) : (
-                      <a key={ev.foto} href={fotoUrls[ev.foto]} target="_blank" rel="noreferrer" onClick={(clic) => clic.stopPropagation()} className="shrink-0">
-                        <img src={fotoUrls[ev.foto]} alt="Foto de la tarea" className="w-11 h-11 object-cover rounded-lg border border-line" />
-                      </a>
-                    )))}
+                  <div className="flex gap-2.5 mt-2 pt-1.5 pr-1.5 overflow-x-auto">
+                    {evidenciasDeLaTarea.map((ev) => (
+                      <span key={ev.foto} className="relative shrink-0">
+                        {ev.video ? (
+                          <button type="button" aria-label="Ver video de la tarea" onClick={(clic) => { clic.stopPropagation(); if (fotoUrls[ev.video!]) setViendoVideo(fotoUrls[ev.video!]); }} className="relative block">
+                            <img src={fotoUrls[ev.foto]} alt="Video de la tarea" className="w-14 h-14 object-cover rounded-lg border border-line" />
+                            <MarcaVideo dur={ev.dur} chico />
+                          </button>
+                        ) : (
+                          <a href={fotoUrls[ev.foto]} target="_blank" rel="noreferrer" onClick={(clic) => clic.stopPropagation()} className="block">
+                            <img src={fotoUrls[ev.foto]} alt="Foto de la tarea" className="w-14 h-14 object-cover rounded-lg border border-line" />
+                          </a>
+                        )}
+                        {/* Se puede quitar mientras el servicio no esté finalizado. */}
+                        {puedeCompletar && (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            aria-label={ev.video ? 'Eliminar este video de la tarea' : 'Eliminar esta foto de la tarea'}
+                            onClick={(clic) => { clic.stopPropagation(); handleQuitarEvidencia(ev.evento, t.id, !!ev.video); }}
+                            className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-red text-white flex items-center justify-center border-2 border-surface active:scale-90 transition-transform disabled:opacity-60"
+                          >
+                            <X size={12} strokeWidth={3} />
+                          </button>
+                        )}
+                      </span>
+                    ))}
                   </div>
                 )}
               </div>

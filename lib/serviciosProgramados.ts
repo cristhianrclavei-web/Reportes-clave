@@ -1478,6 +1478,40 @@ export async function agregarVideoEvidencia(
   if (error) throw error;
 }
 
+// Quita una foto o video del servicio mientras el día siga abierto (ya
+// concluido, lo registrado es el respaldo de lo que se hizo y no se toca).
+//   · Evidencia suelta o ligada a una tarea: se borra el registro completo.
+//   · Avance de una tarea: se conserva el avance (quién, cuándo, qué %) y
+//     solo se le quita la foto.
+// El archivo no se borra del almacenamiento: si ya se hizo un reporte con
+// esa foto, el reporte la sigue usando.
+export async function quitarEvidenciaDeServicio(servicioId: string, evento: Pick<Evento, 'id' | 'tipo'>): Promise<void> {
+  const supabase = createClient();
+  const { data: sv, error: e1 } = await supabase.from('servicios_programados').select('estado').eq('id', servicioId).single();
+  if (e1) throw e1;
+  if (sv.estado === 'concluido') throw new Error('El servicio ya se concluyó; sus evidencias ya no se modifican.');
+
+  const consulta = evento.tipo === 'evidencia'
+    ? supabase.from('servicio_eventos').delete()
+    : supabase.from('servicio_eventos').update({ foto_path: null, video_path: null, video_duracion: null });
+  // Sin permiso la base no marca error, solo no cambia nada: por eso se
+  // pide de vuelta lo cambiado y se revisa.
+  const { data: cambiadas, error } = await consulta.eq('id', evento.id).eq('servicio_id', servicioId).select('id');
+  if (error) throw error;
+  if (!cambiadas || cambiadas.length === 0) throw new Error('No se pudo quitar la foto.');
+}
+
+// Lo mismo para la foto que antes se guardaba dentro de la tarea (una sola).
+export async function quitarFotoDeTarea(servicioId: string, tareaId: string): Promise<void> {
+  const supabase = createClient();
+  const { data: sv, error: e1 } = await supabase.from('servicios_programados').select('estado').eq('id', servicioId).single();
+  if (e1) throw e1;
+  if (sv.estado === 'concluido') throw new Error('El servicio ya se concluyó; sus evidencias ya no se modifican.');
+  const { data: cambiadas, error } = await supabase.from('servicio_tareas').update({ foto_path: null }).eq('id', tareaId).select('id');
+  if (error) throw error;
+  if (!cambiadas || cambiadas.length === 0) throw new Error('No se pudo quitar la foto.');
+}
+
 // Comentario de una evidencia ya guardada. La foto rápida se guarda sin
 // texto para no detener el trabajo; el comentario se puede poner (o corregir)
 // después, mientras el día no se haya concluido: cerrado, lo registrado es el
