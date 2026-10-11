@@ -19,5 +19,8 @@ export default async function ActividadPage(props: { params: Promise<{ id: strin
   // lectura, sin los botones de acción del técnico.
   const soloLectura = actividad.created_by !== user.id;
 
-  return <ActividadDetail actividadInicial={actividad as any} soloLectura={soloLectura} />;
+  // Eliminar una actividad (por ejemplo, las de prueba) es solo de supervisión.
+  const { data: rol } = await supabase.rpc('get_my_role');
+
+  return <ActividadDetail actividadInicial={actividad as any} soloLectura={soloLectura} puedeEliminar={rol === 'supervisor'} />;
 }

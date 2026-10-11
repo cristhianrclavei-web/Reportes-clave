@@ -190,6 +190,37 @@ export async function actualizarNotaAvance(eventoId: string, nota: string): Prom
   if (error) throw error;
 }
 
+// Elimina una actividad de la bitácora con sus avances, pausas y notas (lo
+// hace supervisión; la base lo permite con patch_eliminar_actividad_bitacora.sql).
+// Primero las fotos y videos y al final el registro: si algo falla a medias,
+// la actividad sigue ahí y se puede reintentar.
+export async function eliminarActividad(actividad: Pick<Actividad, 'id' | 'report_id'>): Promise<void> {
+  const supabase = createClient();
+
+  // Si ya se hizo un reporte con esta actividad, sus fotos son también las
+  // del reporte (no se copian): se conservan.
+  if (!actividad.report_id) {
+    const { data: eventos, error: errorEventos } = await supabase
+      .from('actividad_eventos').select('foto_path, video_path').eq('actividad_id', actividad.id);
+    if (errorEventos) throw errorEventos;
+    const archivos: string[] = [];
+    (eventos || []).forEach((e) => {
+      if (e.foto_path) archivos.push(e.foto_path);
+      if (e.video_path) archivos.push(e.video_path);
+    });
+    if (archivos.length > 0) {
+      const { error: errorArchivos } = await supabase.storage.from('evidencias').remove(archivos);
+      if (errorArchivos) throw errorArchivos;
+    }
+  }
+
+  // Sin permiso, la base no marca error: simplemente no borra nada. Por eso
+  // se pide de vuelta lo borrado y se revisa.
+  const { data: borradas, error } = await supabase.from('actividades').delete().eq('id', actividad.id).select('id');
+  if (error) throw error;
+  if (!borradas || borradas.length === 0) throw new Error('No tienes permiso para eliminar esta actividad.');
+}
+
 // Al hacer el reporte de una actividad queda ligada a él.
 export async function ligarReporteAActividad(actividadId: string, reportId: string): Promise<void> {
   const { error } = await createClient().from('actividades').update({ report_id: reportId }).eq('id', actividadId);

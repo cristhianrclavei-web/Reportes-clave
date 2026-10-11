@@ -11,7 +11,7 @@ import Logo from '@/components/Logo';
 import ModalOverlay from '@/components/ModalOverlay';
 import {
   Actividad, ActividadEvento, obtenerActividad, agregarAvance, pausarActividad, reanudarActividad,
-  concluirActividad, corregirHoraFin, actualizarNotaAvance, minutosEfectivos, agregarVideoAvance,
+  concluirActividad, corregirHoraFin, actualizarNotaAvance, minutosEfectivos, agregarVideoAvance, eliminarActividad,
 } from '@/lib/actividades';
 import { tipoActividad } from '@/lib/tiposActividad';
 import { duracionTexto } from '@/lib/lineaDelDia';
@@ -23,7 +23,7 @@ import IconoTipo from '@/components/bitacora/IconoTipo';
 import { RotuloGrupo } from '@/components/tecnico/EncabezadoSeccion';
 import {
   Play, Pause, Check, Camera, X, Circle, Images, RotateCcw, ChevronLeft, Flag, NotebookPen,
-  MessageSquarePlus, FileText, AlertTriangle, CalendarPlus, Video,
+  MessageSquarePlus, FileText, AlertTriangle, CalendarPlus, Video, Trash2,
 } from 'lucide-react';
 
 // Detalle de una actividad de bitácora. Mismo acomodo que el detalle de un
@@ -52,9 +52,11 @@ function fechaCorta(iso: string): string {
 export default function ActividadDetail({
   actividadInicial,
   soloLectura = false,
+  puedeEliminar = false,
 }: {
   actividadInicial: Actividad;
   soloLectura?: boolean;
+  puedeEliminar?: boolean;
 }) {
   const [actividad, setActividad] = useState<Actividad>(actividadInicial);
   const [eventos, setEventos] = useState<ActividadEvento[]>([]);
@@ -222,6 +224,24 @@ export default function ActividadDetail({
     ? { texto: 'En curso', cls: 'bg-teal/15 text-teal' }
     : actividad.estado === 'pausada' ? { texto: 'En pausa', cls: 'bg-amber/15 text-amber' } : { texto: 'Concluida', cls: 'bg-surface-2 text-muted' };
   const notasParaServicio = eventos.filter((e) => e.tipo === 'avance' && e.nota).map((e) => e.nota).reverse().join('. ');
+
+  async function handleEliminar() {
+    const aviso = actividad.report_id
+      ? 'Se borran sus avances y notas. Las fotos se conservan porque están en el reporte que se hizo con esta actividad.'
+      : 'Se borran también sus avances, notas, fotos y videos.';
+    if (!confirm(`¿Eliminar esta actividad de la bitácora?\n\n${aviso} No se puede deshacer.`)) return;
+    setBusy(true);
+    try {
+      await eliminarActividad(actividad);
+      showToast('Actividad eliminada', 'success');
+      // Recarga completa: el Resumen vuelve a pedir la bitácora ya sin ella.
+      window.location.href = '/dashboard';
+    } catch (e: any) {
+      // Con aviso flotante: el botón está al final y el texto de error de la pantalla queda arriba.
+      showToast('No se pudo eliminar la actividad: ' + (e?.message || 'revisa tu conexión e intenta de nuevo.'), 'error');
+      setBusy(false);
+    }
+  }
 
   return (
     <div className="max-w-2xl mx-auto pb-32">
@@ -492,6 +512,20 @@ export default function ActividadDetail({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {puedeEliminar && (
+        <div className="px-4 mt-8">
+          <button
+            type="button"
+            onClick={handleEliminar}
+            disabled={busy}
+            className="w-full min-h-[48px] rounded-2xl border border-red/40 text-red text-[14px] font-semibold flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
+          >
+            <Trash2 size={16} strokeWidth={2.4} />
+            {busy ? 'Eliminando...' : 'Eliminar actividad'}
+          </button>
         </div>
       )}
 

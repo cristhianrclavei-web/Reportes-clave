@@ -196,6 +196,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
           '«Eficiencia de servicios» lee cada día concluido de las últimas 8 semanas como a favor, en contra o desviado por causa externa, según lo que el técnico respondió al cerrar. Muestra los motivos más frecuentes y el detalle por técnico o por cliente.',
           '«Visitas en falso» cuenta los días en que el personal llegó y no se pudo trabajar, por cliente.',
           '«En qué se va el tiempo» reparte las horas del equipo de los últimos 7 días entre servicios y lo registrado en bitácora (traslados, compras, oficina, capacitación, apoyos). Abre una actividad de «Bitácora del personal» para programar un servicio a partir de ella.',
+          'Para borrar una actividad de la bitácora (por ejemplo, una de prueba) ábrela desde «Bitácora del personal en campo» → «Ver todas» y toca «Eliminar actividad», al final. Se borran sus notas y fotos; si ya tiene reporte, las fotos se conservan en el reporte.',
           'Los videos de evidencia se ven en la app, en el servicio, la actividad o la pestaña «Fotos» del reporte; en el PDF sale su portada con un código QR (y enlace tocable) para que el cliente lo vea sin cuenta. Si el almacenamiento pasa del 80 %, aparece un aviso aquí en el Resumen.',
           'La pantalla se actualiza sola cuando llega un reporte.',
         ],
