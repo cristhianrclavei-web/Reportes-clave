@@ -54,6 +54,7 @@ export const MANUAL_TECNICO: SeccionManual[] = [
           'Trabajo: tipo de servicio, sistema, materiales usados y la descripción de lo que hiciste.',
           'Evidencia: toma o elige las fotos y marca si el servicio ya quedó concluido.',
           'En cada foto: el ojo decide si sale en el PDF del cliente o se queda solo en la app (no se borra); el botón de ajustes le pone etapa (Antes, Durante, Después) y área. Con etapa y área, el PDF las agrupa y pone el antes y el después lado a lado.',
+          'Después de guardado, en la pestaña «Fotos» de tu reporte puedes seguir usando el ojo y el botón de ajustes (etapa y área): sirve para dejar fuera las fotos que no hacen falta y acomodar las demás antes de mandarle una copia del PDF al cliente.',
           'Firmas: firma tú y pide la firma del cliente. Revisa la vista previa y toca «Guardar reporte».',
         ],
         nota: 'Lo que vas llenando se guarda solo en el teléfono: si se cierra la app o se recarga la página, al volver lo recuperas.',

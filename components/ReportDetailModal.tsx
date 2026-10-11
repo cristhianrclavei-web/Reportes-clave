@@ -340,8 +340,9 @@ export default function ReportDetailModal({
     })).filter((d) => d.url));
   }
 
-  // Cambios de supervisión sobre una evidencia ya guardada (comentario,
-  // etapa, área y si sale en el PDF del cliente). La foto nunca se borra.
+  // Cambios sobre una evidencia ya guardada: supervisión cambia comentario,
+  // etapa, área y si sale en el PDF del cliente; el técnico, todo menos el
+  // comentario (la base no le deja más: patch_tecnico_oculta_fotos.sql). La foto nunca se borra.
   function editarFoto(idx: number, cambio: Partial<MetaFoto> & { caption?: string }) {
     setFotoUrls((prev) => (prev || []).map((f) => (f.idx === idx ? { ...f, ...cambio } : f)));
   }
@@ -350,11 +351,21 @@ export default function ReportDetailModal({
     if (!actual) return;
     const final = { ...actual, ...cambio };
     try {
-      const fotos = evidenciasDe(report.data?.fotos).map((f, i) => {
+      let fotos: unknown[] = evidenciasDe(report.data?.fotos).map((f, i) => {
         if (i !== idx) return f;
         const { etapa, area, interna, ts, ...resto } = f;
         return { ...resto, caption: final.caption.trim(), ...metaLimpia({ etapa: final.etapa, area: final.area, interna: final.interna, ts }) };
       });
+      // Al técnico la base solo le acepta el cambio si lo demás de la lista
+      // queda idéntico: se tocan nada más el ojo, la etapa y el área de esa
+      // foto, sin reescribir el resto como hace el camino de supervisión.
+      const guardadas: unknown[] = Array.isArray(report.data?.fotos) ? report.data.fotos : [];
+      const fotoGuardada = guardadas[idx];
+      if (!esSupervisor && guardadas.length === fotos.length && fotoGuardada && typeof fotoGuardada === 'object') {
+        const { interna, etapa, area, ...loDemas } = fotoGuardada as Record<string, unknown>;
+        const fotoCambiada = { ...loDemas, ...metaLimpia({ etapa: final.etapa, area: final.area, interna: final.interna }) };
+        fotos = guardadas.map((f, i) => (i === idx ? fotoCambiada : f));
+      }
       report.data = await updateReportData({ fotos });
     } catch (e: any) {
       showToast('No se pudo guardar: ' + (e?.message || 'error'), 'error');
@@ -833,28 +844,22 @@ export default function ReportDetailModal({
                           <img src={f.url} alt={`Evidencia ${i + 1}`} className={`w-full h-[180px] object-cover ${f.interna ? 'opacity-50' : ''}`} />
                         </a>
                       )}
-                      {esSupervisor ? (
-                        <>
-                          <BotonIncluir
-                            interna={f.interna}
-                            className="absolute top-1.5 left-1.5"
-                            onCambiar={() => { editarFoto(f.idx, { interna: !f.interna }); guardarFoto(f.idx, { interna: !f.interna }); }}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setFotoAbierta(f.idx)}
-                            aria-label="Etapa y área de la foto"
-                            title="Etapa y área"
-                            className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/45 text-white flex items-center justify-center backdrop-blur-sm active:scale-90 transition-transform"
-                          >
-                            <SlidersHorizontal size={13} strokeWidth={2.4} />
-                          </button>
-                        </>
-                      ) : f.interna ? (
-                        <span title="No sale en el PDF del cliente" className="absolute top-1.5 left-1.5 w-7 h-7 rounded-full bg-amber text-white flex items-center justify-center">
-                          <EyeOff size={14} strokeWidth={2.4} />
-                        </span>
-                      ) : null}
+                      {/* El ojo y la etapa los usa también el técnico: decide qué fotos
+                          lleva la copia del PDF que le pide el cliente y cómo se agrupan. */}
+                      <BotonIncluir
+                        interna={f.interna}
+                        className="absolute top-1.5 left-1.5"
+                        onCambiar={() => { editarFoto(f.idx, { interna: !f.interna }); guardarFoto(f.idx, { interna: !f.interna }); }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setFotoAbierta(f.idx)}
+                        aria-label="Etapa y área de la foto"
+                        title="Etapa y área"
+                        className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/45 text-white flex items-center justify-center backdrop-blur-sm active:scale-90 transition-transform"
+                      >
+                        <SlidersHorizontal size={13} strokeWidth={2.4} />
+                      </button>
                       {(f.etapa || f.area) && (
                         <div className={`absolute bottom-1.5 left-1.5 ${f.video ? 'right-14' : 'right-1.5'} flex items-center gap-1 pointer-events-none`}>
                           <ChipEtapa etapa={f.etapa} />
@@ -882,7 +887,8 @@ export default function ReportDetailModal({
                   caption={f.caption}
                   meta={f}
                   areas={areasUsadas(fotoUrls)}
-                  onCaption={(v) => editarFoto(f.idx, { caption: v })}
+                  // El comentario de una foto ya guardada solo lo cambia supervisión.
+                  onCaption={esSupervisor ? (v) => editarFoto(f.idx, { caption: v }) : undefined}
                   onMeta={(cambio) => editarFoto(f.idx, cambio)}
                   onCerrar={() => { setFotoAbierta(null); guardarFoto(f.idx); }}
                 />
