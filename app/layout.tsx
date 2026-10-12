@@ -7,6 +7,7 @@ import SincronizarAcento from '@/components/SincronizarAcento';
 import SeleccionarNumeros from '@/components/SeleccionarNumeros';
 import AvisoSuscripcion from '@/components/AvisoSuscripcion';
 import Asistente from '@/components/Asistente';
+import AceptarPrivacidad from '@/components/AceptarPrivacidad';
 import { MARCA, MARCA_MAYUS, DEMO, COLORES, iconoApp } from '@/lib/marca';
 
 const display = Barlow_Condensed({
@@ -89,6 +90,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AvisoSuscripcion />
         {children}
         <ToastContainer />
+        <AceptarPrivacidad />
         <Asistente />
         <OfflineSyncManager />
         <SincronizarAcento />
