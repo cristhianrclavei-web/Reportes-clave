@@ -43,6 +43,13 @@ const csp = [
   "form-action 'self'",
 ].join('; ');
 
+// Direcciones IPv4 de esta computadora en la red local (para abrir la app
+// en desarrollo desde un celular conectado al mismo Wi-Fi).
+function direccionesLocales() {
+  const interfaces = Object.values(require('os').networkInterfaces()).flat();
+  return interfaces.filter((i) => i && i.family === 'IPv4' && !i.internal).map((i) => i.address);
+}
+
 const nextConfig = {
   reactStrictMode: true,
 
@@ -51,7 +58,9 @@ const nextConfig = {
   // -por ejemplo un celular probando contra la compu-. React nunca hidrata
   // y el login (y cualquier formulario) deja de responder sin avisar nada:
   // el <form> se envía como HTML plano y solo recarga la página.
-  ...(esDesarrollo && { allowedDevOrigins: ['192.168.1.71'] }),
+  // Se toman las direcciones que tenga la compu en ese momento: el router
+  // la cambia de vez en cuando y una dirección fija dejaba de servir.
+  ...(esDesarrollo && { allowedDevOrigins: direccionesLocales() }),
 
   async headers() {
     return [
