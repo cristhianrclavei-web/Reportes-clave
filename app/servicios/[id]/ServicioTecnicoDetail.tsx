@@ -850,7 +850,21 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
               </span>
             </p>
           )}
-          <div className={`grid grid-cols-3 gap-2 ${servicio.hora_programada ? 'mt-2.5' : 'mt-3.5'}`}>
+          {/* El sitio, como enlace: abre Google Maps para llegar. */}
+          {servicio.ubicacion_programada && (
+            <a
+              href={`https://www.google.com/maps?q=${servicio.ubicacion_programada.lat},${servicio.ubicacion_programada.lng}`}
+              target="_blank"
+              rel="noreferrer"
+              className={`text-[13px] text-teal font-medium flex items-start gap-1.5 active:opacity-70 ${servicio.hora_programada ? 'mt-1.5' : 'mt-3'}`}
+            >
+              <MapPin size={14} strokeWidth={2.4} className="shrink-0 mt-0.5" />
+              <span className="min-w-0 line-clamp-2 underline underline-offset-4 decoration-teal/40">
+                {servicio.ubicacion_programada.direccion || 'Abrir la ubicación en Maps'}
+              </span>
+            </a>
+          )}
+          <div className={`grid grid-cols-3 gap-2 ${servicio.hora_programada || servicio.ubicacion_programada ? 'mt-2.5' : 'mt-3.5'}`}>
             {([
               ['Llegada', servicio.hora_llegada ? fmtHora(servicio.hora_llegada) : '—'],
               ['Inicio', servicio.hora_inicio ? fmtHora(servicio.hora_inicio) : '—'],
