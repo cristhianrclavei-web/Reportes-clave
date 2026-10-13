@@ -839,7 +839,18 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
             <p className="text-[14.5px] text-ink/85 leading-relaxed min-w-0">{servicio.descripcion || servicio.proyecto}</p>
             <span className={`shrink-0 text-[12px] font-semibold px-2.5 py-1 rounded-full ${ESTADO_CHIP[servicio.estado].cls}`}>{ESTADO_CHIP[servicio.estado].label}</span>
           </div>
-          <div className="grid grid-cols-3 gap-2 mt-3.5">
+          {/* Lo que programó supervisión, en un solo renglón: los recuadros de
+              abajo son lo que de verdad pasó. */}
+          {servicio.hora_programada && (
+            <p className="text-[13px] text-muted mt-3 flex items-center gap-1.5 tabular-nums">
+              <CalendarClock size={14} strokeWidth={2.4} className="text-teal shrink-0" />
+              <span>
+                Programado: llegada <b className="text-ink font-semibold">{servicio.hora_programada.slice(0, 5)}</b>
+                {servicio.hora_salida_programada && <> · salida <b className="text-ink font-semibold">{servicio.hora_salida_programada.slice(0, 5)}</b></>}
+              </span>
+            </p>
+          )}
+          <div className={`grid grid-cols-3 gap-2 ${servicio.hora_programada ? 'mt-2.5' : 'mt-3.5'}`}>
             {([
               ['Llegada', servicio.hora_llegada ? fmtHora(servicio.hora_llegada) : '—'],
               ['Inicio', servicio.hora_inicio ? fmtHora(servicio.hora_inicio) : '—'],
