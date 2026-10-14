@@ -1,5 +1,6 @@
 'use client';
 
+import CampoUbicacionSitio, { CamposUbicacion, UBICACION_VACIA, ubicacionDeCampos } from '@/components/servicios/CampoUbicacionSitio';
 import DiasDelProyectoEditor from '@/components/servicios/DiasDelProyectoEditor';
 import { AjusteDia, armarDiasDelProyecto, errorEnDias } from '@/lib/diasProyecto';
 import { ElegirCuadrilla } from '@/components/cuadrillas/ChipsCuadrilla';
@@ -38,9 +39,7 @@ import { ResultadoIconos } from '@/components/ResultadoServicioBadges';
 import { showToast } from '@/components/Toast';
 import SelectorArticulo from '@/components/SelectorArticulo';
 import { hoyLocal } from '@/lib/fechaHoy';
-import { getCurrentLocation } from '@/lib/geolocation';
-import { extraerCoordenadas, esEnlaceCortoMaps } from '@/lib/geocerca';
-import { buscarDirecciones, direccionDePunto, resolverEnlaceMapa, zonaDeTrabajo, SugerenciaDireccion } from '@/lib/geocoding';
+import { zonaDeTrabajo } from '@/lib/geocoding';
 
 const ESTADO_CFG: Record<Servicio['estado'], { label: string; cls: string; Icono: any }> = {
   programado: { label: 'Programado', cls: 'bg-surface-2 text-muted', Icono: Clock },
@@ -175,16 +174,10 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   // forzar el cálculo con la duración por defecto sin que nadie la haya
   // tocado.
   const [ultimoCampoEditado, setUltimoCampoEditado] = useState<'salida' | 'duracion' | null>(null);
-  const [ubicLat, setUbicLat] = useState('');
-  const [ubicLng, setUbicLng] = useState('');
-  const [ubicDireccion, setUbicDireccion] = useState('');
-  const [ubicSugerencias, setUbicSugerencias] = useState<SugerenciaDireccion[]>([]);
-  const [ubicBuscandoDireccion, setUbicBuscandoDireccion] = useState(false);
-  const ubicDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [ubicEnlace, setUbicEnlace] = useState('');
-  const [ubicBuscando, setUbicBuscando] = useState(false);
-  const [ubicResolviendoEnlace, setUbicResolviendoEnlace] = useState(false);
-  const [ubicError, setUbicError] = useState<string | null>(null);
+  // Lo escrito en la ubicación del sitio; `ubicReinicio` vacía también los
+  // campos internos del componente (enlace pegado, sugerencias) al guardar.
+  const [ubicCampos, setUbicCampos] = useState<CamposUbicacion>(UBICACION_VACIA);
+  const [ubicReinicio, setUbicReinicio] = useState(0);
   // Festivos: se avisa AL AGENDAR, no al reportar. Si el aviso sale antes de
   // guardar, el viaje perdido no llega a ocurrir.
   const [festivos, setFestivos] = useState<Festivo[]>(() => festivosEnCache());
@@ -401,96 +394,10 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
     if (salidaCalculada !== null) setHoraSalidaProgramada(salidaCalculada);
   }, [salidaCalculada]);
 
-  async function handleUsarUbicacionActual() {
-    setUbicBuscando(true);
-    setUbicError(null);
-    const loc = await getCurrentLocation();
-    setUbicBuscando(false);
-    if (!loc) {
-      setUbicError('No se pudo obtener tu ubicación. Revisa el permiso de ubicación del navegador.');
-      return;
-    }
-    fijarPuntoDelSitio(loc);
-  }
-
-  // Coordenadas que no vienen de la búsqueda (ubicación actual o enlace de
-  // Maps): se guardan y, aparte, se averigua su dirección para llenar el
-  // campo. Si no se encuentra, el campo queda vacío y el punto sirve igual.
-  function fijarPuntoDelSitio(punto: { lat: number; lng: number }) {
-    setUbicLat(String(punto.lat));
-    setUbicLng(String(punto.lng));
-    setUbicDireccion('');
-    setUbicSugerencias([]);
-    setUbicBuscandoDireccion(true);
-    direccionDePunto(punto)
-      // Solo se escribe si mientras tanto nadie tecleó otra cosa en el campo.
-      .then((direccion) => setUbicDireccion((actual) => actual || direccion))
-      .finally(() => setUbicBuscandoDireccion(false));
-  }
-
-  async function handleUsarEnlaceUbicacion() {
-    const directo = extraerCoordenadas(ubicEnlace);
-    if (directo) {
-      setUbicError(null);
-      fijarPuntoDelSitio(directo);
-      return;
-    }
-
-    // Los enlaces cortos (maps.app.goo.gl) no traen coordenadas en la URL:
-    // hay que resolverlos en el servidor. Cualquier otro texto sin
-    // coordenadas es simplemente un texto inválido.
-    if (!esEnlaceCortoMaps(ubicEnlace)) {
-      setUbicError('No se encontraron coordenadas en ese texto. Pega el enlace de Google Maps o "lat, lng".');
-      return;
-    }
-
-    setUbicError(null);
-    setUbicResolviendoEnlace(true);
-    try {
-      const resultado = await resolverEnlaceMapa(ubicEnlace.trim());
-      if ('error' in resultado) {
-        setUbicError(resultado.error);
-        return;
-      }
-      fijarPuntoDelSitio(resultado.punto);
-    } finally {
-      setUbicResolviendoEnlace(false);
-    }
-  }
-
-  // Igual que escribir en el buscador de Google Maps: cada tecla dispara una
-  // búsqueda con medio segundo de margen, para no mandar un request por
-  // letra mientras la persona sigue escribiendo.
   // Zona donde ya hay servicios registrados: la búsqueda de direcciones
   // muestra primero lo que queda por ahí.
   const zonaDeServicios = useMemo(() => zonaDeTrabajo(servicios.map((s) => s.ubicacion_programada)), [servicios]);
 
-  function handleCambiarDireccion(texto: string) {
-    setUbicDireccion(texto);
-    setUbicError(null);
-    if (ubicDebounceRef.current) clearTimeout(ubicDebounceRef.current);
-    if (texto.trim().length < 3) {
-      setUbicSugerencias([]);
-      return;
-    }
-    ubicDebounceRef.current = setTimeout(async () => {
-      setUbicBuscandoDireccion(true);
-      try {
-        setUbicSugerencias(await buscarDirecciones(texto, zonaDeServicios));
-      } catch {
-        setUbicSugerencias([]);
-      } finally {
-        setUbicBuscandoDireccion(false);
-      }
-    }, 500);
-  }
-
-  function handleElegirSugerencia(s: SugerenciaDireccion) {
-    setUbicLat(String(s.lat));
-    setUbicLng(String(s.lng));
-    setUbicDireccion(s.direccion);
-    setUbicSugerencias([]);
-  }
 
   function toggleTecnico(id: string) {
     setTecnicoIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -677,10 +584,8 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
       setError(errorDias);
       return;
     }
-    const ubicacionProgramada = ubicLat.trim() && ubicLng.trim()
-      ? { lat: parseFloat(ubicLat), lng: parseFloat(ubicLng), ...(ubicDireccion.trim() ? { direccion: ubicDireccion.trim() } : {}) }
-      : null;
-    if ((ubicLat.trim() || ubicLng.trim()) && !ubicacionProgramada) {
+    const { ubicacion: ubicacionProgramada, incompleta: ubicacionIncompleta } = ubicacionDeCampos(ubicCampos);
+    if (ubicacionIncompleta) {
       setError('La ubicación del sitio quedó incompleta.');
       return;
     }
@@ -731,7 +636,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
       setSeccion(aHoy ? 'hoy' : 'agendados');
       setProyecto(''); setProyectoCliente(null); setDescripcion(''); setTecnicoIds([]); setTareas(['']); setDuracionMin(120);
       setHoraProgramada(''); setHoraSalidaProgramada(''); setUltimoCampoEditado(null);
-      setUbicLat(''); setUbicLng(''); setUbicDireccion(''); setUbicSugerencias([]); setUbicEnlace(''); setUbicError(null);
+      setUbicCampos(UBICACION_VACIA); setUbicReinicio((n) => n + 1);
       setDiasTotales(1);
       setDiasSeguidos(true); setFechasSalteadas([]); setOmitirFinDeSemana(false);
       setAjustesDia({});
@@ -1023,72 +928,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
             <div className={cardCls}>
               <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Ubicación del sitio</p>
               <p className="text-[12.5px] text-muted mb-2.5 -mt-2">Opcional.</p>
-            <div className="mb-1 p-3.5 rounded-xl bg-surface-2 border border-line">
-              <div className="relative mb-2.5">
-                <input
-                  placeholder="Escribe la dirección…"
-                  value={ubicDireccion}
-                  onChange={(e) => handleCambiarDireccion(e.target.value)}
-                  className="w-full px-3 min-h-[44px] rounded-lg bg-surface border border-line focus:border-teal focus:outline-none text-[14px]"
-                />
-                {ubicBuscandoDireccion && (
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-faint">Buscando…</span>
-                )}
-                {ubicSugerencias.length > 0 && (
-                  <div className="absolute z-10 top-full left-0 right-0 mt-1 rounded-lg bg-surface border border-line-strong shadow-glow overflow-hidden">
-                    {ubicSugerencias.map((s, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => handleElegirSugerencia(s)}
-                        className="w-full text-left px-3 py-2.5 text-[13px] border-b border-line last:border-b-0 active:bg-surface-2"
-                      >
-                        {s.direccion}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="grid grid-cols-2 gap-2.5 mb-2.5">
-                <input
-                  type="number" step="any" placeholder="Latitud" value={ubicLat}
-                  onChange={(e) => setUbicLat(e.target.value)}
-                  className="w-full px-3 min-h-[44px] rounded-lg bg-surface border border-line focus:border-teal focus:outline-none text-[14px]"
-                />
-                <input
-                  type="number" step="any" placeholder="Longitud" value={ubicLng}
-                  onChange={(e) => setUbicLng(e.target.value)}
-                  className="w-full px-3 min-h-[44px] rounded-lg bg-surface border border-line focus:border-teal focus:outline-none text-[14px]"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={handleUsarUbicacionActual}
-                disabled={ubicBuscando}
-                className="w-full min-h-[40px] mb-2.5 rounded-lg bg-surface border border-line text-[13px] font-medium flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform disabled:opacity-60"
-              >
-                <MapPin size={14} strokeWidth={2.4} />
-                {ubicBuscando ? 'Buscando…' : 'Usar mi ubicación actual'}
-              </button>
-              <div className="flex gap-2">
-                <input
-                  placeholder="O pega un enlace de Google Maps"
-                  value={ubicEnlace}
-                  onChange={(e) => setUbicEnlace(e.target.value)}
-                  disabled={ubicResolviendoEnlace}
-                  className="flex-1 min-w-0 px-3 min-h-[40px] rounded-lg bg-surface border border-line focus:border-teal focus:outline-none text-[13px] disabled:opacity-60"
-                />
-                <button
-                  type="button"
-                  onClick={handleUsarEnlaceUbicacion}
-                  disabled={ubicResolviendoEnlace}
-                  className="px-3.5 min-h-[40px] rounded-lg bg-surface border border-line text-[13px] font-medium shrink-0 active:scale-95 transition-transform disabled:opacity-60"
-                >
-                  {ubicResolviendoEnlace ? 'Resolviendo…' : 'Usar'}
-                </button>
-              </div>
-              {ubicError && <p className="text-[12px] text-red mt-2">{ubicError}</p>}
-            </div>
+            <CampoUbicacionSitio key={ubicReinicio} valor={ubicCampos} onCambio={setUbicCampos} cerca={zonaDeServicios} />
             <p className="text-[11px] text-faint">
               Con esto se puede marcar la llegada desde el sitio, comparando su GPS contra este punto.
             </p>

@@ -774,7 +774,7 @@ export function motivoNoEditable(estado: Servicio['estado']): string | null {
 
 export async function editarServicio(
   id: string,
-  cambios: Partial<Pick<Servicio, 'proyecto' | 'descripcion' | 'fecha' | 'duracion_estimada_min'>>,
+  cambios: Partial<Pick<Servicio, 'proyecto' | 'descripcion' | 'fecha' | 'duracion_estimada_min' | 'ubicacion_programada'>>,
   descripcionCambio: string
 ) {
   const supabase = createClient();
@@ -782,13 +782,23 @@ export async function editarServicio(
   if (!user) throw new Error('No hay sesión activa');
 
   const { data: actual, error: eGet } = await supabase
-    .from('servicios_programados').select('estado, fecha').eq('id', id).single();
+    .from('servicios_programados').select('estado, fecha, grupo_id').eq('id', id).single();
   if (eGet) throw eGet;
   const motivo = motivoNoEditable(actual.estado);
   if (motivo) throw new Error(motivo);
 
   const { error: e1 } = await supabase.from('servicios_programados').update(cambios).eq('id', id);
   if (e1) throw e1;
+
+  // El sitio es el mismo para todo el proyecto: la ubicación se lleva también
+  // a sus demás días que aún no empiezan (los ya trabajados no se tocan).
+  if ('ubicacion_programada' in cambios) {
+    const { error: eDias } = await supabase
+      .from('servicios_programados')
+      .update({ ubicacion_programada: cambios.ubicacion_programada })
+      .eq('grupo_id', actual.grupo_id).neq('id', id).eq('estado', 'programado');
+    if (eDias) throw eDias;
+  }
 
   const { error: e2 } = await supabase.from('servicio_auditoria').insert({
     servicio_id: id,

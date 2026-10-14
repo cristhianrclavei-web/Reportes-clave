@@ -19,6 +19,7 @@ import {
 } from '@/lib/serviciosProgramados';
 import ProgressBar from '@/components/ProgressBar';
 import { ChevronLeft, MapPin, Play, Check, Clock, Trash2, AlertTriangle, Timer, Flag, Camera, Plus, Users, Pencil, CalendarClock, PackageCheck, Bookmark, ChevronRight, X, TrendingUp, CalendarX, Lock, PauseCircle, PlayCircle, CheckCircle2, MapPinOff } from 'lucide-react';
+import CampoUbicacionSitio, { CamposUbicacion, UBICACION_VACIA, camposDeUbicacion, ubicacionDeCampos } from '@/components/servicios/CampoUbicacionSitio';
 import { calcularResultadoServicio } from '@/lib/resultadoServicio';
 import { formatMinutos } from '@/lib/kpis';
 import InsumosChecklist from '@/components/InsumosChecklist';
@@ -76,6 +77,8 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
   const [loading, setLoading] = useState(true);
 
   const [editando, setEditando] = useState(false);
+  // Ubicación del sitio en el formulario de edición.
+  const [ubicCampos, setUbicCampos] = useState<CamposUbicacion>(UBICACION_VACIA);
   const [proyecto, setProyecto] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [fecha, setFecha] = useState('');
@@ -135,6 +138,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
     setDescripcion(s.descripcion || '');
     setFecha(s.fecha);
     setDuracionMin(s.duracion_estimada_min);
+    setUbicCampos(camposDeUbicacion(s.ubicacion_programada));
     setTecnicoIdsSel(tc.map((x) => x.tecnico_id));
 
     const paths = [...t.filter((x) => x.foto_path).map((x) => x.foto_path as string), ...e.filter((x) => x.foto_path).map((x) => x.foto_path as string), ...e.filter((x) => x.video_path).map((x) => x.video_path as string)];
@@ -176,10 +180,23 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
       if (fecha !== servicio.fecha) cambios.push(`fecha: ${servicio.fecha} → ${fecha}`);
       if (duracionMin !== servicio.duracion_estimada_min) cambios.push(`duración estimada: ${servicio.duracion_estimada_min} → ${duracionMin} min`);
 
+      const { ubicacion, incompleta } = ubicacionDeCampos(ubicCampos);
+      if (incompleta) {
+        alert('La ubicación del sitio quedó incompleta: faltan la latitud o la longitud. Complétala o déjala vacía.');
+        return;
+      }
+      // Solo se manda la ubicación si cambió, para no tocar los demás días sin necesidad.
+      const cambioUbicacion = JSON.stringify(ubicacion) !== JSON.stringify(servicio.ubicacion_programada || null);
+      if (cambioUbicacion) cambios.push(ubicacion ? `ubicación del sitio: ${ubicacion.direccion || `${ubicacion.lat}, ${ubicacion.lng}`}` : 'se quitó la ubicación del sitio');
+
       if (cambios.length > 0) {
         avance(15, 'Guardando los cambios del servicio');
         setPantalla(true);
-        await editarServicio(servicioId, { proyecto, descripcion, fecha, duracion_estimada_min: duracionMin }, cambios.join('; '));
+        await editarServicio(
+          servicioId,
+          { proyecto, descripcion, fecha, duracion_estimada_min: duracionMin, ...(cambioUbicacion ? { ubicacion_programada: ubicacion } : {}) },
+          cambios.join('; '),
+        );
         showToast('Servicio actualizado', 'success');
         avance(80, 'Actualizando el servicio');
       }
@@ -536,6 +553,12 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
                   />
                 </div>
               </div>
+              <label className="text-[13px] text-ink/75 block mb-1.5">Ubicación del sitio</label>
+              <CampoUbicacionSitio valor={ubicCampos} onCambio={setUbicCampos} />
+              <p className="text-[11.5px] text-muted mt-1 mb-3">
+                {servicio.dias_totales > 1 ? 'Se aplica también a los demás días del proyecto que no han empezado. ' : ''}
+                Para quitarla, borra la latitud y la longitud.
+              </p>
               <button onClick={handleGuardarEdicion} disabled={guardando} className="w-full py-2.5 rounded-xl bg-teal text-inkOnAccent text-[13px] font-semibold active:scale-95 transition-transform disabled:opacity-60">
                 {guardando ? 'Guardando...' : 'Guardar cambios'}
               </button>
