@@ -313,6 +313,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
         resumen: 'Armarlas, compartirlas y darles seguimiento.',
         pasos: [
           'En «Nueva cotización» agrega las partidas por grupo; el total con IVA se calcula solo.',
+          'El «Nombre del proyecto» es opcional: sale como título centrado en la primera página del PDF.',
           'Descarga el PDF o compártelo. Cambia el estado conforme avance: enviada, aprobada, rechazada.',
           'Puedes copiar una cotización existente para no empezar de cero.',
         ],

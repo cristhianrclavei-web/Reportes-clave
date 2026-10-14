@@ -40,6 +40,9 @@ export type Cotizacion = {
   created_at: string;
   updated_at: string;
   fecha: string;
+  // Nombre del proyecto: título principal del PDF, solo en la primera página
+  // (patch_cotizacion_titulo_proyecto.sql). Opcional.
+  titulo_proyecto?: string | null;
   atencion: string | null;
   empresa: string;
   telefono: string | null;
@@ -93,6 +96,7 @@ export type LineaInput = {
 
 export type CotizacionInput = {
   fecha: string;
+  titulo_proyecto: string;
   atencion: string;
   empresa: string;
   telefono: string;
@@ -172,6 +176,7 @@ function datosCotizacion(input: CotizacionInput) {
   const { subtotal, iva, total } = calcularTotales(input.lineas, input.iva_pct);
   return {
     fecha: input.fecha,
+    titulo_proyecto: input.titulo_proyecto.trim().replace(/\s+/g, ' ').slice(0, 120) || null,
     atencion: input.atencion.trim() || null,
     empresa: input.empresa.trim(),
     telefono: input.telefono.trim() || null,

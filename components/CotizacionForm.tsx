@@ -79,6 +79,7 @@ export default function CotizacionForm({
   // Contactos del cliente elegido (sugerencias en «Atención»).
   const contactosCliente = useContactosCliente();
   const [empresa, setEmpresa] = useState(c?.empresa || '');
+  const [tituloProyecto, setTituloProyecto] = useState(c?.titulo_proyecto || '');
   const [atencion, setAtencion] = useState(c?.atencion || '');
   const [telefono, setTelefono] = useState(c?.telefono || '');
   const [correo, setCorreo] = useState(c?.correo || '');
@@ -239,13 +240,15 @@ export default function CotizacionForm({
   // Borrador en el dispositivo: si la página se recarga o se cierra, lo
   // capturado se recupera al volver. En «editar» solo cuenta si hubo cambios.
   const datosForm = {
-    presentacionPrecios, fecha, empresa, atencion, telefono, correo, direccion, formaPago, tiempoEntrega,
+    presentacionPrecios, fecha, tituloProyecto, empresa, atencion, telefono, correo, direccion, formaPago, tiempoEntrega,
     garantia, vigenciaDias, ivaPct, moneda, tipoCambio, notas, firmanteNombre, firmanteCorreo, grupos,
   };
   const huellaInicial = useRef(JSON.stringify(datosForm));
   const datosIniciales = useRef(datosForm);
   function aplicarDatos(d: typeof datosForm) {
     setPresentacionPrecios(d.presentacionPrecios); setFecha(d.fecha); setEmpresa(d.empresa); setAtencion(d.atencion);
+    // Los borradores guardados antes de este campo no lo traen.
+    setTituloProyecto(d.tituloProyecto || '');
     setTelefono(d.telefono); setCorreo(d.correo); setDireccion(d.direccion); setFormaPago(d.formaPago);
     setTiempoEntrega(d.tiempoEntrega); setGarantia(d.garantia); setVigenciaDias(d.vigenciaDias); setIvaPct(d.ivaPct);
     setMoneda(d.moneda); setTipoCambio(d.tipoCambio); setNotas(d.notas); setFirmanteNombre(d.firmanteNombre);
@@ -277,6 +280,7 @@ export default function CotizacionForm({
     setMsg(null);
     const input: CotizacionInput = {
       fecha,
+      titulo_proyecto: tituloProyecto,
       atencion,
       empresa,
       telefono,
@@ -350,6 +354,18 @@ export default function CotizacionForm({
       <div className={cardCls}>
         <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Datos del cliente</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <div className="sm:col-span-2">
+            <label className={labelCls}>Nombre del proyecto (título de la cotización)</label>
+            <input
+              type="text"
+              className={inputCls}
+              value={tituloProyecto}
+              onChange={(e) => setTituloProyecto(e.target.value)}
+              maxLength={120}
+              placeholder="Ej. Sistema de videovigilancia — Torre Norte"
+            />
+            <p className="text-[12px] text-faint mt-1.5">Opcional. Sale como título centrado en la primera página del PDF.</p>
+          </div>
           <div>
             <label className={labelCls}>Empresa / Cliente *</label>
             <div data-campo="empresa">

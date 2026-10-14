@@ -137,6 +137,26 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
 
   startPage();
 
+  // Título del proyecto: solo en la primera página, centrado entre los datos
+  // del cliente y la primera tabla, con una línea corta del color de la marca.
+  const tituloProyecto = (cot.titulo_proyecto || '').trim();
+  if (tituloProyecto) {
+    const tamano = 17;
+    const renglones = wrapText(tituloProyecto.toUpperCase(), display, tamano, contentW - 80);
+    y -= 6;
+    for (const renglon of renglones) {
+      centrado(page, renglon, MARGIN, contentW, y - tamano, tamano, display);
+      y -= tamano + 5;
+    }
+    const anchoLinea = 56;
+    page.drawLine({
+      start: { x: (PAGE_W - anchoLinea) / 2, y: y - 4 },
+      end: { x: (PAGE_W + anchoLinea) / 2, y: y - 4 },
+      thickness: 1.5, color: LINEA_MARCA,
+    });
+    y -= 22;
+  }
+
   // ================= Columnas de la tabla =================
   const colPartidaW = 30;
   const colUnidW = 34;
