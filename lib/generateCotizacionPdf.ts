@@ -21,9 +21,8 @@ function money(n: number, moneda: 'MXN' | 'USD' = 'MXN'): string {
   return prefijo + (n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-// Sin el prefijo "USD": repetido en cada partida de P.Unit/Importe se veía
-// saturado. La divisa ya queda clara una sola vez, en el total de cada
-// sistema y en el total general — ahí sí se usa money() completo.
+// Sin el prefijo "USD": repetido en cada precio se veía saturado. La divisa
+// queda clara una sola vez, en el TOTAL general — solo ahí se usa money().
 function moneySinDivisa(n: number): string {
   return '$ ' + (n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -279,7 +278,7 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
     page.drawRectangle({ x: xPUnit, y: y - 16, width: colPUnitW, height: 16, borderColor: GRAY_LINE, borderWidth: 0.75 });
     page.drawRectangle({ x: xImporte, y: y - 16, width: colImporteW, height: 16, borderColor: GRAY_LINE, borderWidth: 0.75 });
     page.drawText('Importe', { x: xPUnit + 6, y: y - 11, size: 8, font: bold, color: NAVY });
-    centrado(page, money(importeGrupo, cot.moneda), xImporte, colImporteW, y - 11, 8, bold);
+    centrado(page, moneySinDivisa(importeGrupo), xImporte, colImporteW, y - 11, 8, bold);
     y -= 16 + 14;
   }
 
@@ -292,7 +291,8 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
   ];
   for (const [label, val] of totales) {
     page.drawText(label, { x: xPUnit, y, size: 9.5, font: bold, color: NAVY });
-    const vt = money(val, cot.moneda);
+    // Solo el TOTAL lleva la divisa; subtotal e IVA van como los demás precios.
+    const vt = label === 'TOTAL' ? money(val, cot.moneda) : moneySinDivisa(val);
     page.drawText(vt, { x: xImporte + colImporteW - font.widthOfTextAtSize(vt, 9.5), y, size: 9.5, font: bold, color: NAVY });
     y -= 16;
   }
