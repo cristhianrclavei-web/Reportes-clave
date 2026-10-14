@@ -277,17 +277,9 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
     y -= 16;
   }
 
-  if (cot.moneda === 'USD' && cot.tipo_cambio > 0) {
-    const label = `Aprox. en MXN (T.C. $${cot.tipo_cambio.toFixed(2)})`;
-    page.drawText(label, { x: MARGIN, y, size: 8.5, font, color: GRAY_TEXT });
-    const vt = money(cot.total * cot.tipo_cambio, 'MXN');
-    page.drawText(vt, { x: xImporte + colImporteW - font.widthOfTextAtSize(vt, 8.5), y, size: 8.5, font, color: GRAY_TEXT });
-    y -= 16;
-  }
-
   const condiciones = [
     cot.moneda === 'USD'
-      ? `Los precios se expresan en Dólares Americanos (USD), más IVA. Tipo de cambio de referencia: $${cot.tipo_cambio.toFixed(2)} MXN por dólar.`
+      ? 'Los precios se expresan en Dólares Americanos (USD), más IVA.'
       : 'Los precios se expresan en Moneda Nacional, más IVA',
     `Forma de Pago: ${cot.forma_pago}`,
     'Esta cotización ampara unicamente lo descrito anteriormente.',
