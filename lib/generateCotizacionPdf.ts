@@ -1,10 +1,11 @@
-import { PDFDocument, PDFFont, PDFPage } from 'pdf-lib';
+import { PDFDocument, PDFFont, PDFImage, PDFPage } from 'pdf-lib';
+import sharp from 'sharp';
 import {
   NAVY, GRAY_LINE, GRAY_TEXT, ROJO, LINEA_MARCA,
   MARGIN, PAGE_W, PAGE_H,
   embedBrandFonts, drawBadge, drawWordmark, drawIconStrip, drawWatermark,
 } from './pdfBranding';
-import { Cotizacion, LineaCotizacion, agruparPorSistema } from './cotizaciones';
+import { Cotizacion, LineaCotizacion, agruparPorSistema, urlFotoConcepto } from './cotizaciones';
 import { MARCA, MARCA_MAYUS } from './marca';
 
 // Mismo formato que las cotizaciones que ya se le mandan a los clientes
@@ -36,6 +37,29 @@ function fechaLarga(fechaISO: string): string {
   if (!y) return '';
   const fecha = new Date(y, (m || 1) - 1, d || 1);
   return `${MARCA.ciudad} a ${fecha.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' })}`;
+}
+
+// Descarga la foto de un concepto y la deja como JPEG chico (lado mayor
+// 400 px) para que el PDF no pese de más. Si falla, el concepto sale sin
+// foto en vez de tumbar todo el PDF.
+async function descargarFoto(foto: string): Promise<Uint8Array | null> {
+  try {
+    const respuesta = await fetch(urlFotoConcepto(foto), { signal: AbortSignal.timeout(8000) });
+    if (!respuesta.ok) return null;
+    const original = Buffer.from(await respuesta.arrayBuffer());
+    // Tope de 10 MB: una foto de concepto nunca debería pesar más.
+    if (original.length > 10 * 1048576) return null;
+    const reducida = await sharp(original)
+      .rotate()
+      .resize({ width: 400, height: 400, fit: 'inside', withoutEnlargement: true })
+      .flatten({ background: '#ffffff' })
+      .jpeg({ quality: 80 })
+      .toBuffer();
+    return new Uint8Array(reducida);
+  } catch (err: any) {
+    console.error('[cotizacion-pdf] No se pudo incluir una foto:', foto, err?.message);
+    return null;
+  }
 }
 
 export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotizacion[]): Promise<Uint8Array> {
@@ -156,15 +180,32 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
     y -= 22;
   }
 
+  // ================= Fotos de los conceptos =================
+  // Con la casilla activa, cada concepto lleva una columna de foto entre
+  // Partida y Descripción. Se descargan todas antes de dibujar.
+  const conFotos = Boolean(cot.mostrar_fotos);
+  const fotosPdf = new Map<string, PDFImage>();
+  if (conFotos) {
+    const unicas = [...new Set(lineas.map((l) => l.foto).filter((f): f is string => Boolean(f)))];
+    const descargadas = await Promise.all(unicas.map(descargarFoto));
+    for (let i = 0; i < unicas.length; i++) {
+      const bytes = descargadas[i];
+      if (bytes) fotosPdf.set(unicas[i], await pdfDoc.embedJpg(bytes));
+    }
+  }
+
   // ================= Columnas de la tabla =================
   const colPartidaW = 30;
+  const colFotoW = conFotos ? 84 : 0;
+  const altoFilaConFoto = 66;
   const colUnidW = 34;
   const colCantW = 34;
   const colPUnitW = 72;
   const colImporteW = 80;
-  const colDescW = contentW - colPartidaW - colUnidW - colCantW - colPUnitW - colImporteW;
+  const colDescW = contentW - colPartidaW - colFotoW - colUnidW - colCantW - colPUnitW - colImporteW;
   const xPartida = MARGIN;
-  const xDesc = xPartida + colPartidaW;
+  const xFoto = xPartida + colPartidaW;
+  const xDesc = xFoto + colFotoW;
   const xUnid = xDesc + colDescW;
   const xCant = xUnid + colUnidW;
   const xPUnit = xCant + colCantW;
@@ -180,7 +221,8 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
     page.drawRectangle({ x: MARGIN, y: y - rowH, width: contentW, height: rowH, borderColor: GRAY_LINE, borderWidth: 0.75 });
     const cols: [string, number, number][] = [
       ['Partida', xPartida, colPartidaW],
-      ['Descripción', xDesc, colDescW],
+      // Con fotos, «Descripción» abarca también la columna de la foto.
+      ['Descripción', xFoto, colFotoW + colDescW],
       ['Unid', xUnid, colUnidW],
       ['Cant.', xCant, colCantW],
       ['P.Unit', xPUnit, colPUnitW],
@@ -220,7 +262,9 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
     grupo.lineas.forEach((l, i) => {
       importeGrupo += l.importe;
       const descLines = wrapConSaltos(l.descripcion, font, 8, colDescW - 8);
-      const rowH = Math.max(18, descLines.length * 10 + 8);
+      const fotoPdf = l.foto ? fotosPdf.get(l.foto) : undefined;
+      const altoTexto = Math.max(18, descLines.length * 10 + 8);
+      const rowH = fotoPdf ? Math.max(altoTexto, altoFilaConFoto) : altoTexto;
       const paginaAntesDeLaFila = page;
       ensureSpace(rowH);
       if (esKit && page !== paginaAntesDeLaFila) {
@@ -230,9 +274,11 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
       if (esKit) {
         page.drawRectangle({ x: MARGIN, y: y - rowH, width: anchoBloqueIzq, height: rowH, borderColor: GRAY_LINE, borderWidth: 0.75 });
         page.drawLine({ start: { x: xDesc, y }, end: { x: xDesc, y: y - rowH }, thickness: 0.5, color: GRAY_LINE });
+        if (conFotos) page.drawLine({ start: { x: xFoto, y }, end: { x: xFoto, y: y - rowH }, thickness: 0.5, color: GRAY_LINE });
       } else {
         page.drawRectangle({ x: MARGIN, y: y - rowH, width: contentW, height: rowH, borderColor: GRAY_LINE, borderWidth: 0.75 });
-        [xDesc, xUnid, xCant, xPUnit, xImporte].forEach((x) => {
+        const divisiones = conFotos ? [xFoto, xDesc, xUnid, xCant, xPUnit, xImporte] : [xDesc, xUnid, xCant, xPUnit, xImporte];
+        divisiones.forEach((x) => {
           page.drawLine({ start: { x, y }, end: { x, y: y - rowH }, thickness: 0.5, color: GRAY_LINE });
         });
       }
@@ -240,8 +286,23 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
       const centroVertical = y - rowH / 2 - 3;
       const numTxt = String(i + 1).padStart(2, '0');
       centrado(page, numTxt, xPartida, colPartidaW, centroVertical, 8, font);
+      if (fotoPdf) {
+        // La foto se ajusta dentro de la celda sin deformarse, centrada.
+        const margenFoto = 4;
+        const escala = Math.min((colFotoW - margenFoto * 2) / fotoPdf.width, (rowH - margenFoto * 2) / fotoPdf.height);
+        const anchoFoto = fotoPdf.width * escala;
+        const altoFoto = fotoPdf.height * escala;
+        page.drawImage(fotoPdf, {
+          x: xFoto + (colFotoW - anchoFoto) / 2,
+          y: y - rowH + (rowH - altoFoto) / 2,
+          width: anchoFoto,
+          height: altoFoto,
+        });
+      }
+      // En filas altas por la foto, el texto se centra en la altura de la fila.
+      const desfaseTexto = (rowH - altoTexto) / 2;
       descLines.forEach((dl, li) => {
-        page.drawText(dl, { x: xDesc + 4, y: y - 11 - li * 10, size: 8, font, color: NAVY });
+        page.drawText(dl, { x: xDesc + 4, y: y - 11 - desfaseTexto - li * 10, size: 8, font, color: NAVY });
       });
       if (!esKit) {
         centrado(page, l.unidad, xUnid, colUnidW, centroVertical, 8, font);

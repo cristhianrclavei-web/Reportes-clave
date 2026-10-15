@@ -808,10 +808,19 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
         if (/generada_por_ia|notas_ia/.test(eU.message)) return JSON.stringify({ error: 'La base aún no está preparada para borradores del asistente: falta correr patch_asistente_cotizaciones.sql.' });
         return falla(eU);
       }
+      // Las fotos de los conceptos no pasan por el asistente: se conservan las
+      // de las partidas que siguen con la misma descripción.
+      const { data: anteriores } = await supabase.from('cotizacion_lineas').select('descripcion, foto').eq('cotizacion_id', c.id);
+      const fotoPorDescripcion = new Map((anteriores || []).filter((a: any) => a.foto).map((a: any) => [a.descripcion, a.foto as string]));
       const { error: eD } = await supabase.from('cotizacion_lineas').delete().eq('cotizacion_id', c.id);
       if (eD) return falla(eD);
       const { error: eI } = await supabase.from('cotizacion_lineas').insert(
-        lineas.map((l, n) => ({ cotizacion_id: c.id, orden: n, ...l, importe: Math.round(l.cantidad * l.precio_unitario * 100) / 100, enlace: normalizarEnlace(l.enlace) })),
+        lineas.map((l, n) => ({
+          cotizacion_id: c.id, orden: n, ...l,
+          importe: Math.round(l.cantidad * l.precio_unitario * 100) / 100,
+          enlace: normalizarEnlace(l.enlace),
+          ...(fotoPorDescripcion.has(l.descripcion) ? { foto: fotoPorDescripcion.get(l.descripcion) } : {}),
+        })),
       );
       if (eI) return JSON.stringify({ error: 'Se actualizó el encabezado pero no se pudieron guardar las partidas: hay que revisarla en la app', detalle: eI.message, enlace: `/dashboard/cotizaciones/${c.id}` });
       return JSON.stringify({ actualizada: true, folio: c.folio, enlace: `/dashboard/cotizaciones/${c.id}`, moneda: c.moneda, partidas: lineas.length, subtotal, iva, total });

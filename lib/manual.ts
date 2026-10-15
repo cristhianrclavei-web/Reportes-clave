@@ -314,6 +314,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
         pasos: [
           'En «Nueva cotización» agrega las partidas por grupo; el total con IVA se calcula solo.',
           'El «Nombre del proyecto» es opcional: sale como título centrado en la primera página del PDF.',
+          'Para mostrar la foto de cada concepto, activa «Mostrar fotos en el PDF» y usa «Agregar foto» en cada concepto. Los productos que eliges con «Buscar en SYSCOM» traen su foto.',
           'Descarga el PDF o compártelo. Cambia el estado conforme avance: enviada, aprobada, rechazada.',
           'Puedes copiar una cotización existente para no empezar de cero.',
         ],

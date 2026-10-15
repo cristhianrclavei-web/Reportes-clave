@@ -10,13 +10,14 @@ import { useRouter } from 'next/navigation';
 import {
   Cotizacion, LineaCotizacion, convertirMonto, LineaInput, CotizacionInput, MonedaCotizacion, PresentacionPrecios,
   crearCotizacion, actualizarCotizacion, calcularTotales, precioUnitarioDesdeCosto,
+  subirFotoConcepto, urlFotoConcepto,
 } from '@/lib/cotizaciones';
 import { generarUUID } from '@/lib/uuid';
 import { hoyLocal } from '@/lib/fechaHoy';
 import { showToast } from '@/components/Toast';
 import { useAvanceGuardado, pausaFinal } from '@/lib/useAvanceGuardado';
 import SavingOverlay from '@/components/SavingOverlay';
-import { Plus, Trash2, Search, Link2 } from 'lucide-react';
+import { Plus, Trash2, Search, Link2, ImagePlus, X } from 'lucide-react';
 import SelectorProductoSyscom from '@/components/SelectorProductoSyscom';
 import type { ProductoSyscom } from '@/lib/syscom';
 
@@ -32,7 +33,7 @@ const labelCls = 'block text-[11px] font-semibold uppercase tracking-wider text-
 const cardCls = 'glass rounded-2xl p-4';
 const cardTitleCls = 'font-display font-semibold text-[13px] uppercase tracking-wider text-teal mb-3.5 flex items-center gap-2';
 
-type ItemForm = { id: string; descripcion: string; unidad: string; cantidad: string; costo: string; margenPct: string; enlace?: string };
+type ItemForm = { id: string; descripcion: string; unidad: string; cantidad: string; costo: string; margenPct: string; enlace?: string; foto?: string };
 type GrupoForm = { id: string; sistema: string; items: ItemForm[] };
 
 function nuevoItem(): ItemForm {
@@ -75,6 +76,11 @@ export default function CotizacionForm({
 
   const c = inicial?.cotizacion;
   const [presentacionPrecios, setPresentacionPrecios] = useState<PresentacionPrecios>(c?.presentacion_precios || 'desglose');
+  const [mostrarFotos, setMostrarFotos] = useState(Boolean(c?.mostrar_fotos));
+  // Concepto cuya foto se está subiendo, y el error de la última subida
+  // (se muestra junto a ese concepto).
+  const [subiendoFotoDe, setSubiendoFotoDe] = useState<string | null>(null);
+  const [errorFoto, setErrorFoto] = useState<{ itemId: string; texto: string } | null>(null);
   const [fecha, setFecha] = useState(c?.fecha || hoyLocal());
   // Contactos del cliente elegido (sugerencias en «Atención»).
   const contactosCliente = useContactosCliente();
@@ -130,6 +136,7 @@ export default function CotizacionForm({
         costo: String(tieneMargenGuardado ? l.costo : l.precio_unitario),
         margenPct: String(tieneMargenGuardado ? l.margen_pct : 0),
         enlace: l.enlace || '',
+        foto: l.foto || '',
       });
     }
     return orden.map((s) => porSistema.get(s)!);
@@ -148,8 +155,35 @@ export default function CotizacionForm({
     actualizarItem(buscandoParaItem.grupoId, buscandoParaItem.itemId, {
       descripcion: producto.titulo,
       costo: producto.precio !== null ? String(producto.precio) : '',
+      // La imagen de SYSCOM queda como foto del concepto; se puede cambiar
+      // o quitar después. Solo se usa si la imagen es https.
+      ...(producto.imagen && /^https:\/\//i.test(producto.imagen) ? { foto: producto.imagen } : {}),
     });
     setBuscandoParaItem(null);
+  }
+
+  async function elegirFoto(grupoId: string, itemId: string, archivo: File | undefined) {
+    if (!archivo) return;
+    if (!archivo.type.startsWith('image/')) {
+      setErrorFoto({ itemId, texto: 'Ese archivo no es una imagen. Elige una foto (JPG, PNG o WEBP).' });
+      return;
+    }
+    setErrorFoto(null);
+    setSubiendoFotoDe(itemId);
+    try {
+      const ruta = await subirFotoConcepto(archivo);
+      actualizarItem(grupoId, itemId, { foto: ruta });
+    } catch (e: any) {
+      const sinRed = typeof navigator !== 'undefined' && !navigator.onLine;
+      setErrorFoto({
+        itemId,
+        texto: sinRed
+          ? 'Sin conexión: la foto no se subió. Vuelve a intentarlo cuando tengas señal.'
+          : 'No se pudo subir la foto: ' + (e?.message || 'error desconocido') + '. Intenta de nuevo.',
+      });
+    } finally {
+      setSubiendoFotoDe(null);
+    }
   }
 
   function cambiarMoneda(nueva: MonedaCotizacion) {
@@ -218,6 +252,7 @@ export default function CotizacionForm({
               margen_pct,
               precio_unitario: precioUnitarioDesdeCosto(costo, margen_pct),
               enlace: it.enlace?.trim() || null,
+              foto: it.foto || null,
             };
           })
       ),
@@ -235,18 +270,21 @@ export default function CotizacionForm({
   if (!empresa.trim()) faltantes.push({ texto: 'empresa / cliente', campo: 'empresa' });
   if (lineasValidas.length === 0) faltantes.push({ texto: 'al menos una partida con descripción', campo: 'partidas' });
   if (moneda === 'USD' && tipoCambioNum <= 0) faltantes.push({ texto: 'tipo de cambio', campo: 'moneda' });
+  if (subiendoFotoDe) faltantes.push({ texto: 'esperar a que termine de subir la foto', campo: 'partidas' });
   if (conversionPendiente) faltantes.push({ texto: 'decidir si se convierten los precios a la nueva moneda', campo: 'moneda' });
 
   // Borrador en el dispositivo: si la página se recarga o se cierra, lo
   // capturado se recupera al volver. En «editar» solo cuenta si hubo cambios.
   const datosForm = {
-    presentacionPrecios, fecha, tituloProyecto, empresa, atencion, telefono, correo, direccion, formaPago, tiempoEntrega,
+    presentacionPrecios, mostrarFotos, fecha, tituloProyecto, empresa, atencion, telefono, correo, direccion, formaPago, tiempoEntrega,
     garantia, vigenciaDias, ivaPct, moneda, tipoCambio, notas, firmanteNombre, firmanteCorreo, grupos,
   };
   const huellaInicial = useRef(JSON.stringify(datosForm));
   const datosIniciales = useRef(datosForm);
   function aplicarDatos(d: typeof datosForm) {
-    setPresentacionPrecios(d.presentacionPrecios); setFecha(d.fecha); setEmpresa(d.empresa); setAtencion(d.atencion);
+    setPresentacionPrecios(d.presentacionPrecios); setFecha(d.fecha);
+    // Los borradores guardados antes de la casilla de fotos no la traen.
+    setMostrarFotos(Boolean(d.mostrarFotos)); setEmpresa(d.empresa); setAtencion(d.atencion);
     // Los borradores guardados antes de este campo no lo traen.
     setTituloProyecto(d.tituloProyecto || '');
     setTelefono(d.telefono); setCorreo(d.correo); setDireccion(d.direccion); setFormaPago(d.formaPago);
@@ -296,6 +334,7 @@ export default function CotizacionForm({
       iva_pct: ivaPctNum,
       moneda,
       presentacion_precios: presentacionPrecios,
+      mostrar_fotos: mostrarFotos,
       tipo_cambio: tipoCambioNum,
       lineas: lineasValidas,
     };
@@ -349,6 +388,20 @@ export default function CotizacionForm({
         <p className="text-[12px] text-faint mt-1.5">
           Solo cambia cómo se ve el precio en el PDF.
         </p>
+        <label className="flex items-start gap-2.5 mt-3.5 cursor-pointer">
+          <input
+            type="checkbox"
+            className="mt-0.5 w-5 h-5 accent-teal shrink-0"
+            checked={mostrarFotos}
+            onChange={(e) => setMostrarFotos(e.target.checked)}
+          />
+          <span className="text-[14px]">
+            Mostrar fotos en el PDF
+            <span className="block text-[12px] text-faint mt-0.5">
+              Agrega una columna con la foto de cada concepto. Al activarla aparece «Agregar foto» en cada concepto; los productos de SYSCOM traen su foto.
+            </span>
+          </span>
+        </label>
       </div>
 
       <div className={cardCls}>
@@ -534,6 +587,15 @@ export default function CotizacionForm({
                       onChange={(e) => actualizarItem(g.id, it.id, { enlace: e.target.value })}
                     />
                   </div>
+                  {mostrarFotos && (
+                    <FotoConcepto
+                      foto={it.foto}
+                      subiendo={subiendoFotoDe === it.id}
+                      error={errorFoto?.itemId === it.id ? errorFoto.texto : null}
+                      onElegir={(archivo) => elegirFoto(g.id, it.id, archivo)}
+                      onQuitar={() => actualizarItem(g.id, it.id, { foto: '' })}
+                    />
+                  )}
                   <p className="text-right text-[13px] text-muted mt-2">
                     P. Unitario: <span className="font-medium text-ink">{money(precioUnitarioDesdeCosto(parseFloat(it.costo) || 0, parseFloat(it.margenPct) || 0))}</span>
                     {' · '}
@@ -727,6 +789,65 @@ export default function CotizacionForm({
           onClose={() => setBuscandoParaItem(null)}
         />
       )}
+    </div>
+  );
+}
+
+// Foto de un concepto para el PDF: miniatura con «Cambiar» / «Quitar», o el
+// botón para subir una a mano.
+function FotoConcepto({
+  foto, subiendo, error, onElegir, onQuitar,
+}: {
+  foto?: string;
+  subiendo: boolean;
+  error: string | null;
+  onElegir: (archivo: File | undefined) => void;
+  onQuitar: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const textoBoton = subiendo ? 'Subiendo foto…' : foto ? 'Cambiar foto' : 'Agregar foto';
+  return (
+    <div className="mt-2.5">
+      <label className={labelCls}>Foto del concepto · sale en el PDF</label>
+      <div className="flex items-center gap-2.5">
+        {foto && (
+          <div className="relative w-16 h-16 rounded-lg bg-white border border-line overflow-hidden shrink-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={urlFotoConcepto(foto)} alt="Foto del concepto" className="w-full h-full object-contain" />
+          </div>
+        )}
+        <button
+          type="button"
+          disabled={subiendo}
+          onClick={() => inputRef.current?.click()}
+          className="min-h-[40px] px-3 rounded-xl border border-line-strong text-teal text-[13.5px] font-medium flex items-center gap-1.5 active:scale-95 transition-transform disabled:opacity-60"
+        >
+          <ImagePlus size={16} strokeWidth={2.2} />
+          {textoBoton}
+        </button>
+        {foto && !subiendo && (
+          <button
+            type="button"
+            onClick={onQuitar}
+            aria-label="Quitar foto"
+            className="w-10 h-10 rounded-xl border border-line-strong text-red flex items-center justify-center active:scale-90 transition-transform"
+          >
+            <X size={16} strokeWidth={2.3} />
+          </button>
+        )}
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          className="hidden"
+          onChange={(e) => {
+            onElegir(e.target.files?.[0]);
+            // Permite volver a elegir el mismo archivo después de un error.
+            e.target.value = '';
+          }}
+        />
+      </div>
+      {error && <p className="text-[12.5px] text-red mt-1.5">{error}</p>}
     </div>
   );
 }

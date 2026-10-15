@@ -8,7 +8,21 @@
 // documentación de SYSCOM), así que se cachea en memoria del proceso en vez
 // de pedirlo en cada búsqueda — solo se renueva si expiró o si nunca se pidió.
 
+import { fetch as fetchUndici, ProxyAgent } from 'undici';
+
 const BASE_URL = 'https://developers.syscom.mx/api/v1';
+
+// SYSCOM solo acepta peticiones desde IPs autorizadas y Vercel no tiene IP
+// fija: si existe FIXIE_URL, las llamadas a SYSCOM (y solo esas) salen por el
+// proxy de Fixie, que sí tiene IPs fijas. El resto de la app no pasa por ahí
+// para no gastar el cupo mensual de Fixie. Sin la variable, van directo.
+let proxyFixie: ProxyAgent | null = null;
+function fetchSyscom(url: string, opciones: { method?: string; headers?: Record<string, string>; body?: URLSearchParams }) {
+  const urlProxy = process.env.FIXIE_URL;
+  if (!urlProxy) return fetchUndici(url, opciones);
+  if (!proxyFixie) proxyFixie = new ProxyAgent(urlProxy);
+  return fetchUndici(url, { ...opciones, dispatcher: proxyFixie });
+}
 
 export type ProductoSyscom = {
   id: number;
@@ -36,7 +50,7 @@ async function obtenerToken(): Promise<string> {
     throw new Error('Faltan SYSCOM_CLIENT_ID / SYSCOM_CLIENT_SECRET.');
   }
 
-  const respuesta = await fetch(`${BASE_URL}/oauth/token`, {
+  const respuesta = await fetchSyscom(`${BASE_URL}/oauth/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -48,7 +62,7 @@ async function obtenerToken(): Promise<string> {
   if (!respuesta.ok) {
     throw new Error(`SYSCOM rechazó las credenciales (HTTP ${respuesta.status}).`);
   }
-  const datos = await respuesta.json();
+  const datos: any = await respuesta.json();
   if (!datos.access_token) throw new Error('SYSCOM no devolvió un access_token.');
 
   // Se resta un margen (1 día) a la expiración real para nunca usar un token
@@ -65,7 +79,7 @@ async function llamarSyscom(ruta: string, params: Record<string, string | boolea
     if (v !== undefined && v !== '') url.searchParams.set(k, String(v));
   });
 
-  const respuesta = await fetch(url.toString(), {
+  const respuesta = await fetchSyscom(url.toString(), {
     headers: { Authorization: `Bearer ${token}` },
   });
 
@@ -75,7 +89,7 @@ async function llamarSyscom(ruta: string, params: Record<string, string | boolea
   if (!respuesta.ok) {
     throw new Error(`SYSCOM devolvió un error (HTTP ${respuesta.status}).`);
   }
-  return respuesta.json();
+  return (await respuesta.json()) as any;
 }
 
 // La API puede traer el nombre bajo "titulo" o "nombre" según el endpoint, y

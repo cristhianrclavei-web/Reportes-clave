@@ -1,5 +1,7 @@
 import { createClient } from './supabaseClient';
 import type { Avance } from './useAvanceGuardado';
+import { reducirFoto } from './reducirFoto';
+import { generarUUID } from './uuid';
 
 // Flujo: borrador -> (firma de aprobación interna) -> aprobada -> enviada.
 // "rechazada" puede pasar en cualquier punto (se descarta la cotización).
@@ -31,6 +33,9 @@ export type LineaCotizacion = {
   // De dónde salió el precio o las características (proveedor, ficha
   // técnica). Solo interno: no sale en el PDF ni en el enlace público.
   enlace?: string | null;
+  // Foto del concepto para el PDF (patch_cotizacion_fotos.sql): ruta en el
+  // bucket «cotizaciones» si se subió a mano, o enlace https de SYSCOM.
+  foto?: string | null;
 };
 
 export type Cotizacion = {
@@ -58,6 +63,9 @@ export type Cotizacion = {
   iva_pct: number;
   moneda: MonedaCotizacion;
   presentacion_precios: PresentacionPrecios;
+  // Casilla «Mostrar fotos en el PDF»: agrega una columna con la foto de cada
+  // concepto. Apagada en las cotizaciones de antes.
+  mostrar_fotos?: boolean;
   // Tipo de cambio (MXN por 1 USD) usado al armar la cotización — solo
   // aplica/se usa cuando moneda es 'USD'. Se guarda el valor de ese momento
   // para que el equivalente en pesos no cambie después si la cotización se
@@ -92,6 +100,7 @@ export type LineaInput = {
   margen_pct: number;
   precio_unitario: number;
   enlace?: string | null;
+  foto?: string | null;
 };
 
 export type CotizacionInput = {
@@ -112,6 +121,7 @@ export type CotizacionInput = {
   iva_pct: number;
   moneda: MonedaCotizacion;
   presentacion_precios: PresentacionPrecios;
+  mostrar_fotos: boolean;
   tipo_cambio: number;
   lineas: LineaInput[];
 };
@@ -144,6 +154,32 @@ export function calcularTotales(lineas: LineaInput[], ivaPct: number) {
   return { subtotal, iva, total };
 }
 
+// ---------- Fotos de los conceptos ----------
+const BUCKET_FOTOS = 'cotizaciones';
+
+// Sube la foto de un concepto y regresa su ruta en el bucket. El nombre es
+// aleatorio porque el bucket es público (el PDF del cliente se arma sin
+// sesión y tiene que poder leerla).
+// shortcut: si se sube una foto y la cotización no se guarda, el archivo se
+// queda sin usar en el bucket; limpiar huérfanas si algún día pesa.
+export async function subirFotoConcepto(archivo: File): Promise<string> {
+  const reducida = await reducirFoto(archivo);
+  const ruta = `conceptos/${Date.now()}-${generarUUID()}.jpg`;
+  const { error } = await createClient()
+    .storage.from(BUCKET_FOTOS)
+    .upload(ruta, reducida, { contentType: reducida.type || 'image/jpeg' });
+  if (error) throw error;
+  return ruta;
+}
+
+// Dirección para mostrar la foto: la de SYSCOM ya es un enlace completo; la
+// subida a mano se arma con la dirección pública del bucket.
+export function urlFotoConcepto(foto: string): string {
+  if (/^https:\/\//i.test(foto)) return foto;
+  const base = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  return `${base}/storage/v1/object/public/${BUCKET_FOTOS}/${foto}`;
+}
+
 async function siguienteFolio(supabase: ReturnType<typeof createClient>): Promise<string> {
   const { count } = await supabase.from('cotizaciones').select('id', { count: 'exact', head: true });
   return `COT-${String((count || 0) + 1).padStart(4, '0')}`;
@@ -162,6 +198,7 @@ function filasDeLineas(cotizacionId: string, lineas: LineaInput[]) {
     precio_unitario: l.precio_unitario,
     importe: redondear(l.cantidad * l.precio_unitario),
     enlace: normalizarEnlace(l.enlace),
+    foto: l.foto || null,
   }));
 }
 
@@ -192,6 +229,7 @@ function datosCotizacion(input: CotizacionInput) {
     iva_pct: input.iva_pct,
     moneda: input.moneda,
     presentacion_precios: input.presentacion_precios,
+    mostrar_fotos: input.mostrar_fotos,
     tipo_cambio: input.moneda === 'USD' ? input.tipo_cambio || 0 : 1,
     subtotal,
     iva,
