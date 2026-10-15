@@ -12,6 +12,7 @@ import {
   eliminarCotizacion, agruparPorSistema, obtenerCotizacion,
 } from '@/lib/cotizaciones';
 import { showToast } from '@/components/Toast';
+import type { FirmanteSugerido } from '@/lib/firmantesCotizacion';
 import { FileText, Pencil, Trash2, ChevronLeft, X, Check, Send, Ban, MessageCircle, ExternalLink, Copy, Sparkles, Undo2 } from 'lucide-react';
 import { MARCA, MARCA_MAYUS } from '@/lib/marca';
 
@@ -57,12 +58,14 @@ export default function CotizacionDetalle({
   userName,
   correoUsuario,
   puedeAprobar,
+  firmantes,
 }: {
   cotizacionInicial: Cotizacion;
   lineasIniciales: LineaCotizacion[];
   userName?: string;
   correoUsuario?: string;
   puedeAprobar: boolean;
+  firmantes: FirmanteSugerido[];
 }) {
   const router = useRouter();
   const [cotizacion, setCotizacion] = useState(cotizacionInicial);
@@ -222,6 +225,8 @@ export default function CotizacionDetalle({
           inicial={{ cotizacion, lineas }}
           nombreUsuario={userName}
           correoUsuario={correoUsuario}
+          firmantes={firmantes}
+          puedeAprobar={puedeAprobar}
           onGuardado={handleGuardadoEdicion}
         />
       </SupervisorShell>

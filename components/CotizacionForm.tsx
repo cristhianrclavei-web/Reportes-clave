@@ -20,6 +20,7 @@ import SavingOverlay from '@/components/SavingOverlay';
 import { Plus, Trash2, Search, Link2, ImagePlus, X } from 'lucide-react';
 import SelectorProductoSyscom from '@/components/SelectorProductoSyscom';
 import type { ProductoSyscom } from '@/lib/syscom';
+import type { FirmanteSugerido } from '@/lib/firmantesCotizacion';
 
 const SISTEMAS_SUGERIDOS = [
   'CCTV', 'Control de Acceso', 'Control de Acceso Vehicular', 'Alarma & Detección de Humo',
@@ -55,7 +56,14 @@ export default function CotizacionForm({
   correoUsuario,
   onGuardado,
   claveBorrador,
+  firmantes = [],
+  puedeAprobar = false,
 }: {
+  // Personas que aprueban cotizaciones: botones rápidos para «Atentamente».
+  firmantes?: FirmanteSugerido[];
+  // Quien no aprueba (p. ej. quien solo captura) no sale como firmante por
+  // omisión: elige a una de las personas de la lista.
+  puedeAprobar?: boolean;
   // Copia de otra cotización: borrador propio para no mezclarse con el de
   // «Nueva cotización» en blanco.
   claveBorrador?: string;
@@ -105,8 +113,9 @@ export default function CotizacionForm({
   // que están los costos capturados.
   const [conversionPendiente, setConversionPendiente] = useState<{ de: MonedaCotizacion } | null>(null);
   const [notas, setNotas] = useState(c?.notas || '');
-  const [firmanteNombre, setFirmanteNombre] = useState(c?.firmante_nombre || nombreUsuario || '');
-  const [firmanteCorreo, setFirmanteCorreo] = useState(c?.firmante_correo || correoUsuario || '');
+  const firmantePorOmision = puedeAprobar ? { nombre: nombreUsuario || '', correo: correoUsuario || '' } : { nombre: '', correo: '' };
+  const [firmanteNombre, setFirmanteNombre] = useState(c?.firmante_nombre || firmantePorOmision.nombre);
+  const [firmanteCorreo, setFirmanteCorreo] = useState(c?.firmante_correo || firmantePorOmision.correo);
 
   // Qué partida está buscando producto en SYSCOM ahora mismo (null = ninguna,
   // el buscador está cerrado). El precio de SYSCOM se guarda como "costo":
@@ -270,6 +279,7 @@ export default function CotizacionForm({
   if (!empresa.trim()) faltantes.push({ texto: 'empresa / cliente', campo: 'empresa' });
   if (lineasValidas.length === 0) faltantes.push({ texto: 'al menos una partida con descripción', campo: 'partidas' });
   if (moneda === 'USD' && tipoCambioNum <= 0) faltantes.push({ texto: 'tipo de cambio', campo: 'moneda' });
+  if (!firmanteNombre.trim()) faltantes.push({ texto: 'quién firma la cotización (Atentamente)', campo: 'firma' });
   if (subiendoFotoDe) faltantes.push({ texto: 'esperar a que termine de subir la foto', campo: 'partidas' });
   if (conversionPendiente) faltantes.push({ texto: 'decidir si se convierten los precios a la nueva moneda', campo: 'moneda' });
 
@@ -736,8 +746,27 @@ export default function CotizacionForm({
         </div>
       </div>
 
-      <div className={cardCls}>
+      <div data-campo="firma" className={`${cardCls} scroll-mt-24`}>
         <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-teal inline-block" /> Firma</p>
+        <p className="text-[12.5px] text-muted mb-2">Sale en «Atentamente» al final del PDF. Elige a quien firma o escríbelo a mano.</p>
+        {firmantes.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {firmantes.map((f) => {
+              const elegido = firmanteNombre.trim() === f.nombre && firmanteCorreo.trim() === f.correo;
+              return (
+                <button
+                  key={f.nombre}
+                  type="button"
+                  aria-pressed={elegido}
+                  onClick={() => { setFirmanteNombre(f.nombre); setFirmanteCorreo(f.correo); }}
+                  className={`min-h-[40px] px-3 rounded-xl border text-[13.5px] font-semibold active:scale-95 transition-transform ${elegido ? 'bg-teal text-inkOnAccent border-teal' : 'bg-surface-2 border-line text-ink/80'}`}
+                >
+                  {f.nombre}
+                </button>
+              );
+            })}
+          </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <div>
             <label className={labelCls}>Nombre de quien firma</label>

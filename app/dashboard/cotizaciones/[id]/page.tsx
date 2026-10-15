@@ -1,6 +1,7 @@
 import { redirect, notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabaseServer';
 import CotizacionDetalle from './CotizacionDetalle';
+import { cargarFirmantesCotizacion } from '@/lib/firmantesCotizacion';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -19,9 +20,10 @@ export default async function CotizacionDetallePage(props: { params: Promise<{ i
 
   const { data: myProfile } = await supabase.from('profiles').select('full_name, can_approve_cotizacion').eq('id', user.id).single();
 
-  const [{ data: cotizacion, error: e1 }, { data: lineas }] = await Promise.all([
+  const [{ data: cotizacion, error: e1 }, { data: lineas }, firmantes] = await Promise.all([
     supabase.from('cotizaciones').select('*, profiles!cotizaciones_created_by_profiles_fkey(full_name)').eq('id', params.id).single(),
     supabase.from('cotizacion_lineas').select('*').eq('cotizacion_id', params.id).order('orden'),
+    cargarFirmantesCotizacion(supabase),
   ]);
 
   if (e1 || !cotizacion) notFound();
@@ -33,6 +35,7 @@ export default async function CotizacionDetallePage(props: { params: Promise<{ i
       userName={myProfile?.full_name || user.email || ''}
       correoUsuario={user.email || ''}
       puedeAprobar={Boolean(myProfile?.can_approve_cotizacion)}
+      firmantes={firmantes}
     />
   );
 }

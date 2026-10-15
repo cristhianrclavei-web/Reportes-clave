@@ -9,6 +9,7 @@ import TablaLista, { ColumnaTabla } from '@/components/TablaLista';
 import EmptyIllustration from '@/components/EmptyIllustration';
 import CotizacionForm from '@/components/CotizacionForm';
 import { VistaCondicional } from '@/lib/vistaSupervisor';
+import type { FirmanteSugerido } from '@/lib/firmantesCotizacion';
 import { Cotizacion, EstadoCotizacion, LineaCotizacion, obtenerCotizacion, copiaParaOtroCliente, actualizarEstadoCotizacion } from '@/lib/cotizaciones';
 import TableroKanban, { ColumnaKanban, InterruptorTablero, useVistaTablero } from '@/components/TableroKanban';
 import { useRouter } from 'next/navigation';
@@ -70,11 +71,15 @@ export default function CotizacionesList({
   userName,
   correoUsuario,
   errorCarga,
+  firmantes,
+  puedeAprobar,
 }: {
   cotizaciones: Cotizacion[];
   userName?: string;
   correoUsuario?: string;
   errorCarga?: string | null;
+  firmantes: FirmanteSugerido[];
+  puedeAprobar: boolean;
 }) {
   // Mismo patrón que Servicios (Agendar/Agendados): armar y consultar son
   // dos tareas distintas, separarlas en pestañas evita que el formulario y
@@ -89,7 +94,10 @@ export default function CotizacionesList({
     setCargandoCopia(true);
     try {
       const origen = await obtenerCotizacion(id);
-      setCopia({ origen: origen.cotizacion, datos: copiaParaOtroCliente(origen, hoyLocal(), { nombre: userName, correo: correoUsuario }) });
+      // Quien no aprueba cotizaciones no sale en «Atentamente»: la copia
+      // conserva el firmante de la original.
+      const firmante = puedeAprobar ? { nombre: userName, correo: correoUsuario } : undefined;
+      setCopia({ origen: origen.cotizacion, datos: copiaParaOtroCliente(origen, hoyLocal(), firmante) });
       setSeccion('nueva');
       setEligiendoCopia(false);
       window.scrollTo({ top: 0 });
@@ -220,6 +228,8 @@ export default function CotizacionesList({
             claveBorrador={copia ? `cotizacion:copia:${copia.origen.id}` : undefined}
             nombreUsuario={userName}
             correoUsuario={correoUsuario}
+            firmantes={firmantes}
+            puedeAprobar={puedeAprobar}
           />
         </>
       )}
