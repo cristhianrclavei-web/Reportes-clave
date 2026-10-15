@@ -316,6 +316,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
           'El «Nombre del proyecto» es opcional: sale como título centrado en la primera página del PDF.',
           'Para mostrar la foto de cada concepto, activa «Mostrar fotos en el PDF» y usa «Agregar foto» en cada concepto. Los productos que eliges con «Buscar en SYSCOM» traen su foto.',
           'Descarga el PDF o compártelo. Cambia el estado conforme avance: enviada, aprobada, rechazada.',
+          'Si aprobaste una cotización y falta corregir algo, usa «Quitar aprobación para corregir»: vuelve a borrador para editarla y luego la firmas otra vez.',
           'Puedes copiar una cotización existente para no empezar de cero.',
         ],
       },

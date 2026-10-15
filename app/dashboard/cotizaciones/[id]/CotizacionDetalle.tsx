@@ -8,11 +8,11 @@ import CotizacionForm from '@/components/CotizacionForm';
 import SignaturePad, { SignaturePadHandle } from '@/components/SignaturePad';
 import {
   Cotizacion, LineaCotizacion, EstadoCotizacion,
-  aprobarCotizacion, marcarEnviada, puedeMarcarEnviada, actualizarEstadoCotizacion,
+  aprobarCotizacion, quitarAprobacionCotizacion, marcarEnviada, puedeMarcarEnviada, actualizarEstadoCotizacion,
   eliminarCotizacion, agruparPorSistema, obtenerCotizacion,
 } from '@/lib/cotizaciones';
 import { showToast } from '@/components/Toast';
-import { FileText, Pencil, Trash2, ChevronLeft, X, Check, Send, Ban, MessageCircle, ExternalLink, Copy, Sparkles } from 'lucide-react';
+import { FileText, Pencil, Trash2, ChevronLeft, X, Check, Send, Ban, MessageCircle, ExternalLink, Copy, Sparkles, Undo2 } from 'lucide-react';
 import { MARCA, MARCA_MAYUS } from '@/lib/marca';
 
 // WhatsApp necesita el código de país adelante — los teléfonos se capturan
@@ -116,6 +116,30 @@ export default function CotizacionDetalle({
       showToast('Marcada como enviada', 'success');
     } catch (e: any) {
       alert('No se pudo actualizar: ' + (e?.message || 'error'));
+    } finally {
+      setProcesandoAccion(false);
+    }
+  }
+
+  async function handleQuitarAprobacion() {
+    let aviso = '¿Quitar la aprobación para corregir la cotización? Vuelve a borrador y habrá que firmarla otra vez.';
+    if (cotizacion.estado === 'enviada') {
+      aviso += ' El enlace que ya mandaste al cliente dejará de abrir hasta que la vuelvas a aprobar.';
+    }
+    if (!confirm(aviso)) return;
+    setProcesandoAccion(true);
+    try {
+      await quitarAprobacionCotizacion(cotizacion.id);
+      setCotizacion((prev) => ({
+        ...prev,
+        estado: 'borrador',
+        aprobada_por: null,
+        aprobada_firma: null,
+        aprobada_en: null,
+      }));
+      showToast('Aprobación quitada: ya puedes editarla', 'success');
+    } catch (e: any) {
+      alert('No se pudo quitar la aprobación: ' + (e?.message || 'revisa tu conexión e intenta de nuevo.'));
     } finally {
       setProcesandoAccion(false);
     }
@@ -502,6 +526,19 @@ export default function CotizacionDetalle({
         >
           <Pencil size={16} strokeWidth={2.3} />
           Editar
+        </button>
+      )}
+
+      {/* Si se aprobó con errores, quien puede aprobar la regresa a borrador
+          para corregirla; la firma se borra y hay que volver a revisarla. */}
+      {cotizacion.aprobada_firma && puedeAprobar && (
+        <button
+          onClick={handleQuitarAprobacion}
+          disabled={procesandoAccion}
+          className="w-full min-h-[48px] mb-3 rounded-xl border border-line-strong text-ink/80 font-semibold text-[14.5px] flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
+        >
+          <Undo2 size={16} strokeWidth={2.3} />
+          Quitar aprobación para corregir
         </button>
       )}
 

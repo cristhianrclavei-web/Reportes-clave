@@ -314,6 +314,23 @@ export async function aprobarCotizacion(id: string, nombre: string, firmaDataUrl
   if (error) throw error;
 }
 
+// Deshace la aprobación para corregir algo que se pasó: vuelve a borrador y
+// borra la firma, así hay que revisarla y firmarla otra vez antes de enviarla.
+export async function quitarAprobacionCotizacion(id: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from('cotizaciones')
+    .update({
+      estado: 'borrador',
+      aprobada_por: null,
+      aprobada_firma: null,
+      aprobada_en: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id);
+  if (error) throw error;
+}
+
 // Solo se puede marcar como enviada una cotización ya aprobada (firmada) —
 // mandarla sin que nadie la haya revisado sería justo lo que se quiere
 // evitar con este paso.
