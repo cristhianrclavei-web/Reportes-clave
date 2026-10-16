@@ -19,7 +19,8 @@ import { useAvanceGuardado, pausaFinal } from '@/lib/useAvanceGuardado';
 import SavingOverlay from '@/components/SavingOverlay';
 import { Plus, Trash2, Search, Link2, ImagePlus, X, GripVertical, ArrowUp, ArrowDown } from 'lucide-react';
 import { moverElemento } from '@/lib/moverElemento';
-import { Reorder, useDragControls } from 'motion/react';
+import { motion } from 'motion/react';
+import { useArrastreLista } from '@/lib/useArrastreLista';
 import SelectorProductoSyscom from '@/components/SelectorProductoSyscom';
 import type { ProductoSyscom } from '@/lib/syscom';
 import type { FirmanteSugerido } from '@/lib/firmantesCotizacion';
@@ -238,7 +239,7 @@ export default function CotizacionForm({
   // Mueve una partida a otro lugar dentro de su sistema (menú «Partida N» o
   // flechas); las demás se recorren. Reorder anima el deslizamiento y luego
   // se acompaña a la partida con la vista para no perderla.
-  function moverItem(grupoId: string, itemId: string, hasta: number) {
+  function moverItem(grupoId: string, itemId: string, hasta: number, seguirConLaVista = true) {
     setGrupos((prev) =>
       prev.map((g) => {
         if (g.id !== grupoId) return g;
@@ -246,10 +247,13 @@ export default function CotizacionForm({
         return { ...g, items: moverElemento(g.items, desde, hasta) };
       })
     );
+    if (!seguirConLaVista) return;
     setTimeout(() => {
       document.querySelector(`[data-concepto="${itemId}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 450);
   }
+  // Al arrastrar no se mueve la vista por su cuenta: la controla el dedo.
+  const arrastre = useArrastreLista((grupoId, itemId, hasta) => moverItem(grupoId, itemId, hasta, false));
   function agregarGrupo() {
     setGrupos((prev) => [...prev, nuevoGrupo()]);
   }
@@ -543,23 +547,23 @@ export default function CotizacionForm({
                 Cambia el orden arrastrando desde ⠿, eligiendo otro número en «Partida» o con las flechas; las demás se recorren solas.
               </p>
             )}
-            <Reorder.Group
-              as="div"
-              axis="y"
-              values={g.items}
-              onReorder={(nuevoOrden) => actualizarGrupo(g.id, { items: nuevoOrden })}
-              className="flex flex-col gap-3"
-            >
+            <div data-grupo={g.id} className="flex flex-col gap-3">
               {g.items.map((it, ii) => (
-                <ConceptoArrastrable key={it.id} item={it}>
-                  {(iniciarArrastre) => (
-                <div data-concepto={it.id} className="rounded-xl bg-surface-2 border border-line-strong border-l-4 border-l-teal overflow-hidden">
+                // layout: al cambiar de lugar (arrastre, menú o flechas) el
+                // bloque se desliza a su nueva posición en vez de saltar.
+                <motion.div key={it.id} layout transition={{ duration: 0.28, ease: 'easeOut' }} className="relative">
+                <div
+                  data-concepto={it.id}
+                  className={`rounded-xl bg-surface-2 border border-line-strong border-l-4 border-l-teal overflow-hidden transition-shadow ${
+                    arrastre.arrastrando === it.id ? 'ring-2 ring-teal shadow-[0_12px_32px_rgba(0,0,0,0.35)]' : ''
+                  }`}
+                >
                   <div className="flex items-center gap-2 px-2 py-1.5 bg-teal/10 border-b border-line">
                     {g.items.length > 1 ? (
                       <>
                         <button
                           type="button"
-                          onPointerDown={iniciarArrastre}
+                          onPointerDown={(e) => arrastre.iniciar(e, g.id, it.id)}
                           aria-label={`Arrastra la partida ${ii + 1} para moverla`}
                           title="Arrastra para cambiar el orden"
                           style={{ touchAction: 'none' }}
@@ -710,10 +714,9 @@ export default function CotizacionForm({
                   </p>
                   </div>
                 </div>
-                  )}
-                </ConceptoArrastrable>
+                </motion.div>
               ))}
-            </Reorder.Group>
+            </div>
 
             <button
               onClick={() => agregarItem(g.id)}
@@ -1063,30 +1066,5 @@ function SelectorIva({
         </p>
       )}
     </div>
-  );
-}
-
-// Un concepto que se reordena arrastrando solo desde su agarradera (la
-// franja «Partida»): arrastrar desde cualquier lado chocaría con el scroll
-// y con escribir en los campos. Motion hace scroll solo cerca del borde.
-function ConceptoArrastrable({
-  item,
-  children,
-}: {
-  item: ItemForm;
-  children: (iniciarArrastre: (e: React.PointerEvent) => void) => React.ReactNode;
-}) {
-  const controles = useDragControls();
-  return (
-    <Reorder.Item
-      as="div"
-      value={item}
-      dragListener={false}
-      dragControls={controles}
-      whileDrag={{ scale: 1.02, boxShadow: '0 12px 32px rgba(0,0,0,0.35)', zIndex: 20 }}
-      className="relative rounded-xl"
-    >
-      {children((e) => controles.start(e))}
-    </Reorder.Item>
   );
 }
