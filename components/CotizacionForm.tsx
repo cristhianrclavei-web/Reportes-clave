@@ -9,7 +9,7 @@ import AvisoBorrador from '@/components/AvisoBorrador';
 import { useRouter } from 'next/navigation';
 import {
   Cotizacion, LineaCotizacion, convertirMonto, LineaInput, CotizacionInput, MonedaCotizacion, PresentacionPrecios,
-  crearCotizacion, actualizarCotizacion, calcularTotales, precioUnitarioDesdeCosto,
+  crearCotizacion, actualizarCotizacion, calcularTotales, precioUnitarioDesdeCosto, modoIvaDe, type ModoIva,
   subirFotoConcepto, urlFotoConcepto,
 } from '@/lib/cotizaciones';
 import { generarUUID } from '@/lib/uuid';
@@ -270,6 +270,18 @@ export default function CotizacionForm({
   );
 
   const ivaPctNum = parseFloat(ivaPct) || 0;
+  const modoIva = modoIvaDe({ iva_pct: ivaPctNum, iva_incluido: ivaIncluido });
+
+  // «Sin IVA» se guarda como tasa 0; al volver a sumar o incluir IVA se
+  // regresa al 16% para que nunca quede un «IVA (0%)» por descuido.
+  function elegirModoIva(modo: ModoIva) {
+    setIvaIncluido(modo === 'incluido');
+    if (modo === 'sin') {
+      setIvaPct('0');
+    } else if (!(ivaPctNum > 0)) {
+      setIvaPct('16');
+    }
+  }
   const totales = useMemo(() => calcularTotales(lineasValidas, ivaPctNum, ivaIncluido), [lineasValidas, ivaPctNum, ivaIncluido]);
   const tipoCambioNum = parseFloat(tipoCambio) || 0;
 
@@ -662,34 +674,13 @@ export default function CotizacionForm({
               <label className={labelCls}>Vigencia (días)</label>
               <input type="number" className={inputCls} value={vigenciaDias} onChange={(e) => setVigenciaDias(e.target.value)} />
             </div>
-            <div>
-              <label className={labelCls}>IVA (%)</label>
-              <input type="number" className={inputCls} value={ivaPct} onChange={(e) => setIvaPct(e.target.value)} />
-            </div>
           </div>
-          <div>
-            <label className={labelCls}>IVA</label>
-            <div className="flex gap-1 p-1 rounded-xl bg-surface-2 border border-line w-fit">
-              {([false, true] as const).map((incluido) => (
-                <button
-                  key={String(incluido)}
-                  type="button"
-                  aria-pressed={ivaIncluido === incluido}
-                  onClick={() => setIvaIncluido(incluido)}
-                  className={`px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-colors ${
-                    ivaIncluido === incluido ? 'bg-teal text-inkOnAccent' : 'text-muted'
-                  }`}
-                >
-                  {incluido ? 'Precios con IVA incluido' : 'Sumar IVA'}
-                </button>
-              ))}
-            </div>
-            <p className="text-[12.5px] text-muted mt-1.5">
-              {ivaIncluido
-                ? `Los precios de los conceptos ya traen el ${ivaPctNum}% de IVA: el total no le suma nada y el PDF dice «IVA incluido».`
-                : `Al total se le suma el ${ivaPctNum}% de IVA y el PDF dice «más IVA».`}
-            </p>
-          </div>
+          <SelectorIva
+            modo={modoIva}
+            tasa={ivaPctNum}
+            onModo={elegirModoIva}
+            onTasa={(t) => setIvaPct(String(t))}
+          />
           <div data-campo="moneda" className={`scroll-mt-24 ${moneda === 'USD' ? 'grid grid-cols-2 gap-3.5' : ''}`}>
             <div>
               <label className={labelCls}>Moneda</label>
@@ -805,16 +796,23 @@ export default function CotizacionForm({
       </div>
 
       <div className={cardCls}>
-        {!ivaIncluido && (
+        {modoIva === 'sumar' && (
           <div className="flex justify-between text-[14px] mb-1">
             <span className="text-muted">Subtotal</span>
             <span className="font-medium">{moneda === 'USD' ? 'USD ' : ''}{money(totales.subtotal)}</span>
           </div>
         )}
-        <div className="flex justify-between text-[14px] mb-1">
-          <span className="text-muted">{ivaIncluido ? 'IVA incluido' : 'IVA'} ({ivaPctNum}%)</span>
-          <span className="font-medium">{moneda === 'USD' ? 'USD ' : ''}{money(totales.iva)}</span>
-        </div>
+        {modoIva === 'sin' ? (
+          <div className="flex justify-between text-[14px] mb-1">
+            <span className="text-muted">IVA</span>
+            <span className="font-medium">No lleva</span>
+          </div>
+        ) : (
+          <div className="flex justify-between text-[14px] mb-1">
+            <span className="text-muted">{modoIva === 'incluido' ? 'IVA incluido' : 'IVA'} ({ivaPctNum}%)</span>
+            <span className="font-medium">{moneda === 'USD' ? 'USD ' : ''}{money(totales.iva)}</span>
+          </div>
+        )}
         <div className="flex justify-between text-[19px] pt-2 border-t border-line-strong">
           <span className="font-display font-bold">Total</span>
           <span className="font-display font-bold text-teal">{moneda === 'USD' ? 'USD ' : ''}{money(totales.total)}</span>
@@ -904,6 +902,82 @@ function FotoConcepto({
         />
       </div>
       {error && <p className="text-[12.5px] text-red mt-1.5">{error}</p>}
+    </div>
+  );
+}
+
+// Cómo se maneja el IVA: tres opciones a la vista (no un número libre) para
+// que nadie deje «IVA 0%» por accidente. Cada opción dice qué verá el cliente.
+const OPCIONES_IVA: { modo: ModoIva; titulo: string; detalle: string; enPdf: string }[] = [
+  { modo: 'sumar', titulo: 'Sumar IVA al total', detalle: 'Los precios van sin IVA; se agrega al final.', enPdf: '«más IVA» · Subtotal + IVA = Total' },
+  { modo: 'incluido', titulo: 'Los precios ya incluyen IVA', detalle: 'El IVA ya va dentro de cada precio; el total no cambia.', enPdf: '«con IVA incluido» · IVA incluido + Total' },
+  { modo: 'sin', titulo: 'No lleva IVA', detalle: 'No se cobra IVA en esta cotización.', enPdf: '«no lleva IVA» · solo Total' },
+];
+
+function SelectorIva({
+  modo,
+  tasa,
+  onModo,
+  onTasa,
+}: {
+  modo: ModoIva;
+  tasa: number;
+  onModo: (m: ModoIva) => void;
+  onTasa: (t: number) => void;
+}) {
+  // 16% general y 8% de la región fronteriza; si una cotización vieja trae
+  // otra tasa, se conserva en la lista para no cambiarla sin querer.
+  const tasas = [16, 8];
+  if (tasa > 0 && !tasas.includes(tasa)) tasas.push(tasa);
+
+  return (
+    <div role="radiogroup" aria-label="IVA">
+      <p className={labelCls}>IVA</p>
+      <div className="grid gap-2">
+        {OPCIONES_IVA.map((op) => {
+          const elegido = modo === op.modo;
+          return (
+            <button
+              key={op.modo}
+              type="button"
+              role="radio"
+              aria-checked={elegido}
+              onClick={() => onModo(op.modo)}
+              className={`text-left rounded-xl border px-3.5 py-2.5 transition-colors ${
+                elegido ? 'border-teal bg-teal/10' : 'border-line bg-surface-2'
+              }`}
+            >
+              <span className="flex items-center gap-2.5">
+                <span className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${elegido ? 'border-teal' : 'border-line-strong'}`}>
+                  {elegido && <span className="w-2 h-2 rounded-full bg-teal" />}
+                </span>
+                <span className="font-semibold text-[14px]">{op.titulo}</span>
+              </span>
+              <span className="block text-[12.5px] text-muted mt-0.5 ml-[26px]">{op.detalle}</span>
+              <span className="block text-[12px] text-faint mt-0.5 ml-[26px]">En el PDF: {op.enPdf}</span>
+            </button>
+          );
+        })}
+      </div>
+      {modo !== 'sin' && (
+        <div className="flex items-center gap-2 mt-2.5">
+          <span className="text-[13px] text-muted">Tasa de IVA</span>
+          <select
+            className="min-h-[38px] px-2.5 rounded-lg bg-surface-2 border border-line text-[13.5px] font-semibold"
+            value={tasa}
+            onChange={(e) => onTasa(Number(e.target.value))}
+          >
+            {tasas.map((t) => (
+              <option key={t} value={t}>{t === 8 ? '8% (región fronteriza)' : `${t}%`}</option>
+            ))}
+          </select>
+        </div>
+      )}
+      {modo === 'sin' && (
+        <p className="text-[12.5px] text-amber mt-2">
+          Revisa que de verdad no se cobre IVA: el cliente verá que esta cotización no lleva IVA.
+        </p>
+      )}
     </div>
   );
 }

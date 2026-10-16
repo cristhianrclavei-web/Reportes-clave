@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calcularTotales } from './cotizaciones';
+import { calcularTotales, leyendaIva, modoIvaDe } from './cotizaciones';
 
 const lineas = [
   { cantidad: 2, precio_unitario: 580 },
@@ -19,5 +19,19 @@ describe('calcularTotales', () => {
     const t = calcularTotales([{ cantidad: 1, precio_unitario: 494.5 }] as any, 16, true);
     expect(t.total).toBe(494.5);
     expect(Math.round((t.subtotal + t.iva) * 100) / 100).toBe(494.5);
+  });
+});
+
+describe('modoIvaDe y leyendaIva', () => {
+  it('tasa 0 es «no lleva IVA» aunque diga incluido', () => {
+    expect(modoIvaDe({ iva_pct: 0, iva_incluido: true })).toBe('sin');
+    expect(modoIvaDe({ iva_pct: 16, iva_incluido: true })).toBe('incluido');
+    expect(modoIvaDe({ iva_pct: 16 })).toBe('sumar');
+  });
+
+  it('la leyenda del PDF dice claramente cómo va el IVA', () => {
+    expect(leyendaIva('MXN', 'sumar')).toBe('Los precios se expresan en Moneda Nacional, más IVA.');
+    expect(leyendaIva('MXN', 'incluido')).toContain('con IVA incluido');
+    expect(leyendaIva('USD', 'sin')).toBe('Los precios se expresan en Dólares Americanos (USD). Esta cotización no lleva IVA.');
   });
 });

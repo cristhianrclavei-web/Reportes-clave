@@ -315,7 +315,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
           'En «Nueva cotización» agrega las partidas por grupo; el total con IVA se calcula solo.',
           'El «Nombre del proyecto» es opcional: sale como título centrado en la primera página del PDF.',
           'Para mostrar la foto de cada concepto, activa «Mostrar fotos en el PDF» y usa «Agregar foto» en cada concepto. Los productos que eliges con «Buscar en SYSCOM» traen su foto.',
-          'En «IVA» elige «Sumar IVA» (el total le agrega el IVA y el PDF dice «más IVA») o «Precios con IVA incluido» (los precios ya lo traen: el total no cambia y el PDF dice «IVA incluido» con el monto que ya va dentro).',
+          'En «IVA» elige una de tres opciones: «Sumar IVA al total» (el PDF dice «más IVA»), «Los precios ya incluyen IVA» (el total no cambia y el PDF dice «con IVA incluido») o «No lleva IVA» (solo sale el total). La tasa es 16% u 8% para la región fronteriza.',
           'En «Firma» elige quién sale en «Atentamente» del PDF (las personas que aprueban cotizaciones); el nombre y el correo se pueden escribir a mano.',
           'Descarga el PDF o compártelo. Cambia el estado conforme avance: enviada, aprobada, rechazada.',
           'Si aprobaste una cotización y falta corregir algo, usa «Quitar aprobación para corregir»: vuelve a borrador para editarla y luego la firmas otra vez.',

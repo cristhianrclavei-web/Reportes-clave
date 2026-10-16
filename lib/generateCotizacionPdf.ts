@@ -5,7 +5,7 @@ import {
   MARGIN, PAGE_W, PAGE_H,
   embedBrandFonts, drawBadge, drawWordmark, drawIconStrip, drawWatermark,
 } from './pdfBranding';
-import { Cotizacion, LineaCotizacion, agruparPorSistema, urlFotoConcepto } from './cotizaciones';
+import { Cotizacion, LineaCotizacion, agruparPorSistema, leyendaIva, modoIvaDe, urlFotoConcepto } from './cotizaciones';
 import { MARCA, MARCA_MAYUS } from './marca';
 
 // Mismo formato que las cotizaciones que ya se le mandan a los clientes
@@ -347,16 +347,23 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
   ensureSpace(60);
   // Con IVA incluido no se muestra subtotal: la suma de los conceptos ya es
   // el total, y un subtotal menor que esa suma confundiría al cliente.
-  const totales: [string, number][] = cot.iva_incluido
-    ? [
-        [`IVA INCLUIDO (${cot.iva_pct}%)`, cot.iva],
-        ['TOTAL', cot.total],
-      ]
-    : [
-        ['SUBTOTAL', cot.subtotal],
-        [`IVA (${cot.iva_pct}%)`, cot.iva],
-        ['TOTAL', cot.total],
-      ];
+  // Sin IVA solo va el TOTAL: una línea «IVA (0%) $0.00» se presta a dudas.
+  const modoIva = modoIvaDe(cot);
+  let totales: [string, number][];
+  if (modoIva === 'sin') {
+    totales = [['TOTAL', cot.total]];
+  } else if (modoIva === 'incluido') {
+    totales = [
+      [`IVA INCLUIDO (${cot.iva_pct}%)`, cot.iva],
+      ['TOTAL', cot.total],
+    ];
+  } else {
+    totales = [
+      ['SUBTOTAL', cot.subtotal],
+      [`IVA (${cot.iva_pct}%)`, cot.iva],
+      ['TOTAL', cot.total],
+    ];
+  }
   for (const [label, val] of totales) {
     // Solo el TOTAL lleva la divisa; subtotal e IVA van como los demás precios.
     const vt = label === 'TOTAL' ? money(val, cot.moneda) : moneySinDivisa(val);
@@ -369,11 +376,8 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
     y -= 16;
   }
 
-  const nombreMoneda = cot.moneda === 'USD' ? 'Dólares Americanos (USD)' : 'Moneda Nacional';
   const condiciones = [
-    cot.iva_incluido
-      ? `Los precios se expresan en ${nombreMoneda}, con IVA incluido.`
-      : `Los precios se expresan en ${nombreMoneda}, más IVA.`,
+    leyendaIva(cot.moneda, modoIva),
     `Forma de Pago: ${cot.forma_pago}`,
     'Esta cotización ampara unicamente lo descrito anteriormente.',
     `Tiempo de Entrega: ${cot.tiempo_entrega}`,

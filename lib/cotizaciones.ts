@@ -150,6 +150,24 @@ export function convertirMonto(monto: number, de: MonedaCotizacion, a: MonedaCot
   return redondear(de === 'USD' ? monto * tipoCambio : monto / tipoCambio);
 }
 
+// Las tres formas de manejar el IVA que el usuario elige en el formulario.
+// No hay columna propia: sale de iva_incluido + iva_pct (0 = no lleva IVA).
+export type ModoIva = 'sumar' | 'incluido' | 'sin';
+
+export function modoIvaDe(cot: { iva_pct: number; iva_incluido?: boolean }): ModoIva {
+  if (!(Number(cot.iva_pct) > 0)) return 'sin';
+  return cot.iva_incluido ? 'incluido' : 'sumar';
+}
+
+// Primera condición comercial del PDF: le dice al cliente, sin ambigüedad,
+// si el IVA va aparte, ya está dentro o no se cobra.
+export function leyendaIva(moneda: MonedaCotizacion, modo: ModoIva): string {
+  const nombreMoneda = moneda === 'USD' ? 'Dólares Americanos (USD)' : 'Moneda Nacional';
+  if (modo === 'incluido') return `Los precios se expresan en ${nombreMoneda}, con IVA incluido.`;
+  if (modo === 'sin') return `Los precios se expresan en ${nombreMoneda}. Esta cotización no lleva IVA.`;
+  return `Los precios se expresan en ${nombreMoneda}, más IVA.`;
+}
+
 // Con IVA incluido, la suma de los conceptos ya es el total: el IVA se saca
 // de adentro (total / 1.16) solo para informarlo, no se agrega.
 export function calcularTotales(lineas: LineaInput[], ivaPct: number, ivaIncluido = false) {

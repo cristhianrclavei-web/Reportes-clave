@@ -8,7 +8,7 @@ import CotizacionForm from '@/components/CotizacionForm';
 import SignaturePad, { SignaturePadHandle } from '@/components/SignaturePad';
 import {
   Cotizacion, LineaCotizacion, EstadoCotizacion,
-  aprobarCotizacion, quitarAprobacionCotizacion, marcarEnviada, puedeMarcarEnviada, actualizarEstadoCotizacion,
+  aprobarCotizacion, quitarAprobacionCotizacion, modoIvaDe, marcarEnviada, puedeMarcarEnviada, actualizarEstadoCotizacion,
   eliminarCotizacion, agruparPorSistema, obtenerCotizacion,
 } from '@/lib/cotizaciones';
 import { showToast } from '@/components/Toast';
@@ -71,6 +71,7 @@ export default function CotizacionDetalle({
   const [cotizacion, setCotizacion] = useState(cotizacionInicial);
   const [lineas, setLineas] = useState(lineasIniciales);
   const [editando, setEditando] = useState(false);
+  const modoIva = modoIvaDe(cotizacion);
   const [eliminando, setEliminando] = useState(false);
 
   const [mostrandoFirma, setMostrandoFirma] = useState(false);
@@ -357,16 +358,23 @@ export default function CotizacionDetalle({
       })}
 
       <div className={`${cardCls} mb-4`}>
-        {!cotizacion.iva_incluido && (
+        {modoIva === 'sumar' && (
           <div className="flex justify-between text-[14px] mb-1">
             <span className="text-muted">Subtotal</span>
             <span className="font-medium">{cotizacion.moneda === 'USD' ? 'USD ' : ''}{money(cotizacion.subtotal)}</span>
           </div>
         )}
-        <div className="flex justify-between text-[14px] mb-1">
-          <span className="text-muted">{cotizacion.iva_incluido ? 'IVA incluido' : 'IVA'} ({cotizacion.iva_pct}%)</span>
-          <span className="font-medium">{cotizacion.moneda === 'USD' ? 'USD ' : ''}{money(cotizacion.iva)}</span>
-        </div>
+        {modoIva === 'sin' ? (
+          <div className="flex justify-between text-[14px] mb-1">
+            <span className="text-muted">IVA</span>
+            <span className="font-medium">No lleva</span>
+          </div>
+        ) : (
+          <div className="flex justify-between text-[14px] mb-1">
+            <span className="text-muted">{modoIva === 'incluido' ? 'IVA incluido' : 'IVA'} ({cotizacion.iva_pct}%)</span>
+            <span className="font-medium">{cotizacion.moneda === 'USD' ? 'USD ' : ''}{money(cotizacion.iva)}</span>
+          </div>
+        )}
         <div className="flex justify-between text-[19px] pt-2 border-t border-line-strong">
           <span className="font-display font-bold">Total</span>
           <span className="font-display font-bold text-teal">{cotizacion.moneda === 'USD' ? 'USD ' : ''}{money(cotizacion.total)}</span>
