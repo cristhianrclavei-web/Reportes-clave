@@ -85,6 +85,7 @@ export default function CotizacionForm({
   const c = inicial?.cotizacion;
   const [presentacionPrecios, setPresentacionPrecios] = useState<PresentacionPrecios>(c?.presentacion_precios || 'desglose');
   const [mostrarFotos, setMostrarFotos] = useState(Boolean(c?.mostrar_fotos));
+  const [ivaIncluido, setIvaIncluido] = useState(Boolean(c?.iva_incluido));
   // Concepto cuya foto se está subiendo, y el error de la última subida
   // (se muestra junto a ese concepto).
   const [subiendoFotoDe, setSubiendoFotoDe] = useState<string | null>(null);
@@ -269,7 +270,7 @@ export default function CotizacionForm({
   );
 
   const ivaPctNum = parseFloat(ivaPct) || 0;
-  const totales = useMemo(() => calcularTotales(lineasValidas, ivaPctNum), [lineasValidas, ivaPctNum]);
+  const totales = useMemo(() => calcularTotales(lineasValidas, ivaPctNum, ivaIncluido), [lineasValidas, ivaPctNum, ivaIncluido]);
   const tipoCambioNum = parseFloat(tipoCambio) || 0;
 
   // Cada faltante apunta a su campo (data-campo) para llevar la vista ahí.
@@ -286,7 +287,7 @@ export default function CotizacionForm({
   // Borrador en el dispositivo: si la página se recarga o se cierra, lo
   // capturado se recupera al volver. En «editar» solo cuenta si hubo cambios.
   const datosForm = {
-    presentacionPrecios, mostrarFotos, fecha, tituloProyecto, empresa, atencion, telefono, correo, direccion, formaPago, tiempoEntrega,
+    presentacionPrecios, mostrarFotos, ivaIncluido, fecha, tituloProyecto, empresa, atencion, telefono, correo, direccion, formaPago, tiempoEntrega,
     garantia, vigenciaDias, ivaPct, moneda, tipoCambio, notas, firmanteNombre, firmanteCorreo, grupos,
   };
   const huellaInicial = useRef(JSON.stringify(datosForm));
@@ -294,7 +295,7 @@ export default function CotizacionForm({
   function aplicarDatos(d: typeof datosForm) {
     setPresentacionPrecios(d.presentacionPrecios); setFecha(d.fecha);
     // Los borradores guardados antes de la casilla de fotos no la traen.
-    setMostrarFotos(Boolean(d.mostrarFotos)); setEmpresa(d.empresa); setAtencion(d.atencion);
+    setMostrarFotos(Boolean(d.mostrarFotos)); setIvaIncluido(Boolean(d.ivaIncluido)); setEmpresa(d.empresa); setAtencion(d.atencion);
     // Los borradores guardados antes de este campo no lo traen.
     setTituloProyecto(d.tituloProyecto || '');
     setTelefono(d.telefono); setCorreo(d.correo); setDireccion(d.direccion); setFormaPago(d.formaPago);
@@ -345,6 +346,7 @@ export default function CotizacionForm({
       moneda,
       presentacion_precios: presentacionPrecios,
       mostrar_fotos: mostrarFotos,
+      iva_incluido: ivaIncluido,
       tipo_cambio: tipoCambioNum,
       lineas: lineasValidas,
     };
@@ -665,6 +667,29 @@ export default function CotizacionForm({
               <input type="number" className={inputCls} value={ivaPct} onChange={(e) => setIvaPct(e.target.value)} />
             </div>
           </div>
+          <div>
+            <label className={labelCls}>IVA</label>
+            <div className="flex gap-1 p-1 rounded-xl bg-surface-2 border border-line w-fit">
+              {([false, true] as const).map((incluido) => (
+                <button
+                  key={String(incluido)}
+                  type="button"
+                  aria-pressed={ivaIncluido === incluido}
+                  onClick={() => setIvaIncluido(incluido)}
+                  className={`px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-colors ${
+                    ivaIncluido === incluido ? 'bg-teal text-inkOnAccent' : 'text-muted'
+                  }`}
+                >
+                  {incluido ? 'Precios con IVA incluido' : 'Sumar IVA'}
+                </button>
+              ))}
+            </div>
+            <p className="text-[12.5px] text-muted mt-1.5">
+              {ivaIncluido
+                ? `Los precios de los conceptos ya traen el ${ivaPctNum}% de IVA: el total no le suma nada y el PDF dice «IVA incluido».`
+                : `Al total se le suma el ${ivaPctNum}% de IVA y el PDF dice «más IVA».`}
+            </p>
+          </div>
           <div data-campo="moneda" className={`scroll-mt-24 ${moneda === 'USD' ? 'grid grid-cols-2 gap-3.5' : ''}`}>
             <div>
               <label className={labelCls}>Moneda</label>
@@ -780,12 +805,14 @@ export default function CotizacionForm({
       </div>
 
       <div className={cardCls}>
+        {!ivaIncluido && (
+          <div className="flex justify-between text-[14px] mb-1">
+            <span className="text-muted">Subtotal</span>
+            <span className="font-medium">{moneda === 'USD' ? 'USD ' : ''}{money(totales.subtotal)}</span>
+          </div>
+        )}
         <div className="flex justify-between text-[14px] mb-1">
-          <span className="text-muted">Subtotal</span>
-          <span className="font-medium">{moneda === 'USD' ? 'USD ' : ''}{money(totales.subtotal)}</span>
-        </div>
-        <div className="flex justify-between text-[14px] mb-1">
-          <span className="text-muted">IVA ({ivaPctNum}%)</span>
+          <span className="text-muted">{ivaIncluido ? 'IVA incluido' : 'IVA'} ({ivaPctNum}%)</span>
           <span className="font-medium">{moneda === 'USD' ? 'USD ' : ''}{money(totales.iva)}</span>
         </div>
         <div className="flex justify-between text-[19px] pt-2 border-t border-line-strong">

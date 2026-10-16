@@ -66,6 +66,8 @@ export type Cotizacion = {
   // Casilla «Mostrar fotos en el PDF»: agrega una columna con la foto de cada
   // concepto. Apagada en las cotizaciones de antes.
   mostrar_fotos?: boolean;
+  // true: los precios ya traen IVA; el total no le suma nada (ver calcularTotales).
+  iva_incluido?: boolean;
   // Tipo de cambio (MXN por 1 USD) usado al armar la cotización — solo
   // aplica/se usa cuando moneda es 'USD'. Se guarda el valor de ese momento
   // para que el equivalente en pesos no cambie después si la cotización se
@@ -122,6 +124,7 @@ export type CotizacionInput = {
   moneda: MonedaCotizacion;
   presentacion_precios: PresentacionPrecios;
   mostrar_fotos: boolean;
+  iva_incluido: boolean;
   tipo_cambio: number;
   lineas: LineaInput[];
 };
@@ -147,8 +150,17 @@ export function convertirMonto(monto: number, de: MonedaCotizacion, a: MonedaCot
   return redondear(de === 'USD' ? monto * tipoCambio : monto / tipoCambio);
 }
 
-export function calcularTotales(lineas: LineaInput[], ivaPct: number) {
-  const subtotal = redondear(lineas.reduce((acc, l) => acc + l.cantidad * l.precio_unitario, 0));
+// Con IVA incluido, la suma de los conceptos ya es el total: el IVA se saca
+// de adentro (total / 1.16) solo para informarlo, no se agrega.
+export function calcularTotales(lineas: LineaInput[], ivaPct: number, ivaIncluido = false) {
+  const sumaConceptos = redondear(lineas.reduce((acc, l) => acc + l.cantidad * l.precio_unitario, 0));
+  if (ivaIncluido) {
+    const total = sumaConceptos;
+    const subtotal = redondear(total / (1 + ivaPct / 100));
+    const iva = redondear(total - subtotal);
+    return { subtotal, iva, total };
+  }
+  const subtotal = sumaConceptos;
   const iva = redondear(subtotal * (ivaPct / 100));
   const total = redondear(subtotal + iva);
   return { subtotal, iva, total };
@@ -210,7 +222,7 @@ export function normalizarEnlace(e: string | null | undefined): string | null {
 }
 
 function datosCotizacion(input: CotizacionInput) {
-  const { subtotal, iva, total } = calcularTotales(input.lineas, input.iva_pct);
+  const { subtotal, iva, total } = calcularTotales(input.lineas, input.iva_pct, input.iva_incluido);
   return {
     fecha: input.fecha,
     titulo_proyecto: input.titulo_proyecto.trim().replace(/\s+/g, ' ').slice(0, 120) || null,
@@ -230,6 +242,7 @@ function datosCotizacion(input: CotizacionInput) {
     moneda: input.moneda,
     presentacion_precios: input.presentacion_precios,
     mostrar_fotos: input.mostrar_fotos,
+    iva_incluido: input.iva_incluido,
     tipo_cambio: input.moneda === 'USD' ? input.tipo_cambio || 0 : 1,
     subtotal,
     iva,

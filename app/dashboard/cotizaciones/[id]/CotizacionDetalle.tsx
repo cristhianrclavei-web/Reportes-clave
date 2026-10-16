@@ -357,12 +357,14 @@ export default function CotizacionDetalle({
       })}
 
       <div className={`${cardCls} mb-4`}>
+        {!cotizacion.iva_incluido && (
+          <div className="flex justify-between text-[14px] mb-1">
+            <span className="text-muted">Subtotal</span>
+            <span className="font-medium">{cotizacion.moneda === 'USD' ? 'USD ' : ''}{money(cotizacion.subtotal)}</span>
+          </div>
+        )}
         <div className="flex justify-between text-[14px] mb-1">
-          <span className="text-muted">Subtotal</span>
-          <span className="font-medium">{cotizacion.moneda === 'USD' ? 'USD ' : ''}{money(cotizacion.subtotal)}</span>
-        </div>
-        <div className="flex justify-between text-[14px] mb-1">
-          <span className="text-muted">IVA ({cotizacion.iva_pct}%)</span>
+          <span className="text-muted">{cotizacion.iva_incluido ? 'IVA incluido' : 'IVA'} ({cotizacion.iva_pct}%)</span>
           <span className="font-medium">{cotizacion.moneda === 'USD' ? 'USD ' : ''}{money(cotizacion.iva)}</span>
         </div>
         <div className="flex justify-between text-[19px] pt-2 border-t border-line-strong">

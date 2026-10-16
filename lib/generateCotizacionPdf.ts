@@ -345,23 +345,35 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
 
   // ================= Totales =================
   ensureSpace(60);
-  const totales: [string, number][] = [
-    ['SUBTOTAL', cot.subtotal],
-    [`IVA (${cot.iva_pct}%)`, cot.iva],
-    ['TOTAL', cot.total],
-  ];
+  // Con IVA incluido no se muestra subtotal: la suma de los conceptos ya es
+  // el total, y un subtotal menor que esa suma confundiría al cliente.
+  const totales: [string, number][] = cot.iva_incluido
+    ? [
+        [`IVA INCLUIDO (${cot.iva_pct}%)`, cot.iva],
+        ['TOTAL', cot.total],
+      ]
+    : [
+        ['SUBTOTAL', cot.subtotal],
+        [`IVA (${cot.iva_pct}%)`, cot.iva],
+        ['TOTAL', cot.total],
+      ];
   for (const [label, val] of totales) {
-    page.drawText(label, { x: xPUnit, y, size: 9.5, font: bold, color: NAVY });
     // Solo el TOTAL lleva la divisa; subtotal e IVA van como los demás precios.
     const vt = label === 'TOTAL' ? money(val, cot.moneda) : moneySinDivisa(val);
-    page.drawText(vt, { x: xImporte + colImporteW - font.widthOfTextAtSize(vt, 9.5), y, size: 9.5, font: bold, color: NAVY });
+    const xValor = xImporte + colImporteW - font.widthOfTextAtSize(vt, 9.5);
+    // Una etiqueta larga («IVA INCLUIDO (16%)») con un monto grande no cabe
+    // desde xPUnit: se recorre a la izquierda para no encimarse con la cifra.
+    const xEtiqueta = Math.min(xPUnit, xValor - 10 - bold.widthOfTextAtSize(label, 9.5));
+    page.drawText(label, { x: xEtiqueta, y, size: 9.5, font: bold, color: NAVY });
+    page.drawText(vt, { x: xValor, y, size: 9.5, font: bold, color: NAVY });
     y -= 16;
   }
 
+  const nombreMoneda = cot.moneda === 'USD' ? 'Dólares Americanos (USD)' : 'Moneda Nacional';
   const condiciones = [
-    cot.moneda === 'USD'
-      ? 'Los precios se expresan en Dólares Americanos (USD), más IVA.'
-      : 'Los precios se expresan en Moneda Nacional, más IVA',
+    cot.iva_incluido
+      ? `Los precios se expresan en ${nombreMoneda}, con IVA incluido.`
+      : `Los precios se expresan en ${nombreMoneda}, más IVA.`,
     `Forma de Pago: ${cot.forma_pago}`,
     'Esta cotización ampara unicamente lo descrito anteriormente.',
     `Tiempo de Entrega: ${cot.tiempo_entrega}`,

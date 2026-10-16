@@ -781,7 +781,7 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
       cambios_hechos: texto(600).describe('Para quien revisa: qué se cambió en esta edición, en una o dos frases cortas'),
     }),
     run: async (i) => {
-      const { data: c, error } = await supabase.from('cotizaciones').select('id, folio, estado, iva_pct, moneda, notas_ia').ilike('folio', limpio(i.folio)).maybeSingle();
+      const { data: c, error } = await supabase.from('cotizaciones').select('id, folio, estado, iva_pct, iva_incluido, moneda, notas_ia').ilike('folio', limpio(i.folio)).maybeSingle();
       if (error) return falla(error);
       if (!c) return JSON.stringify({ error: `No existe la cotización ${i.folio}` });
       if (c.estado !== 'borrador') return JSON.stringify({ error: `La ${c.folio} está «${c.estado}»: solo se pueden modificar borradores. Se puede copiar a una nueva desde la app.` });
@@ -791,7 +791,7 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
         precio_unitario: precioUnitarioDesdeCosto(l.costo, l.margen_pct),
         enlace: l.enlace && /^https:\/\//i.test(l.enlace) ? l.enlace : null,
       }));
-      const { subtotal, iva, total } = calcularTotales(lineas, Number(c.iva_pct) || 0);
+      const { subtotal, iva, total } = calcularTotales(lineas, Number(c.iva_pct) || 0, Boolean(c.iva_incluido));
       const opcional = Object.fromEntries(
         (['atencion', 'telefono', 'correo', 'direccion', 'forma_pago', 'tiempo_entrega', 'garantia', 'notas'] as const)
           .filter((k) => i[k] !== undefined).map((k) => [k, i[k]!.trim() || null]),
