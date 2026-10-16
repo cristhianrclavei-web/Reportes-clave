@@ -3,7 +3,7 @@
 import AutocompletarCliente from '@/components/AutocompletarCliente';
 import AutocompletarPersona from '@/components/AutocompletarPersona';
 import { useContactosCliente } from '@/lib/useContactosCliente';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useBorradorFormulario } from '@/lib/useBorradorFormulario';
 import AvisoBorrador from '@/components/AvisoBorrador';
 import { useRouter } from 'next/navigation';
@@ -17,7 +17,8 @@ import { hoyLocal } from '@/lib/fechaHoy';
 import { showToast } from '@/components/Toast';
 import { useAvanceGuardado, pausaFinal } from '@/lib/useAvanceGuardado';
 import SavingOverlay from '@/components/SavingOverlay';
-import { Plus, Trash2, Search, Link2, ImagePlus, X } from 'lucide-react';
+import { Plus, Trash2, Search, Link2, ImagePlus, X, ArrowUp, ArrowDown } from 'lucide-react';
+import { moverElemento } from '@/lib/moverElemento';
 import SelectorProductoSyscom from '@/components/SelectorProductoSyscom';
 import type { ProductoSyscom } from '@/lib/syscom';
 import type { FirmanteSugerido } from '@/lib/firmantesCotizacion';
@@ -124,6 +125,13 @@ export default function CotizacionForm({
   // encima, igual que con cualquier otro concepto.
   const [buscandoParaItem, setBuscandoParaItem] = useState<{ grupoId: string; itemId: string } | null>(null);
 
+  const [recienMovido, setRecienMovido] = useState<string | null>(null);
+  useEffect(() => {
+    if (!recienMovido) return;
+    document.querySelector(`[data-concepto="${recienMovido}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const t = setTimeout(() => setRecienMovido(null), 1500);
+    return () => clearTimeout(t);
+  }, [recienMovido]);
   const [grupos, setGrupos] = useState<GrupoForm[]>(() => {
     if (!inicial || inicial.lineas.length === 0) return [nuevoGrupo()];
     const porSistema = new Map<string, GrupoForm>();
@@ -232,6 +240,18 @@ export default function CotizacionForm({
     setGrupos((prev) =>
       prev.map((g) => (g.id !== grupoId ? g : { ...g, items: g.items.length > 1 ? g.items.filter((it) => it.id !== itemId) : g.items }))
     );
+  }
+  // Mueve un concepto a otra posición dentro de su sistema; los demás se
+  // recorren. Después se lleva la vista al concepto para no perderlo de vista.
+  function moverItem(grupoId: string, itemId: string, hasta: number) {
+    setGrupos((prev) =>
+      prev.map((g) => {
+        if (g.id !== grupoId) return g;
+        const desde = g.items.findIndex((it) => it.id === itemId);
+        return { ...g, items: moverElemento(g.items, desde, hasta) };
+      })
+    );
+    setRecienMovido(itemId);
   }
   function agregarGrupo() {
     setGrupos((prev) => [...prev, nuevoGrupo()]);
@@ -522,7 +542,60 @@ export default function CotizacionForm({
 
             <div className="flex flex-col gap-3">
               {g.items.map((it, ii) => (
-                <div key={it.id} className="p-3.5 rounded-xl bg-surface-2 border border-line">
+                <div
+                  key={it.id}
+                  data-concepto={it.id}
+                  className={`rounded-xl bg-surface-2 border border-line-strong border-l-4 border-l-teal overflow-hidden scroll-mt-24 transition-shadow duration-500 ${
+                    recienMovido === it.id ? 'ring-2 ring-teal shadow-glow-teal' : ''
+                  }`}
+                >
+                  <div className="flex items-center gap-2 px-3 py-2 bg-teal/10 border-b border-line">
+                    <span className="font-display font-bold text-[17px] text-teal tabular-nums min-w-[28px]">
+                      {String(ii + 1).padStart(2, '0')}
+                    </span>
+                    {g.items.length > 1 && (
+                      <>
+                        <label className="sr-only" htmlFor={`posicion-${it.id}`}>Mover a la posición</label>
+                        <select
+                          id={`posicion-${it.id}`}
+                          value={ii}
+                          onChange={(e) => moverItem(g.id, it.id, Number(e.target.value))}
+                          className="min-h-[36px] px-2 rounded-lg bg-surface border border-line text-[13px] font-semibold"
+                        >
+                          {g.items.map((_, pos) => (
+                            <option key={pos} value={pos}>Posición {pos + 1}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => moverItem(g.id, it.id, ii - 1)}
+                          disabled={ii === 0}
+                          aria-label="Subir un lugar"
+                          className="w-9 h-9 rounded-lg border border-line-strong text-ink/80 flex items-center justify-center active:scale-90 transition-transform disabled:opacity-30"
+                        >
+                          <ArrowUp size={16} strokeWidth={2.4} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moverItem(g.id, it.id, ii + 1)}
+                          disabled={ii === g.items.length - 1}
+                          aria-label="Bajar un lugar"
+                          className="w-9 h-9 rounded-lg border border-line-strong text-ink/80 flex items-center justify-center active:scale-90 transition-transform disabled:opacity-30"
+                        >
+                          <ArrowDown size={16} strokeWidth={2.4} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => quitarItem(g.id, it.id)}
+                          aria-label="Quitar partida"
+                          className="ml-auto w-9 h-9 rounded-lg border border-line-strong text-red flex items-center justify-center active:scale-90 transition-transform"
+                        >
+                          <Trash2 size={16} strokeWidth={2.3} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  <div className="p-3.5">
                   <div className="flex items-start gap-2 mb-2.5">
                     <textarea
                       data-campo={gi === 0 && ii === 0 ? 'partidas' : undefined}
@@ -539,15 +612,6 @@ export default function CotizacionForm({
                     >
                       <Search size={16} strokeWidth={2.3} />
                     </button>
-                    {g.items.length > 1 && (
-                      <button
-                        onClick={() => quitarItem(g.id, it.id)}
-                        aria-label="Quitar partida"
-                        className="shrink-0 w-10 h-10 rounded-xl border border-line-strong text-red flex items-center justify-center active:scale-90 transition-transform"
-                      >
-                        <Trash2 size={16} strokeWidth={2.3} />
-                      </button>
-                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-2.5 mb-2.5">
                     <div>
@@ -627,6 +691,7 @@ export default function CotizacionForm({
                       {money((parseFloat(it.cantidad) || 0) * precioUnitarioDesdeCosto(parseFloat(it.costo) || 0, parseFloat(it.margenPct) || 0))}
                     </span>
                   </p>
+                  </div>
                 </div>
               ))}
             </div>
