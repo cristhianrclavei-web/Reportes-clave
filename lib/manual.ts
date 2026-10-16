@@ -313,7 +313,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
         resumen: 'Armarlas, compartirlas y darles seguimiento.',
         pasos: [
           'En «Nueva cotización» agrega las partidas por grupo; el total con IVA se calcula solo.',
-          'Para cambiar el orden de los conceptos, arrastra desde «Partida» (el ícono ⠿) hasta el lugar que quieras; las demás partidas se recorren solas.',
+          'Para cambiar el orden de los conceptos: arrástralos desde el ícono ⠿, elige otro número en el menú «Partida» (por ejemplo, la 07 pasa a la 01) o usa las flechas ↑ ↓. Las demás partidas se recorren solas.',
           'El «Nombre del proyecto» es opcional: sale como título centrado en la primera página del PDF.',
           'Para mostrar la foto de cada concepto, activa «Mostrar fotos en el PDF» y usa «Agregar foto» en cada concepto. Los productos que eliges con «Buscar en SYSCOM» traen su foto.',
           'En «IVA» elige una de tres opciones: «Sumar IVA al total» (el PDF dice «más IVA»), «Los precios ya incluyen IVA» (el total no cambia y el PDF dice «con IVA incluido») o «No lleva IVA» (solo sale el total). La tasa es 16% u 8% para la región fronteriza.',

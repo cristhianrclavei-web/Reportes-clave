@@ -17,7 +17,8 @@ import { hoyLocal } from '@/lib/fechaHoy';
 import { showToast } from '@/components/Toast';
 import { useAvanceGuardado, pausaFinal } from '@/lib/useAvanceGuardado';
 import SavingOverlay from '@/components/SavingOverlay';
-import { Plus, Trash2, Search, Link2, ImagePlus, X, GripVertical } from 'lucide-react';
+import { Plus, Trash2, Search, Link2, ImagePlus, X, GripVertical, ArrowUp, ArrowDown } from 'lucide-react';
+import { moverElemento } from '@/lib/moverElemento';
 import { Reorder, useDragControls } from 'motion/react';
 import SelectorProductoSyscom from '@/components/SelectorProductoSyscom';
 import type { ProductoSyscom } from '@/lib/syscom';
@@ -233,6 +234,21 @@ export default function CotizacionForm({
     setGrupos((prev) =>
       prev.map((g) => (g.id !== grupoId ? g : { ...g, items: g.items.length > 1 ? g.items.filter((it) => it.id !== itemId) : g.items }))
     );
+  }
+  // Mueve una partida a otro lugar dentro de su sistema (menú «Partida N» o
+  // flechas); las demás se recorren. Reorder anima el deslizamiento y luego
+  // se acompaña a la partida con la vista para no perderla.
+  function moverItem(grupoId: string, itemId: string, hasta: number) {
+    setGrupos((prev) =>
+      prev.map((g) => {
+        if (g.id !== grupoId) return g;
+        const desde = g.items.findIndex((it) => it.id === itemId);
+        return { ...g, items: moverElemento(g.items, desde, hasta) };
+      })
+    );
+    setTimeout(() => {
+      document.querySelector(`[data-concepto="${itemId}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 450);
   }
   function agregarGrupo() {
     setGrupos((prev) => [...prev, nuevoGrupo()]);
@@ -524,7 +540,7 @@ export default function CotizacionForm({
             {g.items.length > 1 && (
               <p className="text-[12.5px] text-muted mb-2 flex items-center gap-1">
                 <GripVertical size={14} strokeWidth={2.4} className="text-teal" />
-                Arrastra desde «Partida» para cambiar el orden; las demás se recorren solas.
+                Cambia el orden arrastrando desde ⠿, eligiendo otro número en «Partida» o con las flechas; las demás se recorren solas.
               </p>
             )}
             <Reorder.Group
@@ -539,27 +555,61 @@ export default function CotizacionForm({
                   {(iniciarArrastre) => (
                 <div data-concepto={it.id} className="rounded-xl bg-surface-2 border border-line-strong border-l-4 border-l-teal overflow-hidden">
                   <div className="flex items-center gap-2 px-2 py-1.5 bg-teal/10 border-b border-line">
-                    <button
-                      type="button"
-                      onPointerDown={iniciarArrastre}
-                      aria-label={`Partida ${ii + 1}: arrastra para moverla`}
-                      title="Arrastra para cambiar el orden"
-                      style={{ touchAction: 'none' }}
-                      className={`flex items-center gap-1.5 min-h-[40px] pl-1 pr-3 rounded-lg select-none ${g.items.length > 1 ? 'cursor-grab active:cursor-grabbing active:bg-teal/15' : ''}`}
-                    >
-                      {g.items.length > 1 && <GripVertical size={18} strokeWidth={2.4} className="text-teal" />}
-                      <span className="text-[11.5px] font-semibold uppercase tracking-wider text-muted">Partida</span>
-                      <span className="font-display font-bold text-[17px] text-teal tabular-nums">{String(ii + 1).padStart(2, '0')}</span>
-                    </button>
-                    {g.items.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => quitarItem(g.id, it.id)}
-                        aria-label="Quitar partida"
-                        className="ml-auto w-9 h-9 rounded-lg border border-line-strong text-red flex items-center justify-center active:scale-90 transition-transform"
-                      >
-                        <Trash2 size={16} strokeWidth={2.3} />
-                      </button>
+                    {g.items.length > 1 ? (
+                      <>
+                        <button
+                          type="button"
+                          onPointerDown={iniciarArrastre}
+                          aria-label={`Arrastra la partida ${ii + 1} para moverla`}
+                          title="Arrastra para cambiar el orden"
+                          style={{ touchAction: 'none' }}
+                          className="w-9 h-10 -ml-0.5 rounded-lg flex items-center justify-center text-teal cursor-grab active:cursor-grabbing active:bg-teal/15 select-none"
+                        >
+                          <GripVertical size={20} strokeWidth={2.4} />
+                        </button>
+                        <label className="sr-only" htmlFor={`partida-${it.id}`}>Mover a la partida</label>
+                        <select
+                          id={`partida-${it.id}`}
+                          value={ii}
+                          onChange={(e) => moverItem(g.id, it.id, Number(e.target.value))}
+                          className="min-h-[38px] pl-2.5 pr-1 rounded-lg bg-surface border border-line text-[12.5px] font-bold uppercase tracking-wider text-teal tabular-nums"
+                        >
+                          {g.items.map((_, pos) => (
+                            <option key={pos} value={pos}>Partida {String(pos + 1).padStart(2, '0')}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => moverItem(g.id, it.id, ii - 1)}
+                          disabled={ii === 0}
+                          aria-label="Subir un lugar"
+                          className="w-9 h-9 rounded-lg border border-line-strong text-ink/80 flex items-center justify-center active:scale-90 transition-transform disabled:opacity-30"
+                        >
+                          <ArrowUp size={16} strokeWidth={2.4} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moverItem(g.id, it.id, ii + 1)}
+                          disabled={ii === g.items.length - 1}
+                          aria-label="Bajar un lugar"
+                          className="w-9 h-9 rounded-lg border border-line-strong text-ink/80 flex items-center justify-center active:scale-90 transition-transform disabled:opacity-30"
+                        >
+                          <ArrowDown size={16} strokeWidth={2.4} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => quitarItem(g.id, it.id)}
+                          aria-label="Quitar partida"
+                          className="ml-auto w-9 h-9 rounded-lg border border-line-strong text-red flex items-center justify-center active:scale-90 transition-transform"
+                        >
+                          <Trash2 size={16} strokeWidth={2.3} />
+                        </button>
+                      </>
+                    ) : (
+                      <span className="flex items-center gap-1.5 min-h-[40px] px-1.5">
+                        <span className="text-[11.5px] font-semibold uppercase tracking-wider text-muted">Partida</span>
+                        <span className="font-display font-bold text-[17px] text-teal tabular-nums">01</span>
+                      </span>
                     )}
                   </div>
                   <div className="p-3.5">
