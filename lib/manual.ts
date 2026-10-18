@@ -276,6 +276,17 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
           'Cada cambio queda registrado en Actividad.',
         ],
       },
+      {
+        titulo: 'Corregir tareas de un día',
+        resumen: 'Cuando terminaron una tarea y se les pasó marcarla, o el avance quedó mal.',
+        pasos: [
+          'Abre el día del servicio. En «Lista de tareas» toca «Corregir» junto a la tarea.',
+          'Puedes cambiarle el nombre y poner el avance con que quedó al cierre de ESE día (0%, 25%, 50%, 75%, «Terminada» o el número que quieras).',
+          'Lo que registró el técnico no se borra: tu corrección queda como el último registro del día y es la que cuenta para el avance del proyecto.',
+          'Las actividades de los reportes del proyecto que nadie ha firmado (ni el cliente ni quien recibió) se actualizan solas. Lo que el técnico escribió a mano se respeta. Los reportes ya firmados no cambian.',
+        ],
+        nota: 'Cada reporte usa el avance que había al cierre de su día, aunque se haga después: si el día 1 una tarea quedó al 50% y el día 2 se terminó, el reporte del día 1 dice 50%.',
+      },
     ],
   },
   {

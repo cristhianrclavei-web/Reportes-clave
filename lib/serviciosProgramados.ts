@@ -13,7 +13,8 @@ import { evaluarVentanaServicio } from './ventanaServicio';
 import { notificar } from './push';
 import { textoMotivo } from './motivosServicio';
 import { VideoGrabado, subirVideo } from './videoEvidencia';
-import { TareaParaActividad, actividadesDesdeTareas } from './actividadesDeTareas';
+import { TareaParaActividad, RegistroDeTarea, actividadesDelDia, actividadesDelDiaPorTarea, fusionarActividades, ultimoAvance } from './actividadesDeTareas';
+import { reporteFirmadoEnSitio } from './edicionLibreReporte';
 import { evidenciasDe } from './evidencias';
 import { PREFIJO_ESPERA_INICIO } from './esperaInicio';
 import { VisitaEstado, debeReporte, FILTRO_DEBE_REPORTE } from './visitaSinTrabajo';
@@ -1925,18 +1926,166 @@ function descripcionDeTarea(tarea: any): string {
   return (t?.descripcion as string) || '';
 }
 
+// Tareas del proyecto al que pertenece el día (el checklist se comparte
+// entre días; un servicio sin grupo trae solo las suyas).
+async function tareasDelProyecto(supabase: ReturnType<typeof createClient>, servicio: Pick<Servicio, 'id' | 'grupo_id'>): Promise<TareaParaActividad[]> {
+  let consulta = supabase.from('servicio_tareas').select('id, descripcion, completada, avance_pct, completada_en');
+  if (servicio.grupo_id) consulta = consulta.eq('grupo_id', servicio.grupo_id);
+  else consulta = consulta.eq('servicio_id', servicio.id);
+  const { data, error } = await consulta.order('orden');
+  if (error) throw error;
+  return (data || []) as TareaParaActividad[];
+}
+
+// Avances, fotos y correcciones de esas tareas en todos los días del
+// proyecto, con la fecha de cada día.
+async function registrosDeTareas(supabase: ReturnType<typeof createClient>, tareaIds: string[]): Promise<RegistroDeTarea[]> {
+  if (tareaIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from('servicio_eventos')
+    .select('tarea_id, servicio_id, avance_pct, created_at, servicios_programados(fecha)')
+    .in('tarea_id', tareaIds);
+  if (error) throw error;
+  return (data || []).map((e: any) => {
+    const dia = Array.isArray(e.servicios_programados) ? e.servicios_programados[0] : e.servicios_programados;
+    return { tarea_id: e.tarea_id, servicio_id: e.servicio_id, fecha: dia?.fecha || '', avance_pct: e.avance_pct, created_at: e.created_at };
+  });
+}
+
 // Tareas trabajadas en un día de servicio, redactadas como actividades para
-// el reporte: las completadas ese día y las que tuvieron avance ese día.
+// el reporte, con el avance que quedó al cierre de ESE día.
 export async function listarActividadesDeTareas(servicio: Pick<Servicio, 'id' | 'grupo_id' | 'fecha'>): Promise<string[]> {
   const supabase = createClient();
-  const [{ data: tareas, error: e1 }, { data: eventos, error: e2 }] = await Promise.all([
-    supabase.from('servicio_tareas').select('id, descripcion, completada, avance_pct, completada_en').eq('grupo_id', servicio.grupo_id).order('orden'),
-    supabase.from('servicio_eventos').select('tarea_id').eq('servicio_id', servicio.id).not('tarea_id', 'is', null),
-  ]);
-  if (e1) throw e1;
-  if (e2) throw e2;
-  const conEventoEseDia = new Set((eventos || []).map((e: any) => e.tarea_id as string));
-  return actividadesDesdeTareas((tareas || []) as TareaParaActividad[], conEventoEseDia, servicio.fecha);
+  const tareas = await tareasDelProyecto(supabase, servicio);
+  const registros = await registrosDeTareas(supabase, tareas.map((t) => t.id));
+  return actividadesDelDia(tareas, registros, servicio);
+}
+
+export type ResultadoCorreccionTarea = { reportesActualizados: number; reportesFirmados: number };
+
+// El supervisor corrige una tarea en un día del proyecto: su nombre y/o el
+// avance con que quedó ese día (p. ej. la terminaron pero no la marcaron).
+// El avance se guarda como un registro más de ese día, firmado por el
+// supervisor: no se borra lo que registró el técnico, pero al ser el último
+// del día es el que cuenta. Después se actualizan las actividades de los
+// reportes del proyecto que nadie ha firmado; los firmados no se tocan.
+export async function corregirTareaDelDia(
+  dia: Pick<Servicio, 'id' | 'grupo_id' | 'fecha' | 'hora_fin' | 'proyecto' | 'estado'>,
+  tarea: Pick<Tarea, 'id' | 'descripcion' | 'completada'>,
+  cambios: { descripcion: string; avancePct: number },
+): Promise<ResultadoCorreccionTarea> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No hay sesión activa');
+
+  const descripcion = cambios.descripcion.trim();
+  if (!descripcion) throw new Error('Escribe el nombre de la tarea.');
+  if (!Number.isInteger(cambios.avancePct) || cambios.avancePct < 0 || cambios.avancePct > 100) {
+    throw new Error('El avance debe ser un número entero de 0 a 100.');
+  }
+  if (dia.estado === 'programado' || dia.estado === 'cancelado') {
+    throw new Error('Este día no se trabajó: no hay avance que corregir.');
+  }
+
+  const tareasAntes = await tareasDelProyecto(supabase, dia);
+  const registrosAntes = await registrosDeTareas(supabase, tareasAntes.map((t) => t.id));
+  const propios = registrosAntes.filter((r) => r.tarea_id === tarea.id);
+  const avanceDelDia = ultimoAvance(propios.filter((r) => r.fecha <= dia.fecha)) ?? 0;
+
+  const partes: string[] = [];
+  if (descripcion !== tarea.descripcion) {
+    const { error } = await supabase.from('servicio_tareas').update({ descripcion }).eq('id', tarea.id);
+    if (error) throw error;
+    partes.push(`le cambió el nombre a «${descripcion}»`);
+  }
+
+  if (cambios.avancePct !== avanceDelDia) {
+    const { error } = await supabase.from('servicio_eventos').insert({
+      servicio_id: dia.id,
+      tipo: 'avance',
+      nota: `«${descripcion}» — avance corregido por supervisión: ${cambios.avancePct}% (antes ${avanceDelDia}%)`,
+      created_by: user.id,
+      tarea_id: tarea.id,
+      avance_pct: cambios.avancePct,
+    });
+    if (error) throw error;
+    partes.push(`avance del día de ${avanceDelDia}% a ${cambios.avancePct}%`);
+
+    // Estado actual de la tarea: el último avance de todo el proyecto.
+    const registrosDespues: RegistroDeTarea[] = [
+      ...propios,
+      { tarea_id: tarea.id, servicio_id: dia.id, fecha: dia.fecha, avance_pct: cambios.avancePct, created_at: new Date().toISOString() },
+    ];
+    const avanceActual = ultimoAvance(registrosDespues) ?? 0;
+    let estadoTarea: Record<string, unknown>;
+    if (avanceActual >= 100 && tarea.completada) {
+      estadoTarea = { avance_pct: 100 };
+    } else if (avanceActual >= 100) {
+      // Se cuenta como terminada al cierre de ese día.
+      const momento = dia.hora_fin || new Date(`${dia.fecha}T12:00:00`).toISOString();
+      estadoTarea = { completada: true, avance_pct: 100, completada_en: momento, completada_por: user.id };
+    } else {
+      estadoTarea = { completada: false, avance_pct: avanceActual, completada_en: null, completada_por: null };
+    }
+    const { error: eTarea } = await supabase.from('servicio_tareas').update(estadoTarea).eq('id', tarea.id);
+    if (eTarea) throw eTarea;
+  }
+
+  if (partes.length === 0) return { reportesActualizados: 0, reportesFirmados: 0 };
+
+  const cambio = `Corrigió la tarea «${tarea.descripcion}» del ${fechaDMA(dia.fecha)}: ${partes.join(' y ')}`;
+  await supabase.from('servicio_auditoria').insert({ servicio_id: dia.id, supervisor_id: user.id, cambio });
+  await registrarAccionGlobal('cambio_en_dia', 'servicio', dia.id, cambio);
+
+  return actualizarActividadesDeReportes(supabase, dia, new Map([[tarea.id, [tarea.descripcion, descripcion]]]));
+}
+
+// Rehace las actividades que salen de las tareas en los reportes del
+// proyecto que nadie ha firmado (ni el cliente ni quien recibió). Lo que
+// el técnico escribió a mano se queda igual.
+async function actualizarActividadesDeReportes(
+  supabase: ReturnType<typeof createClient>,
+  dia: Pick<Servicio, 'id' | 'grupo_id'>,
+  nombresAnteriores: Map<string, string[]>,
+): Promise<ResultadoCorreccionTarea> {
+  let consultaDias = supabase.from('servicios_programados').select('id, fecha, report_id').not('report_id', 'is', null);
+  if (dia.grupo_id) consultaDias = consultaDias.eq('grupo_id', dia.grupo_id);
+  else consultaDias = consultaDias.eq('id', dia.id);
+  const { data: dias, error: eDias } = await consultaDias;
+  if (eDias) throw eDias;
+  if (!dias || dias.length === 0) return { reportesActualizados: 0, reportesFirmados: 0 };
+
+  const tareas = await tareasDelProyecto(supabase, dia);
+  const registros = await registrosDeTareas(supabase, tareas.map((t) => t.id));
+  const descripciones = new Map<string, string[]>();
+  for (const t of tareas) {
+    const anteriores = nombresAnteriores.get(t.id) || [];
+    descripciones.set(t.id, [t.descripcion, ...anteriores.filter((n) => n !== t.descripcion)]);
+  }
+
+  let reportesActualizados = 0;
+  let reportesFirmados = 0;
+  for (const d of dias as { id: string; fecha: string; report_id: string }[]) {
+    const { data: reporte, error } = await supabase.from('reports').select('id, data').eq('id', d.report_id).single();
+    if (error || !reporte) continue;
+    if (reporteFirmadoEnSitio(reporte.data)) {
+      reportesFirmados++;
+      continue;
+    }
+    const actuales: string[] = Array.isArray(reporte.data?.actividades) ? reporte.data.actividades : [];
+    const nuevas = actividadesDelDiaPorTarea(tareas, registros, d);
+    const fusionadas = fusionarActividades(actuales, descripciones, nuevas);
+    // El formulario del reporte siempre trae al menos un renglón.
+    const actividades = fusionadas.length ? fusionadas : [''];
+    if (JSON.stringify(actividades) === JSON.stringify(actuales)) continue;
+    const { error: eUp } = await supabase
+      .from('reports')
+      .update({ data: { ...reporte.data, actividades } })
+      .eq('id', reporte.id);
+    if (eUp) throw eUp;
+    reportesActualizados++;
+  }
+  return { reportesActualizados, reportesFirmados };
 }
 
 // `video` y `dur`: la evidencia es un video y `path` es su portada.

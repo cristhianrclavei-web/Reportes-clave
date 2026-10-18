@@ -28,6 +28,7 @@ import ModalOverlay from '@/components/ModalOverlay';
 import { listarPlantillas, guardarComoPlantilla, obtenerInsumos, resumenDeChecklist, PlantillaInsumos, ResumenChecklist } from '@/lib/insumos';
 import { ResultadoBadges } from '@/components/ResultadoServicioBadges';
 import EficienciaServicio from '@/components/EficienciaServicio';
+import CorregirTarea from '@/components/servicios/CorregirTarea';
 import VisitaSinTrabajoPanel from '@/components/VisitaSinTrabajoPanel';
 import { createClient } from '@/lib/supabaseClient';
 import { mapsLink } from '@/lib/geolocation';
@@ -69,6 +70,8 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
   }, []);
   const [servicio, setServicio] = useState<Servicio | null>(null);
   const [tareas, setTareas] = useState<Tarea[]>([]);
+  // Tarea que el supervisor está corrigiendo (nombre / avance de este día).
+  const [corrigiendoTareaId, setCorrigiendoTareaId] = useState<string | null>(null);
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [tecnicosAsignados, setTecnicosAsignados] = useState<any[]>([]);
   const [auditoria, setAuditoria] = useState<Auditoria[]>([]);
@@ -424,6 +427,24 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
   }
 
   const progreso = calcularProgresoTareas(tareas);
+  const sePuedenCorregirTareas = servicio.estado !== 'programado' && servicio.estado !== 'cancelado';
+
+  // Avance con que quedó la tarea al cierre de ESTE día: el último registro
+  // del día (los eventos vienen del más nuevo al más viejo). Si ese día no se
+  // le registró nada, el que tiene ahora.
+  function avanceDeEsteDia(t: Tarea): number {
+    const ultimo = eventos.find((e) => e.tarea_id === t.id && e.avance_pct !== null && e.avance_pct !== undefined);
+    if (ultimo) return ultimo.avance_pct as number;
+    if (t.completada) return 100;
+    return t.avance_pct;
+  }
+
+  function avisarCorreccion(r: { reportesActualizados: number; reportesFirmados: number }) {
+    let mensaje = 'Tarea corregida';
+    if (r.reportesActualizados > 0) mensaje += ` · se actualizaron las actividades de ${r.reportesActualizados} reporte${r.reportesActualizados > 1 ? 's' : ''}`;
+    if (r.reportesFirmados > 0) mensaje += ` · ${r.reportesFirmados} reporte${r.reportesFirmados > 1 ? 's' : ''} ya firmado${r.reportesFirmados > 1 ? 's' : ''} no cambió`;
+    showToast(mensaje, 'success');
+  }
   const resultado = calcularResultadoServicio(servicio, progreso);
   const estadoTiempo = calcularEstadoTiempo(servicio);
   // Null cuando sí se puede editar; si no, el texto que explica por qué no.
@@ -838,7 +859,34 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
                       <img src={fotoUrls[t.foto_path]} className="w-full max-w-[220px] h-[110px] object-cover rounded-lg border border-line mt-2" />
                     )}
                   </div>
+                  {sePuedenCorregirTareas && corrigiendoTareaId !== t.id && (
+                    <button
+                      type="button"
+                      onClick={() => setCorrigiendoTareaId(t.id)}
+                      aria-label={`Corregir la tarea ${t.descripcion}`}
+                      className="shrink-0 min-h-[34px] px-2 -mr-1 -mt-1 rounded-lg text-teal text-[12px] font-medium flex items-center gap-1 active:scale-95 transition-transform"
+                    >
+                      <Pencil size={13} strokeWidth={2.5} /> Corregir
+                    </button>
+                  )}
                 </div>
+                {corrigiendoTareaId === t.id && (
+                  <CorregirTarea
+                    dia={servicio}
+                    tarea={t}
+                    avanceInicial={avanceDeEsteDia(t)}
+                    onCancelar={() => setCorrigiendoTareaId(null)}
+                    onGuardado={async (r) => {
+                      setCorrigiendoTareaId(null);
+                      avisarCorreccion(r);
+                      try {
+                        await cargarDatos();
+                      } catch {
+                        showToast('La corrección se guardó, pero no se pudo recargar la pantalla. Recarga la página.', 'error');
+                      }
+                    }}
+                  />
+                )}
               </div>
             ))}
           </div>
