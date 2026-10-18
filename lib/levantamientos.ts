@@ -9,6 +9,28 @@ export const SISTEMAS_SUGERIDOS = [
 
 export type FotoGuardada = { path: string; caption: string };
 
+// Equipo que ya está instalado en el sistema que se revisa.
+export type EquipoExistente = { cantidad: number; descripcion: string; modelo: string; estado: string };
+
+export const ESTADOS_EQUIPO = ['Funciona', 'Con fallas', 'No funciona', 'Obsoleto', 'Sin probar'];
+
+// Quita los renglones que se quedaron en blanco y los espacios de sobra.
+// Un equipo sin descripción no se guarda (solo cantidad o modelo no dice qué es).
+export function limpiarEquipos(equipos: EquipoExistente[]): EquipoExistente[] {
+  const limpios: EquipoExistente[] = [];
+  for (const e of equipos) {
+    const descripcion = e.descripcion.trim();
+    if (!descripcion) continue;
+    const cantidad = Number(e.cantidad) > 0 ? Number(e.cantidad) : 1;
+    limpios.push({ cantidad, descripcion, modelo: e.modelo.trim(), estado: e.estado.trim() });
+  }
+  return limpios;
+}
+
+export function limpiarRecomendaciones(recomendaciones: string[]): string[] {
+  return recomendaciones.map((r) => r.trim()).filter(Boolean);
+}
+
 export type Levantamiento = {
   id: string;
   folio: string;
@@ -33,6 +55,9 @@ export type SistemaLevantamiento = {
   sistema: string;
   estado_actual: string | null;
   observaciones: string | null;
+  // Pueden venir vacíos en levantamientos hechos antes de existir estos campos.
+  equipos?: EquipoExistente[] | null;
+  recomendaciones?: string[] | null;
   fotos: FotoGuardada[];
 };
 
@@ -42,6 +67,8 @@ export type SistemaInput = {
   sistema: string;
   estado_actual: string;
   observaciones: string;
+  equipos: EquipoExistente[];
+  recomendaciones: string[];
   fotosExistentes: FotoGuardada[];
   fotosNuevas: File[];
 };
@@ -165,6 +192,8 @@ async function guardarSistemas(levantamientoId: string, sistemas: SistemaInput[]
       sistema: s.sistema.trim() || 'General',
       estado_actual: s.estado_actual.trim() || null,
       observaciones: s.observaciones.trim() || null,
+      equipos: limpiarEquipos(s.equipos),
+      recomendaciones: limpiarRecomendaciones(s.recomendaciones),
       fotos: await resolverFotos(levantamientoId, s.fotosExistentes, s.fotosNuevas, alSubir),
     }))
   );

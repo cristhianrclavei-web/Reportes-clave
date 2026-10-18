@@ -154,10 +154,45 @@ export default function LevantamientoDetalleModal({
                     <p className="text-[13.5px] leading-relaxed whitespace-pre-wrap">{s.estado_actual}</p>
                   </div>
                 )}
+                {(s.equipos || []).length > 0 && (
+                  <div className="mb-2.5">
+                    <p className="text-[10.5px] uppercase tracking-wider text-muted mb-1">Equipos existentes</p>
+                    <div className="overflow-x-auto rounded-lg border border-line">
+                      <table className="w-full text-[12.5px]">
+                        <thead className="bg-surface-2 text-[10px] uppercase tracking-wider text-muted">
+                          <tr>
+                            <th className="text-center font-semibold px-2 py-1.5 w-12">Cant.</th>
+                            <th className="text-left font-semibold px-2 py-1.5">Descripción</th>
+                            <th className="text-left font-semibold px-2 py-1.5">Modelo</th>
+                            <th className="text-left font-semibold px-2 py-1.5">Estado</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(s.equipos || []).map((e, i) => (
+                            <tr key={i} className="border-t border-line">
+                              <td className="text-center tabular-nums px-2 py-1.5">{e.cantidad}</td>
+                              <td className="px-2 py-1.5">{e.descripcion}</td>
+                              <td className="px-2 py-1.5 text-muted">{e.modelo || '—'}</td>
+                              <td className="px-2 py-1.5">{e.estado || '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
                 {s.observaciones && (
-                  <div>
+                  <div className="mb-2.5">
                     <p className="text-[10.5px] uppercase tracking-wider text-muted mb-1">Observaciones</p>
                     <p className="text-[13.5px] leading-relaxed whitespace-pre-wrap">{s.observaciones}</p>
+                  </div>
+                )}
+                {(s.recomendaciones || []).length > 0 && (
+                  <div>
+                    <p className="text-[10.5px] uppercase tracking-wider text-muted mb-1">Recomendaciones</p>
+                    <ol className="list-decimal pl-5 text-[13.5px] leading-relaxed space-y-0.5 marker:text-teal marker:font-semibold">
+                      {(s.recomendaciones || []).map((r, i) => <li key={i}>{r}</li>)}
+                    </ol>
                   </div>
                 )}
                 <GaleriaFotos fotos={s.fotos} />

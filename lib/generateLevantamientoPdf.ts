@@ -1,7 +1,7 @@
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, rgb } from 'pdf-lib';
 import { dibujarEvidencias, ItemPdf } from './pdfEvidencias';
 import {
-  NAVY, GRAY_LINE, GRAY_TEXT,
+  NAVY, GRAY_LINE, GRAY_TEXT, WHITE,
   MARGIN, PAGE_W, PAGE_H,
   embedBrandFonts, drawBadge, drawWordmark, drawIconStrip, drawWatermark,
 } from './pdfBranding';
@@ -156,6 +156,79 @@ export async function generateLevantamientoPdf(
     }
   }
 
+  // ================= EQUIPOS EXISTENTES (tabla) =================
+  // Cada renglón se dibuja por separado para que una tabla larga pueda
+  // seguir en la hoja siguiente (ahí se repite el encabezado).
+  const columnas = [
+    { titulo: 'CANT.', ancho: 42 },
+    { titulo: 'DESCRIPCIÓN', ancho: contentW - 42 - 150 - 96 },
+    { titulo: 'MODELO', ancho: 150 },
+    { titulo: 'ESTADO', ancho: 96 },
+  ];
+  const FONDO_ALTERNO = rgb(0.95, 0.96, 0.97);
+
+  function drawEncabezadoTabla() {
+    const alto = 16;
+    page.drawRectangle({ x: MARGIN, y: y - alto, width: contentW, height: alto, color: NAVY });
+    let x = MARGIN;
+    for (const c of columnas) {
+      page.drawText(c.titulo, { x: x + 5, y: y - 11, size: 6.5, font: bold, color: WHITE });
+      x += c.ancho;
+    }
+    y -= alto;
+  }
+
+  function drawTablaEquipos(equipos: NonNullable<SistemaLevantamiento['equipos']>) {
+    ensureSpace(14 + 16 + 18);
+    page.drawText(`EQUIPOS EXISTENTES (${equipos.length})`, { x: MARGIN, y, size: 7.5, font: bold, color: GRAY_TEXT });
+    y -= 8;
+    drawEncabezadoTabla();
+    equipos.forEach((e, i) => {
+      const celdas = [String(e.cantidad), e.descripcion, e.modelo || '—', e.estado || '—'];
+      const lineas = celdas.map((texto, c) => wrapText(texto, font, 8.5, columnas[c].ancho - 10));
+      const masLineas = Math.max(...lineas.map((l) => l.length));
+      const alto = 8 + masLineas * 10.5;
+      if (y - alto < MARGIN + 30) {
+        newPage();
+        drawEncabezadoTabla();
+      }
+      if (i % 2 === 1) page.drawRectangle({ x: MARGIN, y: y - alto, width: contentW, height: alto, color: FONDO_ALTERNO });
+      let x = MARGIN;
+      lineas.forEach((ls, c) => {
+        let ly = y - 11.5;
+        for (const l of ls) {
+          const ancho = font.widthOfTextAtSize(l, 8.5);
+          // La cantidad va centrada en su columna.
+          const lx = c === 0 ? x + (columnas[c].ancho - ancho) / 2 : x + 5;
+          page.drawText(l, { x: lx, y: ly, size: 8.5, font, color: NAVY });
+          ly -= 10.5;
+        }
+        x += columnas[c].ancho;
+      });
+      page.drawLine({ start: { x: MARGIN, y: y - alto }, end: { x: MARGIN + contentW, y: y - alto }, thickness: 0.5, color: GRAY_LINE });
+      y -= alto;
+    });
+    y -= 12;
+  }
+
+  // ================= RECOMENDACIONES (lista numerada) =================
+  function drawRecomendaciones(recomendaciones: string[]) {
+    ensureSpace(14 + 14);
+    page.drawText('RECOMENDACIONES', { x: MARGIN, y, size: 7.5, font: bold, color: GRAY_TEXT });
+    y -= 13;
+    recomendaciones.forEach((texto, i) => {
+      const lineas = wrapText(texto, font, 9, contentW - 26);
+      ensureSpace(lineas.length * 12 + 4);
+      page.drawText(`${i + 1}.`, { x: MARGIN + 4, y, size: 9, font: bold, color: NAVY });
+      for (const l of lineas) {
+        page.drawText(l, { x: MARGIN + 22, y, size: 9, font, color: NAVY });
+        y -= 12;
+      }
+      y -= 3;
+    });
+    y -= 8;
+  }
+
   // ================= UNA CAJA POR SISTEMA =================
   for (let idx = 0; idx < sistemas.length; idx++) {
     const s = sistemas[idx];
@@ -165,8 +238,12 @@ export async function generateLevantamientoPdf(
     let bodyH = 0;
     if (estadoLines.length) bodyH += 11 + estadoLines.length * 12 + 4;
     if (obsLines.length) bodyH += 11 + obsLines.length * 12 + 4;
-    if (bodyH === 0) bodyH = 16;
-    const sisH = 18 + bodyH + 6;
+    const equipos = s.equipos || [];
+    const recomendaciones = s.recomendaciones || [];
+    const hayTablaOLista = equipos.length > 0 || recomendaciones.length > 0;
+    // Sin texto pero con equipos o recomendaciones, la caja queda solo como título.
+    if (bodyH === 0 && !hayTablaOLista) bodyH = 16;
+    const sisH = bodyH === 0 ? 18 : 18 + bodyH + 6;
 
     ensureSpace(sisH + 10);
     const sisTop = y;
@@ -181,14 +258,17 @@ export async function generateLevantamientoPdf(
       sy -= 4;
     }
     if (obsLines.length) {
-      page.drawText('OBSERVACIONES / RECOMENDACIÓN', { x: MARGIN + 8, y: sy, size: 6.5, font: bold, color: GRAY_TEXT });
+      page.drawText('OBSERVACIONES', { x: MARGIN + 8, y: sy, size: 6.5, font: bold, color: GRAY_TEXT });
       sy -= 11;
       obsLines.forEach((l) => { page.drawText(l, { x: MARGIN + 8, y: sy, size: 9, font, color: NAVY }); sy -= 12; });
     }
-    if (!estadoLines.length && !obsLines.length) {
+    if (!estadoLines.length && !obsLines.length && !hayTablaOLista) {
       page.drawText('Sin estado ni observaciones capturadas.', { x: MARGIN + 8, y: sy, size: 8.5, font, color: GRAY_TEXT });
     }
     y = sisTop - sisH - 10;
+
+    if (equipos.length > 0) drawTablaEquipos(equipos);
+    if (recomendaciones.length > 0) drawRecomendaciones(recomendaciones);
 
     if (s.fotos?.length > 0) {
       ensureSpace(16);

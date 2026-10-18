@@ -64,6 +64,17 @@ export const MANUAL_TECNICO: SeccionManual[] = [
         nota: 'Lo que vas llenando se guarda solo en el teléfono: si se cierra la app o se recarga la página, al volver lo recuperas.',
       },
       {
+        titulo: 'Levantamiento técnico',
+        resumen: 'Para revisar un sitio antes de cotizar.',
+        pasos: [
+          'En Reportes → Levantamientos toca «Nuevo levantamiento» y llena los datos del sitio.',
+          'Agrega un bloque por cada sistema que revises (CCTV, alarma, etc.) con su estado actual.',
+          'En «Equipos existentes» toca «Agregar equipo» por cada tipo de equipo instalado: cantidad, descripción, modelo y estado (funciona, con fallas, no funciona, obsoleto o sin probar).',
+          'En «Recomendaciones» escribe un punto por renglón; salen numerados (1, 2, 3…). Con Enter pasas al siguiente punto.',
+          'Toma fotos de cada sistema y, al final, notas y fotos generales del sitio. El PDF incluye la tabla de equipos y la lista de recomendaciones.',
+        ],
+      },
+      {
         titulo: 'Si no hay señal',
         resumen: 'Puedes hacer el reporte sin internet.',
         pasos: [
