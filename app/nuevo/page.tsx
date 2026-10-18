@@ -45,7 +45,7 @@ import { sinRegistroDeReporte } from '@/lib/equiposInstalados';
 import { FilaTuberia, FilaCable, FilaSoporteria, tuberiasDe, cablesDe, soporteriaDe } from '@/lib/materialesReporte';
 import { SeccionTuberia, SeccionCable, SeccionSoporteria, tuberiaVacia, cableVacio, soporteriaVacia } from '@/components/reporte/MaterialesReporte';
 import TraerDelVale from '@/components/reporte/TraerDelVale';
-import { puedeEditarSinPermiso, finEdicionLibre } from '@/lib/edicionLibreReporte';
+import { puedeEditarSinPermiso, finEdicionLibre, reporteFirmadoEnSitio } from '@/lib/edicionLibreReporte';
 
 // Hora "HH:mm" del reloj del dispositivo — igual al formato que ya entrega
 // el <input type="time">, así que sirve tal cual como valor de respaldo.
@@ -443,6 +443,10 @@ export default function NuevoReportePage() {
     if (error || !r) { setErrorEdicion('No se encontró el reporte.'); return; }
     if (r.created_by !== uid) { setErrorEdicion('Solo quien hizo el reporte puede corregirlo.'); return; }
     if (r.data?.firmaClienteData) { setErrorEdicion('El cliente ya firmó este reporte: solo se pueden agregar fotos y cambiar el servicio desde su detalle.'); return; }
+    if (!r.correccion_habilitada && reporteFirmadoEnSitio(r.data)) {
+      setErrorEdicion('Este reporte ya tiene la firma de quien recibió el servicio: para cambiarlo pide una corrección al supervisor desde su detalle.');
+      return;
+    }
     const enPrimeraHora = puedeEditarSinPermiso(r, Date.now());
     if (!r.correccion_habilitada && !enPrimeraHora) {
       setErrorEdicion('Ya pasó la primera hora desde que guardaste este reporte: para cambiarlo pide una corrección al supervisor desde su detalle.');

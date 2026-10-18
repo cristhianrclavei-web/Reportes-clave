@@ -1,7 +1,8 @@
 -- El técnico puede editar su reporte durante la primera hora después de
--- guardarlo (antes eran 30 minutos), siempre que el cliente no lo haya
--- firmado. Pasada la hora, o con la firma del cliente, necesita una
--- corrección autorizada por el supervisor, como siempre.
+-- guardarlo (antes eran 30 minutos), siempre que nadie lo haya firmado: ni
+-- el cliente ni la persona que recibió cuando el cliente no estaba. Pasada
+-- la hora, o con cualquiera de esas firmas, necesita una corrección
+-- autorizada por el supervisor, como siempre.
 --
 -- Los primeros 30 minutos siguen abiertos aunque el cliente ya haya firmado:
 -- la app guarda el reporte y enseguida le liga las fotos, y eso no debe fallar.
@@ -34,11 +35,12 @@ begin
   end if;
 
   -- Con corrección autorizada, recién creado (para ligar sus fotos) o dentro
-  -- de la primera hora sin firma del cliente, el técnico puede editarlo.
+  -- de la primera hora sin ninguna firma en sitio, el técnico puede editarlo.
   if old.correccion_habilitada
      or old.created_at > now() - interval '30 minutes'
      or (old.created_at > now() - interval '60 minutes'
-         and coalesce(old.data ->> 'firmaClienteData', '') = '') then
+         and coalesce(old.data ->> 'firmaClienteData', '') = ''
+         and coalesce(old.data -> 'clienteAusente' ->> 'recibioFirma', '') = '') then
     return new;
   end if;
 

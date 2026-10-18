@@ -14,4 +14,12 @@ describe('puedeEditarSinPermiso', () => {
   it('no si el cliente ya firmó, aunque no haya pasado la hora', () => {
     expect(puedeEditarSinPermiso({ created_at: creado, data: { firmaClienteData: 'data:image/png;base64,x' } }, minutos(5))).toBe(false);
   });
+  it('no si firmó de recibido otra persona porque el cliente no estaba', () => {
+    const data = { clienteAusente: { recibioFirma: 'data:image/png;base64,x' } };
+    expect(puedeEditarSinPermiso({ created_at: creado, data }, minutos(5))).toBe(false);
+  });
+  it('sí con el cliente ausente y sin firma de nadie (espera la firma por enlace)', () => {
+    const data = { clienteAusente: { recibioFirma: null } };
+    expect(puedeEditarSinPermiso({ created_at: creado, data }, minutos(5))).toBe(true);
+  });
 });

@@ -105,8 +105,8 @@ export const MANUAL_TECNICO: SeccionManual[] = [
         titulo: 'Corregir un reporte',
         resumen: 'Si te equivocaste en un dato o te faltó algo.',
         pasos: [
-          'Durante la primera hora después de guardarlo, y mientras el cliente no lo haya firmado, abre el reporte en «Reportes» y toca «Editar reporte». Cambia lo que haga falta y toca «Guardar cambios»: se actualiza el mismo reporte, con el mismo folio.',
-          'Pasada la hora, o si el cliente ya firmó, pide una corrección al supervisor desde la pestaña «Revisión» del reporte.',
+          'Durante la primera hora después de guardarlo, y mientras nadie lo haya firmado (ni el cliente ni quien recibió en su lugar), abre el reporte en «Reportes» y toca «Editar reporte». Cambia lo que haga falta y toca «Guardar cambios»: se actualiza el mismo reporte, con el mismo folio.',
+          'Pasada la hora, o si ya tiene firma, pide una corrección al supervisor desde la pestaña «Revisión» del reporte.',
           'Cuando el supervisor la autoriza, el reporte aparece marcado para corrección. Ábrelo, corrige y guarda. Conserva el mismo folio y vuelve a revisión.',
         ],
       },

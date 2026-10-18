@@ -596,7 +596,7 @@ export default function ReportDetailModal({
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-[14px] text-teal">¿Te equivocaste o te faltó algo?</p>
               <p className="text-[12.5px] text-muted leading-relaxed">
-                Puedes editar este reporte hasta las {new Date(finEdicionLibre(report.created_at)).toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' })} (quedan {Math.max(1, Math.ceil((finEdicionLibre(report.created_at) - ahoraMs) / 60000))} min), mientras el cliente no lo firme.
+                Puedes editar este reporte hasta las {new Date(finEdicionLibre(report.created_at)).toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' })} (quedan {Math.max(1, Math.ceil((finEdicionLibre(report.created_at) - ahoraMs) / 60000))} min), mientras nadie lo firme.
               </p>
             </div>
             <Link href={`/nuevo?editar=${report.id}`}
