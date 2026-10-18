@@ -274,3 +274,33 @@ export async function editarActividadManual(entrada: {
   });
   if (error) throw error;
 }
+
+export type EstadisticasJornada = {
+  // Minutos de jornada (registrado + sin registrar) y solo lo registrado.
+  total: number;
+  registrado: number;
+  diasConRegistro: number;
+  // Promedios por día con registro, en minutos.
+  registradoPorDia: number;
+  servicioPorDia: number;
+  sinRegistrarPorDia: number;
+  // Porcentaje de la jornada que fue de esa clase (0–100).
+  pct: (clase: ClaseTiempo) => number;
+};
+
+// Totales y promedios de una persona (o de un grupo, sumando sus días).
+export function estadisticasJornada(porClase: Partial<Record<ClaseTiempo, number>>, diasConRegistro: number): EstadisticasJornada {
+  const total = Object.values(porClase).reduce((n, v) => n + (v || 0), 0);
+  const sinRegistrar = porClase.sin_registrar || 0;
+  const registrado = total - sinRegistrar;
+  const porDia = (min: number) => (diasConRegistro > 0 ? Math.round(min / diasConRegistro) : 0);
+  return {
+    total,
+    registrado,
+    diasConRegistro,
+    registradoPorDia: porDia(registrado),
+    servicioPorDia: porDia(porClase.servicio || 0),
+    sinRegistrarPorDia: porDia(sinRegistrar),
+    pct: (clase) => (total > 0 ? Math.round(((porClase[clase] || 0) / total) * 100) : 0),
+  };
+}

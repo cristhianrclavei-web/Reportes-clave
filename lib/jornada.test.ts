@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { segmentosDelDia, minutosPorClaseTiempo, tramosLibres, claseDePausa } from './jornada';
+import { estadisticasJornada } from './jornadaDatos';
 
 // Horas del día como milisegundos (el día empieza en 0).
 const h = (hora: number, min = 0) => (hora * 60 + min) * 60000;
@@ -91,5 +92,22 @@ describe('claseDePausa', () => {
     expect(claseDePausa('comida')).toBe('comida');
     expect(claseDePausa('material')).toBe('compra');
     expect(claseDePausa('espera_cliente')).toBe('pausa');
+  });
+});
+
+
+describe('estadisticasJornada', () => {
+  it('promedia por día con registro y saca porcentajes de la jornada', () => {
+    const e = estadisticasJornada({ servicio: 600, traslado: 120, sin_registrar: 80 }, 2);
+    expect(e.total).toBe(800);
+    expect(e.registrado).toBe(720);
+    expect(e.registradoPorDia).toBe(360);
+    expect(e.servicioPorDia).toBe(300);
+    expect(e.sinRegistrarPorDia).toBe(40);
+    expect(e.pct('servicio')).toBe(75);
+    expect(e.pct('sin_registrar')).toBe(10);
+  });
+  it('sin días no divide entre cero', () => {
+    expect(estadisticasJornada({}, 0).registradoPorDia).toBe(0);
   });
 });

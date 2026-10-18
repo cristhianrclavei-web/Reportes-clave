@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabaseClient';
 import { hoyLocal, sumarDias, fechaLocal } from '@/lib/fechaHoy';
 import { fechaLargaCalendario } from '@/lib/calendarioMes';
 import { ClaseTiempo } from '@/lib/jornada';
-import { DatosJornadas, ResumenTecnico, cargarDatosJornadas, jornadaDeTecnico, resumenDeJornadas, sumarMinutos, guardarHorarioJornada } from '@/lib/jornadaDatos';
+import { DatosJornadas, ResumenTecnico, cargarDatosJornadas, jornadaDeTecnico, resumenDeJornadas, sumarMinutos, guardarHorarioJornada, estadisticasJornada } from '@/lib/jornadaDatos';
 import { showToast } from '@/components/Toast';
 import { duracionTexto } from '@/lib/lineaDelDia';
 import { useCuadrillas, cuadrillaPorTecnico, enCuadrilla, TODAS } from '@/lib/cuadrillas';
@@ -131,11 +131,14 @@ export default function JornadasEquipo() {
   const equipo = resumen.reduce((acc, r) => sumarMinutos(acc, r.porClase), {} as Partial<Record<ClaseTiempo, number>>);
   const totalEquipo = total(equipo);
   const sinRegistrar = equipo.sin_registrar || 0;
-  const traslados = equipo.traslado || 0;
   const enServicio = equipo.servicio || 0;
+  // Promedios por técnico y por día con registros.
+  const estEquipo = estadisticasJornada(equipo, resumen.reduce((n, r) => n + r.dias.length, 0));
 
   // Filas: por técnico o por cuadrilla (suma de sus miembros).
   type Fila = { clave: string; titulo: string; porClase: Partial<Record<ClaseTiempo, number>>; diasSinRegistros: number; miembros: ResumenTecnico[]; color?: number };
+  // Días con registro de la fila (suma de sus miembros), para los promedios.
+  const diasDe = (f: Fila) => f.miembros.reduce((n, m) => n + m.dias.length, 0);
   let filas: Fila[];
   if (vista === 'cuadrilla') {
     const grupos = new Map<string, Fila>();
@@ -297,7 +300,7 @@ export default function JornadasEquipo() {
               {([
                 ['Jornada registrada', `${pct(totalEquipo - sinRegistrar, totalEquipo)}%`, duracionTexto(totalEquipo - sinRegistrar), 'text-teal'],
                 ['Trabajo en servicio', `${pct(enServicio, totalEquipo)}%`, duracionTexto(enServicio), 'text-ink'],
-                ['Traslados', `${pct(traslados, totalEquipo)}%`, duracionTexto(traslados), 'text-ink'],
+                ['Registrado por día', duracionTexto(estEquipo.registradoPorDia), `promedio por técnico · ${duracionTexto(estEquipo.servicioPorDia)} en servicio`, 'text-ink'],
                 ['Sin registrar', `${pct(sinRegistrar, totalEquipo)}%`, duracionTexto(sinRegistrar), sinRegistrar > 0 ? 'text-amber' : 'text-muted'],
               ] as const).map(([rotulo, valor, detalle, color]) => (
                 <div key={rotulo} className="rounded-xl bg-surface-2/70 px-3 py-2.5">
@@ -348,7 +351,7 @@ export default function JornadasEquipo() {
                     <span className="min-w-0 flex-1">
                       <span className="block text-[14px] font-semibold truncate">{f.titulo}</span>
                       <span className="block text-[12px] text-muted">
-                        {t > 0 ? `${duracionTexto(t - sinReg)} registradas · ${pct(f.porClase.servicio || 0, t)}% en servicio` : 'Sin registros'}
+                        {t > 0 ? `${duracionTexto(t - sinReg)} registradas${periodo !== 'dia' ? ` (${duracionTexto(estadisticasJornada(f.porClase, diasDe(f)).registradoPorDia)} por día)` : ''} · ${pct(f.porClase.servicio || 0, t)}% en servicio` : 'Sin registros'}
                         {f.diasSinRegistros > 0 && periodo !== 'dia' ? ` · ${f.diasSinRegistros} día${f.diasSinRegistros > 1 ? 's' : ''} sin nada` : ''}
                       </span>
                     </span>

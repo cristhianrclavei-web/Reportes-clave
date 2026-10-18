@@ -47,37 +47,6 @@ describe('línea del día', () => {
   });
 });
 
-import { tiempoDelEquipo } from './tiempoEquipo';
-
-describe('tiempo del equipo', () => {
-  const iso = (hora: number, min = 0) => new Date(h(hora, min)).toISOString();
-  const fechaDe = (i: string) => i.slice(0, 10);
-
-  it('suma horas-persona de servicios y horas de bitácora por tipo', () => {
-    const r = tiempoDelEquipo(
-      [
-        { fecha: '2026-10-09', estado: 'concluido', hora_llegada: iso(9), hora_inicio: iso(9, 10), hora_fin: iso(12), minutos_pausados: 30, tecnicos: ['a', 'b'] },
-        { fecha: '2026-10-09', estado: 'en_curso', hora_llegada: iso(13), hora_inicio: iso(13), hora_fin: null, tecnicos: ['a'] },
-        { fecha: '2026-09-01', estado: 'concluido', hora_llegada: iso(9), hora_inicio: iso(9), hora_fin: iso(10), tecnicos: ['a'] },
-      ],
-      [
-        { hora_inicio: iso(7), hora_fin: iso(8), tipo: 'traslado' },
-        { hora_inicio: iso(15), hora_fin: iso(15, 45), tipo: 'compra' },
-        { hora_inicio: iso(16), hora_fin: iso(16), tipo: 'compra', cierre_automatico: true },
-        { hora_inicio: iso(17), hora_fin: null, tipo: 'oficina' },
-        { hora_inicio: iso(18), hora_fin: iso(18, 20), tipo: null },
-      ],
-      '2026-10-05', '2026-10-11', fechaDe,
-    );
-    expect(r).toEqual([
-      { clase: 'servicio', minutos: 300 }, // (180 − 30) × 2 personas
-      { clase: 'traslado', minutos: 60 },
-      { clase: 'compra', minutos: 45 },
-      { clase: 'otro', minutos: 20 },
-    ]);
-  });
-});
-
 import { duracionCorta, extensionDeVideo, pesoTexto } from './videoEvidencia';
 
 describe('video de evidencia', () => {

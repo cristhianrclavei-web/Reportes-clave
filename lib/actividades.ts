@@ -277,7 +277,7 @@ export type ActividadEquipo = Actividad & { tecnico: string };
 export async function listarActividadesEquipo(desdeIso: string): Promise<ActividadEquipo[]> {
   const { data, error } = await createClient()
     .from('actividades')
-    .select('*, profiles(full_name)')
+    .select('*, profiles!actividades_created_by_profiles_fkey(full_name)')
     .gte('hora_inicio', desdeIso)
     .order('hora_inicio', { ascending: false });
   if (error) throw error;

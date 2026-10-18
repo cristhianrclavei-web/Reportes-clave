@@ -81,7 +81,7 @@ export default function BitacoraSupervisorSection() {
       .from('actividades')
       // '*' y no una lista: así no falla si la base aún no tiene las columnas
       // nuevas (tipo, cierre_automatico).
-      .select('*, profiles(full_name)')
+      .select('*, profiles!actividades_created_by_profiles_fkey(full_name)')
       .order('hora_inicio', { ascending: false })
       .limit(200)
       .then(({ data, error }) => {
