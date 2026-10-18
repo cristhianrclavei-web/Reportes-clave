@@ -75,7 +75,7 @@ const MARGEN_ARRIBA = 8;
 const tinte = (color: string, pct: number) => `color-mix(in srgb, ${color} ${pct}%, transparent)`;
 
 export default function JornadaDia({
-  dia, esHoy, ahora, hrefServicio, hrefActividad, onLlenar, onEditar,
+  dia, esHoy, ahora, hrefServicio, hrefActividad, onLlenar, onEditar, onBorrar,
 }: {
   dia: DiaDeTecnico;
   esHoy: boolean;
@@ -87,6 +87,8 @@ export default function JornadaDia({
   onLlenar?: (tramo: { inicio: number; fin: number } | null) => void;
   // Solo el técnico: corregir algo que registró a mano.
   onEditar?: (actividad: ActividadJornada) => void;
+  // Solo el técnico: borrar una actividad suya (en vivo o a mano).
+  onBorrar?: (actividad: ActividadJornada) => void;
 }) {
   // Tramo tocado (que no es un hueco del técnico): se explica en una hoja.
   const [elegido, setElegido] = useState<Segmento | null>(null);
@@ -161,6 +163,14 @@ export default function JornadaDia({
     if (!onEditar || s.origen?.tipo !== 'actividad') return null;
     const actividad = actividadPorId.get(s.origen.id);
     if (!actividad || actividad.origen !== 'manual') return null;
+    if (ahora - actividad.inicio > 7 * 24 * 3600000) return null;
+    return actividad;
+  }
+  // Actividades propias que se pueden borrar: últimos 7 días y sin reporte.
+  function borrableDe(s: Segmento): ActividadJornada | null {
+    if (!onBorrar || s.origen?.tipo !== 'actividad') return null;
+    const actividad = actividadPorId.get(s.origen.id);
+    if (!actividad || actividad.reportId) return null;
     if (ahora - actividad.inicio > 7 * 24 * 3600000) return null;
     return actividad;
   }
@@ -342,6 +352,16 @@ export default function JornadaDia({
                   <button type="button" onClick={() => { setElegido(null); onEditar!(editable); }}
                     className="min-h-[48px] rounded-2xl bg-teal text-inkOnAccent font-semibold text-[14.5px] flex items-center justify-center gap-2 active:scale-95 transition-transform">
                     <PenLine size={16} strokeWidth={2.4} /> Editar horario o tipo
+                  </button>
+                );
+              })()}
+              {(() => {
+                const borrable = borrableDe(elegido);
+                if (!borrable) return null;
+                return (
+                  <button type="button" onClick={() => { setElegido(null); onBorrar!(borrable); }}
+                    className="min-h-[44px] rounded-2xl text-red font-semibold text-[14px] flex items-center justify-center gap-1.5 active:scale-95 transition-transform order-last">
+                    Borrar esta actividad
                   </button>
                 );
               })()}

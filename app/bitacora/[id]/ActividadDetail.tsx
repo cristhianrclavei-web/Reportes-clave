@@ -12,10 +12,10 @@ import ModalOverlay from '@/components/ModalOverlay';
 import {
   Actividad, ActividadEvento, obtenerActividad, agregarAvance, pausarActividad, reanudarActividad,
   concluirActividad, corregirHoraFin, actualizarNotaAvance, minutosEfectivos, agregarVideoAvance, eliminarActividad,
+  eliminarMiActividad, motivoNoPuedeBorrar,
 } from '@/lib/actividades';
 import { tipoActividad } from '@/lib/tiposActividad';
 import { duracionTexto } from '@/lib/lineaDelDia';
-import { eliminarActividadManual } from '@/lib/jornadaDatos';
 import { listarPersonal } from '@/lib/catalogos';
 import { hoyLocal } from '@/lib/fechaHoy';
 import { createClient } from '@/lib/supabaseClient';
@@ -239,14 +239,19 @@ export default function ActividadDetail({
       setNombres(mapa);
     }).catch(() => {});
   }, [actividad.origen, actividad.registrado_por, actividad.acompanantes]);
-  const puedeBorrarManual = !soloLectura && actividad.origen === 'manual' && ahora > 0
-    && ahora - new Date(actividad.hora_inicio).getTime() < 7 * 24 * 3600000;
+  // El dueño puede borrar su actividad (en vivo o a mano) si se equivocó de
+  // día u hora; supervisión tiene su propio botón más abajo.
+  const motivoNoBorrar = ahora > 0 ? motivoNoPuedeBorrar(actividad, ahora) : 'cargando';
+  const puedeBorrarPropia = !soloLectura && !puedeEliminar && motivoNoBorrar === null;
 
-  async function handleBorrarManual() {
-    if (!confirm('¿Borrar este registro de tu bitácora?\n\nSolo se borra el tuyo; a tus acompañantes no les cambia. Después puedes registrarlo de nuevo con las horas correctas.')) return;
+  async function handleBorrarPropia() {
+    const aviso = actividad.origen === 'manual'
+      ? 'Solo se borra tu registro; a tus acompañantes no les cambia.'
+      : 'Se borran también sus avances, notas, fotos y videos.';
+    if (!confirm(`¿Borrar esta actividad de tu bitácora?\n\n${aviso} Después la puedes registrar de nuevo a mano con el día y la hora correctos. No se puede deshacer.`)) return;
     setBusy(true);
     try {
-      await eliminarActividadManual(actividad.id);
+      await eliminarMiActividad(actividad);
       showToast('Registro borrado', 'success');
       window.location.href = '/bitacora';
     } catch (e: any) {
@@ -331,12 +336,6 @@ export default function ActividadDetail({
               </p>
               {(actividad.acompanantes || []).length > 0 && (
                 <p className="mt-0.5 text-muted">Con {(actividad.acompanantes || []).map((id) => nombres[id] || '…').join(', ')}</p>
-              )}
-              {puedeBorrarManual && (
-                <button type="button" onClick={handleBorrarManual} disabled={busy}
-                  className="mt-2 min-h-[38px] px-3 rounded-lg border border-red/40 text-red text-[12.5px] font-semibold active:scale-95 transition-transform disabled:opacity-60">
-                  Borrar este registro para corregirlo
-                </button>
               )}
             </div>
           )}
@@ -558,6 +557,27 @@ export default function ActividadDetail({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {!soloLectura && !puedeEliminar && (
+        <div className="px-4 mt-8">
+          {puedeBorrarPropia ? (
+            <>
+              <button
+                type="button"
+                onClick={handleBorrarPropia}
+                disabled={busy}
+                className="w-full min-h-[48px] rounded-2xl border border-red/40 text-red text-[14px] font-semibold flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
+              >
+                <Trash2 size={16} strokeWidth={2.4} />
+                {busy ? 'Borrando...' : 'Borrar esta actividad'}
+              </button>
+              <p className="text-[12px] text-muted text-center mt-1.5">Si te equivocaste de día u hora, bórrala y regístrala de nuevo a mano.</p>
+            </>
+          ) : motivoNoBorrar && motivoNoBorrar !== 'cargando' ? (
+            <p className="text-[12px] text-muted text-center">No se puede borrar: {motivoNoBorrar}</p>
+          ) : null}
         </div>
       )}
 

@@ -8,6 +8,7 @@ import { fechaLargaCalendario } from '@/lib/calendarioMes';
 import { ActividadJornada, DatosJornadas, cargarDatosJornadas, jornadaDeTecnico } from '@/lib/jornadaDatos';
 import { showToast } from '@/components/Toast';
 import { listarPersonal } from '@/lib/catalogos';
+import { eliminarMiActividad } from '@/lib/actividades';
 import JornadaDia from './JornadaDia';
 import RegistroManual from './RegistroManual';
 
@@ -96,6 +97,20 @@ export default function MiJornada({ onRegistrado, solicitudRegistro = 0 }: {
             hrefServicio={(id) => `/servicios/${id}`}
             hrefActividad={(id) => `/bitacora/${id}`}
             onLlenar={fecha >= sumarDias(hoy, -7) ? (tramo) => setRegistro({ tramo }) : undefined}
+            onBorrar={async (actividad) => {
+              const aviso = actividad.origen === 'manual'
+                ? 'Solo se borra tu registro; a tus acompañantes no les cambia.'
+                : 'Se borran también sus avances, notas, fotos y videos.';
+              if (!confirm(`¿Borrar «${actividad.titulo}» de tu bitácora?\n\n${aviso} Después la puedes registrar de nuevo a mano. No se puede deshacer.`)) return;
+              try {
+                await eliminarMiActividad({ id: actividad.id, report_id: actividad.reportId, hora_inicio: new Date(actividad.inicio).toISOString() });
+                showToast('Actividad borrada', 'success');
+                await cargar(hoy);
+                onRegistrado?.();
+              } catch (e: any) {
+                showToast('No se pudo borrar: ' + (e?.message || 'revisa tu conexión e intenta de nuevo.'), 'error');
+              }
+            }}
             onEditar={(actividad) => setRegistro({ tramo: { inicio: actividad.inicio, fin: actividad.fin ?? actividad.inicio }, editar: actividad })}
           />
         </>

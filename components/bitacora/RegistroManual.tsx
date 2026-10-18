@@ -7,7 +7,8 @@ import AutocompletarCliente from '@/components/AutocompletarCliente';
 import { ElegirCuadrilla } from '@/components/cuadrillas/ChipsCuadrilla';
 import IconoTipo from './IconoTipo';
 import { TIPOS_ACTIVIDAD, TipoActividad, tipoActividad } from '@/lib/tiposActividad';
-import { ActividadJornada, DatosJornadas, registrarActividadManual, editarActividadManual, eliminarActividadManual } from '@/lib/jornadaDatos';
+import { ActividadJornada, DatosJornadas, registrarActividadManual, editarActividadManual } from '@/lib/jornadaDatos';
+import { eliminarMiActividad } from '@/lib/actividades';
 import { seEnciman, tramosLibres } from '@/lib/jornada';
 import { hoyLocal, sumarDias } from '@/lib/fechaHoy';
 import { duracionTexto } from '@/lib/lineaDelDia';
@@ -126,7 +127,7 @@ export default function RegistroManual({
     setGuardando(true);
     setError(null);
     try {
-      await eliminarActividadManual(editar.id);
+      await eliminarMiActividad({ id: editar.id, report_id: null, hora_inicio: new Date(editar.inicio).toISOString() });
       onGuardado('Registro borrado');
     } catch (e: any) {
       setError(e?.message || 'No se pudo borrar. Revisa tu conexión e intenta de nuevo.');

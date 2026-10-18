@@ -199,31 +199,56 @@ export async function actualizarNotaAvance(eventoId: string, nota: string): Prom
 // hace supervisión; la base lo permite con patch_eliminar_actividad_bitacora.sql).
 // Primero las fotos y videos y al final el registro: si algo falla a medias,
 // la actividad sigue ahí y se puede reintentar.
+// Fotos y videos de una actividad. Se borran antes que el registro: la
+// política de storage solo deja borrarlos mientras la actividad existe.
+async function borrarArchivosDeActividad(actividadId: string): Promise<void> {
+  const supabase = createClient();
+  const { data: eventos, error: errorEventos } = await supabase
+    .from('actividad_eventos').select('foto_path, video_path').eq('actividad_id', actividadId);
+  if (errorEventos) throw errorEventos;
+  const archivos: string[] = [];
+  (eventos || []).forEach((e) => {
+    if (e.foto_path) archivos.push(e.foto_path);
+    if (e.video_path) archivos.push(e.video_path);
+  });
+  if (archivos.length > 0) {
+    const { error: errorArchivos } = await supabase.storage.from('evidencias').remove(archivos);
+    if (errorArchivos) throw errorArchivos;
+  }
+}
+
 export async function eliminarActividad(actividad: Pick<Actividad, 'id' | 'report_id'>): Promise<void> {
   const supabase = createClient();
 
   // Si ya se hizo un reporte con esta actividad, sus fotos son también las
   // del reporte (no se copian): se conservan.
-  if (!actividad.report_id) {
-    const { data: eventos, error: errorEventos } = await supabase
-      .from('actividad_eventos').select('foto_path, video_path').eq('actividad_id', actividad.id);
-    if (errorEventos) throw errorEventos;
-    const archivos: string[] = [];
-    (eventos || []).forEach((e) => {
-      if (e.foto_path) archivos.push(e.foto_path);
-      if (e.video_path) archivos.push(e.video_path);
-    });
-    if (archivos.length > 0) {
-      const { error: errorArchivos } = await supabase.storage.from('evidencias').remove(archivos);
-      if (errorArchivos) throw errorArchivos;
-    }
-  }
+  if (!actividad.report_id) await borrarArchivosDeActividad(actividad.id);
 
   // Sin permiso, la base no marca error: simplemente no borra nada. Por eso
   // se pide de vuelta lo borrado y se revisa.
   const { data: borradas, error } = await supabase.from('actividades').delete().eq('id', actividad.id).select('id');
   if (error) throw error;
   if (!borradas || borradas.length === 0) throw new Error('No tienes permiso para eliminar esta actividad.');
+}
+
+// ¿El técnico puede borrar esta actividad suya? Las de los últimos 7 días
+// sin reporte ligado. Misma regla que eliminar_mi_actividad en la base
+// (supabase/patch_bitacora_eliminar_propia.sql).
+export function motivoNoPuedeBorrar(actividad: Pick<Actividad, 'report_id' | 'hora_inicio'>, ahoraMs: number): string | null {
+  if (actividad.report_id) return 'Ya tiene un reporte ligado; para borrarla pídelo a supervisión.';
+  if (ahoraMs - new Date(actividad.hora_inicio).getTime() > 7 * 24 * 3600000) return 'Solo se pueden borrar las de los últimos 7 días.';
+  return null;
+}
+
+// El técnico borra una actividad suya (en vivo o a mano) para volver a
+// registrarla bien. Se revisa la regla ANTES de borrar las fotos, para no
+// quedarse sin fotos de una actividad que al final no se puede borrar.
+export async function eliminarMiActividad(actividad: Pick<Actividad, 'id' | 'report_id' | 'hora_inicio'>): Promise<void> {
+  const motivo = motivoNoPuedeBorrar(actividad, Date.now());
+  if (motivo) throw new Error(motivo);
+  await borrarArchivosDeActividad(actividad.id);
+  const { error } = await createClient().rpc('eliminar_mi_actividad', { p_id: actividad.id });
+  if (error) throw error;
 }
 
 // Al hacer el reporte de una actividad queda ligada a él.

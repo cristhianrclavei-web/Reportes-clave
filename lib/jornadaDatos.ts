@@ -18,6 +18,7 @@ export type ActividadJornada = ActividadDelDia & {
   origen: 'en_vivo' | 'manual';
   registradoPor: string | null;
   proyecto: string;
+  reportId: string | null;
 };
 export type ServicioJornada = ServicioDelDia & { fecha: string; tecnicoIds: string[]; estado: string };
 
@@ -125,6 +126,7 @@ export async function cargarDatosJornadas(desde: string, hasta: string): Promise
     tecnicoId: x.created_by,
     origen: x.origen === 'manual' ? 'manual' : 'en_vivo',
     registradoPor: x.registrado_por || null,
+    reportId: x.report_id || null,
   }));
 
   const diasFestivos = new Set(
@@ -195,10 +197,6 @@ export async function registrarActividadManual(entrada: {
   return { creadas: data?.creadas || 0, omitidos: data?.omitidos || [] };
 }
 
-export async function eliminarActividadManual(id: string): Promise<void> {
-  const { error } = await createClient().rpc('eliminar_actividad_manual', { p_id: id });
-  if (error) throw error;
-}
 
 export type ResumenTecnico = {
   tecnicoId: string;
