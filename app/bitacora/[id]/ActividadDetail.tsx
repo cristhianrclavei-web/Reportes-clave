@@ -15,6 +15,8 @@ import {
 } from '@/lib/actividades';
 import { tipoActividad } from '@/lib/tiposActividad';
 import { duracionTexto } from '@/lib/lineaDelDia';
+import { eliminarActividadManual } from '@/lib/jornadaDatos';
+import { listarPersonal } from '@/lib/catalogos';
 import { hoyLocal } from '@/lib/fechaHoy';
 import { createClient } from '@/lib/supabaseClient';
 import { mapsLink } from '@/lib/geolocation';
@@ -23,7 +25,7 @@ import IconoTipo from '@/components/bitacora/IconoTipo';
 import { RotuloGrupo } from '@/components/tecnico/EncabezadoSeccion';
 import {
   Play, Pause, Check, Camera, X, Circle, Images, RotateCcw, ChevronLeft, Flag, NotebookPen,
-  MessageSquarePlus, FileText, AlertTriangle, CalendarPlus, Video, Trash2,
+  MessageSquarePlus, FileText, AlertTriangle, CalendarPlus, Video, Trash2, PenLine,
 } from 'lucide-react';
 
 // Detalle de una actividad de bitácora. Mismo acomodo que el detalle de un
@@ -225,6 +227,34 @@ export default function ActividadDetail({
     : actividad.estado === 'pausada' ? { texto: 'En pausa', cls: 'bg-amber/15 text-amber' } : { texto: 'Concluida', cls: 'bg-surface-2 text-muted' };
   const notasParaServicio = eventos.filter((e) => e.tipo === 'avance' && e.nota).map((e) => e.nota).reverse().join('. ');
 
+  // Registrada a mano: quién la registró y con quién iba (nombres).
+  const [nombres, setNombres] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const ids = [actividad.registrado_por, ...(actividad.acompanantes || [])].filter((x): x is string => !!x);
+    if (actividad.origen !== 'manual' || ids.length === 0) return;
+    // Por función de la base: un técnico no puede leer los perfiles de los demás.
+    listarPersonal().then((lista) => {
+      const mapa: Record<string, string> = {};
+      lista.filter((p) => ids.includes(p.id)).forEach((p) => { mapa[p.id] = p.full_name; });
+      setNombres(mapa);
+    }).catch(() => {});
+  }, [actividad.origen, actividad.registrado_por, actividad.acompanantes]);
+  const puedeBorrarManual = !soloLectura && actividad.origen === 'manual' && ahora > 0
+    && ahora - new Date(actividad.hora_inicio).getTime() < 7 * 24 * 3600000;
+
+  async function handleBorrarManual() {
+    if (!confirm('¿Borrar este registro de tu bitácora?\n\nSolo se borra el tuyo; a tus acompañantes no les cambia. Después puedes registrarlo de nuevo con las horas correctas.')) return;
+    setBusy(true);
+    try {
+      await eliminarActividadManual(actividad.id);
+      showToast('Registro borrado', 'success');
+      window.location.href = '/bitacora';
+    } catch (e: any) {
+      showToast('No se pudo borrar: ' + (e?.message || 'revisa tu conexión e intenta de nuevo.'), 'error');
+      setBusy(false);
+    }
+  }
+
   async function handleEliminar() {
     const aviso = actividad.report_id
       ? 'Se borran sus avances y notas. Las fotos se conservan porque están en el reporte que se hizo con esta actividad.'
@@ -293,6 +323,22 @@ export default function ActividadDetail({
           </div>
           {actividad.report_id && (
             <p className="text-[12.5px] text-teal font-semibold mt-3 flex items-center gap-1.5"><FileText size={14} strokeWidth={2.4} />Ya tiene un reporte ligado</p>
+          )}
+          {actividad.origen === 'manual' && (
+            <div className="mt-3 text-[12.5px] text-ink/80 leading-snug">
+              <p className="flex items-center gap-1.5 font-semibold"><PenLine size={14} strokeWidth={2.4} className="text-teal" />
+                Registrada a mano{actividad.registrado_por && actividad.registrado_por !== actividad.created_by && nombres[actividad.registrado_por] ? ` por ${nombres[actividad.registrado_por]}` : ''}
+              </p>
+              {(actividad.acompanantes || []).length > 0 && (
+                <p className="mt-0.5 text-muted">Con {(actividad.acompanantes || []).map((id) => nombres[id] || '…').join(', ')}</p>
+              )}
+              {puedeBorrarManual && (
+                <button type="button" onClick={handleBorrarManual} disabled={busy}
+                  className="mt-2 min-h-[38px] px-3 rounded-lg border border-red/40 text-red text-[12.5px] font-semibold active:scale-95 transition-transform disabled:opacity-60">
+                  Borrar este registro para corregirlo
+                </button>
+              )}
+            </div>
           )}
         </div>
 

@@ -54,7 +54,7 @@ export const MANUAL_TECNICO: SeccionManual[] = [
         resumen: 'Son cuatro pasos: Datos, Trabajo, Evidencia y Firmas.',
         pasos: [
           'Toca «Nuevo reporte». Si el reporte es de un servicio asignado, elígelo arriba y se llenan solos el cliente, el personal y las horas de llegada y salida que registraste en el servicio (las puedes corregir). Con un servicio elegido tampoco se pregunta si ya se concluyó: se toma del servicio (concluido en su último día con el trabajo terminado; en curso en los días intermedios o si quedó trabajo pendiente). Esa pregunta solo sale en reportes sin servicio.',
-          'Datos: cliente, contacto, horas de llegada y salida, vehículo y quién fue.',
+          'Datos: cliente, contacto, horas de llegada y salida, vehículo y quién fue. La fecha del reporte debe ser la del servicio elegido: un reporte del 15 no se puede ligar al servicio del 14 (la app te avisa y te ofrece usar la fecha del servicio).',
           'Trabajo: tipo de servicio, sistema, materiales usados y la descripción de lo que hiciste.',
           'Evidencia: toma o elige las fotos y marca si el servicio ya quedó concluido.',
           'En cada foto: el ojo decide si sale en el PDF del cliente o se queda solo en la app (no se borra); el botón de ajustes le pone etapa (Antes, Durante, Después) y área. Con etapa y área, el PDF las agrupa y pone el antes y el después lado a lado.',
@@ -139,9 +139,12 @@ export const MANUAL_TECNICO: SeccionManual[] = [
         pasos: [
           'Toca el tipo de actividad (traslado, compra, oficina o taller, capacitación, apoyo a cliente u otro), ponle nombre y, si aplica, el cliente. Se registran la hora y tu ubicación.',
           'Dentro de la actividad usa «Foto rápida»: abre la cámara y la foto se guarda sola; el comentario lo agregas después. Con «Pausar» detienes el tiempo y con «Concluir» la cierras.',
-          '«Mi día» junta tus servicios y tus actividades en una línea de tiempo, con lo que quedó sin registrar entre ellos.',
+          '«Mi día» muestra tu jornada completa (de la hora de entrada a la de salida): servicios, comida, pausas y actividades, y en ámbar lo que quedó sin registrar. Cada minuto cuenta una sola vez.',
+          'Si se te pasó iniciar algo (subir material en la oficina, el traslado, la compra), toca «¿Se te pasó iniciar algo? Regístralo a mano», o «Llenar» en un tramo sin registrar. Eliges qué fue, de qué hora a qué hora y quién iba contigo: a ellos se les registra lo mismo.',
+          'Si lo que registras choca con otra actividad de tu bitácora, la app te avisa y no deja guardar; te ofrece los tramos libres para ajustar con un toque. Si cae dentro de un servicio (por ejemplo, saliste por material) sí se guarda, y ese rato se descuenta del servicio.',
+          'Lo registrado a mano en los últimos 7 días lo puedes borrar desde su detalle para volver a registrarlo bien.',
           'Un día con actividad en la bitácora ya no te pide reporte ni justificación.',
-          'Si una actividad se queda abierta, se cierra sola al terminar el día y te pide confirmar a qué hora terminaste; mientras no la confirmes, su tiempo no cuenta.',
+          'Si una actividad se queda abierta, se cierra sola al terminar el día con la hora de tu último movimiento y te pide confirmar a qué hora terminaste.',
           'Si un apoyo terminó siendo un trabajo, en la actividad ya concluida usa «Hacer un reporte con esta actividad»: el reporte abre con el cliente, las notas y las fotos ya puestas.',
         ],
       },
@@ -381,6 +384,8 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
           '«Equipo» muestra a cada persona con su puesto y especialidades.',
           '«Cuadrillas» agrupa al personal; cada una puede tener un líder y un supervisor a cargo.',
           '«Solicitudes» es donde autorizas horas extra, vacaciones y permisos.',
+          '«Jornadas» muestra en qué se va el tiempo de cada técnico y de cada cuadrilla, por día, semana o mes: trabajo en servicio, traslados, compras, oficina, capacitación, apoyos, comida, pausas y lo que quedó sin registrar. Toca a alguien para ver su día hora por hora.',
+          'En «Jornadas» también cambias la hora de entrada y de salida (lunes a viernes). Lo que no tenga registro dentro de ese horario cuenta como «sin registrar»; los días sin ningún registro (vacaciones, faltas) se indican aparte.',
         ],
       },
       {

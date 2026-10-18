@@ -36,6 +36,11 @@ export type Actividad = {
   // Quedó abierta al terminar el día y se cerró sola: falta que su dueño
   // confirme a qué hora terminó de verdad.
   cierre_automatico?: boolean;
+  // patch_bitacora_manual.sql: registrada después, a mano (no en vivo), por
+  // quién y con quién iba. Las anteriores no traen estos campos.
+  origen?: 'en_vivo' | 'manual';
+  registrado_por?: string | null;
+  acompanantes?: string[];
 };
 
 export async function crearActividad(proyecto: string, titulo: string, extra: { tipo?: TipoActividad; clienteId?: string | null } = {}): Promise<Actividad> {

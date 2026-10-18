@@ -9,16 +9,15 @@ import MenuCuenta from '@/components/MenuCuenta';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { crearActividad, listarMisActividades, cerrarActividadesAbiertas, Actividad } from '@/lib/actividades';
-import { listarMisServicios, Servicio } from '@/lib/serviciosProgramados';
 import { TIPOS_ACTIVIDAD, TipoActividad, tipoActividad } from '@/lib/tiposActividad';
 import { showToast } from '@/components/Toast';
 import TecnicoTabs from '@/components/TecnicoTabs';
 import SubTabs from '@/components/SubTabs';
 import ModalOverlay from '@/components/ModalOverlay';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
-import LineaDelDia from '@/components/bitacora/LineaDelDia';
+import MiJornada from '@/components/bitacora/MiJornada';
 import IconoTipo from '@/components/bitacora/IconoTipo';
-import { Play, Pause, CalendarClock, List, AlertTriangle } from 'lucide-react';
+import { Play, Pause, CalendarClock, List, AlertTriangle, PenLine } from 'lucide-react';
 import Logo from '@/components/Logo';
 
 // Bitácora del técnico: lo que hace fuera de un servicio programado
@@ -43,7 +42,6 @@ const ESTADO_CHIP: Record<string, { label: string; className: string }> = {
 
 export default function BitacoraList({ userName }: { userName: string }) {
   const [actividades, setActividades] = useState<Actividad[]>([]);
-  const [servicios, setServicios] = useState<Servicio[]>([]);
   const [loading, setLoading] = useState(true);
   const [sub, setSub] = useState<'dia' | 'actividades'>('dia');
   // Tipo elegido: abre la hoja para ponerle nombre y, si aplica, cliente.
@@ -55,6 +53,8 @@ export default function BitacoraList({ userName }: { userName: string }) {
   const [error, setError] = useState<string | null>(null);
   // Reloj para «iniciada hace…»: se lee ya montado y avanza cada minuto.
   const [ahora, setAhora] = useState(0);
+  // Pide a «Mi día» que abra el registro a mano.
+  const [solicitudRegistro, setSolicitudRegistro] = useState(0);
 
   useEffect(() => {
     setAhora(Date.now());
@@ -70,7 +70,6 @@ export default function BitacoraList({ userName }: { userName: string }) {
         setLoading(false);
       }
     })();
-    listarMisServicios().then(setServicios).catch(() => {});
     return () => clearInterval(id);
   }, []);
 
@@ -172,7 +171,7 @@ export default function BitacoraList({ userName }: { userName: string }) {
 
         {/* Iniciar: un toque sobre el tipo */}
         <RotuloGrupo>Iniciar una actividad</RotuloGrupo>
-        <div className="grid grid-cols-3 xl:grid-cols-6 gap-2 sm:gap-2.5 mb-6">
+        <div className="grid grid-cols-3 xl:grid-cols-6 gap-2 sm:gap-2.5 mb-3">
           {TIPOS_ACTIVIDAD.map((t) => (
             <button
               key={t.clave}
@@ -189,6 +188,14 @@ export default function BitacoraList({ userName }: { userName: string }) {
           ))}
         </div>
 
+        <button
+          type="button"
+          onClick={() => { setSub('dia'); setSolicitudRegistro((n) => n + 1); }}
+          className="w-full mb-6 min-h-[48px] rounded-2xl border border-dashed border-teal/50 text-teal text-[14px] font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+        >
+          <PenLine size={16} strokeWidth={2.4} /> ¿Se te pasó iniciar algo? Regístralo a mano
+        </button>
+
         <SubTabs
           activa={sub}
           onCambiar={setSub}
@@ -199,11 +206,9 @@ export default function BitacoraList({ userName }: { userName: string }) {
         />
 
         {sub === 'dia' && (
-          <LineaDelDia
-            servicios={servicios}
-            actividades={actividades}
-            hrefServicio={(id) => `/servicios/${id}`}
-            hrefActividad={(id) => `/bitacora/${id}`}
+          <MiJornada
+            solicitudRegistro={solicitudRegistro}
+            onRegistrado={() => listarMisActividades().then(setActividades).catch(() => {})}
           />
         )}
 
