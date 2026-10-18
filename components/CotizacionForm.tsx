@@ -1,5 +1,6 @@
 'use client';
 
+import { confirmar } from '@/lib/dialogos';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
 import AutocompletarPersona from '@/components/AutocompletarPersona';
 import { useContactosCliente } from '@/lib/useContactosCliente';
@@ -257,9 +258,9 @@ export default function CotizacionForm({
   function agregarGrupo() {
     setGrupos((prev) => [...prev, nuevoGrupo()]);
   }
-  function quitarGrupo(id: string) {
+  async function quitarGrupo(id: string) {
     if (grupos.length <= 1) return;
-    if (!confirm('¿Quitar este sistema de la cotización, con todas sus partidas?')) return;
+    if (!await confirmar('¿Quitar este sistema de la cotización, con todas sus partidas?')) return;
     setGrupos((prev) => prev.filter((g) => g.id !== id));
   }
 

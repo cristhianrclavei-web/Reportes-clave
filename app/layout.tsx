@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Barlow_Condensed, Inter, IBM_Plex_Mono } from 'next/font/google';
 import './globals.css';
 import ToastContainer from '@/components/Toast';
+import Dialogos from '@/components/Dialogos';
 import OfflineSyncManager from '@/components/OfflineSyncManager';
 import SincronizarAcento from '@/components/SincronizarAcento';
 import SeleccionarNumeros from '@/components/SeleccionarNumeros';
@@ -90,6 +91,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AvisoSuscripcion />
         {children}
         <ToastContainer />
+        <Dialogos />
         <AceptarPrivacidad />
         <Asistente />
         <OfflineSyncManager />

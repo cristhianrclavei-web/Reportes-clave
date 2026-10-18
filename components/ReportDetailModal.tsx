@@ -1,5 +1,6 @@
 'use client';
 
+import { avisar, confirmar } from '@/lib/dialogos';
 import VisorVideo, { MarcaVideo } from '@/components/VisorVideo';
 import { fechaDMA } from '@/lib/etiquetaMantenimiento';
 import { MARCA } from '@/lib/marca';
@@ -127,7 +128,7 @@ export default function ReportDetailModal({
 
   async function handleSolicitarCorreccion() {
     if (!motivoSolicitud.trim()) {
-      alert('Escribe brevemente qué hay que corregir para que el supervisor sepa qué autorizar.');
+      avisar('Escribe brevemente qué hay que corregir para que el supervisor sepa qué autorizar.');
       return;
     }
     setProcesandoCorreccion(true);
@@ -139,14 +140,14 @@ export default function ReportDetailModal({
       setShowSolicitud(false);
       setMotivoSolicitud('');
     } catch (e: any) {
-      alert('No se pudo enviar la solicitud: ' + (e?.message || 'error'));
+      avisar('No se pudo enviar la solicitud: ' + (e?.message || 'error'));
     } finally {
       setProcesandoCorreccion(false);
     }
   }
 
   async function handleHabilitarCorreccion() {
-    if (!confirm('¿Autorizar la corrección de este reporte?\n\nQuien lo hizo solo podrá agregar fotos y cambiar el servicio vinculado. Quedará registrado en Actividad con tu nombre.')) return;
+    if (!await confirmar('¿Autorizar la corrección de este reporte?\n\nQuien lo hizo solo podrá agregar fotos y cambiar el servicio vinculado. Quedará registrado en Actividad con tu nombre.')) return;
     setProcesandoCorreccion(true);
     try {
       await habilitarCorreccion(report);
@@ -155,7 +156,7 @@ export default function ReportDetailModal({
       onUpdated?.(report.id, { correccion_habilitada: true, correccion_solicitada: false });
       showToast('Corrección autorizada', 'success');
     } catch (e: any) {
-      alert('No se pudo autorizar: ' + (e?.message || 'error'));
+      avisar('No se pudo autorizar: ' + (e?.message || 'error'));
     } finally {
       setProcesandoCorreccion(false);
     }
@@ -170,7 +171,7 @@ export default function ReportDetailModal({
       onUpdated?.(report.id, { correccion_habilitada: false, correccion_solicitada: false });
       showToast('Permiso de corrección cerrado', 'success');
     } catch (e: any) {
-      alert('No se pudo cerrar el permiso: ' + (e?.message || 'error'));
+      avisar('No se pudo cerrar el permiso: ' + (e?.message || 'error'));
     } finally {
       setProcesandoCorreccion(false);
     }
@@ -226,7 +227,7 @@ export default function ReportDetailModal({
       // Vuelve a pedir las URLs firmadas para que se vean las nuevas.
       if (fotoUrls !== null) await handleVerFotos();
     } catch (e: any) {
-      alert('No se pudo aplicar la corrección: ' + (e?.message || 'error'));
+      avisar('No se pudo aplicar la corrección: ' + (e?.message || 'error'));
     } finally {
       setProcesandoCorreccion(false);
     }
@@ -281,15 +282,15 @@ export default function ReportDetailModal({
 
   async function handleEliminarReporte() {
     const folio = report.data?.claveFormato ? ` (folio ${report.data.claveFormato})` : '';
-    if (!confirm(`¿Eliminar el reporte de «${report.empresa_cliente}»${folio}?\n\nSe borrarán también sus fotos de evidencia y su factura si la tiene. Si está vinculado a un servicio programado, el servicio NO se elimina, solo se desvincula.`)) return;
-    if (!confirm('Esta acción es PERMANENTE y quedará registrada en Actividad con tu nombre. ¿Confirmar eliminación?')) return;
+    if (!await confirmar(`¿Eliminar el reporte de «${report.empresa_cliente}»${folio}?\n\nSe borrarán también sus fotos de evidencia y su factura si la tiene. Si está vinculado a un servicio programado, el servicio NO se elimina, solo se desvincula.`)) return;
+    if (!await confirmar('Esta acción es PERMANENTE y quedará registrada en Actividad con tu nombre. ¿Confirmar eliminación?')) return;
     setEliminando(true);
     try {
       await eliminarReporte(report);
       onDeleted?.(report.id);
       onClose();
     } catch (e: any) {
-      alert('No se pudo eliminar el reporte: ' + (e?.message || 'error desconocido'));
+      avisar('No se pudo eliminar el reporte: ' + (e?.message || 'error desconocido'));
     } finally {
       setEliminando(false);
     }
@@ -306,7 +307,7 @@ export default function ReportDetailModal({
       setServicioConcluido(true);
       registrarAccionGlobal('marco_finalizado', 'reporte', report.id, `Marcó como finalizado el reporte de «${report.empresa_cliente}»${report.data?.claveFormato ? ` (folio ${report.data.claveFormato})` : ''}`);
     } catch (e: any) {
-      alert('No se pudo marcar como finalizado: ' + (e?.message || 'error desconocido'));
+      avisar('No se pudo marcar como finalizado: ' + (e?.message || 'error desconocido'));
     } finally {
       setMarcandoConcluido(false);
     }
@@ -419,7 +420,7 @@ export default function ReportDetailModal({
       }
 
       if (!shared) {
-        alert(
+        avisar(
           `Este celular no permite adjuntar archivos Excel directo a WhatsApp.\n\n` +
             `Vamos a descargar el archivo y luego abrir WhatsApp para que tú mismo lo adjuntes ahí con el clip 📎 → Documento.`
         );
@@ -439,7 +440,7 @@ export default function ReportDetailModal({
         );
       }
     } catch (err: any) {
-      alert('No se pudo compartir el archivo: ' + (err?.message || err?.name || String(err)));
+      avisar('No se pudo compartir el archivo: ' + (err?.message || err?.name || String(err)));
     } finally {
       setSharing(false);
     }

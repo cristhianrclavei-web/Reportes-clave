@@ -1,5 +1,6 @@
 'use client';
 
+import { confirmar } from '@/lib/dialogos';
 import { useMemo, useState } from 'react';
 import { AlertTriangle, Info, PenLine, X } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
@@ -123,7 +124,7 @@ export default function RegistroManual({
 
   async function borrar() {
     if (!editar) return;
-    if (!confirm('¿Borrar este registro de tu bitácora?\n\nSolo se borra el tuyo; a tus acompañantes no les cambia.')) return;
+    if (!await confirmar('¿Borrar este registro de tu bitácora?\n\nSolo se borra el tuyo; a tus acompañantes no les cambia.')) return;
     setGuardando(true);
     setError(null);
     try {

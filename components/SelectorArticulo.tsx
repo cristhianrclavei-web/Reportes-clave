@@ -1,5 +1,6 @@
 'use client';
 
+import { avisar } from '@/lib/dialogos';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Articulo, CategoriaInsumo, CATEGORIAS, UNIDADES,
@@ -55,7 +56,7 @@ export default function SelectorArticulo({
 
   async function handleCrear() {
     if (!nuevaDescripcion.trim()) {
-      alert('Escribe qué es.');
+      avisar('Escribe qué es.');
       return;
     }
     setBusy(true);
@@ -72,7 +73,7 @@ export default function SelectorArticulo({
       setNuevaDescripcion('');
       setNuevaUnidad('pza');
     } catch (e: any) {
-      alert('No se pudo agregar al catálogo: ' + (e?.message || 'error'));
+      avisar('No se pudo agregar al catálogo: ' + (e?.message || 'error'));
     } finally {
       setBusy(false);
     }

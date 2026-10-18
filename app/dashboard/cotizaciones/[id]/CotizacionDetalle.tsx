@@ -1,5 +1,6 @@
 'use client';
 
+import { avisar, confirmar } from '@/lib/dialogos';
 import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -119,7 +120,7 @@ export default function CotizacionDetalle({
       setCotizacion((prev) => ({ ...prev, estado: 'enviada' }));
       showToast('Marcada como enviada', 'success');
     } catch (e: any) {
-      alert('No se pudo actualizar: ' + (e?.message || 'error'));
+      avisar('No se pudo actualizar: ' + (e?.message || 'error'));
     } finally {
       setProcesandoAccion(false);
     }
@@ -130,7 +131,7 @@ export default function CotizacionDetalle({
     if (cotizacion.estado === 'enviada') {
       aviso += ' El enlace que ya mandaste al cliente dejará de abrir hasta que la vuelvas a aprobar.';
     }
-    if (!confirm(aviso)) return;
+    if (!await confirmar(aviso)) return;
     setProcesandoAccion(true);
     try {
       await quitarAprobacionCotizacion(cotizacion.id);
@@ -143,21 +144,21 @@ export default function CotizacionDetalle({
       }));
       showToast('Aprobación quitada: ya puedes editarla', 'success');
     } catch (e: any) {
-      alert('No se pudo quitar la aprobación: ' + (e?.message || 'revisa tu conexión e intenta de nuevo.'));
+      avisar('No se pudo quitar la aprobación: ' + (e?.message || 'revisa tu conexión e intenta de nuevo.'));
     } finally {
       setProcesandoAccion(false);
     }
   }
 
   async function handleRechazar() {
-    if (!confirm('¿Marcar esta cotización como rechazada?')) return;
+    if (!await confirmar('¿Marcar esta cotización como rechazada?')) return;
     setProcesandoAccion(true);
     try {
       await actualizarEstadoCotizacion(cotizacion.id, 'rechazada');
       setCotizacion((prev) => ({ ...prev, estado: 'rechazada' }));
       showToast('Marcada como rechazada', 'success');
     } catch (e: any) {
-      alert('No se pudo actualizar: ' + (e?.message || 'error'));
+      avisar('No se pudo actualizar: ' + (e?.message || 'error'));
     } finally {
       setProcesandoAccion(false);
     }
@@ -198,14 +199,14 @@ export default function CotizacionDetalle({
   }
 
   async function handleEliminar() {
-    if (!confirm(`¿Eliminar la cotización de «${cotizacion.empresa}» (folio ${cotizacion.folio})?\n\nEsta acción es permanente.`)) return;
+    if (!await confirmar(`¿Eliminar la cotización de «${cotizacion.empresa}» (folio ${cotizacion.folio})?\n\nEsta acción es permanente.`)) return;
     setEliminando(true);
     try {
       await eliminarCotizacion(cotizacion.id);
       showToast('Cotización eliminada', 'success');
       router.push('/dashboard/cotizaciones');
     } catch (e: any) {
-      alert('No se pudo eliminar: ' + (e?.message || 'error'));
+      avisar('No se pudo eliminar: ' + (e?.message || 'error'));
       setEliminando(false);
     }
   }

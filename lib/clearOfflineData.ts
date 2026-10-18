@@ -9,6 +9,8 @@
  * cuelga sin redirigir.
  */
 
+import { confirmar } from './dialogos';
+
 export async function clearOfflineData(): Promise<{
   success: boolean;
   cleared: { indexedDb: boolean; localStorage: boolean; cache: boolean };
@@ -123,8 +125,8 @@ export async function safeLogout(): Promise<boolean> {
 
   // 2. Si hay reportes, pedir confirmación
   if (hasPendingReports) {
-    const confirmed = window.confirm(
-      '⚠️ Tienes reportes sin enviar.\n\n' +
+    const confirmed = await confirmar(
+      'Tienes reportes sin enviar.\n\n' +
       'Al cerrar sesión se BORRARÁN todos los datos locales ' +
       '(reportes, fotos, firmas).\n\n' +
       '¿Deseas continuar?'

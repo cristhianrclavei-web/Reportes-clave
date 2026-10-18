@@ -1,5 +1,6 @@
 'use client';
 
+import { avisar } from '@/lib/dialogos';
 import { coincideBusqueda } from '@/lib/busqueda';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -101,7 +102,7 @@ export default function AgendaList({ userName }: { userName?: string }) {
       setNuevaFecha('');
       await cargar();
     } catch (e: any) {
-      alert('No se pudo reprogramar: ' + (e?.message || 'error'));
+      avisar('No se pudo reprogramar: ' + (e?.message || 'error'));
     } finally {
       setGuardando(false);
     }

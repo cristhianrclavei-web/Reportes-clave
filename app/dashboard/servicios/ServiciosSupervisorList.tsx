@@ -1,5 +1,6 @@
 'use client';
 
+import { avisar, confirmar, pedirTexto } from '@/lib/dialogos';
 import CampoUbicacionSitio, { CamposUbicacion, UBICACION_VACIA, ubicacionDeCampos } from '@/components/servicios/CampoUbicacionSitio';
 import DiasDelProyectoEditor from '@/components/servicios/DiasDelProyectoEditor';
 import { AjusteDia, armarDiasDelProyecto, errorEnDias } from '@/lib/diasProyecto';
@@ -415,25 +416,25 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   // Guarda la lista capturada en el alta como plantilla reutilizable, sin
   // esperar a que el proyecto exista.
   async function handleDuplicarPlantilla(pl: PlantillaInsumos) {
-    const nombre = prompt('Nombre de la copia', `${pl.nombre} (copia)`);
+    const nombre = await pedirTexto('Nombre de la copia', `${pl.nombre} (copia)`);
     if (!nombre || !nombre.trim()) return;
     try {
       await guardarPlantillaDeItems(nombre, pl.items);
       setPlantillas(await listarPlantillas());
       showToast('Plantilla duplicada', 'success');
     } catch (e: any) {
-      alert('No se pudo duplicar: ' + (e?.message || 'error'));
+      avisar('No se pudo duplicar: ' + (e?.message || 'error'));
     }
   }
 
   async function handleEliminarPlantilla(pl: PlantillaInsumos) {
-    if (!confirm(`¿Borrar la plantilla «${pl.nombre}»?\n\nLos servicios que ya la usaron conservan su lista; solo deja de estar disponible para nuevos.`)) return;
+    if (!await confirmar(`¿Borrar la plantilla «${pl.nombre}»?\n\nLos servicios que ya la usaron conservan su lista; solo deja de estar disponible para nuevos.`)) return;
     try {
       await eliminarPlantilla(pl.id);
       setPlantillas(await listarPlantillas());
       showToast('Plantilla borrada', 'success');
     } catch (e: any) {
-      alert('No se pudo borrar: ' + (e?.message || 'error'));
+      avisar('No se pudo borrar: ' + (e?.message || 'error'));
     }
   }
 
@@ -461,11 +462,11 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
         showToast('Plantilla actualizada', 'success');
       } else {
         if (!nombreEdit.trim()) {
-          alert('Ponle un nombre a la plantilla.');
+          avisar('Ponle un nombre a la plantilla.');
           return;
         }
         if (items.length === 0) {
-          alert('Agrega al menos un renglón a la plantilla.');
+          avisar('Agrega al menos un renglón a la plantilla.');
           return;
         }
         await guardarPlantillaDeItems(nombreEdit, items);
@@ -474,7 +475,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
       setPlantillas(await listarPlantillas());
       cerrarModalPlantilla();
     } catch (e: any) {
-      alert('No se pudo guardar: ' + (e?.message || 'error'));
+      avisar('No se pudo guardar: ' + (e?.message || 'error'));
     }
   }
 
@@ -492,7 +493,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
       setPorEliminar(null);
       await cargar();
     } catch (e: any) {
-      alert('No se pudo eliminar: ' + (e?.message || 'revisa tu conexión e intenta de nuevo'));
+      avisar('No se pudo eliminar: ' + (e?.message || 'revisa tu conexión e intenta de nuevo'));
     } finally {
       setEliminando(false);
     }
@@ -502,14 +503,14 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
     const aviso = c.entregadoEn
       ? '\n\nOJO: ya se entregó la herramienta de esta lista. Al borrarla se pierde el registro de qué se entregó.'
       : '';
-    if (!confirm(`¿Borrar la lista de carga de «${c.proyecto}» (${c.total} renglones)?${aviso}\n\nEl proyecto no se elimina, solo su lista de herramienta y material.`)) return;
+    if (!await confirmar(`¿Borrar la lista de carga de «${c.proyecto}» (${c.total} renglones)?${aviso}\n\nEl proyecto no se elimina, solo su lista de herramienta y material.`)) return;
     setEliminandoChecklist(c.grupoId);
     try {
       await eliminarChecklist(c.grupoId);
       setChecklists(await listarChecklists());
       showToast('Lista de carga borrada', 'success');
     } catch (e: any) {
-      alert('No se pudo borrar: ' + (e?.message || 'error'));
+      avisar('No se pudo borrar: ' + (e?.message || 'error'));
     } finally {
       setEliminandoChecklist(null);
     }
@@ -524,14 +525,14 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   async function handleGuardarNuevaLista() {
     const destino = gruposSinChecklist.find((g) => g.grupoId === grupoNuevaLista);
     if (!destino) {
-      alert('Elige el proyecto al que pertenece la lista.');
+      avisar('Elige el proyecto al que pertenece la lista.');
       return;
     }
     const items = insumosNuevaLista
       .filter((i) => i.descripcion.trim())
       .map((i) => ({ ...i, descripcion: i.descripcion.trim(), unidad: i.unidad.trim() || 'pza' }));
     if (items.length === 0) {
-      alert('Agrega al menos un renglón a la lista.');
+      avisar('Agrega al menos un renglón a la lista.');
       return;
     }
     setGuardandoNuevaLista(true);
@@ -541,7 +542,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
       setMostrarNuevaLista(false);
       showToast('Lista de carga creada', 'success');
     } catch (e: any) {
-      alert('No se pudo guardar: ' + (e?.message || 'error'));
+      avisar('No se pudo guardar: ' + (e?.message || 'error'));
     } finally {
       setGuardandoNuevaLista(false);
     }
@@ -552,14 +553,14 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
       .filter((i) => i.descripcion.trim())
       .map((i) => ({ ...i, descripcion: i.descripcion.trim(), unidad: i.unidad.trim() || 'pza' }));
     if (items.length === 0) return;
-    const nombre = prompt('¿Con qué nombre guardas esta lista? (ej. Instalación de paneles)');
+    const nombre = await pedirTexto('¿Con qué nombre guardas esta lista? (ej. Instalación de paneles)');
     if (!nombre || !nombre.trim()) return;
     try {
       await guardarPlantillaDeItems(nombre, items);
       setPlantillas(await listarPlantillas());
       showToast('Plantilla guardada', 'success');
     } catch (e: any) {
-      alert('No se pudo guardar la plantilla: ' + (e?.message || 'error'));
+      avisar('No se pudo guardar la plantilla: ' + (e?.message || 'error'));
     }
   }
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { confirmar } from '@/lib/dialogos';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabaseClient';
 import { showToast } from '@/components/Toast';
@@ -72,7 +73,7 @@ export default function DiasFestivosSection() {
   }
 
   async function quitar(f: Festivo) {
-    if (!window.confirm(`¿Quitar el ${fechaCorta(f.fecha)} (${f.nombre}) de los días festivos?`)) return;
+    if (!await confirmar(`¿Quitar el ${fechaCorta(f.fecha)} (${f.nombre}) de los días festivos?`)) return;
     const { error } = await createClient().from('dias_festivos').delete().eq('fecha', f.fecha);
     if (error) {
       showToast('No se pudo quitar: ' + error.message, 'error');

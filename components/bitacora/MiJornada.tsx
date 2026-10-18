@@ -1,5 +1,6 @@
 'use client';
 
+import { confirmar } from '@/lib/dialogos';
 import { useCallback, useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { createClient } from '@/lib/supabaseClient';
@@ -101,7 +102,7 @@ export default function MiJornada({ onRegistrado, solicitudRegistro = 0 }: {
               const aviso = actividad.origen === 'manual'
                 ? 'Solo se borra tu registro; a tus acompañantes no les cambia.'
                 : 'Se borran también sus avances, notas, fotos y videos.';
-              if (!confirm(`¿Borrar «${actividad.titulo}» de tu bitácora?\n\n${aviso} Después la puedes registrar de nuevo a mano. No se puede deshacer.`)) return;
+              if (!await confirmar(`¿Borrar «${actividad.titulo}» de tu bitácora?\n\n${aviso} Después la puedes registrar de nuevo a mano. No se puede deshacer.`)) return;
               try {
                 await eliminarMiActividad({ id: actividad.id, report_id: actividad.reportId, hora_inicio: new Date(actividad.inicio).toISOString() });
                 showToast('Actividad borrada', 'success');

@@ -1,5 +1,6 @@
 'use client';
 
+import { avisar, confirmar } from '@/lib/dialogos';
 import TableroKanban, { ColumnaKanban, InterruptorTablero, useVistaTablero } from '@/components/TableroKanban';
 import ReportesDelCliente from '@/components/ReportesDelCliente';
 import FacturasDelCliente from '@/components/FacturasDelCliente';
@@ -118,7 +119,7 @@ export default function ClienteDetalle({ clienteId, userName }: { clienteId: str
       showToast('Foto actualizada', 'success');
       await cargar();
     } catch (err: any) {
-      alert(err?.message || 'No se pudo subir la foto');
+      avisar(err?.message || 'No se pudo subir la foto');
     } finally {
       setSubiendoFoto(false);
       if (fotoInputRef.current) fotoInputRef.current.value = '';
@@ -134,7 +135,7 @@ export default function ClienteDetalle({ clienteId, userName }: { clienteId: str
       showToast('Foto de portada actualizada', 'success');
       await cargar();
     } catch (err: any) {
-      alert(err?.message || 'No se pudo subir la foto');
+      avisar(err?.message || 'No se pudo subir la foto');
     } finally {
       setSubiendoPortada(false);
       if (portadaInputRef.current) portadaInputRef.current.value = '';
@@ -143,13 +144,13 @@ export default function ClienteDetalle({ clienteId, userName }: { clienteId: str
 
   async function handleQuitarPortada(e: React.MouseEvent) {
     e.stopPropagation();
-    if (!confirm('¿Quitar la foto de portada?')) return;
+    if (!await confirmar('¿Quitar la foto de portada?')) return;
     setSubiendoPortada(true);
     try {
       await eliminarFotoPortadaCliente(clienteId);
       await cargar();
     } catch (err: any) {
-      alert(err?.message || 'No se pudo quitar la foto');
+      avisar(err?.message || 'No se pudo quitar la foto');
     } finally {
       setSubiendoPortada(false);
     }
@@ -163,7 +164,7 @@ export default function ClienteDetalle({ clienteId, userName }: { clienteId: str
       setEditandoPerfil(false);
       await cargar();
     } catch (e: any) {
-      alert(e?.message || 'No se pudo guardar');
+      avisar(e?.message || 'No se pudo guardar');
     } finally {
       setGuardandoPerfil(false);
     }
@@ -171,7 +172,7 @@ export default function ClienteDetalle({ clienteId, userName }: { clienteId: str
 
   async function handleAgregarContacto() {
     if (!contactoNombre.trim()) {
-      alert('Falta el nombre del contacto.');
+      avisar('Falta el nombre del contacto.');
       return;
     }
     setGuardandoContacto(true);
@@ -182,19 +183,19 @@ export default function ClienteDetalle({ clienteId, userName }: { clienteId: str
       setContactoNombre(''); setContactoPuesto(''); setContactoTel(''); setContactoCorreo('');
       await cargar();
     } catch (e: any) {
-      alert(e?.message || 'No se pudo agregar');
+      avisar(e?.message || 'No se pudo agregar');
     } finally {
       setGuardandoContacto(false);
     }
   }
 
   async function handleEliminarContacto(c: ClienteContacto) {
-    if (!confirm(`¿Quitar a ${c.nombre} de los contactos?`)) return;
+    if (!await confirmar(`¿Quitar a ${c.nombre} de los contactos?`)) return;
     try {
       await eliminarContacto(c.id);
       await cargar();
     } catch (e: any) {
-      alert(e?.message || 'No se pudo eliminar');
+      avisar(e?.message || 'No se pudo eliminar');
     }
   }
 
@@ -218,14 +219,14 @@ export default function ClienteDetalle({ clienteId, userName }: { clienteId: str
 
   async function handleEliminarCliente() {
     if (!datos) return;
-    if (!confirm(`¿Eliminar a ${datos.cliente.nombre} y TODOS sus proyectos y documentos? Acción permanente.`)) return;
+    if (!await confirmar(`¿Eliminar a ${datos.cliente.nombre} y TODOS sus proyectos y documentos? Acción permanente.`)) return;
     setEliminandoCliente(true);
     try {
       await eliminarCliente(clienteId);
       showToast('Cliente eliminado', 'success');
       router.push('/dashboard/proyectos');
     } catch (e: any) {
-      alert(e?.message || 'No se pudo eliminar');
+      avisar(e?.message || 'No se pudo eliminar');
       setEliminandoCliente(false);
     }
   }

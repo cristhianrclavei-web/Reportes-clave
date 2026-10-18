@@ -1,5 +1,6 @@
 'use client';
 
+import { avisar, confirmar } from '@/lib/dialogos';
 import GrabadorVideo from '@/components/GrabadorVideo';
 import VisorVideo, { MarcaVideo } from '@/components/VisorVideo';
 import { VideoGrabado, VIDEOS_POR_REGISTRO } from '@/lib/videoEvidencia';
@@ -166,7 +167,7 @@ export default function ActividadDetail({
       showToast('Foto guardada', 'success');
       await cargar(true);
     } catch (err: any) {
-      alert('No se pudo guardar la foto: ' + (err?.message || 'revisa tu conexión') + '. Tómala de nuevo.');
+      avisar('No se pudo guardar la foto: ' + (err?.message || 'revisa tu conexión') + '. Tómala de nuevo.');
     } finally {
       setSubiendoFotos((n) => n - 1);
     }
@@ -180,7 +181,7 @@ export default function ActividadDetail({
       showToast('Video guardado', 'success');
       await cargar(true);
     } catch (err: any) {
-      alert('No se pudo guardar el video: ' + (err?.message || 'revisa tu conexión') + '. Grábalo de nuevo.');
+      avisar('No se pudo guardar el video: ' + (err?.message || 'revisa tu conexión') + '. Grábalo de nuevo.');
     } finally {
       setSubiendoFotos((n) => n - 1);
     }
@@ -248,7 +249,7 @@ export default function ActividadDetail({
     const aviso = actividad.origen === 'manual'
       ? 'Solo se borra tu registro; a tus acompañantes no les cambia.'
       : 'Se borran también sus avances, notas, fotos y videos.';
-    if (!confirm(`¿Borrar esta actividad de tu bitácora?\n\n${aviso} Después la puedes registrar de nuevo a mano con el día y la hora correctos. No se puede deshacer.`)) return;
+    if (!await confirmar(`¿Borrar esta actividad de tu bitácora?\n\n${aviso} Después la puedes registrar de nuevo a mano con el día y la hora correctos. No se puede deshacer.`)) return;
     setBusy(true);
     try {
       await eliminarMiActividad(actividad);
@@ -264,7 +265,7 @@ export default function ActividadDetail({
     const aviso = actividad.report_id
       ? 'Se borran sus avances y notas. Las fotos se conservan porque están en el reporte que se hizo con esta actividad.'
       : 'Se borran también sus avances, notas, fotos y videos.';
-    if (!confirm(`¿Eliminar esta actividad de la bitácora?\n\n${aviso} No se puede deshacer.`)) return;
+    if (!await confirmar(`¿Eliminar esta actividad de la bitácora?\n\n${aviso} No se puede deshacer.`)) return;
     setBusy(true);
     try {
       await eliminarActividad(actividad);

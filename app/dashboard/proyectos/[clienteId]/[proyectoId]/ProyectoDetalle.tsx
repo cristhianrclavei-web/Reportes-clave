@@ -1,5 +1,6 @@
 'use client';
 
+import { avisar, confirmar } from '@/lib/dialogos';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -84,7 +85,7 @@ export default function ProyectoDetalle({ proyectoId, clienteId, userName }: { p
       showToast('Estado actualizado', 'success');
       await cargar();
     } catch (e: any) {
-      alert(e?.message || 'No se pudo actualizar el estado');
+      avisar(e?.message || 'No se pudo actualizar el estado');
     } finally {
       setCambiandoEstado(false);
     }
@@ -92,7 +93,7 @@ export default function ProyectoDetalle({ proyectoId, clienteId, userName }: { p
 
   async function handleAgregarDocumento() {
     if (!nombreDoc.trim() || !archivoDoc) {
-      alert('Indica de qué es el documento y elige un archivo.');
+      avisar('Indica de qué es el documento y elige un archivo.');
       return;
     }
     setSubiendoDoc(true);
@@ -103,7 +104,7 @@ export default function ProyectoDetalle({ proyectoId, clienteId, userName }: { p
       setNombreDoc(''); setDescripcionDoc(''); setArchivoDoc(null);
       await cargar();
     } catch (e: any) {
-      alert(e?.message || 'No se pudo subir el documento');
+      avisar(e?.message || 'No se pudo subir el documento');
     } finally {
       setSubiendoDoc(false);
     }
@@ -112,17 +113,17 @@ export default function ProyectoDetalle({ proyectoId, clienteId, userName }: { p
   async function handleAbrirDocumento(doc: DocumentoProyecto) {
     const url = await obtenerUrlDocumento(doc.archivo_path);
     if (url) window.open(url, '_blank');
-    else alert('No se pudo abrir el archivo.');
+    else avisar('No se pudo abrir el archivo.');
   }
 
   async function handleEliminarDocumento(doc: DocumentoProyecto) {
-    if (!confirm(`¿Borrar «${doc.nombre}»? No se puede deshacer.`)) return;
+    if (!await confirmar(`¿Borrar «${doc.nombre}»? No se puede deshacer.`)) return;
     try {
       await eliminarDocumento(doc.id, doc.archivo_path);
       showToast('Documento eliminado', 'success');
       await cargar();
     } catch (e: any) {
-      alert(e?.message || 'No se pudo eliminar');
+      avisar(e?.message || 'No se pudo eliminar');
     }
   }
 
@@ -146,33 +147,33 @@ export default function ProyectoDetalle({ proyectoId, clienteId, userName }: { p
       setBusquedaCot(''); setResultadosCot([]);
       await cargar();
     } catch (e: any) {
-      alert(e?.message || 'No se pudo vincular');
+      avisar(e?.message || 'No se pudo vincular');
     } finally {
       setVinculando(null);
     }
   }
 
   async function handleDesvincular(cotizacionId: string) {
-    if (!confirm('¿Quitar el vínculo con esta cotización? La cotización no se borra, solo deja de aparecer aquí.')) return;
+    if (!await confirmar('¿Quitar el vínculo con esta cotización? La cotización no se borra, solo deja de aparecer aquí.')) return;
     try {
       await desvincularCotizacion(proyectoId, cotizacionId);
       showToast('Vínculo quitado', 'success');
       await cargar();
     } catch (e: any) {
-      alert(e?.message || 'No se pudo quitar el vínculo');
+      avisar(e?.message || 'No se pudo quitar el vínculo');
     }
   }
 
   async function handleEliminarProyecto() {
     if (!datos) return;
-    if (!confirm(`¿Eliminar «${datos.proyecto.nombre}» de ${datos.cliente.nombre}? Se borran también sus documentos. Acción permanente.`)) return;
+    if (!await confirmar(`¿Eliminar «${datos.proyecto.nombre}» de ${datos.cliente.nombre}? Se borran también sus documentos. Acción permanente.`)) return;
     setEliminandoProyecto(true);
     try {
       await eliminarProyecto(proyectoId);
       showToast('Proyecto eliminado', 'success');
       router.push(`/dashboard/proyectos/${clienteId}`);
     } catch (e: any) {
-      alert(e?.message || 'No se pudo eliminar');
+      avisar(e?.message || 'No se pudo eliminar');
       setEliminandoProyecto(false);
     }
   }

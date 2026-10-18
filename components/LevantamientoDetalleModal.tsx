@@ -1,5 +1,6 @@
 'use client';
 
+import { avisar, confirmar } from '@/lib/dialogos';
 import { useEffect, useState } from 'react';
 import {
   Levantamiento, SistemaLevantamiento, obtenerLevantamiento, eliminarLevantamiento, urlsDeFotos,
@@ -77,7 +78,7 @@ export default function LevantamientoDetalleModal({
 
   async function handleEliminar() {
     if (!levantamiento) return;
-    if (!confirm(`¿Eliminar el levantamiento de «${levantamiento.empresa}» (folio ${levantamiento.folio})?\n\nEsta acción es permanente.`)) return;
+    if (!await confirmar(`¿Eliminar el levantamiento de «${levantamiento.empresa}» (folio ${levantamiento.folio})?\n\nEsta acción es permanente.`)) return;
     setEliminando(true);
     try {
       await eliminarLevantamiento(levantamiento.id);
@@ -85,7 +86,7 @@ export default function LevantamientoDetalleModal({
       onEliminado?.(levantamiento.id);
       onClose();
     } catch (e: any) {
-      alert('No se pudo eliminar: ' + (e?.message || 'error'));
+      avisar('No se pudo eliminar: ' + (e?.message || 'error'));
       setEliminando(false);
     }
   }

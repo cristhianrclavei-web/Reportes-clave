@@ -1,5 +1,6 @@
 'use client';
 
+import { avisar, confirmar } from '@/lib/dialogos';
 import GrabadorVideo from '@/components/GrabadorVideo';
 import VisorVideo, { MarcaVideo } from '@/components/VisorVideo';
 import { VideoGrabado, VIDEOS_POR_REGISTRO } from '@/lib/videoEvidencia';
@@ -375,7 +376,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
       showToast('Llegada registrada', 'success');
       await cargar();
     } catch (e: any) {
-      alert('No se pudo registrar la llegada: ' + (e?.message || 'error'));
+      avisar('No se pudo registrar la llegada: ' + (e?.message || 'error'));
     } finally {
       setBusy(false);
     }
@@ -388,7 +389,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
       showToast('Servicio iniciado', 'success');
       await cargar();
     } catch (e: any) {
-      alert('No se pudo iniciar: ' + (e?.message || 'error'));
+      avisar('No se pudo iniciar: ' + (e?.message || 'error'));
     } finally {
       setBusy(false);
     }
@@ -421,7 +422,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
       setTareaActiva(null);
       await cargar();
     } catch (e: any) {
-      alert('No se pudo guardar: ' + (e?.message || 'error'));
+      avisar('No se pudo guardar: ' + (e?.message || 'error'));
     } finally {
       setBusy(false);
     }
@@ -430,7 +431,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
   // `evento` null: la foto está guardada en la tarea misma (formato anterior).
   async function handleQuitarEvidencia(evento: Evento | null, tareaId: string, esVideo: boolean) {
     const queEs = esVideo ? 'este video' : 'esta foto';
-    if (!window.confirm(`¿Eliminar ${queEs}? No se puede deshacer.`)) return;
+    if (!await confirmar(`¿Eliminar ${queEs}? No se puede deshacer.`)) return;
     setBusy(true);
     try {
       if (evento) await quitarEvidenciaDeServicio(servicioId, evento);
@@ -438,7 +439,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
       showToast(esVideo ? 'Video eliminado' : 'Foto eliminada', 'success');
       await cargar(true);
     } catch (e: any) {
-      alert('No se pudo eliminar: ' + (e?.message || 'revisa tu conexión e intenta de nuevo'));
+      avisar('No se pudo eliminar: ' + (e?.message || 'revisa tu conexión e intenta de nuevo'));
     } finally {
       setBusy(false);
     }
@@ -451,7 +452,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
       showToast(tareaId ? 'Foto ligada a la tarea' : 'Foto sin tarea', 'success');
       await cargar(true);
     } catch (e: any) {
-      alert('No se pudo ligar la foto: ' + (e?.message || 'revisa tu conexión e intenta de nuevo'));
+      avisar('No se pudo ligar la foto: ' + (e?.message || 'revisa tu conexión e intenta de nuevo'));
     } finally {
       setBusy(false);
     }
@@ -474,7 +475,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
         await cargar(true);
       }
     } catch (err: any) {
-      alert('No se pudo guardar la foto: ' + (err?.message || 'error') + '. Tómala de nuevo.');
+      avisar('No se pudo guardar la foto: ' + (err?.message || 'error') + '. Tómala de nuevo.');
     } finally {
       setSubiendoFotos((n) => n - 1);
     }
@@ -490,7 +491,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
       setDestinoVideo({});
       await cargar(true);
     } catch (err: any) {
-      alert('No se pudo guardar el video: ' + (err?.message || 'revisa tu conexión') + '. Grábalo de nuevo.');
+      avisar('No se pudo guardar el video: ' + (err?.message || 'revisa tu conexión') + '. Grábalo de nuevo.');
     } finally {
       setSubiendoFotos((n) => n - 1);
     }
@@ -515,7 +516,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
       setTextoComentario('');
       await cargar(true);
     } catch (err: any) {
-      alert('No se pudo guardar el comentario: ' + (err?.message || 'error'));
+      avisar('No se pudo guardar el comentario: ' + (err?.message || 'error'));
     } finally {
       setBusy(false);
     }
@@ -531,7 +532,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
 
   async function handleGuardarEvidenciaExtra() {
     if (!notaEvidenciaExtra.trim() && !fotoEvidenciaExtra) {
-      alert('Escribe una nota o agrega una foto.');
+      avisar('Escribe una nota o agrega una foto.');
       return;
     }
     setBusy(true);
@@ -544,7 +545,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
       setFotoEvidenciaExtraPreview(null);
       await cargar();
     } catch (e: any) {
-      alert('No se pudo guardar: ' + (e?.message || 'error'));
+      avisar('No se pudo guardar: ' + (e?.message || 'error'));
     } finally {
       setBusy(false);
     }
@@ -561,7 +562,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
       setComentarioEspera('');
       await cargar();
     } catch (e: any) {
-      alert('No se pudo guardar: ' + (e?.message || 'revisa tu conexión e intenta de nuevo'));
+      avisar('No se pudo guardar: ' + (e?.message || 'revisa tu conexión e intenta de nuevo'));
     } finally {
       setBusy(false);
     }
@@ -577,7 +578,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
       setFotoRetraso(null);
       await cargar();
     } catch (e: any) {
-      alert('No se pudo guardar: ' + (e?.message || 'error'));
+      avisar('No se pudo guardar: ' + (e?.message || 'error'));
     } finally {
       setBusy(false);
     }
@@ -609,7 +610,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
       setComentarioPausa('');
       await cargar();
     } catch (e: any) {
-      alert('No se pudo pausar: ' + (e?.message || 'error'));
+      avisar('No se pudo pausar: ' + (e?.message || 'error'));
     } finally {
       setBusy(false);
     }
@@ -625,7 +626,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
       else showToast('Servicio reanudado', 'success');
       await cargar();
     } catch (e: any) {
-      alert('No se pudo reanudar: ' + (e?.message || 'error'));
+      avisar('No se pudo reanudar: ' + (e?.message || 'error'));
     } finally {
       setBusy(false);
     }
@@ -642,7 +643,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
       else if (r === 'sin_ubicacion') showToast('Respondiste, pero sin ubicación. Activa el permiso de ubicación.', 'error');
       else showToast('La verificación ya había vencido', 'error');
     } catch (e: any) {
-      alert('No se pudo responder: ' + (e?.message || 'error'));
+      avisar('No se pudo responder: ' + (e?.message || 'error'));
     } finally {
       setRespondiendo(false);
     }
@@ -660,7 +661,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
       showToast('Día cerrado sin trabajo. Tu supervisor lo revisa.', 'success');
       await cargar();
     } catch (e: any) {
-      alert('No se pudo cerrar: ' + (e?.message || 'error'));
+      avisar('No se pudo cerrar: ' + (e?.message || 'error'));
     } finally {
       setBusy(false);
     }
@@ -680,7 +681,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
       await registrarMotivoLlegada(servicioId, motivo, comentario);
       await cargar();
     } catch (e: any) {
-      alert('No se pudo guardar el motivo: ' + (e?.message || 'error'));
+      avisar('No se pudo guardar el motivo: ' + (e?.message || 'error'));
     } finally {
       setBusy(false);
     }
@@ -694,7 +695,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
         const { diasCancelados, errorDias } = await concluirServicioAnticipado(servicioId, respuesta);
         if (errorDias) {
           // El día sí se cerró; lo que falló fue cancelar los que faltaban.
-          alert('El servicio quedó concluido, pero no se pudieron cancelar los días que faltaban. Avísale a tu supervisor para que los cancele.\n\n(' + errorDias + ')');
+          avisar('El servicio quedó concluido, pero no se pudieron cancelar los días que faltaban. Avísale a tu supervisor para que los cancele.\n\n(' + errorDias + ')');
         } else {
           showToast(
             diasCancelados > 0
@@ -709,7 +710,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
       }
       await cargar();
     } catch (e: any) {
-      alert('No se pudo concluir: ' + (e?.message || 'error'));
+      avisar('No se pudo concluir: ' + (e?.message || 'error'));
     } finally {
       setBusy(false);
     }
@@ -1300,7 +1301,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
                   <p className="text-[11px] text-muted mt-1 text-center">{fmtHora(f.tomadaEn)}</p>
                   {f.error && (
                     <button
-                      onClick={() => { if (window.confirm('No se pudo subir: ' + f.error + '\n\n¿Quitar esta foto del teléfono?')) descartarFotoPendiente(f.localId); }}
+                      onClick={async () => { if (await confirmar('¿Quitar esta foto del teléfono?', { detalle: 'No se pudo subir: ' + f.error })) descartarFotoPendiente(f.localId); }}
                       className="w-full text-[11px] text-red font-semibold underline"
                     >
                       No subió · quitar

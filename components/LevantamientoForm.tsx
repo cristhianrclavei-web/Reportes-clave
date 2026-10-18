@@ -1,5 +1,6 @@
 'use client';
 
+import { confirmar } from '@/lib/dialogos';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
 import AutocompletarPersona from '@/components/AutocompletarPersona';
 import { useContactosCliente } from '@/lib/useContactosCliente';
@@ -336,9 +337,9 @@ export default function LevantamientoForm({
   function agregarSistema() {
     setSistemas((prev) => [...prev, nuevoSistema()]);
   }
-  function quitarSistema(id: string) {
+  async function quitarSistema(id: string) {
     if (sistemas.length <= 1) return;
-    if (!confirm('¿Quitar este sistema del levantamiento?')) return;
+    if (!await confirmar('¿Quitar este sistema del levantamiento?')) return;
     setSistemas((prev) => prev.filter((s) => s.id !== id));
   }
 

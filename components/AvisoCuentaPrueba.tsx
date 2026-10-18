@@ -1,5 +1,6 @@
 'use client';
 
+import { avisar } from '@/lib/dialogos';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabaseClient';
 import ModalOverlay from '@/components/ModalOverlay';
@@ -53,12 +54,12 @@ export default function AvisoCuentaPrueba() {
 
   async function guardar() {
     if (!nombre.trim() || nombre.trim().split(/\s+/).length < 2) {
-      alert('Escribe tu nombre y apellido.');
+      avisar('Escribe tu nombre y apellido.');
       return;
     }
     const soloDigitos = telefono.replace(/\D/g, '');
     if (soloDigitos.length < 10) {
-      alert('El teléfono debe tener 10 dígitos.');
+      avisar('El teléfono debe tener 10 dígitos.');
       return;
     }
 
@@ -102,7 +103,7 @@ export default function AvisoCuentaPrueba() {
       setAbierto(false);
       showToast('Datos registrados.' + avisoExtra, 'success');
     } catch (e: any) {
-      alert('No se pudo guardar: ' + (e?.message || 'error'));
+      avisar('No se pudo guardar: ' + (e?.message || 'error'));
     } finally {
       setGuardando(false);
     }

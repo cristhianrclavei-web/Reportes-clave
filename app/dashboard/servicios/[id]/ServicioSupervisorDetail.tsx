@@ -1,5 +1,6 @@
 'use client';
 
+import { avisar, confirmar, pedirTexto } from '@/lib/dialogos';
 import VisorVideo, { MarcaVideo } from '@/components/VisorVideo';
 import { fechaDMA } from '@/lib/etiquetaMantenimiento';
 import ConfirmacionTecnicos from '@/components/ConfirmacionTecnicos';
@@ -185,7 +186,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
 
       const { ubicacion, incompleta } = ubicacionDeCampos(ubicCampos);
       if (incompleta) {
-        alert('La ubicación del sitio quedó incompleta: faltan la latitud o la longitud. Complétala o déjala vacía.');
+        avisar('La ubicación del sitio quedó incompleta: faltan la latitud o la longitud. Complétala o déjala vacía.');
         return;
       }
       // Solo se manda la ubicación si cambió, para no tocar los demás días sin necesidad.
@@ -208,7 +209,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
       if (cambios.length > 0) { avance(100, 'Servicio actualizado'); await pausaFinal(); }
     } catch (e: any) {
       setPantalla(false);
-      alert('No se pudo guardar: ' + (e?.message || 'error desconocido'));
+      avisar('No se pudo guardar: ' + (e?.message || 'error desconocido'));
     } finally {
       setGuardando(false);
       setPantalla(false);
@@ -244,26 +245,26 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
 
   async function handleGuardarPlantilla() {
     if (!servicio) return;
-    const nombre = prompt('¿Con qué nombre guardas esta lista? (ej. Instalación de paneles)');
+    const nombre = await pedirTexto('¿Con qué nombre guardas esta lista? (ej. Instalación de paneles)');
     if (!nombre || !nombre.trim()) return;
     try {
       const actuales = await obtenerInsumos(servicio.grupo_id, servicio.id);
       if (actuales.length === 0) {
-        alert('La lista está vacía; agrega herramienta o material antes de guardarla como plantilla.');
+        avisar('La lista está vacía; agrega herramienta o material antes de guardarla como plantilla.');
         return;
       }
       await guardarComoPlantilla(nombre, actuales);
       setPlantillas(await listarPlantillas());
       showToast('Plantilla guardada', 'success');
     } catch (e: any) {
-      alert('No se pudo guardar: ' + (e?.message || 'error'));
+      avisar('No se pudo guardar: ' + (e?.message || 'error'));
     }
   }
 
   async function handleEliminarDia() {
     if (!servicio) return;
     if (!motivoEliminar.trim()) {
-      alert('Escribe por qué se elimina este día.');
+      avisar('Escribe por qué se elimina este día.');
       return;
     }
     setEliminandoDia(true);
@@ -272,7 +273,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
       showToast('Día eliminado del proyecto', 'success');
       router.push('/dashboard/servicios');
     } catch (e: any) {
-      alert(e?.message || 'No se pudo eliminar el día');
+      avisar(e?.message || 'No se pudo eliminar el día');
       setEliminandoDia(false);
     }
   }
@@ -280,7 +281,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
   async function handleCerrarManual() {
     if (!servicio) return;
     if (!motivoCerrar.trim()) {
-      alert('Escribe por qué se cierra manualmente.');
+      avisar('Escribe por qué se cierra manualmente.');
       return;
     }
     setCerrandoManual(true);
@@ -291,7 +292,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
       setMotivoCerrar('');
       await cargar();
     } catch (e: any) {
-      alert(e?.message || 'No se pudo cerrar el día');
+      avisar(e?.message || 'No se pudo cerrar el día');
     } finally {
       setCerrandoManual(false);
     }
@@ -336,7 +337,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
       setNuevaFecha('');
       await cargar();
     } catch (e: any) {
-      alert('No se pudo reprogramar: ' + (e?.message || 'error desconocido'));
+      avisar('No se pudo reprogramar: ' + (e?.message || 'error desconocido'));
     } finally {
       setReprogramando(false);
     }
@@ -348,7 +349,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
     try {
       const fechas = fechasNuevas.filter(Boolean);
       if (fechas.length === 0) {
-        alert('Indica la fecha de cada día nuevo.');
+        avisar('Indica la fecha de cada día nuevo.');
         setAgregandoDias(false);
         return;
       }
@@ -359,7 +360,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
       setFechasNuevas([]);
       await cargar();
     } catch (e: any) {
-      alert('No se pudo ampliar el proyecto: ' + (e?.message || 'error desconocido'));
+      avisar('No se pudo ampliar el proyecto: ' + (e?.message || 'error desconocido'));
     } finally {
       setAgregandoDias(false);
     }
@@ -380,7 +381,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
       setEditandoTecnicos(false);
       await cargar();
     } catch (e: any) {
-      alert('No se pudo guardar: ' + (e?.message || 'error desconocido'));
+      avisar('No se pudo guardar: ' + (e?.message || 'error desconocido'));
     } finally {
       setGuardando(false);
     }
@@ -392,15 +393,15 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
     const queSeElimina = esMulti
       ? `el proyecto COMPLETO «${servicio.proyecto}» (los ${servicio.dias_totales} días)`
       : `el servicio «${servicio.proyecto}»`;
-    if (!confirm(`¿Eliminar ${queSeElimina}?\n\nSe borrarán su checklist, evidencias, eventos y fotos. Los reportes de servicio formales que estén vinculados NO se eliminan, solo quedan desvinculados.`)) return;
-    if (!confirm('Esta acción es PERMANENTE y quedará registrada en Actividad con tu nombre. ¿Confirmar eliminación?')) return;
+    if (!await confirmar(`¿Eliminar ${queSeElimina}?\n\nSe borrarán su checklist, evidencias, eventos y fotos. Los reportes de servicio formales que estén vinculados NO se eliminan, solo quedan desvinculados.`)) return;
+    if (!await confirmar('Esta acción es PERMANENTE y quedará registrada en Actividad con tu nombre. ¿Confirmar eliminación?')) return;
     setEliminando(true);
     try {
       await eliminarProyecto(servicio.grupo_id);
       showToast(esMulti ? 'Proyecto eliminado' : 'Servicio eliminado', 'success');
       router.push('/dashboard/servicios');
     } catch (e: any) {
-      alert('No se pudo eliminar: ' + (e?.message || 'error desconocido'));
+      avisar('No se pudo eliminar: ' + (e?.message || 'error desconocido'));
       setEliminando(false);
     }
   }

@@ -1,5 +1,6 @@
 'use client';
 
+import { avisar } from '@/lib/dialogos';
 import { estadoFacturacion } from '@/lib/reportStatus';
 import { useRouter } from 'next/navigation';
 import { useEnVivo, huellaReportes } from '@/lib/useEnVivo';
@@ -108,7 +109,7 @@ export default function ResumenList({
       setSolicitudesInsumo((prev) => prev.filter((x) => x.id !== sol.id));
       showToast(aprobar ? 'Herramienta autorizada' : 'Solicitud rechazada', 'success');
     } catch (e: any) {
-      alert('No se pudo procesar: ' + (e?.message || 'error'));
+      avisar('No se pudo procesar: ' + (e?.message || 'error'));
     } finally {
       setResolviendo(null);
     }

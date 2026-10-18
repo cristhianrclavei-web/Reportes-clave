@@ -1,5 +1,6 @@
 'use client';
 
+import { avisar } from '@/lib/dialogos';
 import { useEffect, useState } from 'react';
 import { BellRing, BellOff, Bell, X } from 'lucide-react';
 import {
@@ -47,7 +48,7 @@ export default function NotificacionesToggle({ esTecnico = false }: { esTecnico?
       await guardarPreferencia(tipo, nuevo);
     } catch {
       setPrefs((p) => ({ ...p, [tipo]: !nuevo }));
-      alert('No se pudo guardar la preferencia.');
+      avisar('No se pudo guardar la preferencia.');
     }
   }
 
@@ -70,7 +71,7 @@ export default function NotificacionesToggle({ esTecnico = false }: { esTecnico?
           showToast('Notificaciones activadas', 'success');
         } else {
           setBloqueado(permisoActual() === 'denied');
-          alert(r.motivo || 'No se pudieron activar.');
+          avisar(r.motivo || 'No se pudieron activar.');
         }
       }
     } finally {

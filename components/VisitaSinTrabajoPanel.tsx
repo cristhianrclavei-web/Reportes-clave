@@ -1,5 +1,6 @@
 'use client';
 
+import { avisar } from '@/lib/dialogos';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Ban, CalendarClock, FileText, CheckCircle2 } from 'lucide-react';
@@ -45,7 +46,7 @@ export default function VisitaSinTrabajoPanel({ servicio, onCambio }: { servicio
       setNota('');
       onCambio();
     } catch (e: any) {
-      alert(e?.message || 'No se pudo guardar');
+      avisar(e?.message || 'No se pudo guardar');
     } finally {
       setBusy(false);
     }
@@ -59,7 +60,7 @@ export default function VisitaSinTrabajoPanel({ servicio, onCambio }: { servicio
       showToast('Servicio reprogramado', 'success');
       router.push(`/dashboard/servicios/${nuevo.id}`);
     } catch (e: any) {
-      alert(e?.message || 'No se pudo reprogramar');
+      avisar(e?.message || 'No se pudo reprogramar');
       setBusy(false);
     }
   }

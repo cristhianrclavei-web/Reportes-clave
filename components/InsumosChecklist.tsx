@@ -1,5 +1,6 @@
 'use client';
 
+import { avisar, confirmar } from '@/lib/dialogos';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   InsumoConEstado, CategoriaInsumo, CATEGORIAS, UNIDADES, MOTIVOS_FALTANTE, MotivoFaltante,
@@ -164,7 +165,7 @@ export default function InsumosChecklist({
       onCambio?.();
     } catch (e: any) {
       await cargar();
-      alert('No se pudo guardar: ' + (e?.message || 'error'));
+      avisar('No se pudo guardar: ' + (e?.message || 'error'));
     }
   }
 
@@ -186,7 +187,7 @@ export default function InsumosChecklist({
     const texto = modo === 'salida'
       ? `Vas a marcar ${pendientes.length} pieza(s) como recibidas. Hazlo solo si ya las tienes contigo.`
       : `Vas a marcar ${pendientes.length} pieza(s) como devueltas al almacén.`;
-    if (!confirm(texto)) return;
+    if (!await confirmar(texto)) return;
 
     setBusy(true);
     try {
@@ -194,7 +195,7 @@ export default function InsumosChecklist({
       await cargar();
       onCambio?.();
     } catch (e: any) {
-      alert('No se pudo marcar: ' + (e?.message || 'error'));
+      avisar('No se pudo marcar: ' + (e?.message || 'error'));
     } finally {
       setBusy(false);
     }
@@ -205,7 +206,7 @@ export default function InsumosChecklist({
       .filter((i) => cantidadDe(i) > 0)
       .map((i) => ({ id: i.id, cantidad: maximoDe(i) }));
     if (marcadas.length === 0) return;
-    if (!confirm(`Se quitarán las marcas de ${marcadas.length} pieza(s).`)) return;
+    if (!await confirmar(`Se quitarán las marcas de ${marcadas.length} pieza(s).`)) return;
 
     setBusy(true);
     try {
@@ -213,7 +214,7 @@ export default function InsumosChecklist({
       await cargar();
       onCambio?.();
     } catch (e: any) {
-      alert('No se pudo quitar: ' + (e?.message || 'error'));
+      avisar('No se pudo quitar: ' + (e?.message || 'error'));
     } finally {
       setBusy(false);
     }
@@ -224,11 +225,11 @@ export default function InsumosChecklist({
     const max = maximoDe(ajusteActivo);
     const valor = parseFloat(cantidadAjuste);
     if (isNaN(valor) || valor < 0) {
-      alert('Escribe cuántas piezas.');
+      avisar('Escribe cuántas piezas.');
       return;
     }
     if (valor > max) {
-      alert(`No puedes registrar más de ${max} ${ajusteActivo.unidad}.`);
+      avisar(`No puedes registrar más de ${max} ${ajusteActivo.unidad}.`);
       return;
     }
     setBusy(true);
@@ -239,7 +240,7 @@ export default function InsumosChecklist({
       await cargar();
       onCambio?.();
     } catch (e: any) {
-      alert('No se pudo guardar: ' + (e?.message || 'error'));
+      avisar('No se pudo guardar: ' + (e?.message || 'error'));
     } finally {
       setBusy(false);
     }
@@ -261,7 +262,7 @@ export default function InsumosChecklist({
       await cargar();
       onCambio?.();
     } catch (e: any) {
-      alert('No se pudo guardar: ' + (e?.message || 'error'));
+      avisar('No se pudo guardar: ' + (e?.message || 'error'));
     } finally {
       setBusy(false);
     }
@@ -280,14 +281,14 @@ export default function InsumosChecklist({
       setMotivo('en_obra');
       await cargar();
     } catch (e: any) {
-      alert('No se pudo guardar: ' + (e?.message || 'error'));
+      avisar('No se pudo guardar: ' + (e?.message || 'error'));
     }
   }
 
   async function handleFirmar() {
     const dataUrl = firmaRef.current?.getDataURL();
     if (!dataUrl || firmaRef.current?.isEmpty()) {
-      alert('Falta la firma.');
+      avisar('Falta la firma.');
       return;
     }
     // Lo que no se marcó necesita motivo antes de cerrar, en los dos sentidos:
@@ -296,13 +297,13 @@ export default function InsumosChecklist({
     if (modo === 'salida') {
       const sinMotivo = lista.filter((i) => !i.estado?.salida && !i.estado?.motivo_no_entregado);
       if (sinMotivo.length > 0) {
-        alert(`Falta indicar por qué no se te entregaron ${sinMotivo.length} pieza(s). Toca cada una para elegir el motivo.`);
+        avisar(`Falta indicar por qué no se te entregaron ${sinMotivo.length} pieza(s). Toca cada una para elegir el motivo.`);
         return;
       }
     } else {
       const sinMotivo = insumosADevolver(lista).filter((i) => !i.estado?.retorno && !i.estado?.motivo_faltante);
       if (sinMotivo.length > 0) {
-        alert(`Falta explicar qué pasó con ${sinMotivo.length} pieza(s) que no regresaron. Toca cada una para indicar el motivo.`);
+        avisar(`Falta explicar qué pasó con ${sinMotivo.length} pieza(s) que no regresaron. Toca cada una para indicar el motivo.`);
         return;
       }
     }
@@ -314,7 +315,7 @@ export default function InsumosChecklist({
       await cargar();
       onCambio?.();
     } catch (e: any) {
-      alert('No se pudo firmar: ' + (e?.message || 'error'));
+      avisar('No se pudo firmar: ' + (e?.message || 'error'));
     } finally {
       setBusy(false);
     }
@@ -329,7 +330,7 @@ export default function InsumosChecklist({
       await cargar();
       onCambio?.();
     } catch (e: any) {
-      alert('No se pudo confirmar: ' + (e?.message || 'error'));
+      avisar('No se pudo confirmar: ' + (e?.message || 'error'));
     } finally {
       setBusy(false);
     }
@@ -337,11 +338,11 @@ export default function InsumosChecklist({
 
   async function handleAgregar() {
     if (!nuevoArticuloId || !nuevaDescripcion.trim()) {
-      alert('Elige del catálogo qué necesitas.');
+      avisar('Elige del catálogo qué necesitas.');
       return;
     }
     if (!(parseFloat(nuevaCantidad) > 0)) {
-      alert('Indica la cantidad.');
+      avisar('Indica la cantidad.');
       return;
     }
     setBusy(true);
@@ -364,7 +365,7 @@ export default function InsumosChecklist({
       await cargar();
       onCambio?.();
     } catch (e: any) {
-      alert('No se pudo agregar: ' + (e?.message || 'error'));
+      avisar('No se pudo agregar: ' + (e?.message || 'error'));
     } finally {
       setBusy(false);
     }
@@ -378,20 +379,20 @@ export default function InsumosChecklist({
       await cargar();
       onCambio?.();
     } catch (e: any) {
-      alert('No se pudo procesar: ' + (e?.message || 'error'));
+      avisar('No se pudo procesar: ' + (e?.message || 'error'));
     } finally {
       setBusy(false);
     }
   }
 
   async function handleEliminar(insumo: InsumoConEstado) {
-    if (!confirm(`¿Quitar «${insumo.descripcion}» de la lista?`)) return;
+    if (!await confirmar(`¿Quitar «${insumo.descripcion}» de la lista?`)) return;
     try {
       await eliminarInsumo(insumo.id);
       await cargar();
       onCambio?.();
     } catch (e: any) {
-      alert('No se pudo quitar: ' + (e?.message || 'error'));
+      avisar('No se pudo quitar: ' + (e?.message || 'error'));
     }
   }
 

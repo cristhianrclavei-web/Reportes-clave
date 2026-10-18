@@ -1,5 +1,6 @@
 'use client';
 
+import { avisar, pedirTexto } from '@/lib/dialogos';
 import { coincideBusqueda } from '@/lib/busqueda';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -119,7 +120,7 @@ export default function EntradaAlmacenWizard({
       setNuevoSistemaNombre('');
       showToast('Sistema agregado', 'success');
     } catch (e: any) {
-      alert('No se pudo agregar: ' + (e?.message || 'error'));
+      avisar('No se pudo agregar: ' + (e?.message || 'error'));
     }
   }
 
@@ -136,7 +137,7 @@ export default function EntradaAlmacenWizard({
       showToast('Entrada registrada', 'success');
       onRegistrada();
     } catch (e: any) {
-      alert('No se pudo registrar: ' + (e?.message || 'error'));
+      avisar('No se pudo registrar: ' + (e?.message || 'error'));
     } finally {
       setBusy(false);
     }
@@ -605,7 +606,7 @@ export function ModalNuevoArticulo({
   const labelCls = 'text-[13px] text-ink/75 block mb-1.5';
 
   async function handleCrear() {
-    if (!descripcion.trim()) { alert('Escribe qué es.'); return; }
+    if (!descripcion.trim()) { avisar('Escribe qué es.'); return; }
     setBusy(true);
     try {
       const nuevo = await crearArticulo({
@@ -619,7 +620,7 @@ export function ModalNuevoArticulo({
       showToast(avisoCreado || 'Catálogo actualizado — ahora indica cuánto entró', 'success');
       onCreado(nuevo);
     } catch (e: any) {
-      alert('No se pudo agregar: ' + (e?.message || 'error'));
+      avisar('No se pudo agregar: ' + (e?.message || 'error'));
     } finally {
       setBusy(false);
     }

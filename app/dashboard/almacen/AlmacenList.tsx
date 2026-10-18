@@ -1,5 +1,6 @@
 'use client';
 
+import { avisar, confirmar, pedirTexto } from '@/lib/dialogos';
 import { coincideBusqueda } from '@/lib/busqueda';
 import { BotonNuevo } from '@/components/AccionPrincipal';
 import SubTabs from '@/components/SubTabs';
@@ -128,21 +129,21 @@ export default function AlmacenList({ userName }: { userName?: string }) {
   );
 
   async function handleNuevoSistema() {
-    const nombre = prompt('¿Qué sistema? (ej. Telefonía, Videoporteros)');
+    const nombre = await pedirTexto('¿Qué sistema? (ej. Telefonía, Videoporteros)');
     if (!nombre || !nombre.trim()) return;
     try {
       await crearSistema(nombre);
       setSistemas(await listarSistemas());
       showToast('Sistema agregado', 'success');
     } catch (e: any) {
-      alert('No se pudo agregar: ' + (e?.message || 'error'));
+      avisar('No se pudo agregar: ' + (e?.message || 'error'));
     }
   }
 
   async function abrirDocumento(path: string) {
     const url = await urlDeDocumento(path);
     if (url) window.open(url, '_blank');
-    else alert('No se pudo abrir el archivo.');
+    else avisar('No se pudo abrir el archivo.');
   }
 
   return (
@@ -475,7 +476,7 @@ export default function AlmacenList({ userName }: { userName?: string }) {
                       const aviso = cuantos > 0
                         ? `«${sis.nombre}» tiene ${cuantos} artículo(s).\n\nAl quitarlo dejará de aparecer al registrar entradas, pero esos artículos conservan su clasificación y el historial no se toca.`
                         : `¿Quitar «${sis.nombre}» de la lista?`;
-                      if (!confirm(aviso)) return;
+                      if (!await confirmar(aviso)) return;
                       await desactivarSistema(sis.id);
                       await cargar();
                       showToast('Sistema quitado', 'success');
@@ -560,7 +561,7 @@ export default function AlmacenList({ userName }: { userName?: string }) {
                       {a.activo ? (
                         <button
                           onClick={async () => {
-                            if (!confirm(`¿Quitar «${a.descripcion}» del catálogo?\n\nSe conserva en el historial de movimientos, y se puede reactivar después.`)) return;
+                            if (!await confirmar(`¿Quitar «${a.descripcion}» del catálogo?\n\nSe conserva en el historial de movimientos, y se puede reactivar después.`)) return;
                             await desactivarArticulo(a.id);
                             await cargar();
                           }}
@@ -622,7 +623,7 @@ export default function AlmacenList({ userName }: { userName?: string }) {
                     await cargar();
                     showToast('Mínimo actualizado', 'success');
                   } catch (e: any) {
-                    alert('No se pudo guardar: ' + (e?.message || 'error'));
+                    avisar('No se pudo guardar: ' + (e?.message || 'error'));
                   }
                 }}
                 className="flex-1 min-h-[48px] rounded-xl bg-teal text-inkOnAccent text-[14.5px] font-semibold"

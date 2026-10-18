@@ -1,5 +1,6 @@
 'use client';
 
+import { confirmar } from '@/lib/dialogos';
 import Link from 'next/link';
 import { useState } from 'react';
 import { useUsersAdmin } from '@/lib/useProfileMutation';
@@ -82,7 +83,7 @@ export default function AdminUsersSection({ initialUsers = [] }: { initialUsers?
 
     if (
       !activar &&
-      !confirm(
+      !await confirmar(
         `¿Dar de baja a ${u.full_name}? Dejará de aparecer para asignar servicios. Sus reportes firmados se conservan.`
       )
     ) {
