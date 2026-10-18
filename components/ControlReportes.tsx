@@ -360,7 +360,7 @@ function LigarReporte({ servicio, onClose, onListo, onAbrir }: {
           <h2 className="font-display font-bold text-[19px] tracking-wide">Ligar reporte</h2>
           <button onClick={onClose} aria-label="Cerrar" className="w-10 h-10 -mr-1 -mt-1 flex items-center justify-center text-muted"><X size={19} /></button>
         </div>
-        <p className="text-[13px] text-muted mb-4">{servicio.proyecto} · {fechaCorta(servicio.fecha)}. Reportes de su personal de 2 días antes a 2 después que no están ligados a otro servicio.</p>
+        <p className="text-[13px] text-muted mb-4">{servicio.proyecto} · {fechaCorta(servicio.fecha)}. Reportes de su personal con la misma fecha que no están ligados a otro servicio (solo se vincula un reporte del mismo día).</p>
         {opciones === null && <p className="text-[13px] text-muted">Buscando…</p>}
         {opciones && opciones.length === 0 && <p className="text-[13px] text-muted">No hay reportes para ligar: todavía no se ha hecho.</p>}
         <div className="flex flex-col gap-2">

@@ -46,6 +46,7 @@ import { FilaTuberia, FilaCable, FilaSoporteria, tuberiasDe, cablesDe, soporteri
 import { SeccionTuberia, SeccionCable, SeccionSoporteria, tuberiaVacia, cableVacio, soporteriaVacia } from '@/components/reporte/MaterialesReporte';
 import TraerDelVale from '@/components/reporte/TraerDelVale';
 import { puedeEditarSinPermiso, finEdicionLibre, reporteFirmadoEnSitio } from '@/lib/edicionLibreReporte';
+import { motivoFechaNoCoincide } from '@/lib/fechaVinculo';
 
 // Hora "HH:mm" del reloj del dispositivo — igual al formato que ya entrega
 // el <input type="time">, así que sirve tal cual como valor de respaldo.
@@ -435,6 +436,9 @@ export default function NuevoReportePage() {
   // (edicionLibreHasta guarda hasta qué hora puede).
   const [editarId, setEditarId] = useState<string | null>(null);
   const [edicionLibreHasta, setEdicionLibreHasta] = useState<number | null>(null);
+  // Fecha del servicio al que ya estaba vinculado el reporte que se corrige
+  // (puede no estar en la lista de servicios asignados de hoy).
+  const [fechaServicioOriginal, setFechaServicioOriginal] = useState<string | null>(null);
   const reporteOriginal = useRef<any>(null);
   const [errorEdicion, setErrorEdicion] = useState<string | null>(null);
 
@@ -455,6 +459,10 @@ export default function NuevoReportePage() {
     if (!r.correccion_habilitada) setEdicionLibreHasta(finEdicionLibre(r.created_at));
     reporteOriginal.current = r;
     const d = r.data || {};
+    if (d.servicioProgramadoId) {
+      const { data: sv } = await supabase.from('servicios_programados').select('fecha').eq('id', d.servicioProgramadoId).maybeSingle();
+      setFechaServicioOriginal(sv?.fecha || null);
+    }
     const personal: string[] = Array.isArray(d.personal) ? d.personal : [];
     const adicional = d.ingACargo && personal[0] === d.ingACargo ? personal.slice(1) : personal.filter((x) => x !== d.ingACargo);
     const casos = Array.isArray(d.casoPuntos) && d.casoPuntos.length ? d.casoPuntos : null;
@@ -648,8 +656,16 @@ export default function NuevoReportePage() {
   // Campos sin los que el reporte no sirve como comprobante del servicio.
   // Se calcula en vivo para avisar antes de que el técnico intente guardar,
   // no después.
+  // Un reporte solo se vincula con el servicio del mismo día.
+  let fechaDelServicio: string | null = serviciosAsignados.find((x) => x.id === servicioSeleccionadoId)?.fecha || null;
+  if (!fechaDelServicio && editarId && servicioSeleccionadoId && servicioSeleccionadoId === reporteOriginal.current?.data?.servicioProgramadoId) {
+    fechaDelServicio = fechaServicioOriginal;
+  }
+  const fechaNoCoincide = servicioSeleccionadoId ? motivoFechaNoCoincide(fecha, fechaDelServicio) : null;
+
   const faltantes = useMemo(() => {
     const f: string[] = [];
+    if (fechaNoCoincide) f.push('que la fecha del reporte sea la del servicio elegido');
     if (!empresaCliente.trim()) f.push('empresa / cliente');
     if (!horaLlegada) f.push('hora de llegada');
     // Hora de salida ya no bloquea guardar: si se deja en blanco, se toma la
@@ -657,7 +673,7 @@ export default function NuevoReportePage() {
     if (!ingACargo.trim() && !personalAdicional.some((p) => p.trim())) f.push('al menos una persona en el servicio');
     if (clienteAusente && !motivoAusente.trim()) f.push('el motivo de que el cliente no firmara');
     return f;
-  }, [empresaCliente, horaLlegada, horaSalida, ingACargo, personalAdicional, clienteAusente, motivoAusente]);
+  }, [empresaCliente, horaLlegada, horaSalida, ingACargo, personalAdicional, clienteAusente, motivoAusente, fechaNoCoincide]);
 
   // Duración entre llegada y salida, para que un 7:30 puesto en lugar de 19:30
   // salte a la vista antes de firmar.
@@ -1535,7 +1551,16 @@ export default function NuevoReportePage() {
             <div><label className={labelCls}>Puesto/Área</label><input type="text" className={inputCls} value={puestoArea} onChange={(e) => setPuestoArea(e.target.value)} /></div>
           </div>
           <div className="grid grid-cols-2 gap-3 mb-3">
-            <div><label className={labelCls}>Fecha</label><input type="date" className={inputCls} value={fecha} onChange={(e) => setFecha(e.target.value)} /></div>
+            <div>
+              <label className={labelCls}>Fecha</label>
+              <input type="date" className={`${inputCls} ${fechaNoCoincide ? '!border-red' : ''}`} value={fecha} onChange={(e) => setFecha(e.target.value)} />
+              {fechaNoCoincide && fechaDelServicio && (
+                <p className="text-[12.5px] text-red mt-1.5 leading-snug">
+                  {fechaNoCoincide}{' '}
+                  <button type="button" onClick={() => setFecha(fechaDelServicio!)} className="font-semibold underline">Usar la fecha del servicio</button>
+                </p>
+              )}
+            </div>
             <div><label className={labelCls}>Orden de compra</label><input type="text" className={inputCls} value={ordCompra} onChange={(e) => setOrdCompra(e.target.value)} /></div>
             <div><label className={labelCls}>Hora llegada</label><input type="time" className={inputCls} value={horaLlegada} onChange={(e) => setHoraLlegada(e.target.value)} /></div>
             <div>

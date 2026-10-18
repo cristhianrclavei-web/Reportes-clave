@@ -114,7 +114,7 @@ export default function ServiciosSinReporteSection() {
                   {buscando && <p className="text-[12.5px] text-muted text-center py-3">Buscando…</p>}
                   {!buscando && candidatos.length === 0 && (
                     <p className="text-[12.5px] text-muted text-center py-3 leading-relaxed">
-                      No hay reportes sueltos de su personal cerca de esa fecha.
+                      No hay reportes sueltos de su personal con esa misma fecha (solo se vincula un reporte del mismo día).
                     </p>
                   )}
                   <div className="space-y-2">

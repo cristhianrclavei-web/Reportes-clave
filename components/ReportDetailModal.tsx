@@ -111,7 +111,7 @@ export default function ReportDetailModal({
     if (servicioVinculadoId) return; // ya está enlazado, no hace falta cargar opciones
     // Aquí sí entran los días ya pasados: un reporte capturado al día
     // siguiente debe poder vincularse al servicio que le corresponde.
-    listarServiciosVinculables()
+    listarServiciosVinculables(report.fecha)
       .then(setServiciosDisponibles)
       .catch(() => {});
   }, [servicioVinculadoId]);
@@ -120,7 +120,7 @@ export default function ReportDetailModal({
   // así que se cargan las opciones aunque el reporte ya tenga uno vinculado.
   useEffect(() => {
     if (!correccionHabilitada) return;
-    listarServiciosVinculables()
+    listarServiciosVinculables(report.fecha)
       .then(setServiciosDisponibles)
       .catch(() => {});
   }, [correccionHabilitada, report.id]);
@@ -753,7 +753,7 @@ export default function ReportDetailModal({
               </>
             ) : (
               <p className="text-[12.5px] text-muted">
-                No hay servicios programados sin reporte disponibles para vincular.
+                No hay servicios sin reporte del mismo día que este reporte ({fechaDMA(report.fecha)}). Solo se puede vincular con un servicio de la misma fecha.
               </p>
             )}
             {errorVinculo && <p className="text-red text-[12.5px] mt-2">{errorVinculo}</p>}

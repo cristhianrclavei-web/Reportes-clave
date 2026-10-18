@@ -15,6 +15,7 @@ import { textoMotivo } from './motivosServicio';
 import { VideoGrabado, subirVideo } from './videoEvidencia';
 import { TareaParaActividad, RegistroDeTarea, actividadesDelDia, actividadesDelDiaPorTarea, fusionarActividades, ultimoAvance } from './actividadesDeTareas';
 import { reporteFirmadoEnSitio } from './edicionLibreReporte';
+import { motivoFechaNoCoincide } from './fechaVinculo';
 import { evidenciasDe } from './evidencias';
 import { PREFIJO_ESPERA_INICIO } from './esperaInicio';
 import { VisitaEstado, debeReporte, FILTRO_DEBE_REPORTE } from './visitaSinTrabajo';
@@ -681,8 +682,9 @@ export async function listarAgendaSupervisor(): Promise<DiaAgenda[]> {
 
 // Servicios sin reporte a los que se puede vincular uno ya guardado: los del
 // usuario cuya fecha ya llegó. A diferencia de la lista para trabajar, aquí
-// sí entran los días pasados.
-export async function listarServiciosVinculables(): Promise<Servicio[]> {
+// sí entran los días pasados. Con `fechaReporte`, solo los de ese mismo día
+// (un reporte no se vincula con el servicio de otro día).
+export async function listarServiciosVinculables(fechaReporte?: string): Promise<Servicio[]> {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
@@ -699,6 +701,7 @@ export async function listarServiciosVinculables(): Promise<Servicio[]> {
     .neq('estado', 'cancelado')
     .lte('fecha', hoyStr)
     .order('fecha', { ascending: false });
+  if (fechaReporte) q = q.eq('fecha', fechaReporte);
 
   // El supervisor puede vincular cualquiera; el técnico, solo los suyos.
   if (role !== 'supervisor') {
@@ -1793,12 +1796,14 @@ export async function concluirServicioAnticipado(servicioId: string, cierre: Cie
 
 export async function vincularReporteAServicio(servicioId: string, reportId: string) {
   const supabase = createClient();
-  const { data: sv, error: eSv } = await supabase
-    .from('servicios_programados')
-    .select('fecha')
-    .eq('id', servicioId)
-    .single();
+  const [{ data: sv, error: eSv }, { data: rep, error: eRep }] = await Promise.all([
+    supabase.from('servicios_programados').select('fecha').eq('id', servicioId).single(),
+    supabase.from('reports').select('fecha').eq('id', reportId).single(),
+  ]);
   if (eSv) throw eSv;
+  if (eRep) throw eRep;
+  const distintaFecha = motivoFechaNoCoincide(rep.fecha, sv.fecha);
+  if (distintaFecha) throw new Error(distintaFecha);
   const ventana = evaluarVentanaServicio(sv as any);
   // Solo se impide vincular a un servicio que todavía no llega: eso sí sería
   // un error de captura. Uno de días pasados es normal.
@@ -1861,10 +1866,6 @@ export type ReporteParaVincular = {
   tecnico: string;
 };
 
-function fechaISO(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
 // Reportes de los técnicos asignados a este servicio, cerca de su fecha, que
 // todavía no están vinculados a NINGÚN servicio (ni a este ni a otro) — el
 // candidato típico es un reporte que sí se hizo pero el técnico no
@@ -1886,18 +1887,15 @@ export async function buscarReportesParaVincular(servicioId: string): Promise<Re
   const tecnicoIds = (asignaciones || []).map((a: any) => a.tecnico_id);
   if (tecnicoIds.length === 0) return [];
 
-  // Ventana de un par de días alrededor de la fecha: a veces el reporte se
-  // hace un día después de trabajado.
-  const centro = new Date(`${(sv as any).fecha}T00:00:00`);
-  const desde = new Date(centro); desde.setDate(desde.getDate() - 2);
-  const hasta = new Date(centro); hasta.setDate(hasta.getDate() + 2);
+  // Solo reportes con la misma fecha del servicio: un reporte no se vincula
+  // con el servicio de otro día.
+  const fechaServicio = (sv as any).fecha as string;
 
   const { data: reportes, error: eRep } = await supabase
     .from('reports')
     .select('id, empresa_cliente, fecha, data, created_by, profiles!reports_created_by_profiles_fkey(full_name)')
     .in('created_by', tecnicoIds)
-    .gte('fecha', fechaISO(desde))
-    .lte('fecha', fechaISO(hasta))
+    .eq('fecha', fechaServicio)
     .order('fecha', { ascending: false });
   if (eRep) throw eRep;
 
