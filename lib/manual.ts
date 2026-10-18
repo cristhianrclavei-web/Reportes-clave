@@ -139,10 +139,10 @@ export const MANUAL_TECNICO: SeccionManual[] = [
         pasos: [
           'Toca el tipo de actividad (traslado, compra, oficina o taller, capacitación, apoyo a cliente u otro), ponle nombre y, si aplica, el cliente. Se registran la hora y tu ubicación.',
           'Dentro de la actividad usa «Foto rápida»: abre la cámara y la foto se guarda sola; el comentario lo agregas después. Con «Pausar» detienes el tiempo y con «Concluir» la cierras.',
-          '«Mi día» muestra tu jornada completa (de la hora de entrada a la de salida): servicios, comida, pausas y actividades, y en ámbar lo que quedó sin registrar. Cada minuto cuenta una sola vez.',
+          '«Mi día» muestra tu jornada como una línea de tiempo con todas las horas, de la entrada a la salida: servicios, comida, pausas y actividades, cada uno a su altura, y con rayas ámbar lo que quedó sin registrar. Cada minuto cuenta una sola vez. Toca un tramo con rayas para llenarlo; toca algo que registraste a mano para editar su horario o tipo, o borrarlo.',
           'Si se te pasó iniciar algo (subir material en la oficina, el traslado, la compra), toca «¿Se te pasó iniciar algo? Regístralo a mano», o «Llenar» en un tramo sin registrar. Eliges qué fue, de qué hora a qué hora y quién iba contigo: a ellos se les registra lo mismo.',
           'Si lo que registras choca con otra actividad de tu bitácora, la app te avisa y no deja guardar; te ofrece los tramos libres para ajustar con un toque. Si cae dentro de un servicio (por ejemplo, saliste por material) sí se guarda, y ese rato se descuenta del servicio.',
-          'Lo registrado a mano en los últimos 7 días lo puedes borrar desde su detalle para volver a registrarlo bien.',
+          'Lo registrado a mano en los últimos 7 días lo puedes editar o borrar. Solo cambia tu registro; el de tus acompañantes queda igual.',
           'Un día con actividad en la bitácora ya no te pide reporte ni justificación.',
           'Si una actividad se queda abierta, se cierra sola al terminar el día con la hora de tu último movimiento y te pide confirmar a qué hora terminaste.',
           'Si un apoyo terminó siendo un trabajo, en la actividad ya concluida usa «Hacer un reporte con esta actividad»: el reporte abre con el cliente, las notas y las fotos ya puestas.',

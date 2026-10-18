@@ -2,15 +2,18 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, CircleDashed, PauseCircle, PenLine, UtensilsCrossed } from 'lucide-react';
+import { motion } from 'motion/react';
+import { AlertTriangle, ChevronRight, CircleDashed, PauseCircle, PenLine, Plus, UtensilsCrossed, X } from 'lucide-react';
+import ModalOverlay from '@/components/ModalOverlay';
 import { ClaseTiempo, Segmento, minutosPorClaseTiempo, seEnciman } from '@/lib/jornada';
-import { DiaDeTecnico } from '@/lib/jornadaDatos';
+import { ActividadJornada, DiaDeTecnico } from '@/lib/jornadaDatos';
 import { CLASES_TIEMPO, infoClase } from '@/lib/clasesTiempo';
 import { duracionTexto } from '@/lib/lineaDelDia';
 import IconoTipo from './IconoTipo';
 
-// La jornada de una persona en un día: cómo se repartió el tiempo, la barra
-// de horas y la lista en orden. Cada minuto cuenta una sola vez (ver
+// La jornada de una persona en un día: cómo se repartió el tiempo y una
+// línea de tiempo vertical con todas las horas (como la vista de un día en
+// un calendario). Cada minuto cuenta una sola vez (ver
 // lib/jornada.ts): si a media jornada salió por material, ese rato se ve
 // como compra y no como servicio. La usan el técnico («Mi día») y
 // supervisión (Personal → Jornadas).
@@ -61,8 +64,18 @@ export function RepartoTiempo({ porClase, compacta = false }: { porClase: Partia
   );
 }
 
+// Alto de la línea de tiempo: píxeles por minuto (66 px por hora).
+const PX_POR_MIN = 1.1;
+// Un tramo nunca se dibuja más bajo que esto, para que se pueda tocar.
+const ALTO_MINIMO = 22;
+// Espacio arriba para que la etiqueta de la primera hora no se corte.
+const MARGEN_ARRIBA = 8;
+
+// Fondo suave del color del tramo (el color puede ser una variable CSS).
+const tinte = (color: string, pct: number) => `color-mix(in srgb, ${color} ${pct}%, transparent)`;
+
 export default function JornadaDia({
-  dia, esHoy, ahora, hrefServicio, hrefActividad, onLlenar,
+  dia, esHoy, ahora, hrefServicio, hrefActividad, onLlenar, onEditar,
 }: {
   dia: DiaDeTecnico;
   esHoy: boolean;
@@ -72,11 +85,14 @@ export default function JornadaDia({
   // Solo el técnico: abre el registro a mano con ese tramo ya puesto
   // (sin tramo cuando el día está vacío).
   onLlenar?: (tramo: { inicio: number; fin: number } | null) => void;
+  // Solo el técnico: corregir algo que registró a mano.
+  onEditar?: (actividad: ActividadJornada) => void;
 }) {
-  const [elegido, setElegido] = useState<number | null>(null);
+  // Tramo tocado (que no es un hueco del técnico): se explica en una hoja.
+  const [elegido, setElegido] = useState<Segmento | null>(null);
   const { segmentos } = dia;
   const porClase = minutosPorClaseTiempo(segmentos);
-  const manuales = new Set(dia.actividades.filter((a) => a.origen === 'manual').map((a) => a.id));
+  const actividadPorId = new Map(dia.actividades.map((a) => [a.id, a]));
 
   // Actividades de bitácora encimadas (por ejemplo, una iniciada en vivo
   // mientras ya había otra abierta): se avisa para que se corrija.
@@ -106,22 +122,20 @@ export default function JornadaDia({
     );
   }
 
-  const desdeMs = segmentos[0].inicio;
-  const hastaMs = segmentos[segmentos.length - 1].fin;
-  const horaDesde = new Date(desdeMs);
+  // Ventana de horas completas que abarca la jornada.
+  const horaDesde = new Date(segmentos[0].inicio);
   horaDesde.setMinutes(0, 0, 0);
-  const horaHasta = new Date(hastaMs);
+  const horaHasta = new Date(segmentos[segmentos.length - 1].fin);
   if (horaHasta.getMinutes() > 0 || horaHasta.getSeconds() > 0) horaHasta.setHours(horaHasta.getHours() + 1, 0, 0, 0);
   const ventanaInicio = horaDesde.getTime();
   const ventanaFin = Math.max(horaHasta.getTime(), ventanaInicio + 3600000);
-  const total = ventanaFin - ventanaInicio;
-  const pct = (t: number) => ((t - ventanaInicio) / total) * 100;
+  const y = (t: number) => MARGEN_ARRIBA + ((t - ventanaInicio) / 60000) * PX_POR_MIN;
+  const altoTotal = y(ventanaFin);
   const horas: number[] = [];
   for (let t = ventanaInicio; t <= ventanaFin; t += 3600000) horas.push(t);
 
   const sinRegistrar = porClase.sin_registrar || 0;
   const registrado = Object.entries(porClase).reduce((n, [k, v]) => (k === 'sin_registrar' ? n : n + (v || 0)), 0);
-  const seg = elegido !== null ? segmentos[elegido] : null;
 
   function tituloDe(s: Segmento): string {
     if (s.clase === 'sin_registrar') return 'Sin registrar';
@@ -134,13 +148,28 @@ export default function JornadaDia({
     if (s.origen?.tipo === 'servicio' && s.clase !== 'servicio') return `Pausa del servicio «${s.origen.titulo}»`;
     if (s.clase === 'servicio') return 'Trabajo en servicio';
     const partes = [infoClase(s.clase).nombre];
-    if (s.origen && manuales.has(s.origen.id)) partes.push('registrada a mano');
+    const actividad = s.origen ? actividadPorId.get(s.origen.id) : undefined;
+    if (actividad?.origen === 'manual') partes.push('registrada a mano');
     if (s.dudoso) partes.push('se cerró sola');
     return partes.join(' · ');
   }
   function hrefDe(s: Segmento): string | null {
     if (!s.origen) return null;
     return s.origen.tipo === 'servicio' ? hrefServicio(s.origen.id) : hrefActividad(s.origen.id);
+  }
+  function editableDe(s: Segmento): ActividadJornada | null {
+    if (!onEditar || s.origen?.tipo !== 'actividad') return null;
+    const actividad = actividadPorId.get(s.origen.id);
+    if (!actividad || actividad.origen !== 'manual') return null;
+    if (ahora - actividad.inicio > 7 * 24 * 3600000) return null;
+    return actividad;
+  }
+  function tocar(s: Segmento) {
+    if (s.clase === 'sin_registrar' && onLlenar) {
+      onLlenar({ inicio: s.inicio, fin: s.fin });
+      return;
+    }
+    setElegido(s);
   }
 
   return (
@@ -172,99 +201,159 @@ export default function JornadaDia({
         </div>
       )}
 
-      {/* Barra de horas */}
-      <div>
-        <div className="relative h-12 rounded-xl bg-surface-2 border border-line overflow-hidden">
-          {horas.slice(1, -1).map((t) => (
-            <span key={t} className="absolute top-0 bottom-0 w-px bg-line" style={{ left: `${pct(t)}%` }} />
-          ))}
-          {segmentos.map((s, i) => (
-            <button
-              key={i}
+      {onLlenar && sinRegistrar > 0 && (
+        <p className="text-[12.5px] text-ink/75 flex items-center gap-1.5">
+          <Plus size={14} strokeWidth={2.6} className="text-amber" />
+          Toca un tramo con rayas para llenarlo; toca lo que registraste a mano para editarlo.
+        </p>
+      )}
+
+      {/* Línea de tiempo: horas a la izquierda, cada tramo a su altura. */}
+      <div className="relative select-none" style={{ height: altoTotal + 8 }} aria-label="Línea de tiempo del día">
+        {/* Fuera del horario de la jornada, el fondo va más tenue. */}
+        {dia.jornada && (
+          <span
+            className="absolute left-12 right-0 rounded-lg bg-surface-2/50"
+            style={{ top: Math.max(0, y(dia.jornada.inicio)), height: Math.max(0, Math.min(altoTotal, y(dia.jornada.fin)) - Math.max(0, y(dia.jornada.inicio))) }}
+            aria-hidden="true"
+          />
+        )}
+        {horas.map((t) => (
+          <div key={t} className="absolute left-0 right-0 flex items-center gap-2 pointer-events-none" style={{ top: y(t) - 7 }}>
+            <span className="w-10 text-right text-[11px] font-semibold text-faint tabular-nums">{String(new Date(t).getHours()).padStart(2, '0')}:00</span>
+            <span className="flex-1 h-px bg-line" />
+          </div>
+        ))}
+        {horas.slice(0, -1).map((t) => (
+          <span key={`m${t}`} className="absolute left-12 right-0 border-t border-dashed border-line/60 pointer-events-none" style={{ top: y(t + 1800000) }} aria-hidden="true" />
+        ))}
+
+        {segmentos.map((s, i) => {
+          const top = y(s.inicio);
+          const alto = Math.max(ALTO_MINIMO, y(s.fin) - top - 2);
+          const color = infoClase(s.clase).color;
+          const hueco = s.clase === 'sin_registrar';
+          const compacto = alto < 44;
+          return (
+            <motion.button
+              key={`${s.inicio}-${i}`}
               type="button"
-              onClick={() => setElegido(elegido === i ? null : i)}
-              aria-label={`${tituloDe(s)}, de ${hhmm(s.inicio)} a ${hhmm(s.fin)}`}
-              aria-pressed={elegido === i}
-              className={`absolute transition-all duration-150 ${elegido === i ? 'top-0.5 bottom-0.5 ring-2 ring-ink/80 z-10 rounded' : 'top-2 bottom-2'} ${
-                s.clase === 'sin_registrar' ? 'border border-dashed border-amber/70 bg-amber/15 rounded' : ''
-              } ${s.dudoso ? 'opacity-50' : ''}`}
+              onClick={() => tocar(s)}
+              initial={{ opacity: 0, x: 8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.25, delay: Math.min(i * 0.03, 0.4) }}
+              whileTap={{ scale: 0.98 }}
+              aria-label={`${tituloDe(s)}, de ${hhmm(s.inicio)} a ${hhmm(s.fin)}${hueco && onLlenar ? '. Toca para llenarlo' : ''}`}
+              className={`absolute left-14 right-0 z-[1] bg-surface rounded-xl text-left overflow-hidden flex gap-2.5 px-2.5 transition-shadow hover:shadow-diffuse focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal ${
+                compacto ? 'items-center' : 'items-start pt-2'
+              } ${hueco ? 'border border-dashed border-amber/70' : 'border-l-4'} ${s.dudoso ? 'opacity-60' : ''}`}
+              // Fondo sólido (bg-surface) con el tinte encima: así las líneas de
+              // las horas no se transparentan sobre el tramo.
               style={{
-                left: `${pct(s.inicio)}%`,
-                width: `${Math.max(0.8, pct(s.fin) - pct(s.inicio))}%`,
-                backgroundColor: s.clase === 'sin_registrar' ? undefined : infoClase(s.clase).color,
+                top: top + 1,
+                height: alto,
+                borderLeftColor: hueco ? undefined : color,
+                backgroundImage: hueco
+                  ? 'repeating-linear-gradient(135deg, rgba(245,158,11,0.13) 0 8px, rgba(245,158,11,0.04) 8px 16px)'
+                  : `linear-gradient(${tinte(color, 16)}, ${tinte(color, 16)})`,
               }}
-            />
-          ))}
-          {esHoy && ahora > ventanaInicio && ahora < ventanaFin && (
-            <span className="absolute top-0 bottom-0 w-0.5 bg-red pointer-events-none" style={{ left: `${pct(ahora)}%` }} aria-hidden="true" />
-          )}
-        </div>
-        <div className="relative h-5 mt-1">
-          {horas.map((t, i) => (
-            <span
-              key={t}
-              className={`absolute -translate-x-1/2 text-[10.5px] text-faint tabular-nums ${i % 2 ? 'hidden sm:block' : ''} ${i === 0 ? '!translate-x-0' : ''} ${i === horas.length - 1 ? '!-translate-x-full' : ''}`}
-              style={{ left: `${pct(t)}%` }}
             >
-              {new Date(t).getHours()}:00
-            </span>
-          ))}
-        </div>
-        {seg && (
-          <p className="text-[12.5px] text-ink/85 mt-1">
-            <b>{tituloDe(seg)}</b> · {hhmm(seg.inicio)}–{hhmm(seg.fin)} · {duracionTexto(minutos(seg))}
-          </p>
+              {!compacto && (
+                <span className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${hueco ? 'text-amber bg-amber/15' : 'text-white'}`} style={{ backgroundColor: hueco ? undefined : color }}>
+                  <IconoClase clase={s.clase} size={15} />
+                </span>
+              )}
+              <span className="min-w-0 flex-1">
+                <span className={`block font-semibold truncate leading-tight ${compacto ? 'text-[12.5px]' : 'text-[13.5px]'} ${hueco ? 'text-amber' : ''}`}>
+                  {tituloDe(s)}
+                  {compacto && <span className="font-normal text-muted"> · {hhmm(s.inicio)}–{hhmm(s.fin)}</span>}
+                </span>
+                {!compacto && (
+                  <span className="block text-[12px] text-muted tabular-nums mt-0.5 truncate">
+                    {hhmm(s.inicio)}–{hhmm(s.fin)} · {duracionTexto(minutos(s))}
+                  </span>
+                )}
+              </span>
+              {hueco && onLlenar && (
+                <span className={`shrink-0 rounded-full bg-amber text-inkOnAccent font-semibold flex items-center gap-1 ${compacto ? 'text-[11px] px-2 py-0.5' : 'text-[12px] px-2.5 py-1 mt-0.5'}`}>
+                  <Plus size={12} strokeWidth={2.8} /> Llenar
+                </span>
+              )}
+              {!hueco && !compacto && (
+                <span className="shrink-0 text-[11.5px] font-semibold tabular-nums text-ink/70 mt-0.5">{duracionTexto(minutos(s))}</span>
+              )}
+            </motion.button>
+          );
+        })}
+
+        {esHoy && ahora > ventanaInicio && ahora < ventanaFin && (
+          <div className="absolute left-0 right-0 flex items-center pointer-events-none z-10" style={{ top: y(ahora) - 8 }} aria-hidden="true">
+            <span className="w-12 text-right pr-1 text-[10.5px] font-bold text-red tabular-nums">{hhmm(ahora)}</span>
+            <span className="w-2.5 h-2.5 rounded-full bg-red -ml-0.5" />
+            <span className="flex-1 h-0.5 bg-red" />
+          </div>
         )}
       </div>
 
-      {/* Lo mismo, en orden */}
-      <ol className="flex flex-col gap-2">
-        {segmentos.map((s, i) => {
-          const href = hrefDe(s);
-          const contenido = (
-            <>
+      {onLlenar && (
+        <button type="button" onClick={() => onLlenar(null)}
+          className="w-full min-h-[46px] rounded-xl border border-dashed border-teal/50 text-teal text-[13.5px] font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform">
+          <PenLine size={15} strokeWidth={2.4} /> Registrar algo a mano en este día
+        </button>
+      )}
+
+      {elegido && (
+        <ModalOverlay onClose={() => setElegido(null)}>
+          <div className="glass-strong rounded-3xl max-w-md w-full p-5">
+            <div className="flex items-start gap-3">
               <span
-                className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${s.clase === 'sin_registrar' ? 'text-amber' : 'text-white'}`}
-                style={{ backgroundColor: s.clase === 'sin_registrar' ? undefined : infoClase(s.clase).color }}
+                className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${elegido.clase === 'sin_registrar' ? 'text-amber bg-amber/15' : 'text-white'}`}
+                style={{ backgroundColor: elegido.clase === 'sin_registrar' ? undefined : infoClase(elegido.clase).color }}
               >
-                <IconoClase clase={s.clase} />
+                <IconoClase clase={elegido.clase} size={20} />
               </span>
-              <span className="min-w-0 flex-1">
-                <span className={`block text-[14px] font-semibold truncate ${s.clase === 'sin_registrar' ? 'text-amber' : ''}`}>{tituloDe(s)}</span>
-                <span className="block text-[12.5px] text-muted truncate">{detalleDe(s)}</span>
-              </span>
-              <span className="text-right shrink-0">
-                <span className="block text-[13px] font-semibold tabular-nums">{hhmm(s.inicio)}–{hhmm(s.fin)}</span>
-                <span className="block text-[12px] text-muted tabular-nums">{duracionTexto(minutos(s))}</span>
-              </span>
-            </>
-          );
-          if (s.clase === 'sin_registrar') {
-            return (
-              <li key={i} className="flex items-center gap-3 rounded-xl border border-dashed border-amber/50 bg-amber/5 px-3.5 py-2">
-                {contenido}
-                {onLlenar && (
-                  <button type="button" onClick={() => onLlenar({ inicio: s.inicio, fin: s.fin })}
-                    className="shrink-0 min-h-[38px] px-3 rounded-full bg-amber text-inkOnAccent text-[12.5px] font-semibold flex items-center gap-1 active:scale-95 transition-transform">
-                    <PenLine size={13} strokeWidth={2.5} /> Llenar
+              <div className="min-w-0 flex-1">
+                <p className="font-display font-bold text-[17px] tracking-wide leading-snug">{tituloDe(elegido)}</p>
+                <p className="text-[12.5px] text-muted">{detalleDe(elegido)}</p>
+              </div>
+              <button type="button" onClick={() => setElegido(null)} aria-label="Cerrar" className="w-9 h-9 rounded-full bg-surface-2 border border-line flex items-center justify-center shrink-0">
+                <X size={16} strokeWidth={2.4} />
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-2 mt-4">
+              {([['De', hhmm(elegido.inicio)], ['A', hhmm(elegido.fin)], ['Duración', duracionTexto(minutos(elegido))]] as const).map(([r, v]) => (
+                <div key={r} className="rounded-xl bg-surface-2/70 px-3 py-2">
+                  <p className="text-[11px] uppercase tracking-wider text-muted">{r}</p>
+                  <p className="font-display font-bold text-[16px] tabular-nums leading-tight mt-0.5">{v}</p>
+                </div>
+              ))}
+            </div>
+            {elegido.clase === 'sin_registrar' && (
+              <p className="text-[12.5px] text-ink/80 mt-3">En este tramo de la jornada no hay servicio ni actividad. El técnico lo puede llenar desde su bitácora.</p>
+            )}
+            {elegido.origen?.tipo === 'servicio' && elegido.clase !== 'servicio' && (
+              <p className="text-[12.5px] text-ink/80 mt-3">Este rato se descuenta del tiempo de trabajo en el servicio.</p>
+            )}
+            <div className="flex flex-col gap-2 mt-4">
+              {(() => {
+                const editable = editableDe(elegido);
+                if (!editable) return null;
+                return (
+                  <button type="button" onClick={() => { setElegido(null); onEditar!(editable); }}
+                    className="min-h-[48px] rounded-2xl bg-teal text-inkOnAccent font-semibold text-[14.5px] flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                    <PenLine size={16} strokeWidth={2.4} /> Editar horario o tipo
                   </button>
-                )}
-              </li>
-            );
-          }
-          return (
-            <li key={i}>
-              {href ? (
-                <Link href={href} className={`flex items-center gap-3 rounded-xl border bg-surface px-3.5 py-2.5 transition-colors hover:border-teal/45 ${elegido === i ? 'border-teal/60' : 'border-line'}`}>
-                  {contenido}
+                );
+              })()}
+              {hrefDe(elegido) && (
+                <Link href={hrefDe(elegido)!} className="min-h-[48px] rounded-2xl border border-line-strong text-ink/85 font-semibold text-[14.5px] flex items-center justify-center gap-1.5 active:scale-95 transition-transform">
+                  Abrir {elegido.origen?.tipo === 'servicio' ? 'el servicio' : 'la actividad'} <ChevronRight size={16} strokeWidth={2.4} />
                 </Link>
-              ) : (
-                <div className="flex items-center gap-3 rounded-xl border border-line bg-surface px-3.5 py-2.5">{contenido}</div>
               )}
-            </li>
-          );
-        })}
-      </ol>
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
     </div>
   );
 }

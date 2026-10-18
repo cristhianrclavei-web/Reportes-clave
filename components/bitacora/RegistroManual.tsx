@@ -7,7 +7,7 @@ import AutocompletarCliente from '@/components/AutocompletarCliente';
 import { ElegirCuadrilla } from '@/components/cuadrillas/ChipsCuadrilla';
 import IconoTipo from './IconoTipo';
 import { TIPOS_ACTIVIDAD, TipoActividad, tipoActividad } from '@/lib/tiposActividad';
-import { DatosJornadas, registrarActividadManual } from '@/lib/jornadaDatos';
+import { ActividadJornada, DatosJornadas, registrarActividadManual, editarActividadManual, eliminarActividadManual } from '@/lib/jornadaDatos';
 import { seEnciman, tramosLibres } from '@/lib/jornada';
 import { hoyLocal, sumarDias } from '@/lib/fechaHoy';
 import { duracionTexto } from '@/lib/lineaDelDia';
@@ -33,20 +33,22 @@ function aMs(fecha: string, hora: string): number | null {
 }
 
 export default function RegistroManual({
-  yoId, fechaInicial, tramo, datos, tecnicos, onCerrar, onGuardado,
+  yoId, fechaInicial, tramo, datos, tecnicos, editar, onCerrar, onGuardado,
 }: {
   yoId: string;
   fechaInicial: string;
   tramo: { inicio: number; fin: number } | null;
   datos: DatosJornadas;
   tecnicos: { id: string; full_name: string }[];
+  // Para corregir algo ya registrado a mano (solo el registro propio).
+  editar?: ActividadJornada;
   onCerrar: () => void;
   onGuardado: (mensaje: string) => void;
 }) {
   const hoy = hoyLocal();
-  const [tipo, setTipo] = useState<TipoActividad | null>(null);
-  const [titulo, setTitulo] = useState('');
-  const [lugar, setLugar] = useState('');
+  const [tipo, setTipo] = useState<TipoActividad | null>(editar ? editar.tipo : null);
+  const [titulo, setTitulo] = useState(editar ? editar.titulo : '');
+  const [lugar, setLugar] = useState(editar ? editar.proyecto : '');
   const [fecha, setFecha] = useState(fechaInicial);
   const [inicio, setInicio] = useState(tramo ? aHora(tramo.inicio) : '');
   const [fin, setFin] = useState(tramo ? aHora(tramo.fin) : '');
@@ -74,14 +76,14 @@ export default function RegistroManual({
     if (!rangoValido) return { choques: [], servicios: [], libres: [] };
     const rango = { inicio: inicioMs!, fin: finMs! };
     const mias = datos.actividades
-      .filter((a) => a.tecnicoId === yoId)
+      .filter((a) => a.tecnicoId === yoId && a.id !== editar?.id)
       .map((a) => ({ ...a, fin: a.fin ?? Date.now() }));
     const choques = mias.filter((a) => seEnciman(a, rango));
     const servicios = datos.servicios
       .filter((s) => s.tecnicoIds.includes(yoId))
       .filter((s) => seEnciman({ inicio: s.inicio, fin: s.fin ?? Date.now() }, rango));
     return { choques, servicios, libres: choques.length ? tramosLibres(rango, mias) : [] };
-  }, [rangoValido, inicioMs, finMs, datos, yoId]);
+  }, [rangoValido, inicioMs, finMs, datos, yoId, editar?.id]);
 
   const puedeGuardar = Object.keys(errores).length === 0 && choques.length === 0;
   const otros = tecnicos.filter((t) => t.id !== yoId);
@@ -91,6 +93,16 @@ export default function RegistroManual({
     if (!puedeGuardar || !tipo) return;
     setGuardando(true);
     setError(null);
+    if (editar) {
+      try {
+        await editarActividadManual({ id: editar.id, tipo, titulo, proyecto: lugar, inicio: new Date(inicioMs!), fin: new Date(finMs!) });
+        onGuardado('Cambios guardados');
+      } catch (e: any) {
+        setError(e?.message || 'No se pudo guardar. Revisa tu conexión e intenta de nuevo.');
+        setGuardando(false);
+      }
+      return;
+    }
     try {
       const r = await registrarActividadManual({
         tipo, titulo, proyecto: lugar, inicio: new Date(inicioMs!), fin: new Date(finMs!), nota, acompanantes,
@@ -108,14 +120,30 @@ export default function RegistroManual({
     }
   }
 
+  async function borrar() {
+    if (!editar) return;
+    if (!confirm('¿Borrar este registro de tu bitácora?\n\nSolo se borra el tuyo; a tus acompañantes no les cambia.')) return;
+    setGuardando(true);
+    setError(null);
+    try {
+      await eliminarActividadManual(editar.id);
+      onGuardado('Registro borrado');
+    } catch (e: any) {
+      setError(e?.message || 'No se pudo borrar. Revisa tu conexión e intenta de nuevo.');
+      setGuardando(false);
+    }
+  }
+
   return (
     <ModalOverlay onClose={() => !guardando && onCerrar()}>
       <div className="glass-strong rounded-3xl max-w-lg w-full max-h-[92vh] overflow-y-auto p-5">
         <div className="flex items-start gap-3 mb-4">
           <span className="w-11 h-11 rounded-2xl bg-teal/15 text-teal flex items-center justify-center shrink-0"><PenLine size={20} strokeWidth={2.3} /></span>
           <div className="min-w-0 flex-1">
-            <p className="font-display font-bold text-[18px] tracking-wide leading-tight">Registrar a mano</p>
-            <p className="text-[12.5px] text-muted">Para lo que se te pasó iniciar en vivo: el traslado, la compra, preparar material…</p>
+            <p className="font-display font-bold text-[18px] tracking-wide leading-tight">{editar ? 'Editar registro' : 'Registrar a mano'}</p>
+            <p className="text-[12.5px] text-muted">
+              {editar ? 'Corrige qué fue o el horario. Solo cambia tu registro, no el de tus acompañantes.' : 'Para lo que se te pasó iniciar en vivo: el traslado, la compra, preparar material…'}
+            </p>
           </div>
           <button type="button" onClick={onCerrar} disabled={guardando} aria-label="Cerrar" className="w-9 h-9 rounded-full bg-surface-2 border border-line flex items-center justify-center shrink-0">
             <X size={16} strokeWidth={2.4} />
@@ -209,7 +237,7 @@ export default function RegistroManual({
           soloSugerir
         />
 
-        {otros.length > 0 && (
+        {otros.length > 0 && !editar && (
           <>
             <p className={`${labelCls} mt-4`}>¿Quién iba contigo?</p>
             <p className="text-[12px] text-muted -mt-1 mb-2">A cada uno se le registra lo mismo en su bitácora.</p>
@@ -229,8 +257,12 @@ export default function RegistroManual({
           </>
         )}
 
-        <label htmlFor="rm-nota" className={`${labelCls} mt-4`}>Nota (opcional)</label>
-        <textarea id="rm-nota" value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Algo que convenga saber" className={`${inputCls} py-2.5 min-h-[70px]`} />
+        {!editar && (
+          <>
+            <label htmlFor="rm-nota" className={`${labelCls} mt-4`}>Nota (opcional)</label>
+            <textarea id="rm-nota" value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Algo que convenga saber" className={`${inputCls} py-2.5 min-h-[70px]`} />
+          </>
+        )}
 
         {error && <p className="text-[13px] text-red mt-3">{error}</p>}
 
@@ -243,6 +275,12 @@ export default function RegistroManual({
             {guardando ? 'Guardando…' : 'Guardar'}
           </button>
         </div>
+        {editar && (
+          <button type="button" onClick={borrar} disabled={guardando}
+            className="mt-3 w-full min-h-[44px] rounded-2xl text-red text-[13.5px] font-semibold active:scale-95 transition-transform disabled:opacity-60">
+            Borrar este registro
+          </button>
+        )}
       </div>
     </ModalOverlay>
   );

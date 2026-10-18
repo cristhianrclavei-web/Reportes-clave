@@ -1,11 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, PenLine } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { createClient } from '@/lib/supabaseClient';
 import { hoyLocal, sumarDias } from '@/lib/fechaHoy';
 import { fechaLargaCalendario } from '@/lib/calendarioMes';
-import { DatosJornadas, cargarDatosJornadas, jornadaDeTecnico } from '@/lib/jornadaDatos';
+import { ActividadJornada, DatosJornadas, cargarDatosJornadas, jornadaDeTecnico } from '@/lib/jornadaDatos';
 import { showToast } from '@/components/Toast';
 import { listarPersonal } from '@/lib/catalogos';
 import JornadaDia from './JornadaDia';
@@ -29,7 +29,8 @@ export default function MiJornada({ onRegistrado, solicitudRegistro = 0 }: {
   const [error, setError] = useState<string | null>(null);
   const [tecnicos, setTecnicos] = useState<{ id: string; full_name: string }[]>([]);
   // Registro a mano abierto: con el tramo del hueco que se tocó, o vacío.
-  const [registro, setRegistro] = useState<{ tramo: { inicio: number; fin: number } | null } | null>(null);
+  // Con `editar`, se corrige algo ya registrado a mano.
+  const [registro, setRegistro] = useState<{ tramo: { inicio: number; fin: number } | null; editar?: ActividadJornada } | null>(null);
 
   const cargar = useCallback(async (dia: string) => {
     try {
@@ -95,21 +96,17 @@ export default function MiJornada({ onRegistrado, solicitudRegistro = 0 }: {
             hrefServicio={(id) => `/servicios/${id}`}
             hrefActividad={(id) => `/bitacora/${id}`}
             onLlenar={fecha >= sumarDias(hoy, -7) ? (tramo) => setRegistro({ tramo }) : undefined}
+            onEditar={(actividad) => setRegistro({ tramo: { inicio: actividad.inicio, fin: actividad.fin ?? actividad.inicio }, editar: actividad })}
           />
-          {dia.segmentos.length > 0 && fecha >= sumarDias(hoy, -7) && (
-            <button type="button" onClick={() => setRegistro({ tramo: null })}
-              className="mt-3 w-full min-h-[46px] rounded-xl border border-dashed border-teal/50 text-teal text-[13.5px] font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform">
-              <PenLine size={15} strokeWidth={2.4} /> Registrar algo a mano en este día
-            </button>
-          )}
         </>
       )}
 
       {registro && datos && (
         <RegistroManual
           yoId={yoId}
-          fechaInicial={fecha}
+          fechaInicial={registro.editar ? hoyLocal(new Date(registro.editar.inicio)) : fecha}
           tramo={registro.tramo}
+          editar={registro.editar}
           datos={datos}
           tecnicos={tecnicos}
           onCerrar={() => setRegistro(null)}

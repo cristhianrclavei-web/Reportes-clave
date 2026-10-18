@@ -155,6 +155,8 @@ export function horarioDelDia(fecha: string, datos: Pick<DatosJornadas, 'horario
 
 export type DiaDeTecnico = {
   fecha: string;
+  // Horario de la jornada ese día (null en fin de semana y festivos).
+  jornada: { inicio: number; fin: number } | null;
   servicios: ServicioJornada[];
   actividades: ActividadJornada[];
   segmentos: Segmento[];
@@ -166,8 +168,9 @@ export function jornadaDeTecnico(datos: DatosJornadas, tecnicoId: string, fecha:
   const actividades = datos.actividades.filter((x) => x.tecnicoId === tecnicoId && hoyLocal(new Date(x.inicio)) === fecha);
   const finDelDia = fechaLocal(sumarDias(fecha, 1)).getTime();
   const tope = Math.min(ahora, finDelDia);
-  const segmentos = segmentosDelDia({ servicios, actividades, jornada: horarioDelDia(fecha, datos), tope });
-  return { fecha, servicios, actividades, segmentos };
+  const jornada = horarioDelDia(fecha, datos);
+  const segmentos = segmentosDelDia({ servicios, actividades, jornada, tope });
+  return { fecha, jornada, servicios, actividades, segmentos };
 }
 
 export async function registrarActividadManual(entrada: {
@@ -251,4 +254,25 @@ export async function guardarHorarioJornada(horario: HorarioJornada): Promise<vo
     .select('id');
   if (error) throw error;
   if (!data || data.length === 0) throw new Error('No tienes permiso para cambiar el horario.');
+}
+
+// Corrige lo registrado a mano (solo el registro propio; el de los
+// acompañantes no cambia). Requiere patch_bitacora_manual_editar.sql.
+export async function editarActividadManual(entrada: {
+  id: string;
+  tipo: string;
+  titulo: string;
+  proyecto: string;
+  inicio: Date;
+  fin: Date;
+}): Promise<void> {
+  const { error } = await createClient().rpc('editar_actividad_manual', {
+    p_id: entrada.id,
+    p_tipo: entrada.tipo,
+    p_titulo: entrada.titulo,
+    p_proyecto: entrada.proyecto,
+    p_inicio: entrada.inicio.toISOString(),
+    p_fin: entrada.fin.toISOString(),
+  });
+  if (error) throw error;
 }
