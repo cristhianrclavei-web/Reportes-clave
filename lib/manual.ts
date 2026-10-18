@@ -103,12 +103,12 @@ export const MANUAL_TECNICO: SeccionManual[] = [
       },
       {
         titulo: 'Corregir un reporte',
-        resumen: 'Cuando tu supervisor te pide un cambio.',
+        resumen: 'Si te equivocaste en un dato o te faltó algo.',
         pasos: [
-          'En «Reportes» el reporte aparece marcado para corrección, con la nota de qué hay que cambiar.',
-          'Ábrelo, corrige y guarda. Conserva el mismo folio y vuelve a revisión.',
+          'Durante la primera hora después de guardarlo, y mientras el cliente no lo haya firmado, abre el reporte en «Reportes» y toca «Editar reporte». Cambia lo que haga falta y toca «Guardar cambios»: se actualiza el mismo reporte, con el mismo folio.',
+          'Pasada la hora, o si el cliente ya firmó, pide una corrección al supervisor desde la pestaña «Revisión» del reporte.',
+          'Cuando el supervisor la autoriza, el reporte aparece marcado para corrección. Ábrelo, corrige y guarda. Conserva el mismo folio y vuelve a revisión.',
         ],
-        nota: 'Por tu cuenta solo puedes editar un reporte durante los primeros 30 minutos después de guardarlo.',
       },
       {
         titulo: 'Días sin reporte',

@@ -24,6 +24,7 @@ import { hoyLocal } from '@/lib/fechaHoy';
 import { ResumenFormatos } from './FormatoMantenimiento';
 import EtiquetasMantenimiento from './EtiquetasMantenimiento';
 import FirmaPendiente from './FirmaPendiente';
+import { puedeEditarSinPermiso, finEdicionLibre } from '@/lib/edicionLibreReporte';
 
 export type ReportDetail = {
   id: string;
@@ -95,6 +96,16 @@ export default function ReportDetailModal({
   const [fotosCorreccion, setFotosCorreccion] = useState<{ file: File; previewUrl: string }[]>([]);
   const [servicioCorreccionId, setServicioCorreccionId] = useState<string | null>(report.data?.servicioProgramadoId || null);
   const fotoCorreccionRef = useRef<HTMLInputElement>(null);
+
+  // Edición en la primera hora: la hora actual se lee después de montar (no
+  // en el render) y se refresca cada 30 s para que el botón se quite solo.
+  const [ahoraMs, setAhoraMs] = useState<number | null>(null);
+  useEffect(() => {
+    setAhoraMs(Date.now());
+    const reloj = setInterval(() => setAhoraMs(Date.now()), 30000);
+    return () => clearInterval(reloj);
+  }, []);
+  const edicionLibre = !esSupervisor && ahoraMs !== null && puedeEditarSinPermiso(report, ahoraMs);
 
   useEffect(() => {
     if (servicioVinculadoId) return; // ya está enlazado, no hace falta cargar opciones
@@ -580,6 +591,20 @@ export default function ReportDetailModal({
         />
 
         {pestana === 'reporte' && (<>
+        {edicionLibre && ahoraMs !== null && (
+          <div className="mt-3 p-3.5 rounded-2xl bg-teal/10 border border-teal/30 flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-[14px] text-teal">¿Te equivocaste o te faltó algo?</p>
+              <p className="text-[12.5px] text-muted leading-relaxed">
+                Puedes editar este reporte hasta las {new Date(finEdicionLibre(report.created_at)).toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' })} (quedan {Math.max(1, Math.ceil((finEdicionLibre(report.created_at) - ahoraMs) / 60000))} min), mientras el cliente no lo firme.
+              </p>
+            </div>
+            <Link href={`/nuevo?editar=${report.id}`}
+              className="min-h-[46px] px-4 rounded-xl bg-teal text-inkOnAccent text-[14px] font-semibold flex items-center justify-center gap-2 active:scale-[0.98] shrink-0">
+              <Pencil size={16} strokeWidth={2.5} /> Editar reporte
+            </Link>
+          </div>
+        )}
         <AutorReporte id={report.created_by} nombre={techName(report.profiles)} variante="recuadro" />
         <Section title="Datos generales">
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">

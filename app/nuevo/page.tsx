@@ -45,6 +45,7 @@ import { sinRegistroDeReporte } from '@/lib/equiposInstalados';
 import { FilaTuberia, FilaCable, FilaSoporteria, tuberiasDe, cablesDe, soporteriaDe } from '@/lib/materialesReporte';
 import { SeccionTuberia, SeccionCable, SeccionSoporteria, tuberiaVacia, cableVacio, soporteriaVacia } from '@/components/reporte/MaterialesReporte';
 import TraerDelVale from '@/components/reporte/TraerDelVale';
+import { puedeEditarSinPermiso, finEdicionLibre } from '@/lib/edicionLibreReporte';
 
 // Hora "HH:mm" del reloj del dispositivo — igual al formato que ya entrega
 // el <input type="time">, así que sirve tal cual como valor de respaldo.
@@ -430,7 +431,10 @@ export default function NuevoReportePage() {
   // Con corrección autorizada por el supervisor y sin firma del cliente, el
   // técnico edita el reporte completo en este mismo formulario. Al guardar se
   // actualiza el reporte (no se crea otro) y la corrección se cierra.
+  // También en la primera hora después de guardarlo, sin pedir corrección
+  // (edicionLibreHasta guarda hasta qué hora puede).
   const [editarId, setEditarId] = useState<string | null>(null);
+  const [edicionLibreHasta, setEdicionLibreHasta] = useState<number | null>(null);
   const reporteOriginal = useRef<any>(null);
   const [errorEdicion, setErrorEdicion] = useState<string | null>(null);
 
@@ -438,8 +442,13 @@ export default function NuevoReportePage() {
     const { data: r, error } = await supabase.from('reports').select('*').eq('id', id).single();
     if (error || !r) { setErrorEdicion('No se encontró el reporte.'); return; }
     if (r.created_by !== uid) { setErrorEdicion('Solo quien hizo el reporte puede corregirlo.'); return; }
-    if (!r.correccion_habilitada) { setErrorEdicion('Este reporte no tiene una corrección autorizada.'); return; }
     if (r.data?.firmaClienteData) { setErrorEdicion('El cliente ya firmó este reporte: solo se pueden agregar fotos y cambiar el servicio desde su detalle.'); return; }
+    const enPrimeraHora = puedeEditarSinPermiso(r, Date.now());
+    if (!r.correccion_habilitada && !enPrimeraHora) {
+      setErrorEdicion('Ya pasó la primera hora desde que guardaste este reporte: para cambiarlo pide una corrección al supervisor desde su detalle.');
+      return;
+    }
+    if (!r.correccion_habilitada) setEdicionLibreHasta(finEdicionLibre(r.created_at));
     reporteOriginal.current = r;
     const d = r.data || {};
     const personal: string[] = Array.isArray(d.personal) ? d.personal : [];
@@ -1044,6 +1053,18 @@ export default function NuevoReportePage() {
       }
 
       const folio = anterior.claveFormato ? ` (folio ${anterior.claveFormato})` : '';
+      // Editado en su primera hora: queda en Eventos, pero no se avisa a
+      // supervisión porque nadie pidió ni autorizó esa corrección.
+      if (edicionLibreHasta !== null) {
+        await registrarAccionGlobal('aplico_correccion', 'reporte', editarId, `Editó su reporte de «${empresaCliente.trim()}»${folio} en la primera hora después de guardarlo`);
+        avance(100, 'Cambios guardados');
+        await pausaFinal();
+        setSaving(false);
+        showToast('Cambios guardados', 'success');
+        resetAll();
+        router.push('/mis-reportes');
+        return;
+      }
       avance(92, 'Avisando a supervisión');
       await registrarAccionGlobal('aplico_correccion', 'reporte', editarId, `Corrigió el reporte completo de «${empresaCliente.trim()}»${folio}`);
       await notificar({
@@ -1062,7 +1083,13 @@ export default function NuevoReportePage() {
       router.push('/mis-reportes');
     } catch (e: any) {
       setSaving(false);
-      setMsg('No se pudo guardar la corrección: ' + (e?.message || 'error de conexión'));
+      const mensaje = e?.message || 'error de conexión';
+      // La base rechaza el cambio si la hora se cumplió mientras editaba.
+      if (edicionLibreHasta !== null && mensaje.includes('pide una corrección')) {
+        setMsg('Ya pasó la primera hora y el reporte no se pudo cambiar. Pide una corrección al supervisor desde el detalle del reporte.');
+      } else {
+        setMsg('No se pudo guardar la corrección: ' + mensaje);
+      }
     }
   }
 
@@ -1307,6 +1334,18 @@ export default function NuevoReportePage() {
     );
   }
 
+  // Textos del encabezado y del botón: reporte nuevo, corrección autorizada
+  // o edición en la primera hora.
+  let tituloFormulario = 'Nuevo reporte';
+  let textoGuardar = 'Guardar reporte';
+  if (editarId && edicionLibreHasta !== null) {
+    tituloFormulario = 'Editar reporte';
+    textoGuardar = 'Guardar cambios';
+  } else if (editarId) {
+    tituloFormulario = 'Corregir reporte';
+    textoGuardar = 'Guardar corrección';
+  }
+
   return (
     <div className="max-w-2xl lg:max-w-none lg:px-6 mx-auto pb-32">
       <SavingOverlay show={saving} pct={progreso.pct} label={progreso.etapa} />
@@ -1323,7 +1362,7 @@ export default function NuevoReportePage() {
           <Logo size={30} className="sm:hidden" />
           <Logo variante="completo" size={30} className="min-w-0 hidden sm:flex" />
           <div className="min-w-0 sm:ml-2">
-            <h1 className="font-display font-semibold text-base tracking-wide leading-tight truncate">{editarId ? 'Corregir reporte' : 'Nuevo reporte'}</h1>
+            <h1 className="font-display font-semibold text-base tracking-wide leading-tight truncate">{tituloFormulario}</h1>
             <p className="text-[11px] text-muted truncate">{userName || userEmail}</p>
           </div>
         </div>
@@ -1344,7 +1383,15 @@ export default function NuevoReportePage() {
           </div>
         )}
 
-        {editarId && (
+        {editarId && edicionLibreHasta !== null && (
+          <div className="rounded-2xl px-4 py-3 bg-teal/10 border border-teal/30 text-[13px]">
+            <p className="font-semibold text-teal">Editando tu reporte</p>
+            <p className="text-muted">
+              Puedes cambiar cualquier dato, el formato y las fotos hasta las {new Date(edicionLibreHasta).toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' })} (una hora después de guardarlo). Se actualiza el mismo reporte, con el mismo folio.
+            </p>
+          </div>
+        )}
+        {editarId && edicionLibreHasta === null && (
           <div className="rounded-2xl px-4 py-3 bg-amber/10 border border-amber/30 text-[13px]">
             <p className="font-semibold text-amber">Corrigiendo el reporte</p>
             <p className="text-muted">Puedes cambiar cualquier dato, el formato y las fotos. Al guardar se actualiza el mismo reporte (mismo folio), vuelve a quedar pendiente de revisión y la corrección se cierra.</p>
@@ -2108,7 +2155,7 @@ export default function NuevoReportePage() {
               disabled={saving || faltantes.length > 0}
               className="flex-1 lg:flex-none lg:px-12 min-h-[50px] rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15px] tracking-wide shadow-glow-teal active:scale-95 transition-transform disabled:opacity-50"
             >
-              {saving ? 'Guardando...' : editarId ? 'Guardar corrección' : 'Guardar reporte'}
+              {saving ? 'Guardando...' : textoGuardar}
             </button>
           )}
         </div>
