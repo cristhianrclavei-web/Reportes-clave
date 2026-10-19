@@ -13,17 +13,43 @@ function money(n: number | null): string {
 type Estado = 'inactivo' | 'buscando' | 'listo' | 'sin-configurar' | 'error';
 
 export default function SelectorProductoSyscom({
+  busquedaInicial = '',
   onSeleccionar,
   onClose,
 }: {
+  // Lo que ya se escribió en el concepto: se busca en cuanto abre.
+  busquedaInicial?: string;
   onSeleccionar: (producto: ProductoSyscom) => void;
   onClose: () => void;
 }) {
-  const [q, setQ] = useState('');
+  const [q, setQ] = useState(busquedaInicial);
   const [productos, setProductos] = useState<ProductoSyscom[]>([]);
   const [estado, setEstado] = useState<Estado>('inactivo');
   const [error, setError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  async function buscar(texto: string) {
+    setEstado('buscando');
+    setError(null);
+    try {
+      const respuesta = await fetch(`/api/syscom/productos?q=${encodeURIComponent(texto.trim())}`);
+      const datos = await respuesta.json();
+      if (!respuesta.ok) {
+        setEstado('error');
+        setError(datos?.error || 'No se pudo buscar.');
+        return;
+      }
+      if (datos.configurado === false) {
+        setEstado('sin-configurar');
+        return;
+      }
+      setProductos(datos.productos || []);
+      setEstado('listo');
+    } catch {
+      setEstado('error');
+      setError('No hay conexión con el servidor.');
+    }
+  }
 
   function handleChange(texto: string) {
     setQ(texto);
@@ -33,29 +59,16 @@ export default function SelectorProductoSyscom({
       setEstado('inactivo');
       return;
     }
-    debounceRef.current = setTimeout(async () => {
-      setEstado('buscando');
-      setError(null);
-      try {
-        const respuesta = await fetch(`/api/syscom/productos?q=${encodeURIComponent(texto)}`);
-        const datos = await respuesta.json();
-        if (!respuesta.ok) {
-          setEstado('error');
-          setError(datos?.error || 'No se pudo buscar.');
-          return;
-        }
-        if (datos.configurado === false) {
-          setEstado('sin-configurar');
-          return;
-        }
-        setProductos(datos.productos || []);
-        setEstado('listo');
-      } catch {
-        setEstado('error');
-        setError('No hay conexión con el servidor.');
-      }
-    }, 450);
+    // Cada búsqueda gasta una consulta del plan de Fixie: se espera a que
+    // deje de escribir.
+    debounceRef.current = setTimeout(() => buscar(texto), 700);
   }
+
+  useEffect(() => {
+    if (busquedaInicial.trim().length >= 3) buscar(busquedaInicial);
+    // Solo al abrir.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
 

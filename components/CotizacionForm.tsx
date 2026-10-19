@@ -18,11 +18,13 @@ import { hoyLocal } from '@/lib/fechaHoy';
 import { showToast } from '@/components/Toast';
 import { useAvanceGuardado, pausaFinal } from '@/lib/useAvanceGuardado';
 import SavingOverlay from '@/components/SavingOverlay';
-import { Plus, Trash2, Search, Link2, ImagePlus, X, GripVertical, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Trash2, Link2, FileText, ImagePlus, X, GripVertical, ArrowUp, ArrowDown } from 'lucide-react';
 import { moverElemento } from '@/lib/moverElemento';
 import { motion } from 'motion/react';
 import { useArrastreLista } from '@/lib/useArrastreLista';
 import SelectorProductoSyscom from '@/components/SelectorProductoSyscom';
+import FichaProductoSyscom, { BotonSyscom, leerFichaSyscom } from '@/components/FichaProductoSyscom';
+import { idProductoDeEnlace } from '@/lib/syscomEnlace';
 import type { ProductoSyscom } from '@/lib/syscom';
 import type { FirmanteSugerido } from '@/lib/firmantesCotizacion';
 
@@ -126,7 +128,13 @@ export default function CotizacionForm({
   // el buscador está cerrado). El precio de SYSCOM se guarda como "costo":
   // el % de ganancia que ya se captura por partida se sigue aplicando
   // encima, igual que con cualquier otro concepto.
-  const [buscandoParaItem, setBuscandoParaItem] = useState<{ grupoId: string; itemId: string } | null>(null);
+  // «texto» es lo que ya estaba escrito en la descripción: el buscador abre
+  // buscándolo.
+  const [buscandoParaItem, setBuscandoParaItem] = useState<{ grupoId: string; itemId: string; texto?: string } | null>(null);
+  // Ficha de SYSCOM abierta («Ver ficha» junto al enlace).
+  const [fichaAbierta, setFichaAbierta] = useState<{ grupoId: string; itemId: string; id: string } | null>(null);
+  // Concepto que se está llenando desde un enlace de SYSCOM pegado a mano.
+  const [leyendoEnlace, setLeyendoEnlace] = useState<{ itemId: string; error: string | null } | null>(null);
 
   const [grupos, setGrupos] = useState<GrupoForm[]>(() => {
     if (!inicial || inicial.lineas.length === 0) return [nuevoGrupo()];
@@ -164,16 +172,49 @@ export default function CotizacionForm({
       prev.map((g) => (g.id !== grupoId ? g : { ...g, items: g.items.map((it) => (it.id === itemId ? { ...it, ...patch } : it)) }))
     );
   }
-  function handleElegirProductoSyscom(producto: ProductoSyscom) {
-    if (!buscandoParaItem) return;
-    actualizarItem(buscandoParaItem.grupoId, buscandoParaItem.itemId, {
+  // Lo que un producto de SYSCOM llena en el concepto.
+  function datosDeProducto(producto: ProductoSyscom): Partial<ItemForm> {
+    const datos: Partial<ItemForm> = {
       descripcion: producto.titulo,
       costo: producto.precio !== null ? String(producto.precio) : '',
-      // La imagen de SYSCOM queda como foto del concepto; se puede cambiar
-      // o quitar después. Solo se usa si la imagen es https.
-      ...(producto.imagen && /^https:\/\//i.test(producto.imagen) ? { foto: producto.imagen } : {}),
-    });
+    };
+    // El enlace guarda la ficha completa del equipo (no sale en el PDF).
+    if (producto.link) datos.enlace = producto.link;
+    // La imagen de SYSCOM queda como foto del concepto; se puede cambiar
+    // o quitar después. Solo se usa si la imagen es https.
+    if (producto.imagen && /^https:\/\//i.test(producto.imagen)) datos.foto = producto.imagen;
+    return datos;
+  }
+
+  function handleElegirProductoSyscom(producto: ProductoSyscom) {
+    if (!buscandoParaItem) return;
+    actualizarItem(buscandoParaItem.grupoId, buscandoParaItem.itemId, datosDeProducto(producto));
     setBuscandoParaItem(null);
+  }
+
+  // Al pegar un enlace de SYSCOM se lee el producto y se llena el concepto.
+  // Solo cuando cambia el producto: corregir el texto del mismo enlace no
+  // vuelve a consultar.
+  async function cambiarEnlace(grupoId: string, item: ItemForm, enlace: string) {
+    actualizarItem(grupoId, item.id, { enlace });
+    const id = idProductoDeEnlace(enlace);
+    if (!id || id === idProductoDeEnlace(item.enlace || '')) return;
+    setLeyendoEnlace({ itemId: item.id, error: null });
+    try {
+      const ficha = await leerFichaSyscom(id);
+      actualizarItem(grupoId, item.id, { ...datosDeProducto(ficha), enlace });
+      setLeyendoEnlace(null);
+    } catch (e: any) {
+      setLeyendoEnlace({ itemId: item.id, error: e?.message || 'No se pudo leer el producto de SYSCOM.' });
+    }
+  }
+
+  // Enter en la descripción busca en SYSCOM; Shift+Enter hace otra línea.
+  function teclaEnDescripcion(e: React.KeyboardEvent<HTMLTextAreaElement>, grupoId: string, item: ItemForm) {
+    if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return;
+    if (item.descripcion.trim().length < 3) return;
+    e.preventDefault();
+    setBuscandoParaItem({ grupoId, itemId: item.id, texto: item.descripcion });
   }
 
   async function elegirFoto(grupoId: string, itemId: string, archivo: File | undefined) {
@@ -623,17 +664,11 @@ export default function CotizacionForm({
                       data-campo={gi === 0 && ii === 0 ? 'partidas' : undefined}
                       value={it.descripcion}
                       onChange={(e) => actualizarItem(g.id, it.id, { descripcion: e.target.value })}
-                      placeholder="Descripción del concepto: equipo, mano de obra, tubería, cableado..."
+                      onKeyDown={(e) => teclaEnDescripcion(e, g.id, it)}
+                      placeholder="Descripción del concepto: equipo, mano de obra, tubería… (Enter busca en SYSCOM)"
                       className={`${inputCls} min-h-[70px] flex-1`}
                     />
-                    <button
-                      onClick={() => setBuscandoParaItem({ grupoId: g.id, itemId: it.id })}
-                      aria-label="Buscar en SYSCOM"
-                      title="Buscar en SYSCOM"
-                      className="shrink-0 w-10 h-10 rounded-xl border border-line-strong text-teal flex items-center justify-center active:scale-90 transition-transform"
-                    >
-                      <Search size={16} strokeWidth={2.3} />
-                    </button>
+                    <BotonSyscom onClick={() => setBuscandoParaItem({ grupoId: g.id, itemId: it.id, texto: it.descripcion })} />
                   </div>
                   <div className="grid grid-cols-2 gap-2.5 mb-2.5">
                     <div>
@@ -688,14 +723,30 @@ export default function CotizacionForm({
                     <label className={`${labelCls} flex items-center gap-1.5`}>
                       <Link2 size={12} /> Enlace del equipo <span className="normal-case tracking-normal font-normal text-faint">· solo interno, no sale en el PDF</span>
                     </label>
-                    <input
-                      type="url"
-                      inputMode="url"
-                      placeholder="https://… (proveedor o ficha técnica)"
-                      className={inputCls}
-                      value={it.enlace || ''}
-                      onChange={(e) => actualizarItem(g.id, it.id, { enlace: e.target.value })}
-                    />
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="url"
+                        inputMode="url"
+                        placeholder="https://… (pega un enlace de syscom.mx y se llena solo)"
+                        className={`${inputCls} flex-1`}
+                        value={it.enlace || ''}
+                        onChange={(e) => cambiarEnlace(g.id, it, e.target.value)}
+                      />
+                      {idProductoDeEnlace(it.enlace || '') && (
+                        <button
+                          type="button"
+                          onClick={() => setFichaAbierta({ grupoId: g.id, itemId: it.id, id: idProductoDeEnlace(it.enlace || '') as string })}
+                          className="shrink-0 min-h-[44px] px-3 rounded-xl border border-line-strong text-teal font-semibold text-[13px] flex items-center gap-1.5 active:scale-95 transition-transform"
+                        >
+                          <FileText size={14} /> Ver ficha
+                        </button>
+                      )}
+                    </div>
+                    {leyendoEnlace?.itemId === it.id && (
+                      <p className={`text-[12px] mt-1.5 ${leyendoEnlace.error ? 'text-red' : 'text-muted'}`}>
+                        {leyendoEnlace.error || 'Leyendo el producto de SYSCOM…'}
+                      </p>
+                    )}
                   </div>
                   {mostrarFotos && (
                     <FotoConcepto
@@ -927,8 +978,19 @@ export default function CotizacionForm({
 
       {buscandoParaItem && (
         <SelectorProductoSyscom
+          busquedaInicial={buscandoParaItem.texto}
           onSeleccionar={handleElegirProductoSyscom}
           onClose={() => setBuscandoParaItem(null)}
+        />
+      )}
+      {fichaAbierta && (
+        <FichaProductoSyscom
+          id={fichaAbierta.id}
+          onUsar={(ficha) => {
+            actualizarItem(fichaAbierta.grupoId, fichaAbierta.itemId, datosDeProducto(ficha));
+            setFichaAbierta(null);
+          }}
+          onClose={() => setFichaAbierta(null)}
         />
       )}
     </div>
