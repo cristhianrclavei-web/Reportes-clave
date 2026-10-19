@@ -28,7 +28,8 @@ const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${esDesarrollo ? " 'unsafe-eval'" : ''}`,
   "style-src 'self' 'unsafe-inline'",
-  `img-src 'self' data: blob: ${SUPABASE_ORIGIN}`,
+  // syscom.mx: miniaturas del catálogo en el buscador de cotizaciones.
+  `img-src 'self' data: blob: ${SUPABASE_ORIGIN} https://*.syscom.mx`,
   "font-src 'self' data:",
   // nominatim: búsqueda de direcciones (gratis, sin llave) al capturar la
   // ubicación de un sitio programado.
