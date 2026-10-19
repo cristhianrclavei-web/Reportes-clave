@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizarProducto } from './syscom';
+import { normalizarProducto, ordenarPorParecido } from './syscom';
 
 describe('normalizarProducto', () => {
   it('lee precios como texto dentro de «precios», total_existencia e img_portada', () => {
@@ -18,5 +18,19 @@ describe('normalizarProducto', () => {
     expect(p.precio).toBeNull();
     expect(p.imagen).toBeNull();
     expect(p.existencia).toBeNull();
+  });
+});
+
+describe('ordenarPorParecido', () => {
+  const p = (titulo: string, modelo = '') => normalizarProducto({ producto_id: titulo, titulo, modelo });
+  it('primero lo que trae la palabra en el nombre; el resto conserva el orden de SYSCOM', () => {
+    const lista = [p('Disco Duro 1 TB'), p('Kit de Baluns'), p('DVR Híbrido 8 canales', 'DVR-208G'), p('Adaptador DC'), p('Grabador DVR 4 canales')];
+    expect(ordenarPorParecido(lista, 'dvr').map((x) => x.titulo)).toEqual([
+      'DVR Híbrido 8 canales', 'Grabador DVR 4 canales', 'Disco Duro 1 TB', 'Kit de Baluns', 'Adaptador DC',
+    ]);
+  });
+  it('sin acentos y con plural', () => {
+    const lista = [p('Fuente de poder'), p('Cámara Bala IP')];
+    expect(ordenarPorParecido(lista, 'camaras')[0].titulo).toBe('Cámara Bala IP');
   });
 });

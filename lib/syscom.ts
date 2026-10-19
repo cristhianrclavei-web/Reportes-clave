@@ -275,7 +275,7 @@ async function conMemoria<T>(clave: string, minutos: number, pedir: () => Promis
 }
 
 // Búsqueda de texto libre, la que usa el buscador dentro de una cotización.
-export async function buscarProductosSyscom(busqueda: string, limit = 20): Promise<ProductoSyscom[]> {
+export async function buscarProductosSyscom(busqueda: string, limit = 30): Promise<ProductoSyscom[]> {
   const clave = 'b:' + busqueda.trim().toLowerCase().replace(/\s+/g, ' ');
   return conMemoria(clave, MINUTOS_BUSQUEDA, () => buscarSinMemoria(busqueda, limit));
 }
@@ -291,7 +291,48 @@ async function buscarSinMemoria(busqueda: string, limit: number): Promise<Produc
   });
   const lista = Array.isArray(datos) ? datos : datos?.productos || [];
   if (lista.length > 0) registrarFormato(lista[0]);
-  return lista.map(normalizarProducto);
+  return ordenarPorParecido(lista.map(normalizarProducto), busqueda);
+}
+
+// Sin acentos ni mayúsculas, para comparar «camara» con «Cámara».
+function simple(texto: string | null): string {
+  return (texto || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+// La API de SYSCOM mezcla accesorios con lo buscado (al buscar «dvr» salen
+// discos y baluns antes que los DVR). Como en syscom.mx, primero van los
+// productos cuyo nombre o modelo trae las palabras buscadas. El orden de
+// SYSCOM se respeta entre productos con el mismo puntaje.
+export function ordenarPorParecido(productos: ProductoSyscom[], busqueda: string): ProductoSyscom[] {
+  // «camaras» también encuentra «camara».
+  const palabras = simple(busqueda)
+    .split(/[^a-z0-9ñ-]+/)
+    .filter((p) => p.length >= 2)
+    .map((p) => (p.length > 4 ? p.replace(/(es|s)$/, '') : p));
+  if (palabras.length === 0) return productos;
+
+  function puntaje(p: ProductoSyscom): number {
+    const titulo = simple(p.titulo);
+    const modelo = simple(p.modelo);
+    const marca = simple(p.marca);
+    let total = 0;
+    let todasEnTitulo = true;
+    for (const palabra of palabras) {
+      const enTitulo = titulo.includes(palabra);
+      if (enTitulo) total += 3;
+      else todasEnTitulo = false;
+      if (titulo.startsWith(palabra)) total += 3;
+      if (modelo.includes(palabra)) total += 4;
+      if (marca.includes(palabra)) total += 1;
+    }
+    if (todasEnTitulo) total += 2;
+    return total;
+  }
+
+  return productos
+    .map((p, i) => ({ p, i, puntos: puntaje(p) }))
+    .sort((a, b) => b.puntos - a.puntos || a.i - b.i)
+    .map((x) => x.p);
 }
 
 // Ficha completa de un producto (descripción, características, fotos y
