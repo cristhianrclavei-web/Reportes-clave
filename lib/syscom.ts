@@ -96,22 +96,80 @@ async function llamarSyscom(ruta: string, params: Record<string, string | boolea
 // la existencia como número plano o como objeto con detalle por sucursal —
 // esto normaliza ambos casos en vez de asumir una sola forma exacta, porque
 // no hay manera de confirmarlo sin una cuenta real todavía.
-function normalizarProducto(p: any): ProductoSyscom {
-  let existencia: number | null = null;
-  if (typeof p.existencia === 'number') existencia = p.existencia;
-  else if (p.existencia && typeof p.existencia === 'object') {
-    existencia = p.existencia.disponible ?? p.existencia.total ?? null;
+//
+// Con la cuenta real se vio que precio, existencia e imagen no venían como
+// se supuso: SYSCOM manda los precios dentro de «precios» y como texto
+// ("1234.56"), y la existencia en «total_existencia».
+
+// Convierte "1,234.56" o 1234.56 a número; null si no es un número > 0.
+function aNumero(valor: unknown): number | null {
+  if (typeof valor === 'number') return valor > 0 ? valor : null;
+  if (typeof valor !== 'string') return null;
+  const n = Number(valor.replace(/[^0-9.]/g, ''));
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
+}
+
+// El costo para Clave: el precio con su descuento de distribuidor; si no
+// viene, el especial, el precio 1 o el de lista, en ese orden.
+function precioDe(p: any): number | null {
+  const fuentes = [p.precios, p.precio].filter((f) => f && typeof f === 'object');
+  const nombres = ['precio_descuento', 'precio_especial', 'precio_1', 'precio_lista'];
+  for (const fuente of fuentes) {
+    for (const nombre of nombres) {
+      const n = aNumero(fuente[nombre]);
+      if (n !== null) return n;
+    }
   }
+  return aNumero(p.precio);
+}
+
+function existenciaDe(p: any): number | null {
+  if (p.total_existencia !== undefined && p.total_existencia !== null) {
+    const n = Number(p.total_existencia);
+    if (Number.isFinite(n)) return n;
+  }
+  if (typeof p.existencia === 'number') return p.existencia;
+  if (p.existencia && typeof p.existencia === 'object') {
+    const n = Number(p.existencia.nuevo ?? p.existencia.disponible ?? p.existencia.total);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
+// Solo imágenes https (la CSP y el PDF no aceptan otras).
+function imagenDe(p: any): string | null {
+  const candidatas: unknown[] = [p.img_portada, p.imagen];
+  if (Array.isArray(p.imagenes) && p.imagenes.length > 0) {
+    const primera = p.imagenes[0];
+    candidatas.push(typeof primera === 'string' ? primera : primera?.imagen || primera?.url);
+  }
+  for (const c of candidatas) {
+    if (typeof c !== 'string') continue;
+    const url = c.trim().replace(/^http:\/\//i, 'https://');
+    if (/^https:\/\//i.test(url)) return url;
+  }
+  return null;
+}
+
+export function normalizarProducto(p: any): ProductoSyscom {
   return {
     id: p.id ?? p.producto_id,
     titulo: p.titulo || p.nombre || '(sin título)',
     modelo: p.modelo || p.sku || null,
     marca: typeof p.marca === 'string' ? p.marca : p.marca?.nombre || null,
-    precio: typeof p.precio === 'number' ? p.precio : p.precio?.precio_descuento ?? p.precio?.precio_lista ?? null,
-    moneda: p.moneda || p.precio?.moneda || 'MXN',
-    existencia,
-    imagen: p.img_portada || p.imagen || null,
+    precio: precioDe(p),
+    moneda: p.moneda || p.precios?.moneda || 'MXN',
+    existencia: existenciaDe(p),
+    imagen: imagenDe(p),
   };
+}
+
+// Deja en el registro de Vercel qué campos trajo el primer producto (solo
+// nombres y tipos, sin valores), para ajustar si SYSCOM cambia su formato.
+function registrarFormato(p: any) {
+  const tipos = (o: any) => Object.fromEntries(Object.entries(o || {}).map(([k, v]) => [k, Array.isArray(v) ? 'array' : typeof v]));
+  console.log('[syscom] campos del producto:', JSON.stringify({ producto: tipos(p), precios: tipos(p?.precios), existencia: tipos(p?.existencia) }));
 }
 
 // Búsqueda de texto libre, la que usa el buscador dentro de una cotización.
@@ -125,6 +183,7 @@ export async function buscarProductosSyscom(busqueda: string, limit = 20): Promi
     inventarios: true,
   });
   const lista = Array.isArray(datos) ? datos : datos?.productos || [];
+  if (lista.length > 0) registrarFormato(lista[0]);
   return lista.map(normalizarProducto);
 }
 
