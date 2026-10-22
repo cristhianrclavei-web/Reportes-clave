@@ -662,7 +662,7 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
     const rd = f.dispositivos ? resumenDispositivos(f.dispositivos) : null;
     const normasLines = f.normas.flatMap((n) => wrapText(`${n.clave}: ${n.nombre}`, font, 8, contentW * 0.62 - 16));
     const nH = 18 + normasLines.length * 11 + 8;
-    const resH = 18 + (rd ? 7 : 4) * 12 + 8;
+    const resH = 18 + (rd ? 6 : 3) * 12 + 8;
     const boxH = Math.max(nH, resH);
     const nW = contentW * 0.62;
     const rX = MARGIN + nW + 10;
@@ -679,8 +679,8 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
     const filasRes: [string, number, typeof VERDE][] = [
       ['Cumple', r.cumple, VERDE],
       ['No cumple', r.noCumple, ROJO],
-      ['No aplica', r.na, GRAY_TEXT],
-      ['Puntos revisados', r.total, NAVY],
+      // Los puntos que no aplican a este cliente no salen en el PDF.
+      ['Puntos revisados', r.total - r.na, NAVY],
       ...(rd
         ? ([
             ['Dispositivos probados', rd.pasa + rd.falla, NAVY],
@@ -727,7 +727,8 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
     espacio(40);
     encabezadoTabla();
     const textW = contentW * cols[1].w - 10;
-    f.puntos.forEach((p, i) => {
+    const puntosQueAplican = f.puntos.filter((p) => p.resultado !== 'na');
+    puntosQueAplican.forEach((p, i) => {
       const compL = wrapText(p.componente.toUpperCase(), bold, 7, textW);
       const actL = wrapText(p.actividad, font, 8, textW);
       const critL = wrapText(`Criterio: ${p.criterio}${p.ref ? ` (${p.ref})` : ''}`, font, 7, textW);
