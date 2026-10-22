@@ -463,6 +463,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
         pasos: [
           'Toca una sección para abrirla; debajo aparecen sus opciones (por ejemplo Hoy, Agendados, Concluidos) para ir directo a una.',
           'La flecha junto a cada sección muestra u oculta sus opciones sin cambiar de pantalla.',
+          'Arriba, bajo el logo, está tu tarjeta con tu foto, nombre y puesto, el acceso a Mi perfil y el botón de salir.',
           'El botón redondo del borde cierra el menú y deja solo los íconos, para tener más espacio. Pasa el cursor por un ícono para ver su nombre y sus opciones. Se queda como lo dejaste.',
         ],
       },

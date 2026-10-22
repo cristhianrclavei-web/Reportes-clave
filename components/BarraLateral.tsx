@@ -13,8 +13,8 @@ import { useMiId, usePerfil, urlFoto } from '@/lib/perfiles';
 
 // Barra lateral del panel del supervisor en computadora (lg en adelante).
 //   · Abierta: logo, secciones agrupadas con ícono y nombre, las
-//     subsecciones de la sección elegida desplegadas debajo, y la tarjeta
-//     de la cuenta al final.
+//     subsecciones de la sección elegida desplegadas debajo, y arriba,
+//     bajo el logo, la tarjeta de la cuenta.
 //   · Cerrada: una columna angosta solo con los íconos; al pasar el cursor
 //     aparece una tarjeta con el nombre de la sección y sus subsecciones.
 // Si queda abierta o cerrada se recuerda en este navegador.
@@ -110,6 +110,49 @@ export default function BarraLateral({
         {cerrada ? <Logo size={38} /> : <Logo variante="completo" size={40} />}
       </Link>
 
+      {/* Tarjeta de la cuenta, debajo del logo. Abierta: portada de color,
+          foto grande al centro, nombre y puesto, y debajo Mi perfil y salir.
+          Cerrada: solo la foto; al pasar el cursor sale la tarjeta flotante. */}
+      <div className={`shrink-0 pb-2 ${cerrada ? 'px-0 flex justify-center' : 'px-3'}`}>
+        {cerrada ? (
+          <div className="relative group/cuenta">
+            <Link href="/perfil" aria-label="Mi perfil" className="block rounded-full ring-2 ring-teal/40 ring-offset-2 ring-offset-surface hover:ring-teal transition">
+              <FotoPerfil foto={miFoto} id={miId} nombre={userName} tam={44} />
+            </Link>
+            <TarjetaCuenta nombre={userName || 'Supervisión'} puesto={miPerfil?.puesto || 'Supervisión'} />
+          </div>
+        ) : (
+          <div className="rounded-2xl bg-surface border border-line overflow-hidden shadow-diffuse">
+            <div className="h-12 bg-gradient-to-br from-teal/40 via-teal/15 to-transparent" />
+            <div className="px-3 pb-3 -mt-9 flex flex-col items-center text-center">
+              <Link
+                href="/perfil"
+                aria-label="Mi perfil"
+                className="rounded-full ring-4 ring-surface shadow-glow-teal transition-transform duration-200 hover:scale-[1.04] focus-visible:outline-none focus-visible:ring-teal/60"
+              >
+                <FotoPerfil foto={miFoto} id={miId} nombre={userName} tam={76} />
+              </Link>
+              <p className="mt-2 max-w-full truncate font-display font-bold text-[16.5px] leading-tight tracking-wide">
+                {userName || 'Supervisión'}
+              </p>
+              <p className="max-w-full text-[12.5px] text-muted leading-snug line-clamp-2">{miPerfil?.puesto || 'Supervisión'}</p>
+              <div className="mt-2.5 w-full flex items-center gap-2">
+                <Link
+                  href="/perfil"
+                  className="flex-1 h-9 rounded-full bg-surface-2 border border-line text-[12.5px] font-semibold text-ink/85 flex items-center justify-center gap-1.5 hover:border-teal/50 hover:text-teal transition-colors"
+                >
+                  <UserRound size={14} strokeWidth={2.3} /> Mi perfil
+                </Link>
+                <LogoutButton
+                  compacto
+                  className="shrink-0 w-9 h-9 rounded-full border border-line bg-surface-2 flex items-center justify-center text-ink/65 hover:text-red hover:border-red/40 active:scale-90 transition disabled:opacity-60"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Secciones. Cerrada no lleva scroll: el scroll recortaría las
           tarjetas que salen a la derecha de cada ícono. */}
       <LayoutGroup id="barra-lateral">
@@ -146,38 +189,6 @@ export default function BarraLateral({
         </nav>
       </LayoutGroup>
 
-      {/* Tarjeta de la cuenta */}
-      <div className="shrink-0 p-3 border-t border-line">
-        <div
-          className={`relative group/cuenta flex items-center gap-3 rounded-2xl transition-colors ${SUAVE} ${
-            cerrada ? 'flex-col p-1.5' : 'p-2.5 bg-surface border border-line shadow-diffuse'
-          }`}
-        >
-          <Link href="/perfil" aria-label="Mi perfil" className="shrink-0 rounded-full ring-2 ring-teal/30 hover:ring-teal/70 transition">
-            {miFoto ? (
-              <img src={miFoto} alt="" className="w-10 h-10 rounded-full object-cover block" />
-            ) : (
-              <AvatarTecnico id={miId || undefined} nombre={userName || 'Supervisión'} size={40} />
-            )}
-          </Link>
-          <div className={`min-w-0 flex-1 overflow-hidden whitespace-nowrap transition-opacity ${SUAVE} ${textoVisible}`}>
-            <p className="text-[13.5px] font-semibold leading-tight truncate">{userName || 'Supervisión'}</p>
-            <Link href="/perfil" className="flex items-center gap-1 text-[12px] text-muted hover:text-teal transition-colors truncate">
-              <UserRound size={12} strokeWidth={2.4} className="shrink-0" />
-              <span className="truncate">{miPerfil?.puesto || 'Mi perfil'}</span>
-            </Link>
-          </div>
-          {!cerrada && (
-            <LogoutButton
-              compacto
-              className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-ink/60 hover:text-red hover:bg-red/10 active:scale-90 transition disabled:opacity-60"
-            />
-          )}
-          {cerrada && (
-            <TarjetaCuenta nombre={userName || 'Supervisión'} puesto={miPerfil?.puesto || 'Supervisión'} />
-          )}
-        </div>
-      </div>
     </aside>
   );
 }
@@ -301,12 +312,20 @@ function ElementoSeccion({
   );
 }
 
+// La foto de la cuenta, o su avatar si no ha subido foto.
+function FotoPerfil({ foto, id, nombre, tam }: { foto: string | null; id: string | null; nombre?: string; tam: number }) {
+  if (foto) {
+    return <img src={foto} alt="" style={{ width: tam, height: tam }} className="rounded-full object-cover block" />;
+  }
+  return <AvatarTecnico id={id || undefined} nombre={nombre || 'Supervisión'} size={tam} />;
+}
+
 // Barra cerrada: al pasar el cursor por la foto sale una tarjeta con el
 // nombre, el acceso al perfil y el botón de salir. Se queda montada aunque
 // no se vea: salir abre su confirmación en una ventana aparte.
 function TarjetaCuenta({ nombre, puesto }: { nombre: string; puesto: string }) {
   return (
-    <div className="absolute left-full bottom-0 z-50 pl-3 invisible opacity-0 -translate-x-1 group-hover/cuenta:visible group-hover/cuenta:opacity-100 group-hover/cuenta:translate-x-0 group-focus-within/cuenta:visible group-focus-within/cuenta:opacity-100 group-focus-within/cuenta:translate-x-0 transition-all duration-200 ease-out">
+    <div className="absolute left-full top-0 z-50 pl-3 invisible opacity-0 -translate-x-1 group-hover/cuenta:visible group-hover/cuenta:opacity-100 group-hover/cuenta:translate-x-0 group-focus-within/cuenta:visible group-focus-within/cuenta:opacity-100 group-focus-within/cuenta:translate-x-0 transition-all duration-200 ease-out">
       <div className="w-[220px] rounded-xl bg-surface border border-line-strong shadow-diffuse p-1.5">
         <div className="px-2.5 py-2">
           <p className="text-[13.5px] font-semibold leading-tight truncate">{nombre}</p>
