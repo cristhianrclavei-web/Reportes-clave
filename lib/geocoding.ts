@@ -5,6 +5,51 @@ import type { Punto } from './geocerca';
 
 export type SugerenciaDireccion = { direccion: string; lat: number; lng: number };
 
+// Sugerencia de Google: trae el lugar pero no sus coordenadas; se piden al
+// elegirla (coordenadasDeLugarGoogle).
+export type LugarGoogle = { placeId: string; direccion: string; principal: string | null; secundario: string | null };
+
+// Si el servidor no tiene llave de Google se deja de intentar hasta recargar.
+let googleDisponible = true;
+
+// Sugerencias de Google (las mismas de Google Maps). null = Google no está
+// disponible o falló: se usa OpenStreetMap.
+export async function buscarEnGoogle(query: string, sesion: string, cerca?: Punto | null): Promise<LugarGoogle[] | null> {
+  const q = query.trim();
+  if (!googleDisponible || q.length < 3) return null;
+  const parametros = new URLSearchParams({ q, sesion });
+  if (cerca) {
+    parametros.set('lat', String(cerca.lat));
+    parametros.set('lng', String(cerca.lng));
+  }
+  try {
+    const respuesta = await fetch(`/api/lugares?${parametros}`);
+    if (respuesta.status === 503) {
+      googleDisponible = false;
+      return null;
+    }
+    if (!respuesta.ok) return null;
+    const datos = await respuesta.json();
+    return Array.isArray(datos?.lugares) ? (datos.lugares as LugarGoogle[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function coordenadasDeLugarGoogle(placeId: string, sesion: string): Promise<{ punto: Punto } | { error: string }> {
+  try {
+    const parametros = new URLSearchParams({ id: placeId, sesion });
+    const respuesta = await fetch(`/api/lugares?${parametros}`);
+    const datos = await respuesta.json().catch(() => null);
+    if (!respuesta.ok || typeof datos?.lat !== 'number' || typeof datos?.lng !== 'number') {
+      return { error: datos?.error || 'No se pudo obtener la ubicación de ese lugar.' };
+    }
+    return { punto: { lat: datos.lat, lng: datos.lng } };
+  } catch {
+    return { error: 'Sin conexión: no se pudo obtener la ubicación de ese lugar.' };
+  }
+}
+
 // Búsqueda de direcciones, gratis y sin llave ni cuenta (Google Places cobra
 // y pide facturación desde el primer request). Dos buscadores sobre los
 // datos de OpenStreetMap:

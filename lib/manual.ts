@@ -253,6 +253,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
           'Una salida por material siempre te avisa: quién salió, a dónde y cuánto calcula tardar.',
           'En el detalle del servicio, cada registro de la línea de tiempo dice quién lo hizo y si se hizo «En sitio» o a qué distancia. «Reanudó fuera del sitio» y «Fuera del sitio» (detectado con el servicio en curso) también te llegan como aviso.',
           'Si alguien olvidó cerrar un servicio, en su detalle toca «Cerrar por el técnico», pon la hora en que de verdad terminaron (ya viene la de su último registro) y cómo lo supiste. Así la duración no cuenta horas que no se trabajaron.',
+          'Si al cerrarlo pusiste una hora equivocada (por ejemplo, la de llegada a la oficina en vez de la de salida del sitio), toca «Corregir la hora de término» en el mismo servicio. El cierre que hizo el técnico no se cambia ahí.',
           'Si nadie lo cierra, a las 12:10 de la noche se cierra solo con la hora del último registro y queda «Cierre por confirmar». En la mañana te llega un aviso: entra al servicio y confirma o corrige la hora.',
           'La app no puede seguir a nadie con el teléfono guardado: la ubicación solo se toma cuando la persona registra algo o tiene abierta la pantalla del servicio.',
           'Para comprobar que alguien está en el sitio, en el detalle del servicio toca «Pedir verificación». Le llega un aviso y tiene unos minutos para tocar «Estoy aquí»; verás «En sitio», «Fuera del sitio» con la distancia, o «Sin respuesta».',
@@ -264,7 +265,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
         titulo: 'Agendar servicios',
         resumen: 'Desde Servicios → Agendados o desde la Agenda.',
         pasos: [
-          'Toca «Agendar», elige el cliente, la fecha, la hora y a quién va (personas o una cuadrilla completa). La ubicación del sitio la puedes buscar, pegar de Google Maps o marcar en el mapa.',
+          'Toca «Agendar», elige el cliente, la fecha, la hora y a quién va (personas o una cuadrilla completa). La ubicación del sitio la buscas escribiendo el nombre o la dirección (salen las mismas sugerencias que en Google Maps), la pegas de un enlace de Google Maps o la marcas en el mapa.',
           'Puedes cargar una rutina de tareas y una lista de herramienta y material.',
           'Los servicios de varios días se agendan como un solo proyecto.',
           'Para eliminar: en Servicios despliega el proyecto. El bote de basura junto a un día quita solo ese día (pide el motivo; no aparece en días ya trabajados o con reporte), y «Eliminar el proyecto completo» borra todo. Las dos piden confirmación.',

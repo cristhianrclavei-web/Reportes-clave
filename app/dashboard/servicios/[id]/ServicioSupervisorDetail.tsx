@@ -787,8 +787,14 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
               </button>
             </div>
           )}
-          {servicio.estado === 'concluido' && servicio.cierre_tipo === 'supervisor' && servicio.cierre_nota && (
-            <p className="mt-3 text-[12.5px] text-muted">Cerrado por supervisión: {servicio.cierre_nota}</p>
+          {/* Cerrado por supervisión: la hora se puede corregir si se puso mal. */}
+          {servicio.estado === 'concluido' && servicio.cierre_tipo === 'supervisor' && (
+            <div className="mt-3 text-[12.5px] text-muted">
+              {servicio.cierre_nota && <p>Cerrado por supervisión: {servicio.cierre_nota}</p>}
+              <button onClick={abrirCerrarOlvidado} className="mt-1 text-[13.5px] font-semibold text-teal min-h-[40px]">
+                Corregir la hora de término →
+              </button>
+            </div>
           )}
 
           {/* El técnico no marcó llegada/inicio a tiempo pero el reporte ya
@@ -1231,11 +1237,11 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
         <ModalOverlay onClose={() => !cerrandoOlvidado && setShowCerrarOlvidado(false)}>
           <div className="glass-strong rounded-3xl max-w-md w-full p-5 max-h-[92vh] overflow-y-auto">
             <p className="font-display font-semibold text-[16px] mb-1">
-              {servicio.estado === 'concluido' ? 'Confirmar la hora de término' : 'Cerrar por el técnico'}
+              {tituloCierre(servicio)}
             </p>
             <p className="text-[13px] text-muted mb-3.5 leading-relaxed">
               Pon la hora en que de verdad terminaron, no la de ahora: así la duración del servicio no cuenta horas que no se trabajaron.
-              Ya está puesta la hora del último registro. Queda en la línea de tiempo y en el historial con tu nombre.
+              Ya está puesta la última hora registrada. Queda en la línea de tiempo y en el historial con tu nombre.
             </p>
             {servicio.pausado_desde && servicio.estado !== 'concluido' && (
               <p className="text-[12.5px] text-amber mb-3 leading-relaxed">
@@ -1345,4 +1351,10 @@ function textoHorario(llegada: string | null, salida: string | null): string {
   if (llegada && salida) return `${horaCorta(llegada)} a ${horaCorta(salida)}`;
   if (llegada) return `llegada ${horaCorta(llegada)}`;
   return `salida ${horaCorta(salida)}`;
+}
+
+function tituloCierre(servicio: Servicio): string {
+  if (servicio.estado !== 'concluido') return 'Cerrar por el técnico';
+  if (servicio.cierre_tipo === 'supervisor') return 'Corregir la hora de término';
+  return 'Confirmar la hora de término';
 }

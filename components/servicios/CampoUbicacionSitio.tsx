@@ -5,7 +5,10 @@ import dynamic from 'next/dynamic';
 import { MapPin, Map as IconoMapa } from 'lucide-react';
 import { getCurrentLocation } from '@/lib/geolocation';
 import { extraerCoordenadas, esEnlaceCortoMaps, Punto } from '@/lib/geocerca';
-import { buscarDirecciones, direccionDePunto, resolverEnlaceMapa, SugerenciaDireccion } from '@/lib/geocoding';
+import {
+  buscarDirecciones, buscarEnGoogle, coordenadasDeLugarGoogle, direccionDePunto, resolverEnlaceMapa, LugarGoogle, SugerenciaDireccion,
+} from '@/lib/geocoding';
+import { generarUUID } from '@/lib/uuid';
 
 // El mapa solo se carga al abrirlo: Leaflet pesa y no corre en el servidor.
 const MapaElegirPunto = dynamic(() => import('./MapaElegirPunto'), {
@@ -14,7 +17,8 @@ const MapaElegirPunto = dynamic(() => import('./MapaElegirPunto'), {
 });
 
 // Ubicación de un sitio, capturada de cinco formas: escribiendo la
-// dirección (con sugerencias), tecleando latitud y longitud, marcándola en el
+// dirección (con sugerencias de Google Maps, o de OpenStreetMap si Google no
+// está disponible), tecleando latitud y longitud, marcándola en el
 // mapa, usando la ubicación actual o pegando un enlace de Google Maps. Lo usan el alta de un
 // servicio y su edición.
 
@@ -46,6 +50,10 @@ export default function CampoUbicacionSitio({
   cerca?: Punto | null;
 }) {
   const [ubicSugerencias, setUbicSugerencias] = useState<SugerenciaDireccion[]>([]);
+  const [lugaresGoogle, setLugaresGoogle] = useState<LugarGoogle[]>([]);
+  // Une las sugerencias de Google con el lugar elegido (se cobra como una
+  // sola búsqueda); se renueva después de elegir.
+  const sesionGoogleRef = useRef(generarUUID());
   const [ubicBuscandoDireccion, setUbicBuscandoDireccion] = useState(false);
   const ubicDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [ubicEnlace, setUbicEnlace] = useState('');
@@ -73,6 +81,7 @@ export default function CampoUbicacionSitio({
   function fijarPuntoDelSitio(punto: { lat: number; lng: number }) {
     onCambio({ lat: String(punto.lat), lng: String(punto.lng), direccion: '' });
     setUbicSugerencias([]);
+    setLugaresGoogle([]);
     setUbicBuscandoDireccion(true);
     direccionDePunto(punto)
       // Solo se escribe si mientras tanto nadie tecleó otra cosa en el campo.
@@ -119,18 +128,44 @@ export default function CampoUbicacionSitio({
     if (ubicDebounceRef.current) clearTimeout(ubicDebounceRef.current);
     if (texto.trim().length < 3) {
       setUbicSugerencias([]);
+      setLugaresGoogle([]);
       return;
     }
     ubicDebounceRef.current = setTimeout(async () => {
       setUbicBuscandoDireccion(true);
       try {
-        setUbicSugerencias(await buscarDirecciones(texto, cerca));
+        // Primero Google (lo mismo que encuentra Google Maps); si no está
+        // disponible o no encuentra nada, OpenStreetMap.
+        const deGoogle = await buscarEnGoogle(texto, sesionGoogleRef.current, cerca);
+        if (deGoogle && deGoogle.length > 0) {
+          setLugaresGoogle(deGoogle);
+          setUbicSugerencias([]);
+        } else {
+          setLugaresGoogle([]);
+          setUbicSugerencias(await buscarDirecciones(texto, cerca));
+        }
       } catch {
         setUbicSugerencias([]);
+        setLugaresGoogle([]);
       } finally {
         setUbicBuscandoDireccion(false);
       }
     }, 500);
+  }
+
+  async function handleElegirLugarGoogle(lugar: LugarGoogle) {
+    setLugaresGoogle([]);
+    onCambio({ ...valor, direccion: lugar.direccion });
+    setUbicBuscandoDireccion(true);
+    const resultado = await coordenadasDeLugarGoogle(lugar.placeId, sesionGoogleRef.current);
+    sesionGoogleRef.current = generarUUID();
+    setUbicBuscandoDireccion(false);
+    if ('error' in resultado) {
+      setUbicError(resultado.error + ' Marca el punto en el mapa o intenta de nuevo.');
+      return;
+    }
+    setUbicError(null);
+    onCambio({ lat: String(resultado.punto.lat), lng: String(resultado.punto.lng), direccion: lugar.direccion });
   }
 
   function handleElegirSugerencia(s: SugerenciaDireccion) {
@@ -149,6 +184,23 @@ export default function CampoUbicacionSitio({
         />
         {ubicBuscandoDireccion && (
           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-faint">Buscando…</span>
+        )}
+        {lugaresGoogle.length > 0 && (
+          <div className="absolute z-10 top-full left-0 right-0 mt-1 rounded-lg bg-surface border border-line-strong shadow-glow overflow-hidden">
+            {lugaresGoogle.map((l) => (
+              <button
+                key={l.placeId}
+                type="button"
+                onClick={() => handleElegirLugarGoogle(l)}
+                className="w-full text-left px-3 py-2.5 border-b border-line active:bg-surface-2"
+              >
+                <span className="block text-[13.5px] font-medium">{l.principal || l.direccion}</span>
+                {l.secundario && <span className="block text-[12px] text-muted">{l.secundario}</span>}
+              </button>
+            ))}
+            {/* Google pide decir de dónde vienen los resultados. */}
+            <p className="px-3 py-1.5 text-[11px] text-faint text-right">Resultados de Google</p>
+          </div>
         )}
         {ubicSugerencias.length > 0 && (
           <div className="absolute z-10 top-full left-0 right-0 mt-1 rounded-lg bg-surface border border-line-strong shadow-glow overflow-hidden">
