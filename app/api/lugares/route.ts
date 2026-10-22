@@ -14,6 +14,12 @@ export const dynamic = 'force-dynamic';
 
 const LLAVE = process.env.GOOGLE_MAPS_API_KEY;
 
+// Consultas a Google por día para toda la empresa (patch_tope_google_lugares.sql).
+// Una dirección buscada gasta de 2 a 6 (las sugerencias mientras se escribe y
+// el lugar elegido): 300 alcanzan para unas 60 direcciones al día y quedan
+// dentro de lo gratis de Google. Al llegar al tope se usa OpenStreetMap.
+const TOPE_DIARIO = 300;
+
 const busqueda = z.object({
   q: z.string().trim().min(3).max(200),
   sesion: z.string().uuid(),
@@ -32,6 +38,14 @@ export async function GET(request: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Sin sesión' }, { status: 401 });
+
+  // Si no se puede contar (falla la base), tampoco se consulta: es más
+  // seguro buscar con OpenStreetMap que arriesgar un cobro.
+  const { data: permitido, error: errorTope } = await supabase.rpc('usar_consulta_google', { p_tope: TOPE_DIARIO });
+  if (errorTope || permitido !== true) {
+    if (errorTope) console.error('Tope de Google', errorTope.message);
+    return NextResponse.json({ error: 'tope_diario' }, { status: 429 });
+  }
 
   const parametros = Object.fromEntries(request.nextUrl.searchParams);
   try {

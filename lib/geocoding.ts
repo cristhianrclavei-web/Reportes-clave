@@ -41,6 +41,9 @@ export async function coordenadasDeLugarGoogle(placeId: string, sesion: string):
     const parametros = new URLSearchParams({ id: placeId, sesion });
     const respuesta = await fetch(`/api/lugares?${parametros}`);
     const datos = await respuesta.json().catch(() => null);
+    if (datos?.error === 'tope_diario') {
+      return { error: 'Se llegó al límite de búsquedas de Google de hoy.' };
+    }
     if (!respuesta.ok || typeof datos?.lat !== 'number' || typeof datos?.lng !== 'number') {
       return { error: datos?.error || 'No se pudo obtener la ubicación de ese lugar.' };
     }
