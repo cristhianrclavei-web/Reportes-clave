@@ -4,6 +4,9 @@
 // navegador, para poder probarla.
 
 export type PuntoUbicacion = {
+  // De quién es el punto: si en el teléfono se cambia de cuenta, lo que
+  // quedó pendiente de la anterior no se manda con la sesión de la nueva.
+  usuario: string;
   registrado_en: string; // ISO
   lat: number;
   lng: number;
@@ -31,9 +34,16 @@ export function agregarACola(cola: PuntoUbicacion[], punto: PuntoUbicacion): Pun
   return nueva.slice(nueva.length - MAXIMO_EN_COLA);
 }
 
-// Quita de la cola los que ya se mandaron (los primeros `cuantos`).
-export function quitarEnviados(cola: PuntoUbicacion[], cuantos: number): PuntoUbicacion[] {
-  return cola.slice(cuantos);
+// Lo que toca mandar con la sesión de `usuario`: solo sus puntos.
+export function loteDe(cola: PuntoUbicacion[], usuario: string): PuntoUbicacion[] {
+  return cola.filter((p) => p.usuario === usuario).slice(0, POR_ENVIO);
+}
+
+// Quita de la cola los puntos que la base ya confirmó.
+export function quitarEnviados(cola: PuntoUbicacion[], enviados: PuntoUbicacion[]): PuntoUbicacion[] {
+  const clave = (p: PuntoUbicacion) => `${p.usuario}|${p.registrado_en}`;
+  const yaEnviados = new Set(enviados.map(clave));
+  return cola.filter((p) => !yaEnviados.has(clave(p)));
 }
 
 // Lee la cola guardada; si está dañada empieza vacía en vez de fallar.
@@ -42,7 +52,8 @@ export function leerCola(texto: string | null): PuntoUbicacion[] {
   try {
     const datos = JSON.parse(texto);
     if (!Array.isArray(datos)) return [];
-    return datos.filter((p) => typeof p?.lat === 'number' && typeof p?.lng === 'number' && typeof p?.registrado_en === 'string');
+    // Un punto sin dueño (de una versión anterior) no se puede mandar.
+    return datos.filter((p) => typeof p?.usuario === 'string' && typeof p?.lat === 'number' && typeof p?.lng === 'number' && typeof p?.registrado_en === 'string');
   } catch {
     return [];
   }

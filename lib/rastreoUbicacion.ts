@@ -2,7 +2,7 @@
 
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { createClient } from './supabaseClient';
-import { POR_ENVIO, PuntoUbicacion, agregarACola, leerCola, quitarEnviados, tocaGuardar } from './rastreoCola';
+import { PuntoUbicacion, agregarACola, leerCola, loteDe, quitarEnviados, tocaGuardar } from './rastreoCola';
 
 // Rastreo de los teléfonos de la empresa. Solo funciona dentro de la app de
 // Android de Clave (en el navegador no hace nada). Cada pocos minutos
@@ -41,6 +41,8 @@ let ultimoGuardadoMs: number | null = null;
 let ultimoEnvioMs = 0;
 let enviando = false;
 let alFaltarPermiso: (() => void) | null = null;
+// Quién tiene la sesión abierta en el teléfono (null = nadie).
+let usuarioActual: string | null = null;
 
 export function esAppAndroid(): boolean {
   return Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
@@ -60,11 +62,20 @@ export function iniciarRastreo(faltaPermiso: () => void): void {
   // deja hacerlo después desde segundo plano.
   RastreoNativo.preparar({}, alRecibirMensaje).catch((e) => console.error('Rastreo: no se pudo preparar', e));
   setInterval(revisarHorario, REVISAR_HORARIO_MS);
+  // Al entrar o salir de una cuenta se revisa en ese momento, no a los 3 min.
+  createClient().auth.onAuthStateChange((evento, sesion) => {
+    const nuevo = sesion?.user.id ?? null;
+    if (nuevo === usuarioActual) return;
+    usuarioActual = nuevo;
+    ultimoGuardadoMs = null;
+    revisarHorario();
+  });
 }
 
 async function revisarHorario() {
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
+  usuarioActual = session?.user.id ?? null;
   if (!session) {
     await cambiarGps(false);
     return;
@@ -109,11 +120,14 @@ function alRecibirMensaje(m?: Mensaje, e?: unknown) {
 }
 
 function guardarUbicacion(lat: number, lng: number, precision: number | null, velocidad: number | null, tiempo: number | null) {
+  // Sin sesión no hay a nombre de quién guardar el punto.
+  if (!usuarioActual) return;
   const momento = tiempo || Date.now();
   if (!tocaGuardar(ultimoGuardadoMs, momento)) return;
   ultimoGuardadoMs = momento;
 
   const punto: PuntoUbicacion = {
+    usuario: usuarioActual,
     registrado_en: new Date(momento).toISOString(),
     lat,
     lng,
@@ -126,20 +140,20 @@ function guardarUbicacion(lat: number, lng: number, precision: number | null, ve
 
 // Manda lo pendiente. Solo se quita de la cola lo que la base confirmó.
 async function enviarPendientes() {
-  if (enviando) return;
-  const cola = leerColaGuardada();
-  if (cola.length === 0) return;
+  if (enviando || !usuarioActual) return;
+  // Solo los puntos de quien tiene la sesión: la base los guarda a su nombre.
+  const lote = loteDe(leerColaGuardada(), usuarioActual);
+  if (lote.length === 0) return;
   enviando = true;
   ultimoEnvioMs = Date.now();
   try {
-    const lote = cola.slice(0, POR_ENVIO);
     const { error } = await createClient().rpc('registrar_ubicaciones', { p_puntos: lote });
     if (error) {
       console.error('Rastreo: no se pudieron mandar los puntos', error.message);
       return;
     }
     // Lo que llegó mientras se enviaba se queda.
-    guardarCola(quitarEnviados(leerColaGuardada(), lote.length));
+    guardarCola(quitarEnviados(leerColaGuardada(), lote));
   } finally {
     enviando = false;
   }

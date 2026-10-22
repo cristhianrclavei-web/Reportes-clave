@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { MAXIMO_EN_COLA, agregarACola, leerCola, quitarEnviados, tocaGuardar, PuntoUbicacion } from './rastreoCola';
+import { MAXIMO_EN_COLA, agregarACola, leerCola, loteDe, quitarEnviados, tocaGuardar, PuntoUbicacion } from './rastreoCola';
 
-const punto = (i: number): PuntoUbicacion => ({
+const punto = (i: number, usuario = 'tec-1'): PuntoUbicacion => ({
+  usuario,
   registrado_en: new Date(Date.UTC(2026, 9, 22, 15, i)).toISOString(), lat: 25.6, lng: -100.3, precision_m: 10, velocidad_ms: null,
 });
 
@@ -19,8 +20,14 @@ describe('cola de ubicaciones', () => {
   });
 
   it('quita los enviados y lee una cola dañada como vacía', () => {
-    expect(quitarEnviados([punto(1), punto(2), punto(3)], 2)).toEqual([punto(3)]);
+    expect(quitarEnviados([punto(1), punto(2), punto(3)], [punto(1), punto(2)])).toEqual([punto(3)]);
     expect(leerCola('no es json')).toEqual([]);
     expect(leerCola(JSON.stringify([punto(1), { lat: 'x' }]))).toEqual([punto(1)]);
+  });
+
+  it('manda solo los puntos de quien tiene la sesión', () => {
+    const cola = [punto(1, 'supervisor'), punto(2, 'tec-1'), punto(3, 'supervisor')];
+    expect(loteDe(cola, 'tec-1')).toEqual([punto(2, 'tec-1')]);
+    expect(quitarEnviados(cola, loteDe(cola, 'tec-1'))).toEqual([punto(1, 'supervisor'), punto(3, 'supervisor')]);
   });
 });
