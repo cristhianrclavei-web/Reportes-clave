@@ -30,6 +30,7 @@ import { listarPlantillas, guardarComoPlantilla, obtenerInsumos, resumenDeCheckl
 import { ResultadoBadges } from '@/components/ResultadoServicioBadges';
 import EficienciaServicio from '@/components/EficienciaServicio';
 import CorregirTarea from '@/components/servicios/CorregirTarea';
+import EditarListaTareas from '@/components/servicios/EditarListaTareas';
 import VisitaSinTrabajoPanel from '@/components/VisitaSinTrabajoPanel';
 import { createClient } from '@/lib/supabaseClient';
 import { mapsLink } from '@/lib/geolocation';
@@ -73,6 +74,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
   const [tareas, setTareas] = useState<Tarea[]>([]);
   // Tarea que el supervisor está corrigiendo (nombre / avance de este día).
   const [corrigiendoTareaId, setCorrigiendoTareaId] = useState<string | null>(null);
+  const [editandoLista, setEditandoLista] = useState(false);
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [tecnicosAsignados, setTecnicosAsignados] = useState<any[]>([]);
   const [auditoria, setAuditoria] = useState<Auditoria[]>([]);
@@ -87,6 +89,11 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
   const [descripcion, setDescripcion] = useState('');
   const [fecha, setFecha] = useState('');
   const [duracionMin, setDuracionMin] = useState(0);
+  // Horario del plan (HH:MM); vacío = sin hora.
+  const [horaLlegada, setHoraLlegada] = useState('');
+  const [horaSalida, setHoraSalida] = useState('');
+  // Quién agendó el servicio, para el detalle.
+  const [creador, setCreador] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   // Pantalla de avance: solo al guardar la edición del servicio.
   const { progreso: guardado, avance } = useAvanceGuardado();
@@ -147,6 +154,8 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
     setDescripcion(s.descripcion || '');
     setFecha(s.fecha);
     setDuracionMin(s.duracion_estimada_min);
+    setHoraLlegada(horaCorta(s.hora_programada));
+    setHoraSalida(horaCorta(s.hora_salida_programada));
     setUbicCampos(camposDeUbicacion(s.ubicacion_programada));
     setTecnicoIdsSel(tc.map((x) => x.tecnico_id));
 
@@ -164,6 +173,11 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
         });
         setFotoUrls(map);
       }
+    }
+
+    if (s.creado_por) {
+      const { data: perfil } = await createClient().from('profiles').select('full_name').eq('id', s.creado_por).maybeSingle();
+      setCreador(perfil?.full_name || null);
     }
 
     if (s.report_id) {
@@ -188,6 +202,14 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
       if (descripcion !== (servicio.descripcion || '')) cambios.push('descripción actualizada');
       if (fecha !== servicio.fecha) cambios.push(`fecha: ${servicio.fecha} → ${fecha}`);
       if (duracionMin !== servicio.duracion_estimada_min) cambios.push(`duración estimada: ${servicio.duracion_estimada_min} → ${duracionMin} min`);
+      if (horaLlegada && horaSalida && horaSalida <= horaLlegada) {
+        avisar('La hora de salida debe ser después de la hora de llegada.');
+        return;
+      }
+      const cambioLlegada = horaLlegada !== horaCorta(servicio.hora_programada);
+      const cambioSalida = horaSalida !== horaCorta(servicio.hora_salida_programada);
+      if (cambioLlegada) cambios.push(`hora de llegada: ${horaCorta(servicio.hora_programada) || 'sin hora'} → ${horaLlegada || 'sin hora'}`);
+      if (cambioSalida) cambios.push(`hora de salida: ${horaCorta(servicio.hora_salida_programada) || 'sin hora'} → ${horaSalida || 'sin hora'}`);
 
       const { ubicacion, incompleta } = ubicacionDeCampos(ubicCampos);
       if (incompleta) {
@@ -203,7 +225,12 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
         setPantalla(true);
         await editarServicio(
           servicioId,
-          { proyecto, descripcion, fecha, duracion_estimada_min: duracionMin, ...(cambioUbicacion ? { ubicacion_programada: ubicacion } : {}) },
+          {
+            proyecto, descripcion, fecha, duracion_estimada_min: duracionMin,
+            ...(cambioUbicacion ? { ubicacion_programada: ubicacion } : {}),
+            ...(cambioLlegada ? { hora_programada: horaLlegada || null } : {}),
+            ...(cambioSalida ? { hora_salida_programada: horaSalida || null } : {}),
+          },
           cambios.join('; '),
         );
         showToast('Servicio actualizado', 'success');
@@ -486,6 +513,8 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
 
   const progreso = calcularProgresoTareas(tareas);
   const sePuedenCorregirTareas = servicio.estado !== 'programado' && servicio.estado !== 'cancelado';
+  // La lista se edita mientras quede trabajo por hacer en este día.
+  const sePuedeEditarLista = servicio.estado !== 'concluido' && servicio.estado !== 'cancelado';
 
   // Avance con que quedó la tarea al cierre de ESTE día: el último registro
   // del día (los eventos vienen del más nuevo al más viejo). Si ese día no se
@@ -576,12 +605,18 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
               {servicio.descripcion && <p className="text-[13px] text-ink/85 mb-2">{servicio.descripcion}</p>}
               <div className="flex gap-4 text-[12px] text-muted flex-wrap">
                 <span>Fecha: <b className="text-ink">{fechaDMA(servicio.fecha)}</b></span>
+                <span>
+                  Horario: <b className="text-ink">{textoHorario(servicio.hora_programada, servicio.hora_salida_programada)}</b>
+                </span>
                 <span>Tiempo estimado: <b className="text-ink">{formatMinutos(servicio.duracion_estimada_min)}</b></span>
                 {resultado.trabajadoMin !== null && <span>Tiempo real: <b className="text-ink">{formatMinutos(resultado.trabajadoMin)}</b>{servicio.minutos_pausados > 0 ? ' (sin pausas)' : ''}</span>}
                 {servicio.hora_llegada && <span>Llegada: <b className="text-ink">{fmtHora(servicio.hora_llegada)}</b></span>}
                 {servicio.hora_fin && <span>Cierre: <b className="text-ink">{fmtHora(servicio.hora_fin)}</b></span>}
                 {servicio.minutos_pausados > 0 && <span>Pausas: <b className="text-ink">{servicio.minutos_pausados} min</b></span>}
               </div>
+              <p className="text-[11.5px] text-muted mt-1.5">
+                Agendado por {creador || 'supervisión'} el {new Date(servicio.created_at).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}
+              </p>
               {servicio.pausado_desde && (() => {
                 const p = ahora ? estadoPausa(servicio.pausado_desde, servicio.pausa_limite_min, ahora, tolerancia) : null;
                 const pasada = !!p && p.excedidos > 0;
@@ -632,6 +667,17 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
                   />
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-2 mb-1">
+                <div>
+                  <label htmlFor="hora-llegada" className="text-[13px] text-ink/75 block mb-1.5">Hora de llegada</label>
+                  <input id="hora-llegada" type="time" value={horaLlegada} onChange={(e) => setHoraLlegada(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-surface-2 border border-line text-[13.5px]" />
+                </div>
+                <div>
+                  <label htmlFor="hora-salida" className="text-[13px] text-ink/75 block mb-1.5">Hora de salida</label>
+                  <input id="hora-salida" type="time" value={horaSalida} onChange={(e) => setHoraSalida(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-surface-2 border border-line text-[13.5px]" />
+                </div>
+              </div>
+              <p className="text-[11.5px] text-muted mb-3">Déjalas vacías si el servicio no tiene hora fija.</p>
               <label className="text-[13px] text-ink/75 block mb-1.5">Ubicación del sitio</label>
               <CampoUbicacionSitio valor={ubicCampos} onCambio={setUbicCampos} />
               <p className="text-[11.5px] text-muted mt-1 mb-3">
@@ -908,10 +954,34 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
             <div className="text-[11px] uppercase tracking-wider text-muted">
               Lista de tareas{servicio.dias_totales > 1 ? ' (compartida entre los días del proyecto)' : ''}
             </div>
-            {progreso.total > 0 && (
-              <span className={`text-[13px] font-display font-bold ${progreso.pct >= 100 ? 'text-teal' : 'text-amber'}`}>{progreso.pct}%</span>
-            )}
+            <div className="flex items-center gap-3">
+              {progreso.total > 0 && (
+                <span className={`text-[13px] font-display font-bold ${progreso.pct >= 100 ? 'text-teal' : 'text-amber'}`}>{progreso.pct}%</span>
+              )}
+              {sePuedeEditarLista && !editandoLista && (
+                <button onClick={() => setEditandoLista(true)} className="text-teal text-[12px] font-medium">
+                  {tareas.length === 0 ? 'Agregar tareas' : 'Editar lista'}
+                </button>
+              )}
+            </div>
           </div>
+          {editandoLista && (
+            <EditarListaTareas
+              servicio={servicio}
+              tareas={tareas}
+              onCancelar={() => setEditandoLista(false)}
+              onGuardado={async () => {
+                setEditandoLista(false);
+                showToast('Lista de tareas guardada', 'success');
+                try {
+                  await cargarDatos();
+                } catch {
+                  showToast('La lista se guardó, pero no se pudo recargar la pantalla. Recarga la página.', 'error');
+                }
+              }}
+            />
+          )}
+          {!editandoLista && <>
           {tareas.length === 0 && <p className="text-[13px] text-muted">Este servicio no lleva lista de tareas por pasos.</p>}
           {progreso.total > 0 && (
             <div className="mb-3">
@@ -978,6 +1048,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
               </div>
             ))}
           </div>
+          </>}
         </div>
 
         <PresenciaPanel
@@ -1261,4 +1332,17 @@ function ResumenDato({ label, valor, tono }: { label: string; valor: string; ton
       <p className={`text-[15px] font-display font-bold truncate ${tono === 'teal' ? 'text-teal' : tono === 'amber' ? 'text-amber' : ''}`}>{valor}</p>
     </div>
   );
+}
+
+// '09:00:00' → '09:00'; sin hora → ''.
+function horaCorta(hora: string | null | undefined): string {
+  if (!hora) return '';
+  return hora.slice(0, 5);
+}
+
+function textoHorario(llegada: string | null, salida: string | null): string {
+  if (!llegada && !salida) return 'Sin hora fija';
+  if (llegada && salida) return `${horaCorta(llegada)} a ${horaCorta(salida)}`;
+  if (llegada) return `llegada ${horaCorta(llegada)}`;
+  return `salida ${horaCorta(salida)}`;
 }

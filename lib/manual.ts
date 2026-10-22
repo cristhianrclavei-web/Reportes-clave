@@ -264,7 +264,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
         titulo: 'Agendar servicios',
         resumen: 'Desde Servicios → Agendados o desde la Agenda.',
         pasos: [
-          'Toca «Agendar», elige el cliente, la fecha, la hora y a quién va (personas o una cuadrilla completa).',
+          'Toca «Agendar», elige el cliente, la fecha, la hora y a quién va (personas o una cuadrilla completa). La ubicación del sitio la puedes buscar, pegar de Google Maps o marcar en el mapa.',
           'Puedes cargar una rutina de tareas y una lista de herramienta y material.',
           'Los servicios de varios días se agendan como un solo proyecto.',
           'Para eliminar: en Servicios despliega el proyecto. El bote de basura junto a un día quita solo ese día (pide el motivo; no aparece en días ya trabajados o con reporte), y «Eliminar el proyecto completo» borra todo. Las dos piden confirmación.',
@@ -280,6 +280,9 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
         pasos: [
           '«Cambiar fecha» lo mueve de día; «Cancelar servicio» lo deja en el historial con el motivo.',
           '«Reasignar» cambia al personal y «Ampliar a más días» lo convierte en proyecto.',
+          'Arriba ves el horario (llegada y salida) y quién lo agendó y cuándo. Con «Editar» cambias el proyecto, la fecha, la duración, el horario y la ubicación, mientras el servicio no empiece.',
+          'En la ubicación, «Marcar el punto en el mapa» abre un mapa (o vista de satélite): toca donde está el sitio o arrastra el pin para afinarlo. La dirección se llena sola.',
+          'En «Lista de tareas» toca «Editar lista» (o «Agregar tareas» si no tiene) para agregar, renombrar o quitar tareas. Las que ya tienen avance llevan candado: no se quitan y su nombre se cambia con «Corregir». A los técnicos les llega un aviso del cambio.',
           'Cada cambio queda registrado en Actividad.',
         ],
       },

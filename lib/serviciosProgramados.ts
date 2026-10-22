@@ -785,7 +785,7 @@ export function motivoNoEditable(estado: Servicio['estado']): string | null {
 
 export async function editarServicio(
   id: string,
-  cambios: Partial<Pick<Servicio, 'proyecto' | 'descripcion' | 'fecha' | 'duracion_estimada_min' | 'ubicacion_programada'>>,
+  cambios: Partial<Pick<Servicio, 'proyecto' | 'descripcion' | 'fecha' | 'duracion_estimada_min' | 'ubicacion_programada' | 'hora_programada' | 'hora_salida_programada'>>,
   descripcionCambio: string
 ) {
   const supabase = createClient();
@@ -1978,6 +1978,78 @@ export async function listarActividadesDeTareas(servicio: Pick<Servicio, 'id' | 
   const tareas = await tareasDelProyecto(supabase, servicio);
   const registros = await registrosDeTareas(supabase, tareas.map((t) => t.id));
   return actividadesDelDia(tareas, registros, servicio);
+}
+
+// Cambios del supervisor a la lista de tareas del proyecto: agregar tareas y
+// renombrar o quitar las que aún no tienen ningún registro. Las que ya tienen
+// avance o fotos no se quitan (se perderían esos registros) y se renombran
+// con corregirTareaDelDia, que también actualiza los reportes.
+export type CambiosListaTareas = {
+  nuevas: string[];
+  renombradas: { id: string; descripcion: string }[];
+  quitadas: string[];
+};
+
+export const LARGO_MAXIMO_TAREA = 200;
+
+export async function editarListaTareas(
+  servicio: Pick<Servicio, 'id' | 'grupo_id' | 'proyecto'>,
+  cambios: CambiosListaTareas,
+): Promise<void> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No hay sesión activa');
+
+  const nuevas = cambios.nuevas.map((d) => d.trim()).filter((d) => d);
+  const renombradas = cambios.renombradas.map((r) => ({ id: r.id, descripcion: r.descripcion.trim() }));
+  for (const nombre of [...nuevas, ...renombradas.map((r) => r.descripcion)]) {
+    if (!nombre) throw new Error('Ninguna tarea puede quedar sin nombre.');
+    if (nombre.length > LARGO_MAXIMO_TAREA) throw new Error(`El nombre de una tarea no puede pasar de ${LARGO_MAXIMO_TAREA} letras.`);
+  }
+
+  const tareas = await tareasDelProyecto(supabase, servicio);
+  const tocadas = [...renombradas.map((r) => r.id), ...cambios.quitadas];
+  const registros = await registrosDeTareas(supabase, tocadas);
+  for (const id of tocadas) {
+    const tarea = tareas.find((t) => t.id === id);
+    if (!tarea) throw new Error('Una de las tareas ya no existe. Recarga la página.');
+    const tieneRegistros = tarea.completada || tarea.avance_pct > 0 || registros.some((r) => r.tarea_id === id);
+    if (tieneRegistros) throw new Error(`«${tarea.descripcion}» ya tiene avance registrado: no se puede quitar ni renombrar aquí. Usa «Corregir».`);
+  }
+
+  const partes: string[] = [];
+  if (cambios.quitadas.length > 0) {
+    const { error } = await supabase.from('servicio_tareas').delete().in('id', cambios.quitadas);
+    if (error) throw error;
+    const nombres = cambios.quitadas.map((id) => tareas.find((t) => t.id === id)?.descripcion);
+    partes.push(`quitó ${nombres.map((n) => `«${n}»`).join(', ')}`);
+  }
+  for (const r of renombradas) {
+    const antes = tareas.find((t) => t.id === r.id)?.descripcion;
+    if (antes === r.descripcion) continue;
+    const { error } = await supabase.from('servicio_tareas').update({ descripcion: r.descripcion }).eq('id', r.id);
+    if (error) throw error;
+    partes.push(`renombró «${antes}» a «${r.descripcion}»`);
+  }
+  if (nuevas.length > 0) {
+    // Las nuevas van al final de la lista.
+    const { data: ultima } = await supabase
+      .from('servicio_tareas').select('orden').eq('grupo_id', servicio.grupo_id)
+      .order('orden', { ascending: false }).limit(1).maybeSingle();
+    const siguiente = ultima ? ultima.orden + 1 : 0;
+    const { error } = await supabase.from('servicio_tareas').insert(
+      nuevas.map((descripcion, i) => ({ servicio_id: servicio.id, grupo_id: servicio.grupo_id, descripcion, orden: siguiente + i })),
+    );
+    if (error) throw error;
+    partes.push(`agregó ${nuevas.map((n) => `«${n}»`).join(', ')}`);
+  }
+  if (partes.length === 0) return;
+
+  const detalle = `Lista de tareas: ${partes.join('; ')}`;
+  const { error: eAud } = await supabase.from('servicio_auditoria').insert({ servicio_id: servicio.id, supervisor_id: user.id, cambio: detalle });
+  if (eAud) throw eAud;
+  await registrarAccionGlobal('edito_servicio', 'servicio', servicio.id, `Editó «${servicio.proyecto}»: ${detalle}`);
+  await avisarCambioATecnicos(servicio.id, servicio.proyecto, 'cambió la lista de tareas');
 }
 
 export type ResultadoCorreccionTarea = { reportesActualizados: number; reportesFirmados: number };

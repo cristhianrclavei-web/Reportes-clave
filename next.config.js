@@ -29,7 +29,8 @@ const csp = [
   `script-src 'self' 'unsafe-inline'${esDesarrollo ? " 'unsafe-eval'" : ''}`,
   "style-src 'self' 'unsafe-inline'",
   // syscom.mx: miniaturas del catálogo en el buscador de cotizaciones.
-  `img-src 'self' data: blob: ${SUPABASE_ORIGIN} https://*.syscom.mx`,
+  // OpenStreetMap y Esri: mapa y satélite para marcar el punto de un sitio.
+  `img-src 'self' data: blob: ${SUPABASE_ORIGIN} https://*.syscom.mx https://tile.openstreetmap.org https://server.arcgisonline.com`,
   "font-src 'self' data:",
   // nominatim: búsqueda de direcciones (gratis, sin llave) al capturar la
   // ubicación de un sitio programado.

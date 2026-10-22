@@ -1,14 +1,21 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { MapPin } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import { MapPin, Map as IconoMapa } from 'lucide-react';
 import { getCurrentLocation } from '@/lib/geolocation';
 import { extraerCoordenadas, esEnlaceCortoMaps, Punto } from '@/lib/geocerca';
 import { buscarDirecciones, direccionDePunto, resolverEnlaceMapa, SugerenciaDireccion } from '@/lib/geocoding';
 
-// Ubicación de un sitio, capturada de cuatro formas: escribiendo la
-// dirección (con sugerencias), tecleando latitud y longitud, usando la
-// ubicación actual o pegando un enlace de Google Maps. Lo usan el alta de un
+// El mapa solo se carga al abrirlo: Leaflet pesa y no corre en el servidor.
+const MapaElegirPunto = dynamic(() => import('./MapaElegirPunto'), {
+  ssr: false,
+  loading: () => <div className="h-[280px] mb-2.5 rounded-lg bg-surface border border-line flex items-center justify-center text-[12px] text-muted">Cargando mapa…</div>,
+});
+
+// Ubicación de un sitio, capturada de cinco formas: escribiendo la
+// dirección (con sugerencias), tecleando latitud y longitud, marcándola en el
+// mapa, usando la ubicación actual o pegando un enlace de Google Maps. Lo usan el alta de un
 // servicio y su edición.
 
 // Lo que hay escrito en los campos (texto, tal cual se teclea).
@@ -45,6 +52,8 @@ export default function CampoUbicacionSitio({
   const [ubicBuscando, setUbicBuscando] = useState(false);
   const [ubicResolviendoEnlace, setUbicResolviendoEnlace] = useState(false);
   const [ubicError, setUbicError] = useState<string | null>(null);
+  const [mapaAbierto, setMapaAbierto] = useState(false);
+  const puntoActual = ubicacionDeCampos(valor).ubicacion;
 
   async function handleUsarUbicacionActual() {
     setUbicBuscando(true);
@@ -168,6 +177,21 @@ export default function CampoUbicacionSitio({
           className="w-full px-3 min-h-[44px] rounded-lg bg-surface border border-line focus:border-teal focus:outline-none text-[14px]"
         />
       </div>
+      {mapaAbierto && (
+        <MapaElegirPunto
+          punto={puntoActual ? { lat: puntoActual.lat, lng: puntoActual.lng } : null}
+          cerca={cerca}
+          onElegir={fijarPuntoDelSitio}
+        />
+      )}
+      <button
+        type="button"
+        onClick={() => setMapaAbierto((v) => !v)}
+        className="w-full min-h-[40px] mb-2.5 rounded-lg bg-surface border border-line text-[13px] font-medium flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform"
+      >
+        <IconoMapa size={14} strokeWidth={2.4} />
+        {mapaAbierto ? 'Ocultar el mapa' : 'Marcar el punto en el mapa'}
+      </button>
       <button
         type="button"
         onClick={handleUsarUbicacionActual}
