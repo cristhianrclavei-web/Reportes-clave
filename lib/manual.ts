@@ -55,7 +55,7 @@ export const MANUAL_TECNICO: SeccionManual[] = [
         pasos: [
           'Toca «Nuevo reporte». Si el reporte es de un servicio asignado, elígelo arriba y se llenan solos el cliente, el personal y las horas de llegada y salida que registraste en el servicio (las puedes corregir). Con un servicio elegido tampoco se pregunta si ya se concluyó: se toma del servicio (concluido en su último día con el trabajo terminado; en curso en los días intermedios o si quedó trabajo pendiente). Esa pregunta solo sale en reportes sin servicio.',
           'Datos: cliente, contacto, horas de llegada y salida, vehículo y quién fue. La fecha del reporte debe ser la del servicio elegido: un reporte del 15 no se puede ligar al servicio del 14 (la app te avisa y te ofrece usar la fecha del servicio).',
-          'Trabajo: tipo de servicio, sistema, materiales usados y la descripción de lo que hiciste.',
+          'Trabajo: tipo de servicio (marca todos los que hiciste, por ejemplo instalación y mantenimiento correctivo), sistema, materiales usados y la descripción de lo que hiciste.',
           'Evidencia: toma o elige las fotos y marca si el servicio ya quedó concluido.',
           'En cada foto: el ojo decide si sale en el PDF del cliente o se queda solo en la app (no se borra); el botón de ajustes le pone etapa (Antes, Durante, Después) y área. Con etapa y área, el PDF las agrupa y pone el antes y el después lado a lado.',
           'Después de guardado, en la pestaña «Fotos» de tu reporte puedes seguir usando el ojo y el botón de ajustes (etapa y área): sirve para dejar fuera las fotos que no hacen falta y acomodar las demás antes de mandarle una copia del PDF al cliente.',

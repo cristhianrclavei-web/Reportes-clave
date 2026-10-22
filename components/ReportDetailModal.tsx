@@ -26,6 +26,7 @@ import { ResumenFormatos } from './FormatoMantenimiento';
 import EtiquetasMantenimiento from './EtiquetasMantenimiento';
 import FirmaPendiente from './FirmaPendiente';
 import { puedeEditarSinPermiso, finEdicionLibre } from '@/lib/edicionLibreReporte';
+import { textoTiposServicio } from '@/lib/tiposServicio';
 
 export type ReportDetail = {
   id: string;
@@ -616,7 +617,7 @@ export default function ReportDetailModal({
             <Detail label="Personal técnico (cuenta)" value={techName(report.profiles)} />
             <Detail
               label="Tipo"
-              value={`${report.tipo_servicio || '—'}${report.sub_tipo_servicio ? ' · ' + report.sub_tipo_servicio : ''}${report.tipo_servicio === 'Otro' && report.data?.tipoServicioOtroTexto ? ' · ' + report.data.tipoServicioOtroTexto : ''}`}
+              value={textoTiposServicio(report.tipo_servicio, report.sub_tipo_servicio, report.data?.tipoServicioOtroTexto) || '—'}
             />
             <Detail label="Orden de compra" value={report.data?.ordCompra} />
             <Detail label="Hora llegada / salida" value={`${report.data?.horaLlegada || '—'} - ${report.data?.horaSalida || '—'}`} />

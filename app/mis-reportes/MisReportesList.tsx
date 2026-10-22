@@ -25,6 +25,7 @@ import EncabezadoSeccion, { BOTON_PRINCIPAL, RotuloGrupo } from '@/components/te
 import EstadoVacio from '@/components/EstadoVacio';
 import TecnicoTabs from '@/components/TecnicoTabs';
 import Logo from '@/components/Logo';
+import { tieneTipo } from '@/lib/tiposServicio';
 
 type Report = ReportDetail;
 
@@ -98,7 +99,7 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
   const filtered = useMemo(() => {
     return reports.filter((r) => {
       if (filtroEstado === 'firma' ? !faltaFirma(r) : filtroEstado !== 'todos' && estadoDe(r) !== filtroEstado) return false;
-      if (filterType && r.tipo_servicio !== filterType) return false;
+      if (filterType && !tieneTipo(r.tipo_servicio, filterType)) return false;
       if (search) {
         const hay = `${r.empresa_cliente} ${aliasClientes[(r as any).cliente_id] || ''} ${r.data?.claveFormato || ''}`;
         if (!coincideBusqueda(hay, search)) return false;

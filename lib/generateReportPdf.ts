@@ -1,4 +1,5 @@
 import { tuberiasDe, cablesDe, soporteriaDe, textoTuberia, textoCable, textoSoporteria } from './materialesReporte';
+import { tieneTipo } from './tiposServicio';
 import { fechaDMA } from './etiquetaMantenimiento';
 import { PDFDocument, rgb } from 'pdf-lib';
 import { evidenciasDe } from './evidencias';
@@ -212,12 +213,12 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
   const subtipos = ['Correctivo', 'Preventivo'];
   let tx = MARGIN;
   [...tipos, ...subtipos].forEach((t) => {
-    const active = t === report.tipo_servicio || t === report.sub_tipo_servicio;
+    const active = tieneTipo(report.tipo_servicio, t) || tieneTipo(report.sub_tipo_servicio, t);
     checkbox(tx, y - 16, active, t, active ? bold : font);
     tx += bold.widthOfTextAtSize(t, 8.5) + 30;
   });
   y -= 24;
-  if (report.tipo_servicio === 'Otro' && data.tipoServicioOtroTexto) {
+  if (tieneTipo(report.tipo_servicio, 'Otro') && data.tipoServicioOtroTexto) {
     page.drawText(`Especifica: ${data.tipoServicioOtroTexto}`, { x: MARGIN, y, size: 8.5, font, color: NAVY });
     y -= 16;
   }

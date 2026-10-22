@@ -2,6 +2,7 @@ import { tuberiasDe, cablesDe, soporteriaDe, cantidadTexto } from './materialesR
 import ExcelJS from 'exceljs';
 import { REPORT_TEMPLATE_XLSX_BASE64 } from './reportTemplateBase64';
 import { MARCA, MARCA_MAYUS } from './marca';
+import { separarTipos } from './tiposServicio';
 
 type ReportRow = {
   id: string;
@@ -123,16 +124,19 @@ export async function generateReportXlsx(report: ReportRow): Promise<Buffer> {
     Correctivo: 'D21',
     Preventivo: 'E21',
   };
-  if (report.tipo_servicio && tipoCellMap[report.tipo_servicio]) {
-    const c = sheet.getCell(tipoCellMap[report.tipo_servicio]);
+  // Puede haber varios tipos marcados (lib/tiposServicio): se resaltan todos.
+  for (const tipo of separarTipos(report.tipo_servicio)) {
+    if (!tipoCellMap[tipo]) continue;
+    const c = sheet.getCell(tipoCellMap[tipo]);
     ownStyle(c);
     c.font = { ...(c.font || {}), bold: true, color: { argb: 'FF15614F' }, size: 11 };
-    if (report.tipo_servicio === 'Otro' && data.tipoServicioOtroTexto) {
+    if (tipo === 'Otro' && data.tipoServicioOtroTexto) {
       c.value = `Otro: ${data.tipoServicioOtroTexto}`;
     }
   }
-  if (report.sub_tipo_servicio && subTipoCellMap[report.sub_tipo_servicio]) {
-    const c = sheet.getCell(subTipoCellMap[report.sub_tipo_servicio]);
+  for (const sub of separarTipos(report.sub_tipo_servicio)) {
+    if (!subTipoCellMap[sub]) continue;
+    const c = sheet.getCell(subTipoCellMap[sub]);
     ownStyle(c);
     c.font = { ...(c.font || {}), bold: true, color: { argb: 'FF15614F' }, size: 11 };
   }

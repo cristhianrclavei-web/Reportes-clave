@@ -4,6 +4,7 @@ import type { MetaFoto } from '@/lib/evidencias';
 import { tuberiasDe, cablesDe, soporteriaDe, textoTuberia, textoCable, textoSoporteria } from '@/lib/materialesReporte';
 import { X } from 'lucide-react';
 import { ResumenFormatos } from './FormatoMantenimiento';
+import { textoTiposServicio } from '@/lib/tiposServicio';
 
 function Detail({ label, value }: { label: string; value?: string | null }) {
   if (!value) return null;
@@ -46,7 +47,7 @@ export default function ReportPreviewModal({ preview, onClose }: { preview: Prev
           <Detail label="Fecha" value={preview.fecha} />
           <Detail
             label="Tipo"
-            value={`${preview.tipoServicio || '—'}${preview.subTipo ? ' · ' + preview.subTipo : ''}${preview.tipoServicio === 'Otro' && data.tipoServicioOtroTexto ? ' · ' + data.tipoServicioOtroTexto : ''}`}
+            value={textoTiposServicio(preview.tipoServicio, preview.subTipo, data.tipoServicioOtroTexto) || '—'}
           />
           <Detail label="Ing a cargo" value={data.ingACargo} />
           <Detail label="Personal adicional" value={(data.personal || []).slice(1).join(', ')} />

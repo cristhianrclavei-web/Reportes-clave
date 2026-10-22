@@ -47,6 +47,7 @@ import { SeccionTuberia, SeccionCable, SeccionSoporteria, tuberiaVacia, cableVac
 import TraerDelVale from '@/components/reporte/TraerDelVale';
 import { puedeEditarSinPermiso, finEdicionLibre, reporteFirmadoEnSitio } from '@/lib/edicionLibreReporte';
 import { motivoFechaNoCoincide } from '@/lib/fechaVinculo';
+import { separarTipos, tieneTipo, unirTipos } from '@/lib/tiposServicio';
 
 // Hora "HH:mm" del reloj del dispositivo — igual al formato que ya entrega
 // el <input type="time">, así que sirve tal cual como valor de respaldo.
@@ -64,6 +65,12 @@ function horaDeRegistro(iso: string): string {
 
 const TIPOS = ['Instalación nueva', 'Mantenimiento', 'Otro'];
 const SUBTIPOS = ['Correctivo', 'Preventivo'];
+const OPCIONES_TIPO = [
+  { clave: 'Instalación nueva', etiqueta: 'Instalación nueva' },
+  { clave: 'Correctivo', etiqueta: 'Mantenimiento correctivo' },
+  { clave: 'Preventivo', etiqueta: 'Mantenimiento preventivo' },
+  { clave: 'Otro', etiqueta: 'Otro (especificar)' },
+];
 const SEGURIDAD_OPTS = ['CCTV', 'Automatización', 'Alarma&Det', 'Control de acceso', 'Alarma intrusión', 'Red contra incendio', 'Supresión', 'Inst. eléctricas', 'Paneles solares', 'Otra'];
 
 // Sistemas del catálogo (sin «Otra», que ahora se escribe en el propio selector).
@@ -338,7 +345,29 @@ export default function NuevoReportePage() {
   // Los formatos de mantenimiento son parte de los planes Profesional y
   // Empresa (lib/planes.ts).
   const plan = usePlan();
-  const esPreventivo = tipoServicio === 'Mantenimiento' && subTipo === 'Preventivo' && tieneModulo(plan, 'formatos');
+  const esPreventivo = tieneTipo(subTipo, 'Preventivo') && tieneModulo(plan, 'formatos');
+  const mantenimientoSinTipo = tieneTipo(tipoServicio, 'Mantenimiento') && separarTipos(subTipo).length === 0;
+
+  // Tipos de servicio marcados: se guardan como lista en las columnas de
+  // siempre (lib/tiposServicio). Correctivo y preventivo van en subTipo.
+  function tipoElegido(clave: string): boolean {
+    if (SUBTIPOS.includes(clave)) return tieneTipo(subTipo, clave);
+    return tieneTipo(tipoServicio, clave);
+  }
+
+  function alternarTipo(clave: string) {
+    const quedaMarcado = (c: string) => (c === clave ? !tipoElegido(c) : tipoElegido(c));
+    const subs = SUBTIPOS.filter(quedaMarcado);
+    // Un reporte viejo con «Mantenimiento» sin tipo lo conserva hasta que se
+    // marque correctivo o preventivo.
+    const conservarSinTipo = mantenimientoSinTipo && !SUBTIPOS.includes(clave);
+    const tipos = TIPOS.filter((t) => {
+      if (t === 'Mantenimiento') return subs.length > 0 || conservarSinTipo;
+      return quedaMarcado(t);
+    });
+    setTipoServicio(unirTipos(tipos));
+    setSubTipo(unirTipos(subs));
+  }
   const conFormato = esPreventivo && usaFormato && formatos.length > 0;
   // Token del QR de la etiqueta. Se crea en el teléfono (no en la base) para
   // que la etiqueta se pueda imprimir aunque no haya señal; el QR funciona
@@ -928,7 +957,7 @@ export default function NuevoReportePage() {
       ingACargo, personal: personalList,
       ordCompra, horaLlegada, horaSalida, listaConceptos, contactoUsuario, puestoArea,
       vehiculo, placas, manejadoPor,
-      tipoServicioOtroTexto: tipoServicio === 'Otro' ? tipoServicioOtroTexto : '',
+      tipoServicioOtroTexto: tieneTipo(tipoServicio, 'Otro') ? tipoServicioOtroTexto : '',
       sistemaSeguridad: seguridad, seguridadOtraTexto: seguridad.includes('Otra') ? seguridadOtraTexto : '',
       observaciones,
       tuberias: tuberiasOut,
@@ -1719,29 +1748,33 @@ export default function NuevoReportePage() {
         {/* Tipo de servicio */}
         <div className={cardCls}>
           <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Tipo de servicio</p>
-          {/* Menú desplegable: el mantenimiento se elige ya con su tipo. */}
-          <div className="relative">
-            <select
-              value={tipoServicio === 'Mantenimiento' ? `Mantenimiento|${subTipo || ''}` : tipoServicio || ''}
-              onChange={(e) => {
-                const [t, sub] = e.target.value.split('|');
-                setTipoServicio(t || null);
-                setSubTipo(t === 'Mantenimiento' ? sub || null : null);
-              }}
-              className={`${inputCls} appearance-none pr-10 min-h-[48px]`}
-            >
-              <option value="">Elige el tipo de servicio…</option>
-              <option value="Instalación nueva">Instalación nueva</option>
-              {SUBTIPOS.map((sub) => (
-                <option key={sub} value={`Mantenimiento|${sub}`}>Mantenimiento {sub.toLowerCase()}</option>
-              ))}
-              {/* Reportes viejos pueden traer «Mantenimiento» sin tipo. */}
-              {tipoServicio === 'Mantenimiento' && !subTipo && <option value="Mantenimiento|">Mantenimiento (elige preventivo o correctivo)</option>}
-              <option value="Otro">Otro (especificar)</option>
-            </select>
-            <ChevronDown size={17} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+          {/* Se puede marcar más de uno: el mismo día con el mismo cliente
+              a veces se instala y también se da mantenimiento. */}
+          <p className="text-[12px] text-muted mb-2">Marca todos los que se hicieron.</p>
+          <div className="flex flex-wrap gap-2">
+            {OPCIONES_TIPO.map((op) => {
+              const marcado = tipoElegido(op.clave);
+              return (
+                <button
+                  key={op.clave}
+                  type="button"
+                  onClick={() => alternarTipo(op.clave)}
+                  aria-pressed={marcado}
+                  className={`min-h-[44px] px-3.5 rounded-xl border text-[13.5px] flex items-center gap-1.5 active:scale-95 transition-transform ${
+                    marcado ? 'bg-teal/15 border-teal text-teal font-semibold' : 'bg-surface-2 border-line text-ink/80'
+                  }`}
+                >
+                  {marcado && <Check size={15} strokeWidth={3} />}
+                  {op.etiqueta}
+                </button>
+              );
+            })}
           </div>
-          {tipoServicio === 'Otro' && (
+          {/* Reportes viejos pueden traer «Mantenimiento» sin tipo. */}
+          {mantenimientoSinTipo && (
+            <p className="text-[12px] text-amber mt-2">Este reporte dice «Mantenimiento» sin tipo: marca correctivo o preventivo.</p>
+          )}
+          {tieneTipo(tipoServicio, 'Otro') && (
             <div className="mt-2">
               <label className={labelCls}>Especifica</label>
               <input type="text" className={inputCls} value={tipoServicioOtroTexto} onChange={(e) => setTipoServicioOtroTexto(e.target.value)} />

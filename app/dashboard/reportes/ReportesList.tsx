@@ -21,6 +21,7 @@ import { Check, MessageSquareWarning, FileText, ClipboardList, CalendarCheck, Li
 import ControlReportes from '@/components/ControlReportes';
 import CoberturaReportes from '@/components/CoberturaReportes';
 import SelectorSemana, { RangoSeleccionado } from '@/components/SelectorSemana';
+import { textoTiposServicio, tieneTipo } from '@/lib/tiposServicio';
 
 type Report = ReportDetail;
 
@@ -99,7 +100,7 @@ export default function ReportesList({
 
   const filtered = useMemo(() => {
     return reports.filter((r) => {
-      if (filterType && r.tipo_servicio !== filterType) return false;
+      if (filterType && !tieneTipo(r.tipo_servicio, filterType)) return false;
       // El rango de fechas no aplica cuando se busca por texto: quien escribe
       // el nombre de un cliente quiere encontrarlo esté en la semana que esté.
       if (!search && rango && r.fecha) {
@@ -282,7 +283,7 @@ export default function ReportesList({
                         </div>
 
                         <div className="text-[12px] text-muted mb-3 flex items-center gap-1.5 flex-wrap">
-                          <span>{r.tipo_servicio || 'Sin tipo'}{r.sub_tipo_servicio ? ` · ${r.sub_tipo_servicio}` : ''}</span>
+                          <span>{textoTiposServicio(r.tipo_servicio, r.sub_tipo_servicio) || 'Sin tipo'}</span>
                           <span className="text-faint">·</span>
                           {r.data?.firmaRevisionData ? (
                             <span className="text-[12px] font-semibold px-2.5 py-1 rounded-full bg-teal/15 text-teal flex items-center gap-1.5"><Check size={12} strokeWidth={3} />Completado</span>
