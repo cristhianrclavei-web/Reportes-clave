@@ -42,6 +42,10 @@ import SelectorArticulo from '@/components/SelectorArticulo';
 import { hoyLocal } from '@/lib/fechaHoy';
 import { zonaDeTrabajo } from '@/lib/geocoding';
 import { useSubseccionUrl } from '@/lib/useSubseccionUrl';
+import dynamic from 'next/dynamic';
+import { Map as IconoMapa } from 'lucide-react';
+// Leaflet usa `window`: el mapa se carga solo en el navegador.
+const MapaTecnicos = dynamic(() => import('@/components/servicios/MapaTecnicos'), { ssr: false });
 
 const ESTADO_CFG: Record<Servicio['estado'], { label: string; cls: string; Icono: any }> = {
   programado: { label: 'Programado', cls: 'bg-surface-2 text-muted', Icono: Clock },
@@ -119,8 +123,8 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   const [showNuevo, setShowNuevo] = useState(false);
   // La pantalla hace dos cosas distintas: programar algo nuevo y consultar lo
   // ya programado. Separarlas evita que el formulario y la lista compitan.
-  const [seccion, setSeccion] = useState<'hoy' | 'agendar' | 'agendados' | 'concluidos' | 'checklists' | 'plantillas'>('hoy');
-  useSubseccionUrl(seccion, setSeccion, ['hoy', 'agendar', 'agendados', 'concluidos', 'checklists', 'plantillas']);
+  const [seccion, setSeccion] = useState<'hoy' | 'mapa' | 'agendar' | 'agendados' | 'concluidos' | 'checklists' | 'plantillas'>('hoy');
+  useSubseccionUrl(seccion, setSeccion, ['hoy', 'mapa', 'agendar', 'agendados', 'concluidos', 'checklists', 'plantillas']);
   const [checklists, setChecklists] = useState<ResumenChecklist[]>([]);
   const [rango, setRango] = useState<RangoSeleccionado | null>(null);
   // Agendados abre en «Próximos» (todo lo pendiente, lo más cercano primero)
@@ -676,6 +680,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
             onCambiar={(k) => { setSeccion(k); setShowNuevo(false); }}
             opciones={[
               { k: 'hoy', label: 'Hoy', Icono: CalendarDays },
+              { k: 'mapa', label: 'Mapa', Icono: IconoMapa },
               { k: 'agendados', label: 'Agendados', Icono: FolderKanban },
               { k: 'concluidos', label: 'Concluidos', Icono: Check },
               { k: 'checklists', label: 'Listas de carga', Icono: PackageCheck },
@@ -683,6 +688,8 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
             ]}
           />
         )}
+
+        {seccion === 'mapa' && <MapaTecnicos />}
 
         {seccion === 'hoy' && <TableroDia onAgendar={(p) => { volverRef.current = 'hoy'; abrirAgendar(p); }} />}
 

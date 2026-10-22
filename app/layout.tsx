@@ -4,6 +4,7 @@ import './globals.css';
 import ToastContainer from '@/components/Toast';
 import Dialogos from '@/components/Dialogos';
 import OfflineSyncManager from '@/components/OfflineSyncManager';
+import RastreoUbicacion from '@/components/RastreoUbicacion';
 import SincronizarAcento from '@/components/SincronizarAcento';
 import SeleccionarNumeros from '@/components/SeleccionarNumeros';
 import AvisoSuscripcion from '@/components/AvisoSuscripcion';
@@ -95,6 +96,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AceptarPrivacidad />
         <Asistente />
         <OfflineSyncManager />
+        <RastreoUbicacion />
         <SincronizarAcento />
         <SeleccionarNumeros />
         <script

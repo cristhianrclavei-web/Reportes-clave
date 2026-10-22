@@ -57,6 +57,7 @@ export const TABS_INFERIORES: DashboardTabKey[] = ['resumen', 'servicios', 'repo
 export const SUBSECCIONES: Partial<Record<DashboardTabKey, { clave: string; label: string }[]>> = {
   servicios: [
     { clave: 'hoy', label: 'Hoy' },
+    { clave: 'mapa', label: 'Mapa de técnicos' },
     { clave: 'agendados', label: 'Agendados' },
     { clave: 'concluidos', label: 'Concluidos' },
     { clave: 'checklists', label: 'Listas de carga' },

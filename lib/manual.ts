@@ -245,6 +245,18 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
         ],
       },
       {
+        titulo: 'Mapa de técnicos',
+        resumen: 'Servicios → Mapa: dónde está ahora cada teléfono de la empresa y su recorrido de hoy.',
+        pasos: [
+          'Funciona con los teléfonos de la empresa que tienen instalada la app de Android de Clave. Mandan su ubicación una vez por minuto.',
+          'Solo se comparte en horario de trabajo (lunes a viernes no festivos, entre la entrada y la salida de Personal → Jornadas) o mientras la persona tenga un servicio abierto. Fuera de eso la base no guarda nada.',
+          'El color de cada persona dice cómo está su señal: verde, en línea; naranja, sin puntos desde hace unos minutos; gris, sin señal.',
+          'Toca a una persona en la lista o en el mapa para ver su recorrido de hoy.',
+          'Los recorridos se borran solos a los 90 días.',
+          'En el teléfono: abre la app de Clave cada mañana. Debe quedar el aviso fijo «Clave» en la barra de notificaciones; si se quita, la ubicación deja de llegar.',
+        ],
+      },
+      {
         titulo: 'Pausas, comida y presencia en sitio',
         resumen: 'Cuánto dura una pausa, qué pasa si se excede y cómo comprobar que alguien está en el sitio.',
         pasos: [
@@ -255,7 +267,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
           'Si alguien olvidó cerrar un servicio, en su detalle toca «Cerrar por el técnico», pon la hora en que de verdad terminaron (ya viene la de su último registro) y cómo lo supiste. Así la duración no cuenta horas que no se trabajaron.',
           'Si al cerrarlo pusiste una hora equivocada (por ejemplo, la de llegada a la oficina en vez de la de salida del sitio), toca «Corregir la hora de término» en el mismo servicio. El cierre que hizo el técnico no se cambia ahí.',
           'Si nadie lo cierra, a las 12:10 de la noche se cierra solo con la hora del último registro y queda «Cierre por confirmar». En la mañana te llega un aviso: entra al servicio y confirma o corrige la hora.',
-          'La app no puede seguir a nadie con el teléfono guardado: la ubicación solo se toma cuando la persona registra algo o tiene abierta la pantalla del servicio.',
+          'En el navegador la app no puede seguir a nadie con el teléfono guardado: la ubicación solo se toma cuando la persona registra algo o tiene abierta la pantalla del servicio. Para seguirla todo el día está la app de Android (ver «Mapa de técnicos»).',
           'Para comprobar que alguien está en el sitio, en el detalle del servicio toca «Pedir verificación». Le llega un aviso y tiene unos minutos para tocar «Estoy aquí»; verás «En sitio», «Fuera del sitio» con la distancia, o «Sin respuesta».',
           '«Sin respuesta» no prueba una ausencia: sin señal o con el teléfono en silencio pasa lo mismo. Tómalo como señal para llamarle.',
           'En el Resumen, «Pausas del personal» muestra por persona las comidas del mes, su promedio, las excedidas y las veces fuera del sitio. Es informativo y no cambia la eficiencia.',
