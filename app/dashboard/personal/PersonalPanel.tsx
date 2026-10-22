@@ -12,6 +12,7 @@ import Usuarios from '@/components/personal/Usuarios';
 import JornadasEquipo from '@/components/personal/JornadasEquipo';
 import { usePlan } from '@/lib/planes';
 import { tieneModulo } from '@/lib/planesDatos';
+import { useSubseccionUrl } from '@/lib/useSubseccionUrl';
 
 // Personal: solicitudes (horas extra, vacaciones y permisos; quien autoriza
 // ve la bandeja de todos, los demás supervisores las suyas), la ficha del
@@ -33,6 +34,10 @@ export default function PersonalPanel({ userName, esGestor = false, subInicial }
   const plan = usePlan();
   const conCuadrillas = tieneModulo(plan, 'cuadrillas');
   const mostrarPestana = conCuadrillas || plan.plan === 'campo';
+  const subsValidas: Sub[] = ['solicitudes', 'jornadas', 'equipo'];
+  if (mostrarPestana) subsValidas.push('cuadrillas');
+  if (esGestor) subsValidas.push('usuarios');
+  useSubseccionUrl(sub, setSub, subsValidas);
   return (
     <SupervisorShell active="personal" title="Personal" userName={userName}>
       <SubTabs

@@ -16,6 +16,7 @@ import { showToast } from '@/components/Toast';
 import { hoyLocal } from '@/lib/fechaHoy';
 import SubTabs from '@/components/SubTabs';
 import { Plus, Search, ReceiptText, FileClock } from 'lucide-react';
+import { useSubseccionUrl } from '@/lib/useSubseccionUrl';
 
 type FilaFactura = {
   id: string;
@@ -76,6 +77,7 @@ export default function FacturasList({
   reportesIniciales?: string[];
 }) {
   const [seccion, setSeccion] = useState<'nueva' | 'facturas' | 'pendientes'>(clienteInicial ? 'nueva' : 'facturas');
+  useSubseccionUrl(seccion, setSeccion, ['nueva', 'facturas', 'pendientes']);
   // Reportes concluidos que nadie ha facturado ni descartado, por cliente.
   const [porFacturar, setPorFacturar] = useState<PorFacturarCliente[] | null>(null);
   useEffect(() => { reportesPorFacturar().then(setPorFacturar).catch(() => setPorFacturar([])); }, []);

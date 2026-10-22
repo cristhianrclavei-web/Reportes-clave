@@ -3,11 +3,9 @@
 import BotonAyuda from '@/components/BotonAyuda';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
-import Link from '@/components/TransitionLink';
-import Logo from './Logo';
+import { AnimatePresence, motion } from 'motion/react';
+import BarraLateral from './BarraLateral';
 import ThemeToggle from './ThemeToggle';
-import LogoutButton from './LogoutButton';
 import { DashboardTabKey, seccionesVisibles } from './DashboardTabs';
 import { usePuedeAlmacen } from '@/lib/usePuedeAlmacen';
 import { usePuedeFacturar } from '@/lib/usePuedeFacturar';
@@ -16,17 +14,15 @@ import { useVistaSupervisor } from '@/lib/vistaSupervisor';
 import { coincideBusqueda } from '@/lib/busqueda';
 import { ClienteCatalogo, catalogoEnCache, listarCatalogoClientes } from '@/lib/clientesCatalogo';
 import { navegarConTransicion } from '@/lib/nativeViewTransition';
-import { useMiId, usePerfil, urlFoto } from '@/lib/perfiles';
-import { Search, X, LayoutGrid, Rows3, Building2, UserRound } from 'lucide-react';
-import { AvatarTecnico } from '@/components/AvatarTecnico';
+import { Search, X, LayoutGrid, Rows3, Building2 } from 'lucide-react';
 
 // Navegación de la computadora:
-//   · renglón del logo con buscador expandible (secciones y clientes), tema,
-//     vista y perfil (con tooltips animados);
-//   · debajo, barra de secciones fija a todo lo ancho, con ícono y nombre,
-//     y el indicador de la sección activa que se desliza (layoutId).
+//   · a la izquierda, la barra lateral que se abre y se cierra
+//     (BarraLateral): logo, secciones con sus subsecciones y la cuenta;
+//   · arriba, el buscador (secciones y clientes), el manual, el tema y la
+//     vista, con tooltips animados.
 // Vive en app/dashboard/layout.tsx para no volver a montarse al cambiar de
-// sección: así el indicador puede animarse de una pestaña a otra.
+// sección: así el indicador de la sección activa puede deslizarse.
 
 const RESORTE = { type: 'spring', stiffness: 420, damping: 34 } as const;
 
@@ -105,82 +101,6 @@ function BotonDock({
   );
 }
 
-// Sección de la barra: ícono y nombre. Al pasar el cursor se levantan
-// los dos; el fondo de la sección activa se desliza entre secciones.
-function SeccionDock({
-  href,
-  etiqueta,
-  Icono,
-  activo,
-}: {
-  href: string;
-  etiqueta: string;
-  Icono: React.ComponentType<{ size?: number; strokeWidth?: number }>;
-  activo: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      aria-current={activo ? 'page' : undefined}
-      className={`group relative flex-1 min-w-0 rounded-[16px] transition-colors ${
-        activo ? 'text-teal' : 'text-ink/65 hover:text-ink hover:bg-surface-2'
-      }`}
-    >
-      {activo && (
-        <>
-          <motion.span
-            layoutId="dock-activo-fondo"
-            transition={RESORTE}
-            className="absolute inset-0 rounded-[16px] bg-teal/12 ring-1 ring-teal/35"
-          />
-          <motion.span
-            layoutId="dock-activo-punto"
-            transition={RESORTE}
-            className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-teal"
-          />
-        </>
-      )}
-      <span className="relative flex flex-col items-center justify-center gap-1.5 pt-3 pb-3.5 px-2 transition-transform duration-200 ease-out group-hover:-translate-y-[3px]">
-        <Icono size={22} strokeWidth={activo ? 2.5 : 2.1} />
-        <span className={`text-[13px] truncate max-w-full ${activo ? 'font-semibold' : 'font-medium'}`}>{etiqueta}</span>
-      </span>
-    </Link>
-  );
-}
-
-// Sección del menú lateral (pantallas grandes): mosaico con el ícono grande
-// y el nombre centrado debajo. Van en dos columnas para llenar el ancho de
-// la barra; el fondo de la activa se desliza entre mosaicos.
-function SeccionLateral({
-  href,
-  etiqueta,
-  Icono,
-  activo,
-}: {
-  href: string;
-  etiqueta: string;
-  Icono: React.ComponentType<{ size?: number; strokeWidth?: number }>;
-  activo: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      aria-current={activo ? 'page' : undefined}
-      className={`group relative rounded-2xl border transition-colors ${
-        activo ? 'text-teal border-transparent' : 'text-ink/70 border-line/70 bg-surface/40 hover:text-ink hover:bg-surface-2 hover:border-line-strong'
-      }`}
-    >
-      {activo && (
-        <motion.span layoutId="lateral-activo-fondo" transition={RESORTE} className="absolute inset-0 rounded-2xl bg-teal/12 ring-1 ring-teal/40 shadow-glow-teal" />
-      )}
-      <span className="relative flex flex-col items-center justify-center gap-1.5 h-[64px] [@media(max-height:840px)]:h-[56px] px-2 transition-transform duration-200 ease-out group-hover:-translate-y-[2px]">
-        <Icono size={23} strokeWidth={activo ? 2.4 : 2} />
-        <span className={`text-[12px] leading-none truncate max-w-full ${activo ? 'font-semibold' : 'font-medium'}`}>{etiqueta}</span>
-      </span>
-    </Link>
-  );
-}
-
 export default function DockNav({ userName, children }: { userName?: string; children?: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -190,8 +110,6 @@ export default function DockNav({ userName, children }: { userName?: string; chi
   const puedeFacturar = usePuedeFacturar();
   const plan = usePlan();
   const secciones = seccionesVisibles(puedeAlmacen, puedeFacturar, plan.modulos);
-  const miId = useMiId();
-  const miPerfil = usePerfil(miId);
 
   // --- Buscador expandible ---
   const [buscando, setBuscando] = useState(false);
@@ -250,58 +168,10 @@ export default function DockNav({ userName, children }: { userName?: string; chi
     navegarConTransicion(() => router.push(href));
   }
 
-  const miFoto = urlFoto(miPerfil?.foto_path);
-  const iniciales = (userName || '').trim().split(/\s+/).slice(0, 2).map((x) => x[0]).join('').toUpperCase();
 
   return (
-    <div className="2xl:flex 2xl:items-start">
-      {/* Menú lateral: solo en pantallas grandes (2xl), donde antes quedaban
-          los costados vacíos. Marca arriba, secciones y la cuenta abajo. Se
-          queda fijo al hacer scroll; en pantallas menores sigue la barra de
-          secciones de arriba. */}
-      <aside className="hidden 2xl:flex sticky top-0 h-screen w-[272px] shrink-0 flex-col border-r border-line bg-surface/50 px-4 pt-6 [@media(max-height:840px)]:pt-4 pb-6 overflow-y-auto no-scrollbar">
-        <Link href="/dashboard" aria-label="Ir al resumen" className="self-center mb-5 [@media(max-height:840px)]:mb-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/50">
-          <Logo variante="completo" size={44} />
-        </Link>
-
-        {/* Cuenta: tarjeta con la foto grande al centro (o su avatar, si no
-            ha subido foto), nombre y puesto, y debajo el acceso al perfil y
-            el botón de salir. */}
-        <div className="mb-8 [@media(max-height:840px)]:mb-4 rounded-3xl bg-surface border border-line overflow-hidden shadow-diffuse">
-          <div className="h-14 bg-gradient-to-br from-teal/35 via-teal/12 to-transparent" />
-          <div className="px-3.5 pb-3.5 -mt-12 flex flex-col items-center text-center">
-            <Link href="/perfil" aria-label="Mi perfil" className="rounded-full ring-4 ring-surface transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-teal/60">
-              {miFoto ? (
-                <img src={miFoto} alt="" className="w-[94px] h-[94px] rounded-full object-cover block" />
-              ) : (
-                <AvatarTecnico id={miId || undefined} nombre={userName || 'Supervisión'} size={94} />
-              )}
-            </Link>
-            <p className="mt-2.5 font-display font-bold text-[17px] leading-tight tracking-wide max-w-full truncate">{userName || 'Supervisión'}</p>
-            <p className="text-[12.5px] text-muted leading-snug line-clamp-2">{miPerfil?.puesto || 'Supervisión'}</p>
-            <div className="mt-3 w-full flex items-center gap-2">
-              <Link href="/perfil"
-                className="flex-1 h-9 rounded-full bg-surface-2 border border-line text-[12.5px] font-semibold text-ink/85 flex items-center justify-center gap-1.5 hover:border-teal/50 hover:text-teal transition-colors">
-                <UserRound size={14} strokeWidth={2.3} /> Mi perfil
-              </Link>
-              <BotonDock etiqueta="Cerrar sesión">
-                <LogoutButton compacto className="w-9 h-9 rounded-full border border-line bg-surface-2 flex items-center justify-center text-ink/65 hover:text-red hover:border-red/40 active:scale-90 transition disabled:opacity-60" />
-              </BotonDock>
-            </div>
-          </div>
-        </div>
-
-        <p className="px-1 mb-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-faint">Secciones</p>
-        <LayoutGroup id="lateral">
-          {/* Márgenes fijos entre columnas (24 px) y filas (12 px). En pantallas
-              bajas los mosaicos se acortan para que quepan sin recortarse. */}
-          <nav aria-label="Secciones" className="grid grid-cols-2 gap-x-6 gap-y-3 [@media(max-height:840px)]:gap-y-2 px-2 pb-1">
-            {secciones.map((t) => (
-              <SeccionLateral key={t.key} href={t.href} etiqueta={t.label} Icono={t.Icono} activo={t.key === activa} />
-            ))}
-          </nav>
-        </LayoutGroup>
-      </aside>
+    <div className="lg:flex lg:items-start">
+      <BarraLateral secciones={secciones} activa={activa} userName={userName} />
 
       <div className="flex-1 min-w-0">
       {/* Encabezado de la computadora: se va con el scroll. Marca a la
@@ -309,12 +179,8 @@ export default function DockNav({ userName, children }: { userName?: string; chi
           agrupadas, y la cuenta (perfil y salir). Mismo ancho que el
           contenido de las secciones para que todo quede alineado. */}
       <header className="hidden lg:block">
-        <div className="px-8 2xl:px-10 pt-7 pb-6 2xl:pb-2 flex items-center gap-8">
-          <Link href="/dashboard" aria-label="Ir al resumen" className="2xl:hidden shrink-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/50">
-            <Logo variante="completo" size={48} />
-          </Link>
-
-          <div className="ml-auto 2xl:ml-0 2xl:flex-1 2xl:justify-between flex items-center gap-4 xl:gap-5">
+        <div className="px-8 2xl:px-10 pt-7 pb-2 flex items-center gap-8">
+          <div className="flex-1 justify-between flex items-center gap-4 xl:gap-5">
             {/* Buscador siempre visible */}
             <div ref={cajaRef} className="relative">
               <Search size={17} strokeWidth={2.2} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
@@ -387,51 +253,9 @@ export default function DockNav({ userName, children }: { userName?: string; chi
               </BotonDock>
             </div>
 
-            <span className="2xl:hidden w-px h-9 bg-line-strong" aria-hidden="true" />
-
-            {/* Cuenta: perfil (nombre y rol) y salir */}
-            <div className="2xl:hidden flex items-center gap-2">
-              <Link href="/perfil" aria-label="Mi perfil"
-                className="flex items-center gap-3 p-1 xl:pr-4 rounded-full hover:bg-surface border border-transparent hover:border-line transition-colors">
-                {miFoto ? (
-                  <img src={miFoto} alt="" className="w-10 h-10 rounded-full object-cover shrink-0" />
-                ) : (
-                  <span className="w-10 h-10 rounded-full bg-teal text-inkOnAccent flex items-center justify-center text-[13px] font-display font-bold shrink-0">
-                    {iniciales || 'S'}
-                  </span>
-                )}
-                <span className="hidden xl:block leading-tight text-left">
-                  <span className="block text-[14px] font-semibold truncate max-w-[160px]">{userName || 'Supervisor'}</span>
-                  <span className="block text-[12px] text-muted truncate max-w-[160px]">{miPerfil?.puesto || 'Supervisión'}</span>
-                </span>
-              </Link>
-              <BotonDock etiqueta="Cerrar sesión">
-                <LogoutButton compacto className="w-11 h-11 rounded-full border border-line bg-surface flex items-center justify-center text-ink/65 hover:text-red hover:border-red/40 active:scale-90 transition disabled:opacity-60" />
-              </BotonDock>
-            </div>
           </div>
         </div>
       </header>
-
-      {/* Barra de secciones: fija arriba al hacer scroll, con ícono y nombre
-          de cada sección. */}
-      <div className="hidden lg:block 2xl:hidden sticky top-0 z-30 bg-bg pt-2 pb-3">
-        {/* Desvanecido bajo la barra: el contenido se pierde suave al pasar
-            por debajo en vez de verse cortado en seco. */}
-        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-full h-6 bg-gradient-to-b from-bg to-transparent" />
-        <div className="px-8">
-          <LayoutGroup id="dock">
-            <nav
-              aria-label="Secciones"
-              className="flex items-stretch gap-1.5 rounded-[24px] bg-surface border border-line p-2 shadow-diffuse"
-            >
-              {secciones.map((t) => (
-                <SeccionDock key={t.key} href={t.href} etiqueta={t.label} Icono={t.Icono} activo={t.key === activa} />
-              ))}
-            </nav>
-          </LayoutGroup>
-        </div>
-      </div>
 
       {children}
       </div>

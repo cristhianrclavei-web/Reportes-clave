@@ -50,3 +50,53 @@ export const GRUPOS_NAV: { titulo: string; keys: DashboardTabKey[] }[] = [
 
 // Las 4 que van fijas en la barra inferior del celular; el resto va en «Más».
 export const TABS_INFERIORES: DashboardTabKey[] = ['resumen', 'servicios', 'reportes', 'cotizaciones'];
+
+// Subsecciones de cada sección para la barra lateral de la computadora. La
+// `clave` es el «?sub=» que abre esa pestaña dentro de la sección
+// (lib/useSubseccionUrl). La primera es la que se abre por omisión.
+export const SUBSECCIONES: Partial<Record<DashboardTabKey, { clave: string; label: string }[]>> = {
+  servicios: [
+    { clave: 'hoy', label: 'Hoy' },
+    { clave: 'agendados', label: 'Agendados' },
+    { clave: 'concluidos', label: 'Concluidos' },
+    { clave: 'checklists', label: 'Listas de carga' },
+    { clave: 'plantillas', label: 'Plantillas' },
+  ],
+  agenda: [
+    { clave: 'mes', label: 'Mes' },
+    { clave: 'semana', label: 'Semana' },
+    { clave: 'lista', label: 'Lista' },
+    { clave: 'recurrentes', label: 'Recurrentes' },
+  ],
+  reportes: [
+    { clave: 'reportes', label: 'Reportes' },
+    { clave: 'control', label: 'Control' },
+    { clave: 'cobertura', label: 'Cobertura' },
+    { clave: 'levantamientos', label: 'Levantamientos' },
+  ],
+  cotizaciones: [
+    { clave: 'cotizaciones', label: 'Cotizaciones' },
+    { clave: 'nueva', label: 'Nueva cotización' },
+  ],
+  facturacion: [
+    { clave: 'facturas', label: 'Facturas' },
+    { clave: 'pendientes', label: 'Por facturar' },
+    { clave: 'nueva', label: 'Nueva factura' },
+  ],
+  personal: [
+    { clave: 'solicitudes', label: 'Solicitudes' },
+    { clave: 'jornadas', label: 'Jornadas' },
+    { clave: 'equipo', label: 'Equipo' },
+    { clave: 'cuadrillas', label: 'Cuadrillas' },
+  ],
+  almacen: [
+    { clave: 'vales', label: 'Vales' },
+    { clave: 'existencias', label: 'Existencias' },
+    { clave: 'movimientos', label: 'Movimientos' },
+    { clave: 'catalogo', label: 'Catálogo' },
+    { clave: 'instalados', label: 'Instalados' },
+    { clave: 'ubicaciones', label: 'Ubicaciones' },
+    { clave: 'conteo', label: 'Conteo' },
+    { clave: 'sistemas', label: 'Sistemas' },
+  ],
+};

@@ -24,6 +24,7 @@ import {
   Sistema, listarSistemas, crearSistema, desactivarSistema, articulosPorSistema,
 } from '@/lib/almacen';
 import EntradaAlmacenWizard, { ModalNuevoArticulo } from '@/components/almacen/EntradaAlmacenWizard';
+import { useSubseccionUrl } from '@/lib/useSubseccionUrl';
 import {
   Plus, FileText, ScrollText, Wrench, Package, HardHat,
   Trash2, Boxes, ArrowLeftRight, ArrowDown, ArrowUp, RotateCcw, AlertTriangle, LayoutGrid, Search, ClipboardList, MapPin, ClipboardCheck,
@@ -38,11 +39,10 @@ function fmtFecha(iso: string | null): string {
 
 export default function AlmacenList({ userName }: { userName?: string }) {
   const [seccion, setSeccion] = useState<'vales' | 'existencias' | 'entrada' | 'movimientos' | 'catalogo' | 'sistemas' | 'ubicaciones' | 'conteo' | 'instalados'>('vales');
-  // Enlace desde los avisos: ?sub=vales|existencias…
+  useSubseccionUrl(seccion, setSeccion, ['vales', 'existencias', 'entrada', 'movimientos', 'catalogo', 'sistemas', 'ubicaciones', 'conteo', 'instalados']);
+  // ?sub=… lo maneja useSubseccionUrl.
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
-    const sub = q.get('sub');
-    if (sub === 'existencias' || sub === 'movimientos' || sub === 'catalogo' || sub === 'sistemas' || sub === 'vales' || sub === 'ubicaciones' || sub === 'conteo' || sub === 'instalados') setSeccion(sub);
     // Etiquetas QR: ?ubicacion=<id> abre esa ubicación; ?articulo=<id>, su ficha.
     if (q.get('ubicacion')) { setUbicacionInicial(q.get('ubicacion')); setSeccion('ubicaciones'); }
     if (q.get('articulo')) setArticuloQr(q.get('articulo'));

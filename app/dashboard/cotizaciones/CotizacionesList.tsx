@@ -20,6 +20,7 @@ import { showToast } from '@/components/Toast';
 import SubTabs from '@/components/SubTabs';
 import { Plus, Search, Receipt, Copy, X } from 'lucide-react';
 import SelectorSemana, { RangoSeleccionado } from '@/components/SelectorSemana';
+import { useSubseccionUrl } from '@/lib/useSubseccionUrl';
 
 function formatFecha(fecha: string): string {
   if (!fecha) return '—';
@@ -85,6 +86,7 @@ export default function CotizacionesList({
   // dos tareas distintas, separarlas en pestañas evita que el formulario y
   // la lista compitan por espacio en la misma pantalla.
   const [seccion, setSeccion] = useState<'nueva' | 'cotizaciones'>('cotizaciones');
+  useSubseccionUrl(seccion, setSeccion, ['nueva', 'cotizaciones']);
   // Copia de otra cotización para un cliente nuevo (mismas partidas y condiciones).
   const [copia, setCopia] = useState<{ origen: Cotizacion; datos: { cotizacion: Cotizacion; lineas: LineaCotizacion[] } } | null>(null);
   const [eligiendoCopia, setEligiendoCopia] = useState(false);

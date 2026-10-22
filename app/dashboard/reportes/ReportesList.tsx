@@ -22,6 +22,7 @@ import ControlReportes from '@/components/ControlReportes';
 import CoberturaReportes from '@/components/CoberturaReportes';
 import SelectorSemana, { RangoSeleccionado } from '@/components/SelectorSemana';
 import { textoTiposServicio, tieneTipo } from '@/lib/tiposServicio';
+import { useSubseccionUrl } from '@/lib/useSubseccionUrl';
 
 type Report = ReportDetail;
 
@@ -51,6 +52,7 @@ export default function ReportesList({
   const fechasDeReportes = useMemo(() => reports.map((r) => r.fecha).filter(Boolean), [reports]);
   const [open, setOpen] = useState<Report | null>(null);
   const [subseccion, setSubseccion] = useState<'reportes' | 'control' | 'cobertura' | 'levantamientos'>('reportes');
+  useSubseccionUrl(subseccion, setSubseccion, ['reportes', 'control', 'cobertura', 'levantamientos']);
   // Ver el comentario en lib/reportStatus.ts: "ahora" solo se conoce ya
   // montado en el cliente, para que el chip de facturación no dispare un
   // error de hidratación.
@@ -70,11 +72,9 @@ export default function ReportesList({
 
   // Enlaces desde otras pantallas (p. ej. el detalle de un cliente):
   //   ?reporte=<id>  abre ese reporte;  ?q=<texto>  llena la búsqueda;
-  //   ?sub=control|cobertura  abre esa subpestaña (aviso de reportes atrasados).
+  //   ?sub=…  abre esa subpestaña (useSubseccionUrl).
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const sub = params.get('sub');
-    if (sub === 'control' || sub === 'cobertura' || sub === 'levantamientos') setSubseccion(sub);
     const q = params.get('q');
     if (q) setSearch(q);
     const id = params.get('reporte');

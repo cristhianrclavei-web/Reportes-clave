@@ -23,6 +23,7 @@ import DiasFestivosSection from '@/components/DiasFestivosSection';
 import SubTabs from '@/components/SubTabs';
 import PlanSemana from '@/components/PlanSemana';
 import MantenimientosRecurrentes from '@/components/MantenimientosRecurrentes';
+import { useSubseccionUrl } from '@/lib/useSubseccionUrl';
 
 const ESTADO_CFG: Record<Servicio['estado'], { label: string; cls: string; Icono: any }> = {
   programado: { label: 'Programado', cls: 'bg-surface-2 text-muted', Icono: Clock },
@@ -42,6 +43,7 @@ export default function AgendaList({ userName }: { userName?: string }) {
   const [filtroTecnico, setFiltroTecnico] = useState('');
   const [search, setSearch] = useState('');
   const [vista, setVista] = useState<'mes' | 'semana' | 'lista' | 'recurrentes'>('mes');
+  useSubseccionUrl(vista, setVista, ['mes', 'semana', 'lista', 'recurrentes']);
   // Calendario mensual: mismos días que la lista, con su gente y festivos.
   const [agendaMes, setAgendaMes] = useState<DiaAgenda[] | null>(null);
   const [festivos, setFestivos] = useState<Festivo[]>(() => festivosEnCache());

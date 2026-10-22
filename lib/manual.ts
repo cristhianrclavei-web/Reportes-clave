@@ -458,6 +458,15 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
         pasos: ['Usa el buscador de arriba (Ctrl + K en computadora) y escribe el nombre.'],
       },
       {
+        titulo: 'Menú lateral (computadora)',
+        resumen: 'Las secciones a la izquierda, con sus opciones.',
+        pasos: [
+          'Toca una sección para abrirla; debajo aparecen sus opciones (por ejemplo Hoy, Agendados, Concluidos) para ir directo a una.',
+          'La flecha junto a cada sección muestra u oculta sus opciones sin cambiar de pantalla.',
+          'El botón redondo del borde cierra el menú y deja solo los íconos, para tener más espacio. Pasa el cursor por un ícono para ver su nombre y sus opciones. Se queda como lo dejaste.',
+        ],
+      },
+      {
         titulo: 'Tema, vista y notificaciones',
         resumen: 'Ajustes personales.',
         pasos: [

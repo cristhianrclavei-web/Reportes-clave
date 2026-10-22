@@ -41,6 +41,7 @@ import { showToast } from '@/components/Toast';
 import SelectorArticulo from '@/components/SelectorArticulo';
 import { hoyLocal } from '@/lib/fechaHoy';
 import { zonaDeTrabajo } from '@/lib/geocoding';
+import { useSubseccionUrl } from '@/lib/useSubseccionUrl';
 
 const ESTADO_CFG: Record<Servicio['estado'], { label: string; cls: string; Icono: any }> = {
   programado: { label: 'Programado', cls: 'bg-surface-2 text-muted', Icono: Clock },
@@ -119,6 +120,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   // La pantalla hace dos cosas distintas: programar algo nuevo y consultar lo
   // ya programado. Separarlas evita que el formulario y la lista compitan.
   const [seccion, setSeccion] = useState<'hoy' | 'agendar' | 'agendados' | 'concluidos' | 'checklists' | 'plantillas'>('hoy');
+  useSubseccionUrl(seccion, setSeccion, ['hoy', 'agendar', 'agendados', 'concluidos', 'checklists', 'plantillas']);
   const [checklists, setChecklists] = useState<ResumenChecklist[]>([]);
   const [rango, setRango] = useState<RangoSeleccionado | null>(null);
   // Agendados abre en «Próximos» (todo lo pendiente, lo más cercano primero)
