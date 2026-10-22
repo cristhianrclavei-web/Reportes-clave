@@ -1,12 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Check, X, Minus, BellRing, FileText } from 'lucide-react';
+import Link from 'next/link';
+import { ChevronLeft, ChevronRight, Check, X, Minus, BellRing, FileText, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { createClient } from '@/lib/supabaseClient';
 import { hoyLocal, sumarDias, fechaLocal } from '@/lib/fechaHoy';
 import { INICIO_COBERTURA, HORA_CORTE_MIN, MOTIVOS, fechaCorta } from '@/lib/coberturaReportes';
 import { notificar } from '@/lib/push';
 import { showToast } from '@/components/Toast';
+import { revisarJustificacion, revisarDiaBitacora } from '@/lib/controlReportes';
 
 // Cobertura de reportes para el supervisor: por técnico y por día de la
 // semana, si hubo reporte, justificación, si falta o si no se exige. La
@@ -17,12 +19,19 @@ type Fila = {
   tecnico_id: string;
   tecnico: string | null;
   fecha: string;
-  estado: 'reporte' | 'justificado' | 'sin_reporte' | 'no_exigible';
+  estado: 'reporte' | 'justificado' | 'por_autorizar' | 'sin_reporte' | 'no_exigible';
   festivo: string | null;
   motivo: string | null;
   detalle: string | null;
   justificado_en: string | null;
   reportes: string[];
+  // Justificación escrita (patch_justificacion_autorizada.sql).
+  justificacion_id: string | null;
+  justificacion_estado: 'pendiente' | 'aprobada' | 'rechazada' | null;
+  justifico: string | null;
+  reviso: string | null;
+  revisado_en: string | null;
+  servicios: string[];
 };
 
 // Lo que se pinta: el estado de la base, salvo días que todavía no cuentan.
@@ -46,6 +55,7 @@ function etiquetaSemana(lunes: string): string {
 const ESTILO: Record<Vista, { cls: string; label: string }> = {
   reporte: { cls: 'bg-teal/15 text-teal border-teal/30', label: 'Con reporte' },
   justificado: { cls: 'bg-amber/15 text-amber border-amber/35', label: 'Justificado' },
+  por_autorizar: { cls: 'bg-transparent text-amber border-2 border-dashed border-amber/70', label: 'Por autorizar' },
   sin_reporte: { cls: 'bg-red/15 text-red border-red/35', label: 'Sin reporte' },
   no_exigible: { cls: 'bg-surface-2 text-faint border-line', label: 'No se exige' },
   a_tiempo: { cls: 'bg-transparent text-faint border-dashed border-line-strong', label: 'Hoy, aún a tiempo' },
@@ -56,6 +66,7 @@ const ESTILO: Record<Vista, { cls: string; label: string }> = {
 function Icono({ v, festivo }: { v: Vista; festivo?: boolean }) {
   if (v === 'reporte') return <Check size={15} strokeWidth={3} />;
   if (v === 'justificado') return <span className="text-[12px] font-bold">J</span>;
+  if (v === 'por_autorizar') return <span className="text-[12px] font-bold">?</span>;
   if (v === 'sin_reporte') return <X size={15} strokeWidth={3} />;
   if (v === 'no_exigible') return festivo ? <span className="text-[11px] font-bold">F</span> : <Minus size={13} />;
   return null;
@@ -77,6 +88,9 @@ export default function CoberturaReportes({
   const [error, setError] = useState<string | null>(null);
   const [sel, setSel] = useState<{ tecnico: string; fecha: string } | null>(null);
   const [avisados, setAvisados] = useState<Set<string>>(new Set());
+  // Se incrementa para volver a cargar la semana (p. ej. tras autorizar).
+  const [recarga, setRecarga] = useState(0);
+  const [revisando, setRevisando] = useState(false);
 
   useEffect(() => {
     const ahora = new Date();
@@ -99,15 +113,16 @@ export default function CoberturaReportes({
       .then(({ data, error }) => {
         if (cancelado) return;
         if (error) setError('No se pudo cargar la cobertura. Revisa la conexión.');
-        setFilas((data as Fila[]) || []);
+        // Sin el parche nuevo la base no trae la lista de servicios.
+        setFilas(((data as Fila[]) || []).map((f) => ({ ...f, servicios: f.servicios || [] })));
         setCargando(false);
       });
     return () => { cancelado = true; };
-  }, [lunes]);
+  }, [lunes, recarga]);
 
   function vista(f: Fila): Vista {
     if (f.fecha < INICIO_COBERTURA) return 'no_cuenta';
-    if (f.fecha > hoy) return f.estado === 'reporte' || f.estado === 'justificado' || f.estado === 'no_exigible' ? f.estado : 'futuro';
+    if (f.fecha > hoy) return f.estado === 'sin_reporte' ? 'futuro' : f.estado;
     if (f.fecha === hoy && f.estado === 'sin_reporte' && minutos < HORA_CORTE_MIN) return 'a_tiempo';
     return f.estado;
   }
@@ -123,10 +138,10 @@ export default function CoberturaReportes({
   }, [filas]);
 
   const totales = useMemo(() => {
-    const t = { reporte: 0, justificado: 0, sin_reporte: 0 };
+    const t = { reporte: 0, justificado: 0, por_autorizar: 0, sin_reporte: 0 };
     for (const f of filas) {
       const v = vista(f);
-      if (v === 'reporte' || v === 'justificado' || v === 'sin_reporte') t[v]++;
+      if (v === 'reporte' || v === 'justificado' || v === 'por_autorizar' || v === 'sin_reporte') t[v]++;
     }
     return t;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -150,12 +165,33 @@ export default function CoberturaReportes({
     showToast(`Recordatorio enviado a ${f.tecnico || 'la persona'}`, 'success');
   }
 
+  // Autorizar o rechazar lo que cubre el día: la justificación que escribió
+  // el técnico o, si solo hay bitácora, una que se registra con ella.
+  async function revisar(f: Fila, aprobar: boolean) {
+    setRevisando(true);
+    try {
+      if (f.justificacion_id) {
+        await revisarJustificacion(f.justificacion_id, aprobar ? 'aprobada' : 'rechazada');
+      } else {
+        await revisarDiaBitacora({ tecnicoId: f.tecnico_id, fecha: f.fecha, actividades: f.detalle || '', aprobar });
+      }
+      showToast(aprobar ? 'Justificación autorizada' : 'Justificación rechazada: el día vuelve a pedir reporte', 'success');
+      setRecarga((n) => n + 1);
+    } catch (e: any) {
+      showToast('No se pudo guardar: ' + (e?.message || 'revisa la conexión'), 'error');
+    } finally {
+      setRevisando(false);
+    }
+  }
+
+  const fechaHora = (iso: string) => new Date(iso).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
+
   if (!lunes) return null;
 
   return (
     <div className="px-4 lg:px-0 pt-2">
       <p className="text-[13px] text-muted mb-4 leading-relaxed max-w-2xl">
-        Cada persona debe tener cubierto con un reporte o una justificación cada día hábil, y los fines de semana en que tuvo servicio programado. Los festivos no se exigen.
+        Cada persona debe tener cubierto con un reporte o una justificación cada día hábil, y los fines de semana en que tuvo servicio programado. Los festivos no se exigen. Lo que justifica el técnico (o solo su bitácora) queda «Por autorizar» hasta que un supervisor lo revise.
       </p>
 
       {/* Semana */}
@@ -176,7 +212,7 @@ export default function CoberturaReportes({
         </button>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
         <div className="rounded-2xl bg-red/10 border border-red/25 px-3 py-2.5">
           <p className="text-[22px] font-bold text-red tabular-nums leading-none">{totales.sin_reporte}</p>
           <p className="text-[11.5px] text-red/90 font-semibold mt-1">Sin reporte</p>
@@ -184,6 +220,10 @@ export default function CoberturaReportes({
         <div className="rounded-2xl bg-amber/10 border border-amber/25 px-3 py-2.5">
           <p className="text-[22px] font-bold text-amber tabular-nums leading-none">{totales.justificado}</p>
           <p className="text-[11.5px] text-amber font-semibold mt-1">Justificados</p>
+        </div>
+        <div className="rounded-2xl border-2 border-dashed border-amber/50 px-3 py-2.5">
+          <p className="text-[22px] font-bold text-amber tabular-nums leading-none">{totales.por_autorizar}</p>
+          <p className="text-[11.5px] text-amber font-semibold mt-1">Por autorizar</p>
         </div>
         <div className="rounded-2xl bg-teal/10 border border-teal/25 px-3 py-2.5">
           <p className="text-[22px] font-bold text-teal tabular-nums leading-none">{totales.reporte}</p>
@@ -248,7 +288,7 @@ export default function CoberturaReportes({
       </div>
 
       <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-3 text-[11.5px] text-muted">
-        {(['reporte', 'justificado', 'sin_reporte', 'no_exigible', 'a_tiempo'] as Vista[]).map((v) => (
+        {(['reporte', 'justificado', 'por_autorizar', 'sin_reporte', 'no_exigible', 'a_tiempo'] as Vista[]).map((v) => (
           <span key={v} className="flex items-center gap-1.5">
             <span className={`w-4 h-4 rounded border flex items-center justify-center ${ESTILO[v].cls}`} />
             {ESTILO[v].label}
@@ -271,14 +311,52 @@ export default function CoberturaReportes({
 
             {seleccion.festivo && <p className="text-[13px] mt-3">Festivo: <b>{seleccion.festivo}</b></p>}
 
-            {v === 'justificado' && (
+            {(v === 'justificado' || v === 'por_autorizar') && (
               <div className="mt-3 text-[13.5px]">
                 <p><span className="text-muted">Motivo: </span><b>{etiquetaMotivo(seleccion.motivo)}</b></p>
                 {seleccion.detalle && <p className="mt-1">{seleccion.detalle}</p>}
                 {seleccion.justificado_en && (
-                  <p className="text-[12px] text-muted mt-1">Registrado el {new Date(seleccion.justificado_en).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}</p>
+                  <p className="text-[12px] text-muted mt-1">
+                    {seleccion.justifico ? `Registrado por ${seleccion.justifico}` : 'Registrado'} el {fechaHora(seleccion.justificado_en)}
+                  </p>
+                )}
+                {seleccion.reviso && seleccion.revisado_en && seleccion.justificacion_estado === 'aprobada' && (
+                  <p className="text-[12px] text-muted mt-0.5">Autorizado por {seleccion.reviso} el {fechaHora(seleccion.revisado_en)}</p>
                 )}
               </div>
+            )}
+
+            {v === 'sin_reporte' && seleccion.justificacion_estado === 'rechazada' && (
+              <p className="mt-3 text-[13px]">
+                <span className="text-red font-semibold">Justificación rechazada</span>
+                {seleccion.reviso && seleccion.revisado_en ? ` por ${seleccion.reviso} el ${fechaHora(seleccion.revisado_en)}` : ''}
+                {seleccion.detalle ? ` · «${seleccion.detalle}»` : ''}
+              </p>
+            )}
+
+            {/* La visita sin trabajo se revisa en el propio servicio. */}
+            {v === 'por_autorizar' && seleccion.motivo === 'visita_sin_trabajo' && seleccion.servicios.length > 0 && (
+              <Link href={`/dashboard/servicios/${seleccion.servicios[0]}`} className="mt-3 inline-block text-[13.5px] font-semibold text-teal">
+                Revisar la visita en el servicio →
+              </Link>
+            )}
+            {v === 'por_autorizar' && seleccion.motivo !== 'visita_sin_trabajo' && (
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => revisar(seleccion, false)} disabled={revisando}
+                  className="min-h-[44px] rounded-xl border border-red/40 text-red text-[13.5px] font-semibold flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98]">
+                  <ThumbsDown size={16} /> Rechazar
+                </button>
+                <button type="button" onClick={() => revisar(seleccion, true)} disabled={revisando}
+                  className="min-h-[44px] rounded-xl bg-teal text-inkOnAccent text-[13.5px] font-semibold flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98]">
+                  <ThumbsUp size={16} /> Autorizar
+                </button>
+              </div>
+            )}
+
+            {v === 'sin_reporte' && seleccion.servicios.length > 0 && (
+              <Link href={`/dashboard/servicios/${seleccion.servicios[0]}`} className="mt-3 block text-[13px] font-semibold text-teal">
+                Tuvo servicio programado este día: ver servicio →
+              </Link>
             )}
 
             {seleccion.reportes.length > 0 && (

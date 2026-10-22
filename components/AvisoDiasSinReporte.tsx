@@ -108,7 +108,7 @@ export default function AvisoDiasSinReporte() {
       if (error && error.code !== '23505') throw error;
       setPendientes((prev) => prev.filter((f) => f !== justificando));
       setJustificando(null);
-      showToast('Día justificado.', 'success');
+      showToast('Justificación enviada. Tu supervisor la revisará.', 'success');
     } catch (e: any) {
       showToast('No se pudo guardar: ' + (e?.message || 'error'), 'error');
     } finally {

@@ -46,6 +46,8 @@ const ACCION_CFG: Record<AccionGlobal, { Icono: any; label: string; tono: 'teal'
   actualizo_estado_proyecto: { Icono: Pencil, label: 'Actualizó el estado de un proyecto', tono: 'amber' },
   elimino_proyecto: { Icono: Trash2, label: 'Eliminó un proyecto', tono: 'red' },
   justifico_dia: { Icono: MessageSquareWarning, label: 'Justificó un día sin reporte', tono: 'amber' },
+  autorizo_justificacion: { Icono: FileCheck, label: 'Autorizó la justificación de un día', tono: 'teal' },
+  rechazo_justificacion: { Icono: CalendarX, label: 'Rechazó la justificación de un día', tono: 'red' },
   marco_festivo: { Icono: CalendarPlus, label: 'Marcó un día festivo', tono: 'teal' },
   quito_festivo: { Icono: CalendarX, label: 'Quitó un día festivo', tono: 'red' },
   unio_clientes: { Icono: Users, label: 'Unió o dio de alta clientes', tono: 'teal' },

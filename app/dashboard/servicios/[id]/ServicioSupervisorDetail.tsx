@@ -919,6 +919,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
                       : <><Camera size={13} strokeWidth={2.6} />Evidencia</>}
                   </span>
                   <span className="text-muted"> · {fmtHora(e.created_at)}</span>
+                  {e.profiles?.full_name && <span className="text-muted"> · {e.profiles.full_name}</span>}
                   {mapsLink(e.ubicacion) && (
                     <>
                       {' · '}

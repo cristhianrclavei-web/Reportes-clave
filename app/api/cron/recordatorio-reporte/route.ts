@@ -5,7 +5,7 @@ import { horaActualMexico } from '@/lib/horaMexico';
 import { recordatorioCorte, fechaBonita } from '@/lib/solicitudesPersonal';
 import { avisarUsuarios } from '@/lib/cronPush';
 import { sumarDias } from '@/lib/fechaHoy';
-import { INICIO_COBERTURA, agruparPorTecnico, inicioVentana, mensajePendiente } from '@/lib/coberturaReportes';
+import { INICIO_COBERTURA, agruparPorTecnico, inicioVentana, mensajePendiente, fechaCorta } from '@/lib/coberturaReportes';
 import { MARCA, MARCA_MAYUS } from '@/lib/marca';
 
 export const dynamic = 'force-dynamic';
@@ -107,6 +107,54 @@ export async function POST(request: NextRequest) {
       // la vuelve a filtrar con el mismo tipo, sin efecto adicional.
       const r = await avisarUsuarios(admin, supIds, 'reportes_atrasados', carga);
       escalados = r.enviadas;
+      caducadas.push(...r.caducadas);
+    }
+  }
+
+  // Servicios de días anteriores que siguen abiertos (solo en la mañana): se
+  // inició pero nadie lo cerró. Aviso a los asignados y resumen al supervisor.
+  let serviciosAbiertos = 0;
+  let porAutorizar = 0;
+  if (momento === 'manana') {
+    const { data: abiertos, error: errAbiertos } = await admin
+      .from('servicios_programados')
+      .select('id, proyecto, fecha, servicio_tecnicos(tecnico_id)')
+      .in('estado', ['en_sitio', 'en_curso'])
+      .lt('fecha', hoy)
+      .gte('fecha', INICIO_COBERTURA);
+    if (errAbiertos) console.error('No se pudieron leer los servicios abiertos:', errAbiertos.message);
+    const listaAbiertos = (abiertos as any[]) || [];
+    serviciosAbiertos = listaAbiertos.length;
+    for (const sv of listaAbiertos) {
+      const tecnicos = ((sv.servicio_tecnicos as any[]) || []).map((t) => t.tecnico_id);
+      const carga = JSON.stringify({
+        titulo: `Servicio sin cerrar: ${sv.proyecto}`,
+        cuerpo: `Se inició el ${fechaCorta(sv.fecha)} y sigue abierto. Ciérralo y haz su reporte.`,
+        url: `/servicios/${sv.id}`,
+        tag: `servicio-abierto-${sv.id}`,
+      });
+      const r = await avisarUsuarios(admin, tecnicos, 'reporte_pendiente', carga);
+      caducadas.push(...r.caducadas);
+    }
+
+    // Días justificados por el técnico (o cubiertos solo con bitácora) que
+    // esperan la autorización del supervisor.
+    const { data: cobertura } = await admin.rpc('cobertura_dias', { p_desde: inicioVentana(hoy), p_hasta: sumarDias(hoy, -1) });
+    porAutorizar = ((cobertura as any[]) || []).filter((f) => f.estado === 'por_autorizar').length;
+
+    if (serviciosAbiertos > 0 || porAutorizar > 0) {
+      const partes: string[] = [];
+      if (serviciosAbiertos > 0) partes.push(`${serviciosAbiertos} servicio(s) de días anteriores sin cerrar`);
+      if (porAutorizar > 0) partes.push(`${porAutorizar} día(s) justificados por autorizar`);
+      const { data: sup } = await admin.rpc('destinatarios_notificacion_tipo', { p_destino: 'supervisores', p_tipo: 'reportes_atrasados' });
+      const supIds = ((sup as any[]) || []).map((r) => (typeof r === 'string' ? r : r.destinatarios_notificacion_tipo));
+      const carga = JSON.stringify({
+        titulo: 'Pendientes de revisar',
+        cuerpo: `${partes.join(' y ')}.`,
+        url: porAutorizar > 0 ? '/dashboard/reportes?sub=cobertura' : '/dashboard/reportes?sub=control',
+        tag: 'pendientes-supervisor',
+      });
+      const r = await avisarUsuarios(admin, supIds, 'reportes_atrasados', carga);
       caducadas.push(...r.caducadas);
     }
   }
@@ -218,5 +266,5 @@ export async function POST(request: NextRequest) {
     await admin.from('push_suscripciones').delete().in('endpoint', caducadas);
   }
 
-  return NextResponse.json({ enviadas, tecnicos: porTecnico.size, escalados, valesVencidos, equiposSinRegistro, horasPorAutorizar, limpiadas: caducadas.length });
+  return NextResponse.json({ enviadas, tecnicos: porTecnico.size, escalados, serviciosAbiertos, porAutorizar, valesVencidos, equiposSinRegistro, horasPorAutorizar, limpiadas: caducadas.length });
 }

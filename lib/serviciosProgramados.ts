@@ -124,6 +124,8 @@ export type Evento = {
   ubicacion: { lat: number; lng: number } | null;
   created_by: string | null;
   created_at: string;
+  // Quien lo registró (solo cuando se pide con el nombre).
+  profiles?: { full_name: string | null } | null;
 };
 
 export type Auditoria = {
@@ -748,7 +750,8 @@ export async function obtenerServicioCompleto(id: string) {
       (servicio as Servicio).grupo_id
         ? supabase.from('servicio_tareas').select('*').eq('grupo_id', (servicio as Servicio).grupo_id).order('orden')
         : supabase.from('servicio_tareas').select('*').eq('servicio_id', id).order('orden'),
-      supabase.from('servicio_eventos').select('*').eq('servicio_id', id).order('created_at', { ascending: false }),
+      // Con el nombre de quien registró cada evento, para la línea de tiempo.
+      supabase.from('servicio_eventos').select('*, profiles!servicio_eventos_created_by_fkey(full_name)').eq('servicio_id', id).order('created_at', { ascending: false }),
       supabase.from('servicio_tecnicos').select('tecnico_id, visto_en, enterado_en, profiles(full_name)').eq('servicio_id', id),
       supabase.from('servicio_auditoria').select('*, profiles(full_name)').eq('servicio_id', id).order('created_at', { ascending: false }),
     ]);

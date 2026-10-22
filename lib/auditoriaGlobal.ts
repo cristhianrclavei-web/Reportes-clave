@@ -38,6 +38,8 @@ export type AccionGlobal =
   | 'actualizo_estado_proyecto'
   | 'elimino_proyecto'
   | 'justifico_dia'
+  | 'autorizo_justificacion'
+  | 'rechazo_justificacion'
   | 'marco_festivo'
   | 'quito_festivo'
   | 'unio_clientes'

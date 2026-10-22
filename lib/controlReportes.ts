@@ -10,7 +10,7 @@ export type FilaCobertura = {
   tecnico_id: string;
   tecnico: string | null;
   fecha: string;
-  estado: 'reporte' | 'justificado' | 'sin_reporte' | 'no_exigible';
+  estado: 'reporte' | 'justificado' | 'por_autorizar' | 'sin_reporte' | 'no_exigible';
 };
 
 export type ServicioPendiente = {
@@ -79,6 +79,43 @@ export async function justificarPorTecnico(input: {
   });
   if (error) {
     if (error.code === '23505') throw new Error('Ese día ya tiene una justificación.');
+    throw error;
+  }
+}
+
+// El supervisor autoriza o rechaza la justificación que escribió el técnico.
+// La base guarda quién y cuándo, y lo manda a Eventos.
+export async function revisarJustificacion(justificacionId: string, estado: 'aprobada' | 'rechazada'): Promise<void> {
+  const { data, error } = await createClient()
+    .from('justificaciones_dia')
+    .update({ estado })
+    .eq('id', justificacionId)
+    .select('id');
+  if (error) throw error;
+  if (!data || data.length === 0) throw new Error('No se encontró la justificación. Recarga la página.');
+}
+
+// Un día cubierto solo por bitácora no tiene justificación escrita: al
+// revisarlo, el supervisor la registra con lo que dice la bitácora.
+export async function revisarDiaBitacora(input: {
+  tecnicoId: string;
+  fecha: string;
+  actividades: string;
+  aprobar: boolean;
+}): Promise<void> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No hay sesión activa');
+  const { error } = await supabase.from('justificaciones_dia').insert({
+    tecnico_id: input.tecnicoId,
+    fecha: input.fecha,
+    motivo: 'sin_servicio',
+    detalle: `Bitácora: ${input.actividades}`.slice(0, 500),
+    registrado_por: user.id,
+    estado: input.aprobar ? 'aprobada' : 'rechazada',
+  });
+  if (error) {
+    if (error.code === '23505') throw new Error('Ese día ya tiene una justificación. Recarga la página.');
     throw error;
   }
 }
