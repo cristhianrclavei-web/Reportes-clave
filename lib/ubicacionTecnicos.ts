@@ -44,9 +44,11 @@ export async function recorridoDeHoy(tecnicoId: string, desdeIso: string): Promi
   return (data || []) as PuntoRecorrido[];
 }
 
+export const FALTA_SQL_UBICACION = 'Falta correr supabase/patch_ubicacion_tecnicos.sql en la base.';
+
 function mensajeError(texto: string): string {
   if (/ultimas_ubicaciones_hoy|ubicaciones_tecnicos/.test(texto) && /does not exist|not find|schema cache/i.test(texto)) {
-    return 'Falta correr supabase/patch_ubicacion_tecnicos.sql en la base.';
+    return FALTA_SQL_UBICACION;
   }
   return 'No se pudieron cargar las ubicaciones. Revisa tu conexión e intenta de nuevo.';
 }

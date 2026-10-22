@@ -248,6 +248,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
         titulo: 'Mapa de técnicos',
         resumen: 'Servicios → Mapa: dónde está ahora cada teléfono de la empresa y su recorrido de hoy.',
         pasos: [
+          'El mismo mapa es lo primero del Resumen («Técnicos en campo»): toca a una persona en la tira de abajo para acercarte y ver su recorrido, el botón de la mira para ver a todos y «Abrir mapa» para la vista completa.',
           'Funciona con los teléfonos de la empresa que tienen instalada la app de Android de Clave. Mandan su ubicación una vez por minuto.',
           'Solo se comparte en horario de trabajo (lunes a viernes no festivos, entre la entrada y la salida de Personal → Jornadas) o mientras la persona tenga un servicio abierto. Fuera de eso la base no guarda nada.',
           'El color de cada persona dice cómo está su señal: verde, en línea; naranja, sin puntos desde hace unos minutos; gris, sin señal.',

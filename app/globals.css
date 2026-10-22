@@ -508,3 +508,12 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   .e404d-humo, .e404c-chispa { animation: none !important; opacity: 0; }
   .e404c-destello { animation: none !important; opacity: 0.6; }
 }
+
+/* Halo que late en el pin de un técnico en línea (mapa de técnicos). */
+@keyframes pulsoTecnico {
+  0% { transform: scale(0.8); opacity: 0.45; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .leaflet-marker-icon span { animation: none !important; }
+}
