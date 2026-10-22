@@ -44,6 +44,10 @@ export type Servicio = {
   // la pausa abierta se suma aparte con minutosPausadosTotales().
   pausado_desde: string | null;
   minutos_pausados: number;
+  // Quién cerró el servicio cuando el técnico lo olvidó
+  // (patch_cierre_servicio_olvidado.sql): null = lo cerró el técnico.
+  cierre_tipo?: 'supervisor' | 'automatico' | null;
+  cierre_nota?: string | null;
   // Tipo y tiempo permitido de la pausa en curso (patch_control_pausas.sql).
   pausa_tipo?: string | null;
   pausa_limite_min?: number | null;
@@ -1775,6 +1779,20 @@ export async function cerrarDiaManualmente(servicioId: string, motivo: string): 
   const cambio = `Cerró manualmente ${etiqueta}: ${motivo.trim()}`;
   await supabase.from('servicio_auditoria').insert({ servicio_id: servicioId, supervisor_id: user.id, cambio });
   await registrarAccionGlobal('cerro_dia_manual', 'servicio', servicioId, cambio);
+}
+
+// El técnico olvidó cerrar el servicio: el supervisor lo cierra con la hora
+// en que de verdad terminaron (o corrige la de un cierre automático). Lo hace
+// la base (cerrar_servicio_olvidado) para que la hora, la pausa abierta, la
+// línea de tiempo y el historial queden juntos y sin trampas.
+export async function cerrarServicioOlvidado(servicioId: string, horaFinIso: string, motivo: string): Promise<void> {
+  if (motivo.trim().length < 3) throw new Error('Escribe cómo supiste la hora de término.');
+  const { error } = await createClient().rpc('cerrar_servicio_olvidado', {
+    p_servicio: servicioId,
+    p_hora_fin: horaFinIso,
+    p_motivo: motivo.trim(),
+  });
+  if (error) throw new Error(error.message);
 }
 
 // Cierra el día como concluirServicio(), y además cancela los días

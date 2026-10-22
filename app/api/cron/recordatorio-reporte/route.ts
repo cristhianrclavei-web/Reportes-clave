@@ -111,11 +111,39 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Servicios de días anteriores que siguen abiertos (solo en la mañana): se
-  // inició pero nadie lo cerró. Aviso a los asignados y resumen al supervisor.
+  // Servicios que nadie cerró (solo en la mañana). La base los cierra con la
+  // hora de su último registro (cerrar_servicios_olvidados, también la corre
+  // pg_cron a las 00:10) para que no cuenten horas que no se trabajaron; aquí
+  // se corre por si no hay pg_cron. Lo que siga abierto (sin el parche) se
+  // le recuerda al técnico.
   let serviciosAbiertos = 0;
+  let cierresPorConfirmar = 0;
   let porAutorizar = 0;
   if (momento === 'manana') {
+    const { error: errCierre } = await admin.rpc('cerrar_servicios_olvidados');
+    if (errCierre) console.error('No se pudieron cerrar los servicios olvidados:', errCierre.message);
+
+    const { data: cerradosSolos, error: errSolos } = await admin
+      .from('servicios_programados')
+      .select('id, proyecto, fecha, hora_fin, servicio_tecnicos(tecnico_id)')
+      .eq('cierre_tipo', 'automatico')
+      .gte('fecha', inicioVentana(hoy));
+    // Sin el parche la columna no existe: se ignora.
+    const listaSolos = errSolos ? [] : ((cerradosSolos as any[]) || []);
+    cierresPorConfirmar = listaSolos.length;
+    // Al técnico, solo el día siguiente: después ya lo revisa supervisión.
+    for (const sv of listaSolos.filter((x) => x.fecha === sumarDias(hoy, -1))) {
+      const tecnicos = ((sv.servicio_tecnicos as any[]) || []).map((t) => t.tecnico_id);
+      const carga = JSON.stringify({
+        titulo: `Servicio cerrado sin ti: ${sv.proyecto}`,
+        cuerpo: 'No lo cerraste; se cerró con la hora de tu último registro. Avisa a tu supervisor a qué hora terminaste y haz el reporte.',
+        url: `/servicios/${sv.id}`,
+        tag: `servicio-cerrado-solo-${sv.id}`,
+      });
+      const r = await avisarUsuarios(admin, tecnicos, 'reporte_pendiente', carga);
+      caducadas.push(...r.caducadas);
+    }
+
     const { data: abiertos, error: errAbiertos } = await admin
       .from('servicios_programados')
       .select('id, proyecto, fecha, servicio_tecnicos(tecnico_id)')
@@ -142,16 +170,18 @@ export async function POST(request: NextRequest) {
     const { data: cobertura } = await admin.rpc('cobertura_dias', { p_desde: inicioVentana(hoy), p_hasta: sumarDias(hoy, -1) });
     porAutorizar = ((cobertura as any[]) || []).filter((f) => f.estado === 'por_autorizar').length;
 
-    if (serviciosAbiertos > 0 || porAutorizar > 0) {
+    const idsPorRevisar = [...listaSolos.map((x) => x.id), ...listaAbiertos.map((x) => x.id)];
+    if (serviciosAbiertos > 0 || cierresPorConfirmar > 0 || porAutorizar > 0) {
       const partes: string[] = [];
       if (serviciosAbiertos > 0) partes.push(`${serviciosAbiertos} servicio(s) de días anteriores sin cerrar`);
+      if (cierresPorConfirmar > 0) partes.push(`${cierresPorConfirmar} servicio(s) cerrados solos con la hora por confirmar`);
       if (porAutorizar > 0) partes.push(`${porAutorizar} día(s) justificados por autorizar`);
       const { data: sup } = await admin.rpc('destinatarios_notificacion_tipo', { p_destino: 'supervisores', p_tipo: 'reportes_atrasados' });
       const supIds = ((sup as any[]) || []).map((r) => (typeof r === 'string' ? r : r.destinatarios_notificacion_tipo));
       const carga = JSON.stringify({
         titulo: 'Pendientes de revisar',
         cuerpo: `${partes.join(' y ')}.`,
-        url: porAutorizar > 0 ? '/dashboard/reportes?sub=cobertura' : '/dashboard/reportes?sub=control',
+        url: urlPendientes(idsPorRevisar, porAutorizar),
         tag: 'pendientes-supervisor',
       });
       const r = await avisarUsuarios(admin, supIds, 'reportes_atrasados', carga);
@@ -266,5 +296,14 @@ export async function POST(request: NextRequest) {
     await admin.from('push_suscripciones').delete().in('endpoint', caducadas);
   }
 
-  return NextResponse.json({ enviadas, tecnicos: porTecnico.size, escalados, serviciosAbiertos, porAutorizar, valesVencidos, equiposSinRegistro, horasPorAutorizar, limpiadas: caducadas.length });
+  return NextResponse.json({ enviadas, tecnicos: porTecnico.size, escalados, serviciosAbiertos, cierresPorConfirmar, porAutorizar, valesVencidos, equiposSinRegistro, horasPorAutorizar, limpiadas: caducadas.length });
+}
+
+// Adónde lleva el resumen del supervisor: al servicio (o a la lista) si hay
+// cierres por revisar, si no a la cobertura (días por autorizar).
+function urlPendientes(servicioIds: string[], dias: number): string {
+  if (servicioIds.length === 1) return `/dashboard/servicios/${servicioIds[0]}`;
+  if (servicioIds.length > 1) return '/dashboard/servicios';
+  if (dias > 0) return '/dashboard/reportes?sub=cobertura';
+  return '/dashboard/reportes?sub=control';
 }

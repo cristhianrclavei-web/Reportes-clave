@@ -15,7 +15,7 @@ import Logo from '@/components/Logo';
 import {
   Servicio, Tarea, Evento, Auditoria,
   obtenerServicioCompleto, editarServicio, reasignarTecnicos, listarTecnicos, calcularEstadoTiempo, agregarDiasAGrupo, motivoNoEditable,
-  calcularProgresoTareas, eliminarProyecto, eliminarDiaDeProyecto, reprogramarDia, cerrarDiaManualmente, cancelarServicio, reactivarServicio,
+  calcularProgresoTareas, eliminarProyecto, eliminarDiaDeProyecto, reprogramarDia, cerrarDiaManualmente, cerrarServicioOlvidado, cancelarServicio, reactivarServicio,
   leerAjustesOperacion,
 } from '@/lib/serviciosProgramados';
 import ProgressBar from '@/components/ProgressBar';
@@ -103,6 +103,11 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
   const [showCerrarManual, setShowCerrarManual] = useState(false);
   const [motivoCerrar, setMotivoCerrar] = useState('');
   const [cerrandoManual, setCerrandoManual] = useState(false);
+  // Cerrar por el técnico (o corregir un cierre automático) con la hora real.
+  const [showCerrarOlvidado, setShowCerrarOlvidado] = useState(false);
+  const [horaFinOlvidado, setHoraFinOlvidado] = useState('');
+  const [motivoOlvidado, setMotivoOlvidado] = useState('');
+  const [cerrandoOlvidado, setCerrandoOlvidado] = useState(false);
   const [nuevaFecha, setNuevaFecha] = useState('');
   const [reprogramando, setReprogramando] = useState(false);
   const [showCancelar, setShowCancelar] = useState(false);
@@ -275,6 +280,58 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
     } catch (e: any) {
       avisar(e?.message || 'No se pudo eliminar el día');
       setEliminandoDia(false);
+    }
+  }
+
+  // Fecha y hora en el formato del campo datetime-local (hora del teléfono).
+  function aCampoFechaHora(iso: string): string {
+    const d = new Date(iso);
+    const dos = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}T${dos(d.getHours())}:${dos(d.getMinutes())}`;
+  }
+
+  // Propone la hora del último registro del servicio: es lo último que se
+  // sabe que estaban ahí. El supervisor la cambia si sabe la hora real.
+  function abrirCerrarOlvidado() {
+    if (!servicio) return;
+    const candidatos = [eventos[0]?.created_at, servicio.hora_fin, servicio.hora_inicio, servicio.hora_llegada].filter(Boolean) as string[];
+    // El más reciente: nunca antes de que empezara el servicio.
+    const ultimo = candidatos.sort().pop();
+    setHoraFinOlvidado(ultimo ? aCampoFechaHora(ultimo) : '');
+    setMotivoOlvidado('');
+    setShowCerrarOlvidado(true);
+  }
+
+  async function handleCerrarOlvidado() {
+    if (!servicio) return;
+    if (!horaFinOlvidado) {
+      avisar('Indica la fecha y hora en que terminaron.');
+      return;
+    }
+    const fin = new Date(horaFinOlvidado);
+    if (fin.getTime() > Date.now()) {
+      avisar('La hora de término no puede ser en el futuro.');
+      return;
+    }
+    const inicio = servicio.hora_inicio || servicio.hora_llegada;
+    if (inicio && fin.getTime() < new Date(inicio).getTime()) {
+      avisar(`La hora de término es antes del inicio (${fmtHora(inicio)}).`);
+      return;
+    }
+    if (motivoOlvidado.trim().length < 3) {
+      avisar('Escribe cómo supiste la hora (por ejemplo: «me lo confirmó por teléfono»).');
+      return;
+    }
+    setCerrandoOlvidado(true);
+    try {
+      await cerrarServicioOlvidado(servicio.id, fin.toISOString(), motivoOlvidado);
+      showToast('Servicio cerrado con la hora indicada', 'success');
+      setShowCerrarOlvidado(false);
+      await cargar();
+    } catch (e: any) {
+      avisar(e?.message || 'No se pudo cerrar el servicio. Revisa la conexión.');
+    } finally {
+      setCerrandoOlvidado(false);
     }
   }
 
@@ -658,10 +715,40 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
             )
           )}
 
+          {/* El técnico olvidó cerrar: el supervisor lo cierra con la hora
+              real para que la duración no cuente horas que no se trabajaron. */}
+          {(servicio.estado === 'en_sitio' || servicio.estado === 'en_curso') && (
+            <button
+              onClick={abrirCerrarOlvidado}
+              className="inline-flex items-center gap-1.5 mt-3 mr-2 px-3.5 min-h-[40px] rounded-full border text-[13.5px] font-semibold border-teal/40 bg-teal/10 text-teal hover:bg-teal/20"
+            >
+              <Clock size={16} strokeWidth={2.4} />
+              Cerrar por el técnico
+            </button>
+          )}
+
+          {/* Se cerró solo en la noche con la hora del último registro. */}
+          {servicio.estado === 'concluido' && servicio.cierre_tipo === 'automatico' && (
+            <div className="mt-3 p-3.5 rounded-xl bg-amber/10 border border-amber/35">
+              <p className="text-[13.5px] font-semibold text-amber flex items-center gap-1.5">
+                <AlertTriangle size={15} strokeWidth={2.4} /> Se cerró solo: nadie lo cerró
+              </p>
+              <p className="text-[12.5px] text-ink/80 mt-1 leading-relaxed">
+                Se tomó como término el último registro{servicio.hora_fin ? ` (${fmtHora(servicio.hora_fin)})` : ''}. Confírmala o corrígela con la hora en que de verdad terminaron.
+              </p>
+              <button onClick={abrirCerrarOlvidado} className="mt-2 text-[13.5px] font-semibold text-teal min-h-[40px]">
+                Confirmar o corregir la hora →
+              </button>
+            </div>
+          )}
+          {servicio.estado === 'concluido' && servicio.cierre_tipo === 'supervisor' && servicio.cierre_nota && (
+            <p className="mt-3 text-[12.5px] text-muted">Cerrado por supervisión: {servicio.cierre_nota}</p>
+          )}
+
           {/* El técnico no marcó llegada/inicio a tiempo pero el reporte ya
               existe y está vinculado — la ventana de fecha ya no lo deja
               cerrarlo él mismo. Esta es la salida manual para ese caso. */}
-          {servicio.estado !== 'concluido' && servicio.report_id && (
+          {servicio.estado === 'programado' && servicio.report_id && (
             <button
               onClick={() => { setShowCerrarManual(true); setMotivoCerrar(''); }}
               className="text-teal text-[14px] font-medium mt-3 min-h-[44px] flex items-center gap-1.5"
@@ -1063,6 +1150,58 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
                 className="flex-1 min-h-[48px] rounded-xl bg-teal text-inkOnAccent text-[14.5px] font-semibold disabled:opacity-50"
               >
                 {cerrandoManual ? 'Cerrando...' : 'Cerrar el día'}
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
+
+      {showCerrarOlvidado && servicio && (
+        <ModalOverlay onClose={() => !cerrandoOlvidado && setShowCerrarOlvidado(false)}>
+          <div className="glass-strong rounded-3xl max-w-md w-full p-5 max-h-[92vh] overflow-y-auto">
+            <p className="font-display font-semibold text-[16px] mb-1">
+              {servicio.estado === 'concluido' ? 'Confirmar la hora de término' : 'Cerrar por el técnico'}
+            </p>
+            <p className="text-[13px] text-muted mb-3.5 leading-relaxed">
+              Pon la hora en que de verdad terminaron, no la de ahora: así la duración del servicio no cuenta horas que no se trabajaron.
+              Ya está puesta la hora del último registro. Queda en la línea de tiempo y en el historial con tu nombre.
+            </p>
+            {servicio.pausado_desde && servicio.estado !== 'concluido' && (
+              <p className="text-[12.5px] text-amber mb-3 leading-relaxed">
+                Estaba en pausa desde las {fmtHora(servicio.pausado_desde)}. La pausa cuenta hasta su tiempo permitido; después se toma como trabajo.
+              </p>
+            )}
+
+            <label className="text-[13px] text-ink/75 block mb-1.5">¿A qué hora terminaron?</label>
+            <input
+              type="datetime-local"
+              value={horaFinOlvidado}
+              onChange={(e) => setHoraFinOlvidado(e.target.value)}
+              className="w-full px-3 min-h-[46px] mb-3 rounded-lg bg-surface border border-line text-[14.5px]"
+            />
+
+            <label className="text-[13px] text-ink/75 block mb-1.5">¿Cómo lo supiste?</label>
+            <textarea
+              value={motivoOlvidado}
+              onChange={(e) => setMotivoOlvidado(e.target.value)}
+              placeholder="Me lo confirmó por teléfono; salieron del sitio a las 5…"
+              className="w-full px-3 py-2.5 mb-4 rounded-xl bg-surface border border-line focus:border-teal focus:outline-none text-[14px] min-h-[80px]"
+            />
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowCerrarOlvidado(false)}
+                disabled={cerrandoOlvidado}
+                className="flex-1 min-h-[48px] rounded-xl border border-line-strong text-ink/80 text-[14.5px] font-medium"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleCerrarOlvidado}
+                disabled={cerrandoOlvidado || !horaFinOlvidado || motivoOlvidado.trim().length < 3}
+                className="flex-1 min-h-[48px] rounded-xl bg-teal text-inkOnAccent text-[14.5px] font-semibold disabled:opacity-50"
+              >
+                {cerrandoOlvidado ? 'Guardando...' : servicio.estado === 'concluido' ? 'Guardar hora' : 'Cerrar servicio'}
               </button>
             </div>
           </div>

@@ -1287,6 +1287,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
                                 {ESTADO_CFG[d.estado].label}
                               </span>
                               {d.report_id && <span className="text-[12px] font-semibold px-2.5 py-1 rounded-full bg-teal/15 text-teal flex items-center gap-1.5"><FileText size={12} strokeWidth={2.6} />Con reporte</span>}
+                              {d.cierre_tipo === 'automatico' && <span className="text-[12px] font-semibold px-2.5 py-1 rounded-full bg-amber/15 text-amber flex items-center gap-1.5"><AlertTriangle size={12} strokeWidth={2.6} />Cierre por confirmar</span>}
                               {et.tipo === 'retraso' && <span className="text-[12px] font-semibold px-2.5 py-1 rounded-full bg-red/15 text-red flex items-center gap-1.5"><AlertTriangle size={12} strokeWidth={2.6} />{et.minutos} min</span>}
                               {et.tipo === 'excedido' && <span className="text-[12px] font-semibold px-2.5 py-1 rounded-full bg-amber/15 text-amber flex items-center gap-1.5"><Timer size={12} strokeWidth={2.6} />Excedido</span>}
                             </div>
