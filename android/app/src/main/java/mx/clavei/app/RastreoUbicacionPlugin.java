@@ -3,6 +3,8 @@ package mx.clavei.app;
 import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.PowerManager;
@@ -26,6 +28,7 @@ import com.getcapacitor.annotation.PermissionCallback;
 //     llave de rastreo de quien tiene la sesión (llave null = nadie: GPS
 //     apagado). Desde ahí el servicio trabaja solo, sin la página.
 //   · abrirAjustes: abre los ajustes de la app para dar el permiso.
+//   · info: versión del APK y del teléfono.
 @CapacitorPlugin(
     name = "RastreoUbicacion",
     permissions = {
@@ -73,6 +76,22 @@ public class RastreoUbicacionPlugin extends Plugin {
             // Android no deja arrancar el servicio con la app en segundo plano:
             // se reintenta la próxima vez que se abra.
             call.reject("No se pudo arrancar el rastreo: " + e.getMessage(), "SERVICIO");
+        }
+    }
+
+    // Versión instalada del APK, para «Acerca de esta app» en Mi perfil.
+    @PluginMethod
+    public void info(PluginCall call) {
+        try {
+            PackageInfo paquete = getContext().getPackageManager().getPackageInfo(getContext().getPackageName(), 0);
+            JSObject datos = new JSObject();
+            datos.put("version", paquete.versionName);
+            datos.put("compilacion", Build.VERSION.SDK_INT >= Build.VERSION_CODES.P ? paquete.getLongVersionCode() : paquete.versionCode);
+            datos.put("android", Build.VERSION.RELEASE);
+            datos.put("modelo", Build.MANUFACTURER + " " + Build.MODEL);
+            call.resolve(datos);
+        } catch (PackageManager.NameNotFoundException e) {
+            call.reject("No se pudo leer la versión", e);
         }
     }
 

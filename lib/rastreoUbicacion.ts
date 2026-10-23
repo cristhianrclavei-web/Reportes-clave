@@ -15,7 +15,21 @@ const RastreoNativo = registerPlugin<{
   preparar(): Promise<{ permiso: boolean }>;
   configurar(opciones: { url: string; apikey: string; usuario: string | null; llave: string | null }): Promise<void>;
   abrirAjustes(): Promise<void>;
+  info(): Promise<InfoApk>;
 }>('RastreoUbicacion');
+
+export type InfoApk = { version: string; compilacion: number; android: string; modelo: string };
+
+// Versión del APK instalado; null en el navegador o con la app 1.4 o anterior
+// (no traen este método).
+export async function infoApk(): Promise<InfoApk | null> {
+  if (!esAppAndroid()) return null;
+  try {
+    return await RastreoNativo.info();
+  } catch {
+    return null;
+  }
+}
 
 const REINTENTAR_MS = 60 * 1000;
 

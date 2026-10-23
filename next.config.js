@@ -55,6 +55,13 @@ function direccionesLocales() {
 const nextConfig = {
   reactStrictMode: true,
 
+  // Versión de la parte web para «Acerca de esta app» (Mi perfil): el
+  // commit que publicó Vercel y la fecha de la publicación.
+  env: {
+    NEXT_PUBLIC_VERSION_WEB: (process.env.VERCEL_GIT_COMMIT_SHA || 'local').slice(0, 7),
+    NEXT_PUBLIC_FECHA_PUBLICACION: new Date().toISOString(),
+  },
+
   // Sin esto, "next dev" bloquea las peticiones a /_next/* (el bundle de
   // JS, HMR, fuentes) cuando la app se abre desde otra IP de la red local
   // -por ejemplo un celular probando contra la compu-. React nunca hidrata

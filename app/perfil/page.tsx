@@ -12,6 +12,7 @@ import Logo from '@/components/Logo';
 import PanelSupervisor from '@/components/PanelSupervisor';
 import { ChevronLeft, ChevronRight, BadgeCheck, UserCog, BookOpen } from 'lucide-react';
 import UsoAsistente from '@/components/UsoAsistente';
+import InfoApp from '@/components/InfoApp';
 import { DEMO } from '@/lib/marca';
 
 export const dynamic = 'force-dynamic';
@@ -82,7 +83,11 @@ export default async function PerfilPage() {
       </div>
 
       <div className={`px-4 pt-5 ${esSupervisor ? 'lg:px-0 lg:pt-8' : ''}`}>
-        <h1 className={`font-display font-bold text-2xl tracking-wide mb-1.5 ${esSupervisor ? 'lg:text-[34px] lg:leading-tight' : 'lg:text-3xl'}`}>Mi perfil</h1>
+        <div className="flex items-center justify-between gap-3 mb-1.5">
+          <h1 className={`font-display font-bold text-2xl tracking-wide ${esSupervisor ? 'lg:text-[34px] lg:leading-tight' : 'lg:text-3xl'}`}>Mi perfil</h1>
+          {/* Si es la app de Android, la instalada o el navegador, y qué versión. */}
+          <InfoApp nombre={profile.full_name || ''} esSupervisor={esSupervisor} />
+        </div>
         <p className="text-[15px] text-muted font-medium mb-5">Cómo te ven los demás, tus datos de contacto y tu cuenta</p>
 
         {/* Las secciones que no son del formulario de perfil van dentro, al

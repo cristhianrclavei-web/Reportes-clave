@@ -184,7 +184,7 @@ export const MANUAL_TECNICO: SeccionManual[] = [
       {
         titulo: 'Tu perfil',
         resumen: 'Foto o avatar, puesto, especialidades y datos de emergencia.',
-        pasos: ['Toca tu nombre o tus iniciales arriba para abrir «Mi perfil».', 'Cambia lo que necesites y toca «Guardar perfil».'],
+        pasos: ['Toca tu nombre o tus iniciales arriba para abrir «Mi perfil».', 'Cambia lo que necesites y toca «Guardar perfil».', 'El botón ⓘ junto a «Mi perfil» dice si estás en la app de Android, en la app instalada desde el navegador o en el navegador, con qué cuenta y qué versión.'],
       },
       {
         titulo: 'Notificaciones',
