@@ -2,47 +2,29 @@
 
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { createClient } from './supabaseClient';
-import { PuntoUbicacion, agregarACola, leerCola, loteDe, quitarEnviados, tocaGuardar } from './rastreoCola';
 
 // Rastreo de los teléfonos de la empresa. Solo funciona dentro de la app de
-// Android de Clave (en el navegador no hace nada). Cada pocos minutos
-// pregunta a la base si es horario de trabajo (rastreo_activo_ahora): si sí,
-// prende el GPS y guarda un punto por minuto; si no, lo apaga. Los puntos se
-// juntan en el teléfono y se mandan a la base; sin señal esperan en la cola.
-// Ver supabase/patch_ubicacion_tecnicos.sql y android/.
-
-// Lo que manda el plugin por su vía abierta: primero «listo» (o el error
-// de permiso) y después cada ubicación.
-type Mensaje = {
-  listo?: boolean;
-  error?: string;
-  latitude?: number;
-  longitude?: number;
-  accuracy?: number | null;
-  speed?: number | null;
-  time?: number | null;
-};
+// Android de Clave (en el navegador no hace nada). La página solo pide los
+// permisos y le pasa al servicio nativo la «llave de rastreo» de quien tiene
+// la sesión; el servicio prende el GPS en horario, guarda un punto por
+// minuto y los manda él solo a la base, aunque la pantalla esté apagada.
+// Ver supabase/patch_rastreo_llave_telefono.sql y android/.
 
 // Plugin nativo propio (android/app/src/main/java/mx/clavei/app/RastreoUbicacionPlugin.java).
 const RastreoNativo = registerPlugin<{
-  preparar(opciones: Record<string, never>, alRecibir: (m?: Mensaje, e?: unknown) => void): Promise<string>;
-  gps(opciones: { activo: boolean }): Promise<void>;
+  preparar(): Promise<{ permiso: boolean }>;
+  configurar(opciones: { url: string; apikey: string; usuario: string | null; llave: string | null }): Promise<void>;
   abrirAjustes(): Promise<void>;
 }>('RastreoUbicacion');
 
-const CLAVE_COLA = 'ubicacionesPendientes';
-const REVISAR_HORARIO_MS = 3 * 60 * 1000;
-const ENVIAR_CADA_MS = 60 * 1000;
+const REINTENTAR_MS = 60 * 1000;
 
 let iniciado = false;
-let preparado = false;
-let gpsPrendido: boolean | null = null;
-let ultimoGuardadoMs: number | null = null;
-let ultimoEnvioMs = 0;
-let enviando = false;
-let alFaltarPermiso: (() => void) | null = null;
-// Quién tiene la sesión abierta en el teléfono (null = nadie).
-let usuarioActual: string | null = null;
+// Para quién se está configurando el servicio (undefined = nadie todavía).
+// Se marca antes de esperar a la base: Supabase avisa dos veces seguidas al
+// abrir y no deben salir dos llaves.
+let usuarioPedido: string | null | undefined;
+let reintento: ReturnType<typeof setTimeout> | null = null;
 
 export function esAppAndroid(): boolean {
   return Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
@@ -53,124 +35,58 @@ export function abrirAjustesDeUbicacion(): void {
 }
 
 // Se llama una vez al abrir la app. `faltaPermiso` avisa a la pantalla para
-// que muestre cómo dar el permiso de ubicación «todo el tiempo».
-export function iniciarRastreo(faltaPermiso: () => void): void {
+// que muestre cómo dar el permiso de ubicación.
+export async function iniciarRastreo(faltaPermiso: () => void): Promise<void> {
   if (iniciado || !esAppAndroid()) return;
   iniciado = true;
-  alFaltarPermiso = faltaPermiso;
-  // Al abrir la app (en primer plano) se arranca el servicio: Android no
-  // deja hacerlo después desde segundo plano.
-  RastreoNativo.preparar({}, alRecibirMensaje).catch((e) => console.error('Rastreo: no se pudo preparar', e));
-  setInterval(revisarHorario, REVISAR_HORARIO_MS);
-  // Al entrar o salir de una cuenta se revisa en ese momento, no a los 3 min.
-  createClient().auth.onAuthStateChange((evento, sesion) => {
-    const nuevo = sesion?.user.id ?? null;
-    if (nuevo === usuarioActual) return;
-    usuarioActual = nuevo;
-    ultimoGuardadoMs = null;
-    revisarHorario();
+  try {
+    const { permiso } = await RastreoNativo.preparar();
+    if (!permiso) {
+      faltaPermiso();
+      return;
+    }
+  } catch (e) {
+    console.error('Rastreo: no se pudo preparar', e);
+    return;
+  }
+  // Al abrir la app y al entrar o salir de una cuenta.
+  createClient().auth.onAuthStateChange((_evento, sesion) => {
+    const usuario = sesion?.user.id ?? null;
+    if (usuario === usuarioPedido) return;
+    usuarioPedido = usuario;
+    configurarServicio(usuario);
   });
 }
 
-async function revisarHorario() {
-  const supabase = createClient();
-  const { data: { session } } = await supabase.auth.getSession();
-  usuarioActual = session?.user.id ?? null;
-  if (!session) {
-    await cambiarGps(false);
-    return;
-  }
-  const { data, error } = await supabase.rpc('rastreo_activo_ahora');
-  if (error) {
-    // Sin señal no se sabe: se deja como está y se reintenta al rato.
-    console.error('Rastreo: no se pudo revisar el horario', error.message);
-    return;
-  }
-  await cambiarGps(data === true);
-  enviarPendientes();
-}
+async function configurarServicio(usuario: string | null) {
+  if (reintento) clearTimeout(reintento);
+  reintento = null;
+  // Si mientras tanto entró otra cuenta, esta ya no cuenta.
+  if (usuario !== usuarioPedido) return;
 
-async function cambiarGps(activo: boolean) {
-  if (!preparado || gpsPrendido === activo) return;
-  try {
-    await RastreoNativo.gps({ activo });
-    gpsPrendido = activo;
-  } catch (e) {
-    console.error('Rastreo: no se pudo cambiar el GPS', e);
-  }
-}
-
-function alRecibirMensaje(m?: Mensaje, e?: unknown) {
-  if (e) {
-    console.error('Rastreo: error del GPS', e);
-    return;
-  }
-  if (!m) return;
-  if (m.error === 'NOT_AUTHORIZED') {
-    alFaltarPermiso?.();
-    return;
-  }
-  if (m.listo) {
-    preparado = true;
-    revisarHorario();
-    return;
-  }
-  if (typeof m.latitude !== 'number' || typeof m.longitude !== 'number') return;
-  guardarUbicacion(m.latitude, m.longitude, m.accuracy ?? null, m.speed ?? null, m.time ?? null);
-}
-
-function guardarUbicacion(lat: number, lng: number, precision: number | null, velocidad: number | null, tiempo: number | null) {
-  // Sin sesión no hay a nombre de quién guardar el punto.
-  if (!usuarioActual) return;
-  const momento = tiempo || Date.now();
-  if (!tocaGuardar(ultimoGuardadoMs, momento)) return;
-  ultimoGuardadoMs = momento;
-
-  const punto: PuntoUbicacion = {
-    usuario: usuarioActual,
-    registrado_en: new Date(momento).toISOString(),
-    lat,
-    lng,
-    precision_m: precision === null ? null : Math.round(precision),
-    velocidad_ms: velocidad,
-  };
-  guardarCola(agregarACola(leerColaGuardada(), punto));
-  if (Date.now() - ultimoEnvioMs >= ENVIAR_CADA_MS) enviarPendientes();
-}
-
-// Manda lo pendiente. Solo se quita de la cola lo que la base confirmó.
-async function enviarPendientes() {
-  if (enviando || !usuarioActual) return;
-  // Solo los puntos de quien tiene la sesión: la base los guarda a su nombre.
-  const lote = loteDe(leerColaGuardada(), usuarioActual);
-  if (lote.length === 0) return;
-  enviando = true;
-  ultimoEnvioMs = Date.now();
-  try {
-    const { error } = await createClient().rpc('registrar_ubicaciones', { p_puntos: lote });
-    if (error) {
-      console.error('Rastreo: no se pudieron mandar los puntos', error.message);
+  let llave: string | null = null;
+  if (usuario) {
+    const { data, error } = await createClient().rpc('crear_llave_rastreo');
+    if (error || typeof data !== 'string') {
+      // Sin señal (o falta el SQL): el servicio sigue con la llave que ya
+      // tenía y se vuelve a intentar al rato.
+      console.error('Rastreo: no se pudo crear la llave', error?.message);
+      reintento = setTimeout(() => configurarServicio(usuario), REINTENTAR_MS);
       return;
     }
-    // Lo que llegó mientras se enviaba se queda.
-    guardarCola(quitarEnviados(leerColaGuardada(), lote));
-  } finally {
-    enviando = false;
+    llave = data;
   }
-}
+  if (usuario !== usuarioPedido) return;
 
-function leerColaGuardada(): PuntoUbicacion[] {
   try {
-    return leerCola(localStorage.getItem(CLAVE_COLA));
-  } catch {
-    return [];
-  }
-}
-
-function guardarCola(cola: PuntoUbicacion[]) {
-  try {
-    localStorage.setItem(CLAVE_COLA, JSON.stringify(cola));
+    await RastreoNativo.configurar({
+      url: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      usuario,
+      llave,
+    });
   } catch (e) {
-    console.error('Rastreo: no se pudo guardar la cola', e);
+    // Con la versión 1.1 de la app no existe «configurar»: hay que instalar la nueva.
+    console.error('Rastreo: no se pudo configurar el servicio', e);
   }
 }

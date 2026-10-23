@@ -3,7 +3,6 @@ package mx.clavei.app;
 import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
-import android.location.Location;
 import android.net.Uri;
 import android.os.Build;
 import android.os.PowerManager;
@@ -21,10 +20,11 @@ import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
 
 // Puente entre la app web (lib/rastreoUbicacion.ts) y RastreoServicio.
-//   · preparar: pide los permisos, arranca el servicio (con el GPS apagado)
-//     y deja abierta la vía por la que llegan las ubicaciones. Se llama al
-//     abrir la app, que es cuando Android deja arrancar el servicio.
-//   · gps({ activo }): prende o apaga el GPS según el horario de trabajo.
+//   · preparar: pide los permisos y avisa si falta el de ubicación. Se llama
+//     al abrir la app, que es cuando Android deja pedirlos.
+//   · configurar({ url, apikey, usuario, llave }): arranca el servicio con la
+//     llave de rastreo de quien tiene la sesión (llave null = nadie: GPS
+//     apagado). Desde ahí el servicio trabaja solo, sin la página.
 //   · abrirAjustes: abre los ajustes de la app para dar el permiso.
 @CapacitorPlugin(
     name = "RastreoUbicacion",
@@ -35,62 +35,44 @@ import com.getcapacitor.annotation.PermissionCallback;
 )
 public class RastreoUbicacionPlugin extends Plugin {
 
-    private PluginCall llamadaAbierta;
-
-    @PluginMethod(returnType = PluginMethod.RETURN_CALLBACK)
+    @PluginMethod
     public void preparar(PluginCall call) {
-        call.setKeepAlive(true);
-        if (llamadaAbierta != null) llamadaAbierta.release(getBridge());
-        llamadaAbierta = call;
         if (getPermissionState("ubicacion") != PermissionState.GRANTED) {
             requestPermissionForAliases(new String[] { "ubicacion", "avisos" }, call, "alResponderPermisos");
             return;
         }
-        arrancar(call);
+        alResponderPermisos(call);
     }
 
     @PermissionCallback
     private void alResponderPermisos(PluginCall call) {
-        if (getPermissionState("ubicacion") != PermissionState.GRANTED) {
-            JSObject error = new JSObject();
-            error.put("error", "NOT_AUTHORIZED");
-            call.resolve(error);
-            return;
-        }
-        arrancar(call);
-    }
-
-    private void arrancar(PluginCall call) {
-        RastreoServicio.receptor = (Location u) -> {
-            JSObject datos = new JSObject();
-            datos.put("latitude", u.getLatitude());
-            datos.put("longitude", u.getLongitude());
-            datos.put("accuracy", u.hasAccuracy() ? u.getAccuracy() : null);
-            datos.put("speed", u.hasSpeed() ? u.getSpeed() : null);
-            datos.put("time", u.getTime());
-            if (llamadaAbierta != null) llamadaAbierta.resolve(datos);
-        };
-        enviarAlServicio(false);
-        pedirSinAhorroDeBateria();
-        JSObject listo = new JSObject();
-        listo.put("listo", true);
-        call.resolve(listo);
+        boolean permiso = getPermissionState("ubicacion") == PermissionState.GRANTED;
+        if (permiso) pedirSinAhorroDeBateria();
+        JSObject respuesta = new JSObject();
+        respuesta.put("permiso", permiso);
+        call.resolve(respuesta);
     }
 
     @PluginMethod
-    public void gps(PluginCall call) {
-        boolean activo = Boolean.TRUE.equals(call.getBoolean("activo", false));
+    public void configurar(PluginCall call) {
+        // Sin el permiso, Android cierra la app al arrancar el servicio.
         if (getPermissionState("ubicacion") != PermissionState.GRANTED) {
             call.reject("Falta el permiso de ubicación", "NOT_AUTHORIZED");
             return;
         }
+        Intent intento = new Intent(getContext(), RastreoServicio.class);
+        intento.putExtra(RastreoServicio.EXTRA_CONFIGURAR, true);
+        intento.putExtra(RastreoServicio.EXTRA_URL, call.getString("url"));
+        intento.putExtra(RastreoServicio.EXTRA_APIKEY, call.getString("apikey"));
+        intento.putExtra(RastreoServicio.EXTRA_USUARIO, call.getString("usuario"));
+        intento.putExtra(RastreoServicio.EXTRA_LLAVE, call.getString("llave"));
         try {
-            enviarAlServicio(activo);
+            ContextCompat.startForegroundService(getContext(), intento);
             call.resolve();
         } catch (Exception e) {
             // Android no deja arrancar el servicio con la app en segundo plano:
             // se reintenta la próxima vez que se abra.
-            call.reject("No se pudo cambiar el GPS: " + e.getMessage(), "SERVICIO");
+            call.reject("No se pudo arrancar el rastreo: " + e.getMessage(), "SERVICIO");
         }
     }
 
@@ -101,12 +83,6 @@ public class RastreoUbicacionPlugin extends Plugin {
         intento.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         getContext().startActivity(intento);
         call.resolve();
-    }
-
-    private void enviarAlServicio(boolean activo) {
-        Intent intento = new Intent(getContext(), RastreoServicio.class);
-        intento.putExtra(RastreoServicio.EXTRA_ACTIVO, activo);
-        ContextCompat.startForegroundService(getContext(), intento);
     }
 
     // Sin esto, el ahorro de batería de Android duerme la app y deja de
