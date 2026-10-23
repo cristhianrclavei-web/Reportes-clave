@@ -168,7 +168,7 @@ export function modoIvaDe(cot: { iva_pct: number; iva_incluido?: boolean }): Mod
 export function leyendaIva(moneda: MonedaCotizacion, modo: ModoIva, totalNeto = false): string {
   const nombreMoneda = moneda === 'USD' ? 'Dólares Americanos (USD)' : 'Moneda Nacional';
   if (modo === 'incluido' && totalNeto) {
-    return `Los precios se expresan en ${nombreMoneda}. El importe total neto es la cantidad final a pagar: ya incluye el IVA y no se le agregará ningún impuesto ni cargo adicional.`;
+    return `Los precios se expresan en ${nombreMoneda}. El importe total neto es la cantidad final a pagar e incluye IVA.`;
   }
   if (modo === 'incluido') return `Los precios se expresan en ${nombreMoneda}, con IVA incluido.`;
   if (modo === 'sin') return `Los precios se expresan en ${nombreMoneda}. Esta cotización no lleva IVA.`;
