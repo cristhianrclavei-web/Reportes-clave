@@ -35,7 +35,7 @@
         </provider>
 
         <!-- Rastreo en horario de trabajo (RastreoServicio.java) -->
-        <!-- Ícono y color de las notificaciones de Firebase (lib/pushNativo.ts). -->
+        <!-- Ícono y color de las notificaciones de Firebase (lib/pushNativo.ts): la misma silueta del logo que usa el navegador (public/icons/badge-96.png). -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@drawable/ic_aviso" />
