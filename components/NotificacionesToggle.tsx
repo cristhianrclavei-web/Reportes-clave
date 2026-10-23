@@ -10,6 +10,7 @@ import {
 } from '@/lib/push';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { showToast } from '@/components/Toast';
+import { esAppAndroid } from '@/lib/rastreoUbicacion';
 
 const CLAVE_POSPUESTO = 'notificaciones-pospuesto';
 
@@ -23,6 +24,9 @@ export default function NotificacionesToggle({ esTecnico = false }: { esTecnico?
   const [cargando, setCargando] = useState(true);
   const [bloqueado, setBloqueado] = useState(false);
   const [pospuesto, setPospuesto] = useState(false);
+  // En la app de Android los avisos van por Firebase y se activan solos al
+  // entrar (lib/pushNativo.ts): solo se muestra la lista de qué avisos recibir.
+  const [enApp, setEnApp] = useState(false);
 
   useEffect(() => {
     // «Ahora no»: la invitación se guarda una semana y luego vuelve.
@@ -30,6 +34,13 @@ export default function NotificacionesToggle({ esTecnico = false }: { esTecnico?
       const t = Number(localStorage.getItem(CLAVE_POSPUESTO));
       if (t && Date.now() - t < 7 * 24 * 60 * 60 * 1000) setPospuesto(true);
     } catch { /* sin almacenamiento */ }
+    if (esAppAndroid()) {
+      setEnApp(true);
+      setActivas(true);
+      setCargando(false);
+      leerPreferencias().then(setPrefs).catch(() => {});
+      return;
+    }
     if (!pushSoportado()) {
       setCargando(false);
       return;
@@ -55,7 +66,7 @@ export default function NotificacionesToggle({ esTecnico = false }: { esTecnico?
   // Al técnico solo le sirven los avisos dirigidos a él.
   const tiposVisibles = TIPOS_AVISO.filter((t) => (esTecnico ? t.paraTecnico : !t.paraTecnico));
 
-  if (!pushSoportado() || cargando) return null;
+  if ((!pushSoportado() && !enApp) || cargando) return null;
 
   async function alternar() {
     setCargando(true);
@@ -122,13 +133,16 @@ export default function NotificacionesToggle({ esTecnico = false }: { esTecnico?
                 </span>
               </label>
             ))}
-            <button
-              onClick={alternar}
-              disabled={cargando}
-              className="mt-3 min-h-[42px] rounded-xl border border-line-strong text-[13px] font-medium text-ink/80 disabled:opacity-60"
-            >
-              Desactivar en este dispositivo
-            </button>
+            {/* En la app se dan de baja solas al cerrar sesión. */}
+            {!enApp && (
+              <button
+                onClick={alternar}
+                disabled={cargando}
+                className="mt-3 min-h-[42px] rounded-xl border border-line-strong text-[13px] font-medium text-ink/80 disabled:opacity-60"
+              >
+                Desactivar en este dispositivo
+              </button>
+            )}
           </div>
         )}
       </div>

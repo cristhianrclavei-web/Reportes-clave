@@ -189,7 +189,7 @@ export const MANUAL_TECNICO: SeccionManual[] = [
       {
         titulo: 'Notificaciones',
         resumen: 'Avisos en el teléfono aunque la app esté cerrada.',
-        pasos: ['Toca «Activar» en el aviso de notificaciones y acepta el permiso del navegador.', 'En iPhone primero hay que agregar la app a la pantalla de inicio.'],
+        pasos: ['Toca «Activar» en el aviso de notificaciones y acepta el permiso del navegador.', 'En iPhone primero hay que agregar la app a la pantalla de inicio.', 'En la app de Android de Clave se activan solas al entrar; toca «Ajustar» para elegir qué avisos recibir.'],
       },
       {
         titulo: 'Instalar la app en el teléfono',
@@ -250,6 +250,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
         pasos: [
           'El mismo mapa es lo primero del Resumen («Técnicos en campo»): toca a una persona en la tira de abajo para acercarte y ver su recorrido, el botón de la mira para ver a todos y «Abrir mapa» para la vista completa.',
           'Funciona con los teléfonos de la empresa que tienen instalada la app de Android de Clave. Mandan su ubicación una vez por minuto.',
+          'Solo aparece el personal de campo: las cuentas de supervisión no comparten su ubicación.',
           'Solo se comparte en horario de trabajo (lunes a viernes no festivos, entre la entrada y la salida de Personal → Jornadas) o mientras la persona tenga un servicio abierto. Fuera de eso la base no guarda nada.',
           'El color de cada persona dice cómo está su señal: verde, en línea; naranja, sin puntos desde hace unos minutos; gris, sin señal.',
           'Toca a una persona en la lista o en el mapa para ver su recorrido de hoy.',
