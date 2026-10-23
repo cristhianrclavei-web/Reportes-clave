@@ -3,15 +3,18 @@
 import { useEffect, useState } from 'react';
 import { MapPinOff } from 'lucide-react';
 import { abrirAjustesDeUbicacion, iniciarRastreo } from '@/lib/rastreoUbicacion';
+import { iniciarAvisosNativos } from '@/lib/pushNativo';
 
 // Arranca el rastreo en la app de Android de Clave (en el navegador no hace
-// nada). Si el teléfono no dio el permiso de ubicación, muestra un aviso
+// nada), y sus notificaciones. Si el teléfono no dio el permiso de ubicación, muestra un aviso
 // fijo con el botón para abrir los ajustes.
 export default function RastreoUbicacion() {
   const [faltaPermiso, setFaltaPermiso] = useState(false);
 
   useEffect(() => {
     iniciarRastreo(() => setFaltaPermiso(true));
+    // Las notificaciones de la app de Android también arrancan aquí.
+    iniciarAvisosNativos();
   }, []);
 
   if (!faltaPermiso) return null;

@@ -1,6 +1,7 @@
 import webpush from 'web-push';
 import { createAdminClient, hayClienteAdmin } from './supabaseAdmin';
 import { MARCA } from './marca';
+import { PREFIJO_FCM, enviarFcm, leerCuentaServicio } from './fcmServidor';
 
 // La dirección que abre un aviso al tocarlo solo puede ser una pantalla de
 // la app. Sin esto, cualquier cuenta podía mandar a los supervisores un aviso
@@ -46,8 +47,21 @@ export async function enviarPush(
   let enviadas = 0;
   const caducadas: string[] = [];
 
+  const cuentaFirebase = leerCuentaServicio();
+
   await Promise.all(
     suscripciones.map(async (s) => {
+      // Teléfonos con la app de Android: van por Firebase (lib/fcmServidor.ts).
+      if (s.endpoint.startsWith(PREFIJO_FCM)) {
+        if (!cuentaFirebase) return;
+        const tokenTelefono = s.endpoint.slice(PREFIJO_FCM.length);
+        const resultado = await enviarFcm(cuentaFirebase, tokenTelefono, {
+          titulo: aviso.titulo, cuerpo: aviso.mensaje, url: rutaInterna(aviso.url), tag: aviso.tag,
+        });
+        if (resultado === 'ok') enviadas++;
+        if (resultado === 'caducado') caducadas.push(s.endpoint);
+        return;
+      }
       try {
         await webpush.sendNotification(
           { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },

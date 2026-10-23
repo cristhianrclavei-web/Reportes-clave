@@ -1,4 +1,6 @@
 import { createClient } from './supabaseClient';
+import { esAppAndroid } from './rastreoUbicacion';
+import { quitarAvisosNativos } from './pushNativo';
 
 // Suscripción del dispositivo a notificaciones push y envío de avisos.
 //
@@ -99,6 +101,10 @@ export async function activarNotificaciones(): Promise<{ ok: boolean; motivo?: s
 }
 
 export async function desactivarNotificaciones(): Promise<void> {
+  if (esAppAndroid()) {
+    await quitarAvisosNativos();
+    return;
+  }
   if (!pushSoportado()) return;
   const registro = await navigator.serviceWorker.ready;
   const suscripcion = await registro.pushManager.getSubscription();
