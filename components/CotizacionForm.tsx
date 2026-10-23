@@ -92,6 +92,7 @@ export default function CotizacionForm({
   const [presentacionPrecios, setPresentacionPrecios] = useState<PresentacionPrecios>(c?.presentacion_precios || 'desglose');
   const [mostrarFotos, setMostrarFotos] = useState(Boolean(c?.mostrar_fotos));
   const [ivaIncluido, setIvaIncluido] = useState(Boolean(c?.iva_incluido));
+  const [totalNeto, setTotalNeto] = useState(Boolean(c?.total_neto));
   // Concepto cuya foto se está subiendo, y el error de la última subida
   // (se muestra junto a ese concepto).
   const [subiendoFotoDe, setSubiendoFotoDe] = useState<string | null>(null);
@@ -345,6 +346,8 @@ export default function CotizacionForm({
       setIvaPct('16');
     }
   }
+  // «Importe total neto» solo aplica con IVA incluido.
+  const totalNetoVisible = modoIva === 'incluido' && totalNeto;
   const totales = useMemo(() => calcularTotales(lineasValidas, ivaPctNum, ivaIncluido), [lineasValidas, ivaPctNum, ivaIncluido]);
   const tipoCambioNum = parseFloat(tipoCambio) || 0;
 
@@ -362,7 +365,7 @@ export default function CotizacionForm({
   // Borrador en el dispositivo: si la página se recarga o se cierra, lo
   // capturado se recupera al volver. En «editar» solo cuenta si hubo cambios.
   const datosForm = {
-    presentacionPrecios, mostrarFotos, ivaIncluido, fecha, tituloProyecto, empresa, atencion, telefono, correo, direccion, formaPago, tiempoEntrega,
+    presentacionPrecios, mostrarFotos, ivaIncluido, totalNeto, fecha, tituloProyecto, empresa, atencion, telefono, correo, direccion, formaPago, tiempoEntrega,
     garantia, vigenciaDias, ivaPct, moneda, tipoCambio, notas, firmanteNombre, firmanteCorreo, grupos,
   };
   const huellaInicial = useRef(JSON.stringify(datosForm));
@@ -370,7 +373,7 @@ export default function CotizacionForm({
   function aplicarDatos(d: typeof datosForm) {
     setPresentacionPrecios(d.presentacionPrecios); setFecha(d.fecha);
     // Los borradores guardados antes de la casilla de fotos no la traen.
-    setMostrarFotos(Boolean(d.mostrarFotos)); setIvaIncluido(Boolean(d.ivaIncluido)); setEmpresa(d.empresa); setAtencion(d.atencion);
+    setMostrarFotos(Boolean(d.mostrarFotos)); setIvaIncluido(Boolean(d.ivaIncluido)); setTotalNeto(Boolean(d.totalNeto)); setEmpresa(d.empresa); setAtencion(d.atencion);
     // Los borradores guardados antes de este campo no lo traen.
     setTituloProyecto(d.tituloProyecto || '');
     setTelefono(d.telefono); setCorreo(d.correo); setDireccion(d.direccion); setFormaPago(d.formaPago);
@@ -422,6 +425,7 @@ export default function CotizacionForm({
       presentacion_precios: presentacionPrecios,
       mostrar_fotos: mostrarFotos,
       iva_incluido: ivaIncluido,
+      total_neto: totalNeto,
       tipo_cambio: tipoCambioNum,
       lineas: lineasValidas,
     };
@@ -819,6 +823,8 @@ export default function CotizacionForm({
             tasa={ivaPctNum}
             onModo={elegirModoIva}
             onTasa={(t) => setIvaPct(String(t))}
+            totalNeto={totalNeto}
+            onTotalNeto={setTotalNeto}
           />
           <div data-campo="moneda" className={`scroll-mt-24 ${moneda === 'USD' ? 'grid grid-cols-2 gap-3.5' : ''}`}>
             <div>
@@ -941,19 +947,20 @@ export default function CotizacionForm({
             <span className="font-medium">{moneda === 'USD' ? 'USD ' : ''}{money(totales.subtotal)}</span>
           </div>
         )}
-        {modoIva === 'sin' ? (
+        {modoIva === 'sin' && (
           <div className="flex justify-between text-[14px] mb-1">
             <span className="text-muted">IVA</span>
             <span className="font-medium">No lleva</span>
           </div>
-        ) : (
+        )}
+        {modoIva !== 'sin' && !totalNetoVisible && (
           <div className="flex justify-between text-[14px] mb-1">
             <span className="text-muted">{modoIva === 'incluido' ? 'IVA incluido' : 'IVA'} ({ivaPctNum}%)</span>
             <span className="font-medium">{moneda === 'USD' ? 'USD ' : ''}{money(totales.iva)}</span>
           </div>
         )}
         <div className="flex justify-between text-[19px] pt-2 border-t border-line-strong">
-          <span className="font-display font-bold">Total</span>
+          <span className="font-display font-bold">{totalNetoVisible ? 'Importe total neto' : 'Total'}</span>
           <span className="font-display font-bold text-teal">{moneda === 'USD' ? 'USD ' : ''}{money(totales.total)}</span>
         </div>
         {moneda === 'USD' && tipoCambioNum > 0 && (
@@ -1069,11 +1076,15 @@ function SelectorIva({
   tasa,
   onModo,
   onTasa,
+  totalNeto,
+  onTotalNeto,
 }: {
   modo: ModoIva;
   tasa: number;
   onModo: (m: ModoIva) => void;
   onTasa: (t: number) => void;
+  totalNeto: boolean;
+  onTotalNeto: (v: boolean) => void;
 }) {
   // 16% general y 8% de la región fronteriza; si una cotización vieja trae
   // otra tasa, se conserva en la lista para no cambiarla sin querer.
@@ -1122,6 +1133,22 @@ function SelectorIva({
             ))}
           </select>
         </div>
+      )}
+      {modo === 'incluido' && (
+        <label className="flex items-start gap-2.5 mt-3 cursor-pointer">
+          <input
+            type="checkbox"
+            className="mt-0.5 w-5 h-5 accent-teal shrink-0"
+            checked={totalNeto}
+            onChange={(e) => onTotalNeto(e.target.checked)}
+          />
+          <span className="text-[14px]">
+            Mostrar como «Importe total neto»
+            <span className="block text-[12px] text-faint mt-0.5">
+              El PDF no desglosa el IVA: sale un solo renglón «IMPORTE TOTAL NETO» y las condiciones aclaran que es la cantidad final a pagar, con IVA incluido.
+            </span>
+          </span>
+        </label>
       )}
       {modo === 'sin' && (
         <p className="text-[12.5px] text-amber mt-2">

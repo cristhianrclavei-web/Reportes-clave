@@ -73,6 +73,7 @@ export default function CotizacionDetalle({
   const [lineas, setLineas] = useState(lineasIniciales);
   const [editando, setEditando] = useState(false);
   const modoIva = modoIvaDe(cotizacion);
+  const totalNeto = modoIva === 'incluido' && Boolean(cotizacion.total_neto);
   const [eliminando, setEliminando] = useState(false);
 
   const [mostrandoFirma, setMostrandoFirma] = useState(false);
@@ -365,19 +366,20 @@ export default function CotizacionDetalle({
             <span className="font-medium">{cotizacion.moneda === 'USD' ? 'USD ' : ''}{money(cotizacion.subtotal)}</span>
           </div>
         )}
-        {modoIva === 'sin' ? (
+        {modoIva === 'sin' && (
           <div className="flex justify-between text-[14px] mb-1">
             <span className="text-muted">IVA</span>
             <span className="font-medium">No lleva</span>
           </div>
-        ) : (
+        )}
+        {modoIva !== 'sin' && !totalNeto && (
           <div className="flex justify-between text-[14px] mb-1">
             <span className="text-muted">{modoIva === 'incluido' ? 'IVA incluido' : 'IVA'} ({cotizacion.iva_pct}%)</span>
             <span className="font-medium">{cotizacion.moneda === 'USD' ? 'USD ' : ''}{money(cotizacion.iva)}</span>
           </div>
         )}
         <div className="flex justify-between text-[19px] pt-2 border-t border-line-strong">
-          <span className="font-display font-bold">Total</span>
+          <span className="font-display font-bold">{totalNeto ? 'Importe total neto' : 'Total'}</span>
           <span className="font-display font-bold text-teal">{cotizacion.moneda === 'USD' ? 'USD ' : ''}{money(cotizacion.total)}</span>
         </div>
         {cotizacion.moneda === 'USD' && cotizacion.tipo_cambio > 0 && (

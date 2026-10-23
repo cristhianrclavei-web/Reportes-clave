@@ -68,6 +68,9 @@ export type Cotizacion = {
   mostrar_fotos?: boolean;
   // true: los precios ya traen IVA; el total no le suma nada (ver calcularTotales).
   iva_incluido?: boolean;
+  // Solo con IVA incluido: el PDF no desglosa el IVA, dice «IMPORTE TOTAL
+  // NETO» (patch_cotizacion_total_neto.sql).
+  total_neto?: boolean;
   // Tipo de cambio (MXN por 1 USD) usado al armar la cotización — solo
   // aplica/se usa cuando moneda es 'USD'. Se guarda el valor de ese momento
   // para que el equivalente en pesos no cambie después si la cotización se
@@ -125,6 +128,7 @@ export type CotizacionInput = {
   presentacion_precios: PresentacionPrecios;
   mostrar_fotos: boolean;
   iva_incluido: boolean;
+  total_neto: boolean;
   tipo_cambio: number;
   lineas: LineaInput[];
 };
@@ -161,8 +165,11 @@ export function modoIvaDe(cot: { iva_pct: number; iva_incluido?: boolean }): Mod
 
 // Primera condición comercial del PDF: le dice al cliente, sin ambigüedad,
 // si el IVA va aparte, ya está dentro o no se cobra.
-export function leyendaIva(moneda: MonedaCotizacion, modo: ModoIva): string {
+export function leyendaIva(moneda: MonedaCotizacion, modo: ModoIva, totalNeto = false): string {
   const nombreMoneda = moneda === 'USD' ? 'Dólares Americanos (USD)' : 'Moneda Nacional';
+  if (modo === 'incluido' && totalNeto) {
+    return `Los precios se expresan en ${nombreMoneda}. El importe total neto es la cantidad final a pagar: ya incluye el IVA y no se le agregará ningún impuesto ni cargo adicional.`;
+  }
   if (modo === 'incluido') return `Los precios se expresan en ${nombreMoneda}, con IVA incluido.`;
   if (modo === 'sin') return `Los precios se expresan en ${nombreMoneda}. Esta cotización no lleva IVA.`;
   return `Los precios se expresan en ${nombreMoneda}, más IVA.`;
@@ -261,6 +268,7 @@ function datosCotizacion(input: CotizacionInput) {
     presentacion_precios: input.presentacion_precios,
     mostrar_fotos: input.mostrar_fotos,
     iva_incluido: input.iva_incluido,
+    total_neto: input.iva_incluido && input.total_neto,
     tipo_cambio: input.moneda === 'USD' ? input.tipo_cambio || 0 : 1,
     subtotal,
     iva,

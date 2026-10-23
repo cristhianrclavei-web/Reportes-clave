@@ -33,5 +33,8 @@ describe('modoIvaDe y leyendaIva', () => {
     expect(leyendaIva('MXN', 'sumar')).toBe('Los precios se expresan en Moneda Nacional, más IVA.');
     expect(leyendaIva('MXN', 'incluido')).toContain('con IVA incluido');
     expect(leyendaIva('USD', 'sin')).toBe('Los precios se expresan en Dólares Americanos (USD). Esta cotización no lleva IVA.');
+    expect(leyendaIva('MXN', 'incluido', true)).toContain('importe total neto es la cantidad final a pagar');
+    // «Total neto» sin IVA incluido no aplica: queda la leyenda normal.
+    expect(leyendaIva('MXN', 'sumar', true)).toBe('Los precios se expresan en Moneda Nacional, más IVA.');
   });
 });

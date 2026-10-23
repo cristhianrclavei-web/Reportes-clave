@@ -233,6 +233,10 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
   }
 
   const grupos = agruparPorSistema(lineas);
+  const modoIva = modoIvaDe(cot);
+  const totalNeto = modoIva === 'incluido' && Boolean(cot.total_neto);
+  // Con un solo grupo, su «Importe» repite el total: en total neto se omite.
+  const omitirImporteGrupo = totalNeto && grupos.length === 1;
 
   for (const grupo of grupos) {
     ensureSpace(38);
@@ -335,6 +339,10 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
       }
     }
 
+    if (omitirImporteGrupo) {
+      y -= 14;
+      continue;
+    }
     ensureSpace(16);
     page.drawRectangle({ x: xPUnit, y: y - 16, width: colPUnitW, height: 16, borderColor: GRAY_LINE, borderWidth: 0.75 });
     page.drawRectangle({ x: xImporte, y: y - 16, width: colImporteW, height: 16, borderColor: GRAY_LINE, borderWidth: 0.75 });
@@ -348,10 +356,12 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
   // Con IVA incluido no se muestra subtotal: la suma de los conceptos ya es
   // el total, y un subtotal menor que esa suma confundiría al cliente.
   // Sin IVA solo va el TOTAL: una línea «IVA (0%) $0.00» se presta a dudas.
-  const modoIva = modoIvaDe(cot);
   let totales: [string, number][];
   if (modoIva === 'sin') {
     totales = [['TOTAL', cot.total]];
+  } else if (totalNeto) {
+    // Sin desglose: el cliente ve una sola cifra final (ver leyendaIva).
+    totales = [['IMPORTE TOTAL NETO', cot.total]];
   } else if (modoIva === 'incluido') {
     totales = [
       [`IVA INCLUIDO (${cot.iva_pct}%)`, cot.iva],
@@ -364,9 +374,11 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
       ['TOTAL', cot.total],
     ];
   }
-  for (const [label, val] of totales) {
-    // Solo el TOTAL lleva la divisa; subtotal e IVA van como los demás precios.
-    const vt = label === 'TOTAL' ? money(val, cot.moneda) : moneySinDivisa(val);
+  totales.forEach(([label, val], i) => {
+    // Solo el total (el último renglón) lleva la divisa; subtotal e IVA van
+    // como los demás precios.
+    const esTotal = i === totales.length - 1;
+    const vt = esTotal ? money(val, cot.moneda) : moneySinDivisa(val);
     const xValor = xImporte + colImporteW - font.widthOfTextAtSize(vt, 9.5);
     // Una etiqueta larga («IVA INCLUIDO (16%)») con un monto grande no cabe
     // desde xPUnit: se recorre a la izquierda para no encimarse con la cifra.
@@ -374,10 +386,10 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
     page.drawText(label, { x: xEtiqueta, y, size: 9.5, font: bold, color: NAVY });
     page.drawText(vt, { x: xValor, y, size: 9.5, font: bold, color: NAVY });
     y -= 16;
-  }
+  });
 
   const condiciones = [
-    leyendaIva(cot.moneda, modoIva),
+    leyendaIva(cot.moneda, modoIva, totalNeto),
     `Forma de Pago: ${cot.forma_pago}`,
     'Esta cotización ampara unicamente lo descrito anteriormente.',
     `Tiempo de Entrega: ${cot.tiempo_entrega}`,
