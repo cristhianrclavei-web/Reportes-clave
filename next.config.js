@@ -26,15 +26,16 @@ const esDesarrollo = process.env.NODE_ENV === 'development';
 // datos del usuario) y la validacion en servidor.
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${esDesarrollo ? " 'unsafe-eval'" : ''}`,
-  "style-src 'self' 'unsafe-inline'",
+  // maps.googleapis.com y gstatic: Google Maps en el mapa de técnicos.
+  `script-src 'self' 'unsafe-inline'${esDesarrollo ? " 'unsafe-eval'" : ''} https://maps.googleapis.com https://maps.gstatic.com`,
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   // syscom.mx: miniaturas del catálogo en el buscador de cotizaciones.
   // OpenStreetMap y Esri: mapa y satélite para marcar el punto de un sitio.
-  `img-src 'self' data: blob: ${SUPABASE_ORIGIN} https://*.syscom.mx https://tile.openstreetmap.org https://server.arcgisonline.com`,
-  "font-src 'self' data:",
+  `img-src 'self' data: blob: ${SUPABASE_ORIGIN} https://*.syscom.mx https://tile.openstreetmap.org https://server.arcgisonline.com https://*.googleapis.com https://*.gstatic.com https://*.google.com https://*.ggpht.com`,
+  "font-src 'self' data: https://fonts.gstatic.com",
   // nominatim: búsqueda de direcciones (gratis, sin llave) al capturar la
   // ubicación de un sitio programado.
-  `connect-src 'self' ${SUPABASE_ORIGIN} ${SUPABASE_WSS} https://nominatim.openstreetmap.org https://photon.komoot.io`,
+  `connect-src 'self' ${SUPABASE_ORIGIN} ${SUPABASE_WSS} https://nominatim.openstreetmap.org https://photon.komoot.io https://*.googleapis.com https://*.gstatic.com https://*.google.com`,
   // Supabase: los videos de evidencia se reproducen desde su enlace firmado.
   `media-src 'self' blob: ${SUPABASE_ORIGIN}`,
   "worker-src 'self' blob:",

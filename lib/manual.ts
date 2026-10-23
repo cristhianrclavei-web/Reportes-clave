@@ -251,6 +251,8 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
           'El mismo mapa es lo primero del Resumen («Técnicos en campo»): toca a una persona en la tira de abajo para acercarte y ver su recorrido, el botón de la mira para ver a todos y «Abrir mapa» para la vista completa.',
           'Funciona con los teléfonos de la empresa que tienen instalada la app de Android de Clave. Mandan su ubicación una vez por minuto.',
           'Solo aparece el personal de campo: las cuentas de supervisión no comparten su ubicación.',
+          'Con la llave de Google configurada el mapa es de Google Maps (con vista Satélite). El botón «Mapa básico / Google Maps» cambia entre los dos; si Google no carga, se usa el básico solo.',
+          'Al elegir a una persona, «Abrir en Google Maps» abre su ubicación en la app de Google para llegar.',
           'Solo se comparte en horario de trabajo (lunes a viernes no festivos, entre la entrada y la salida de Personal → Jornadas) o mientras la persona tenga un servicio abierto. Fuera de eso la base no guarda nada.',
           'El color de cada persona dice cómo está su señal: verde, en línea; naranja, sin puntos desde hace unos minutos; gris, sin señal.',
           'Toca a una persona en la lista o en el mapa para ver su recorrido de hoy.',

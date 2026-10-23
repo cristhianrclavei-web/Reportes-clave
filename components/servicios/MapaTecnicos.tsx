@@ -1,9 +1,11 @@
 'use client';
 
 import 'leaflet/dist/leaflet.css';
-import { MapPin, Route, Smartphone } from 'lucide-react';
+import { ExternalLink, MapPin, Route, Smartphone } from 'lucide-react';
 import { estadoSenal } from '@/lib/ubicacionTecnicos';
 import { COLOR_SENAL, TEXTO_SENAL, horaCorta, inicialesTecnico, useMapaTecnicos } from './useMapaTecnicos';
+import BotonMotorMapa from './BotonMotorMapa';
+import { enlaceGoogleMaps } from './motorMapa';
 
 // Mapa de los técnicos con teléfono de la empresa (app de Android): dónde
 // está cada uno ahora y, al elegir uno, su recorrido de hoy. Se actualiza
@@ -11,7 +13,7 @@ import { COLOR_SENAL, TEXTO_SENAL, horaCorta, inicialesTecnico, useMapaTecnicos 
 // La lógica del mapa vive en useMapaTecnicos (también la usa el Resumen).
 
 export default function MapaTecnicos() {
-  const { contenedorRef, tecnicos, elegido, recorrido, error, cargando, ahora, enfocar } = useMapaTecnicos();
+  const { contenedorRef, tecnicos, elegido, recorrido, error, cargando, ahora, enfocar, motor, hayGoogle, cambiarMotor } = useMapaTecnicos();
   const elegidoDatos = tecnicos.find((t) => t.tecnico_id === elegido) || null;
 
   return (
@@ -58,9 +60,21 @@ export default function MapaTecnicos() {
               : 'Todavía no hay recorrido hoy.'}
           </p>
         )}
+        {elegidoDatos && (
+          <a
+            href={enlaceGoogleMaps(elegidoDatos.lat, elegidoDatos.lng)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="min-h-[42px] rounded-xl bg-teal text-inkOnAccent text-[13px] font-semibold flex items-center justify-center gap-2"
+          >
+            <ExternalLink size={15} />
+            Abrir en Google Maps
+          </a>
+        )}
+        <BotonMotorMapa motor={motor} hayGoogle={hayGoogle} cambiar={cambiarMotor} className="justify-center" />
       </div>
       <div className="flex-1 min-w-0 rounded-2xl overflow-hidden border border-line">
-        {/* z-0: los controles de Leaflet no deben quedar encima de los menús de la app. */}
+        {/* z-0: los controles del mapa no deben quedar encima de los menús de la app. */}
         <div ref={contenedorRef} className="h-[420px] lg:h-[560px] w-full z-0" />
       </div>
     </div>

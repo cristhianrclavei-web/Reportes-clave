@@ -2,9 +2,11 @@
 
 import 'leaflet/dist/leaflet.css';
 import Link from 'next/link';
-import { Crosshair, Maximize2, Radio, Smartphone } from 'lucide-react';
+import { Crosshair, ExternalLink, Maximize2, Radio, Smartphone } from 'lucide-react';
 import { estadoSenal, EstadoSenal, FALTA_SQL_UBICACION } from '@/lib/ubicacionTecnicos';
 import { COLOR_SENAL, TEXTO_SENAL, horaCorta, inicialesTecnico, useMapaTecnicos } from '@/components/servicios/useMapaTecnicos';
+import BotonMotorMapa from '@/components/servicios/BotonMotorMapa';
+import { enlaceGoogleMaps } from '@/components/servicios/motorMapa';
 
 // Primera tarjeta del Resumen: el mapa con dónde está cada técnico ahora.
 // Encima del mapa van el título con los conteos y, abajo, una tira con
@@ -14,7 +16,8 @@ import { COLOR_SENAL, TEXTO_SENAL, horaCorta, inicialesTecnico, useMapaTecnicos 
 const MAPA_COMPLETO = '/dashboard/servicios?sub=mapa';
 
 export default function TecnicosEnCampo() {
-  const { contenedorRef, tecnicos, elegido, recorrido, error, cargando, ahora, enfocar, encuadrarTodos } = useMapaTecnicos({ zoomControl: false });
+  const { contenedorRef, tecnicos, elegido, recorrido, error, cargando, ahora, enfocar, encuadrarTodos, motor, hayGoogle, cambiarMotor } = useMapaTecnicos({ zoomControl: false });
+  const elegidoDatos = tecnicos.find((t) => t.tecnico_id === elegido) || null;
 
   const cuenta: Record<EstadoSenal, number> = { en_linea: 0, reciente: 0, sin_senal: 0 };
   if (ahora !== null) {
@@ -49,6 +52,8 @@ export default function TecnicosEnCampo() {
         </div>
 
         <div className="pointer-events-auto flex items-center gap-2">
+          {/* En el teléfono solo el ícono: el texto no cabe junto al título. */}
+          <BotonMotorMapa motor={motor} hayGoogle={hayGoogle} cambiar={cambiarMotor} className="max-sm:[&>span]:hidden max-sm:w-11 max-sm:px-0 max-sm:justify-center" />
           {tecnicos.length > 0 && (
             <button
               type="button"
@@ -117,11 +122,23 @@ export default function TecnicosEnCampo() {
               );
             })}
           </div>
-          {elegido && (
-            <p className="pointer-events-auto mt-2 inline-flex items-center gap-1.5 rounded-full bg-surface/92 backdrop-blur-md border border-line px-3 py-1 text-[12px] text-ink/80">
-              <Radio size={13} className="text-teal" />
-              {recorrido.length >= 2 ? `Recorrido de hoy desde las ${horaCorta(recorrido[0].registrado_en)}` : 'Todavía no hay recorrido hoy'}
-            </p>
+          {elegidoDatos && (
+            <div className="pointer-events-auto mt-2 flex flex-wrap items-center gap-2">
+              <p className="inline-flex items-center gap-1.5 rounded-full bg-surface/92 backdrop-blur-md border border-line px-3 py-1 text-[12px] text-ink/80">
+                <Radio size={13} className="text-teal" />
+                {recorrido.length >= 2 ? `Recorrido de hoy desde las ${horaCorta(recorrido[0].registrado_en)}` : 'Todavía no hay recorrido hoy'}
+              </p>
+              {/* Abre la app de Google Maps para llegar (gratis, no usa la llave). */}
+              <a
+                href={enlaceGoogleMaps(elegidoDatos.lat, elegidoDatos.lng)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-full bg-teal text-inkOnAccent px-3 py-1 text-[12px] font-semibold"
+              >
+                <ExternalLink size={13} />
+                Abrir en Google Maps
+              </a>
+            </div>
           )}
         </div>
       )}
