@@ -14,11 +14,18 @@ type Estado = 'inactivo' | 'buscando' | 'listo' | 'sin-configurar' | 'error';
 
 export default function SelectorProductoSyscom({
   busquedaInicial = '',
+  conPrecio = true,
+  soloAlBuscar = false,
   onSeleccionar,
   onClose,
 }: {
   // Lo que ya se escribió en el concepto: se busca en cuanto abre.
   busquedaInicial?: string;
+  // En el reporte no se muestra el costo.
+  conPrecio?: boolean;
+  // Busca solo con Enter o el botón, no mientras se escribe (los técnicos
+  // tienen un tope diario de búsquedas).
+  soloAlBuscar?: boolean;
   onSeleccionar: (producto: ProductoSyscom) => void;
   onClose: () => void;
 }) {
@@ -59,13 +66,14 @@ export default function SelectorProductoSyscom({
       setEstado('inactivo');
       return;
     }
+    if (soloAlBuscar) return;
     // Cada búsqueda gasta una consulta del plan de Fixie: se espera a que
     // deje de escribir.
     debounceRef.current = setTimeout(() => buscar(texto), 700);
   }
 
   useEffect(() => {
-    if (busquedaInicial.trim().length >= 3) buscar(busquedaInicial);
+    if (!soloAlBuscar && busquedaInicial.trim().length >= 3) buscar(busquedaInicial);
     // Solo al abrir.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -86,21 +94,37 @@ export default function SelectorProductoSyscom({
         </div>
 
         <div className="p-4 pb-2">
-          <div className="relative">
-            <Search size={16} strokeWidth={2.4} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-faint" />
-            <input
-              autoFocus
-              value={q}
-              onChange={(e) => handleChange(e.target.value)}
-              placeholder="Nombre, modelo o marca…"
-              className="w-full pl-10 pr-3.5 min-h-[46px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]"
-            />
-          </div>
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (q.trim().length >= 3 && estado !== 'buscando') buscar(q);
+            }}
+          >
+            <div className="relative flex-1">
+              <Search size={16} strokeWidth={2.4} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-faint" />
+              <input
+                autoFocus
+                value={q}
+                onChange={(e) => handleChange(e.target.value)}
+                placeholder="Nombre, modelo o marca…"
+                enterKeyHint="search"
+                className="w-full pl-10 pr-3.5 min-h-[46px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]"
+              />
+            </div>
+            {soloAlBuscar && (
+              <button type="submit" disabled={q.trim().length < 3 || estado === 'buscando'} className="px-4 rounded-xl bg-teal text-inkOnAccent text-[13.5px] font-semibold disabled:opacity-50">
+                Buscar
+              </button>
+            )}
+          </form>
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 pb-4">
           {estado === 'inactivo' && (
-            <p className="text-[13px] text-muted text-center py-8">Escribe al menos 3 letras para buscar.</p>
+            <p className="text-[13px] text-muted text-center py-8">
+              {soloAlBuscar ? 'Escribe el modelo o el nombre y toca «Buscar».' : 'Escribe al menos 3 letras para buscar.'}
+            </p>
           )}
           {estado === 'sin-configurar' && (
             <p className="text-[13px] text-amber text-center py-8 leading-relaxed">
@@ -143,13 +167,13 @@ export default function SelectorProductoSyscom({
                       {[p.marca, p.modelo].filter(Boolean).join(' · ') || '—'}
                     </p>
                   </div>
-                  <div className="shrink-0 text-right">
+                  {conPrecio && <div className="shrink-0 text-right">
                     <p className="text-[13.5px] font-display font-bold text-teal">{money(p.precio)}</p>
                     <p className={`text-[11px] flex items-center gap-1 justify-end ${p.existencia && p.existencia > 0 ? 'text-teal' : 'text-faint'}`}>
                       {p.existencia && p.existencia > 0 ? <PackageCheck size={11} strokeWidth={2.4} /> : <PackageX size={11} strokeWidth={2.4} />}
                       {p.existencia !== null ? `${p.existencia} disp.` : 'sin dato'}
                     </p>
-                  </div>
+                  </div>}
                 </button>
               ))}
             </div>

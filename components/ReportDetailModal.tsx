@@ -1,6 +1,7 @@
 'use client';
 
 import { avisar, confirmar } from '@/lib/dialogos';
+import TablaEquiposInstalados from '@/components/reporte/TablaEquiposInstalados';
 import VisorVideo, { MarcaVideo } from '@/components/VisorVideo';
 import { fechaDMA } from '@/lib/etiquetaMantenimiento';
 import { MARCA } from '@/lib/marca';
@@ -820,30 +821,7 @@ export default function ReportDetailModal({
         {pestana === 'reporte' && (<>
         {(report.data?.equipos || []).length > 0 && (
           <Section title="Equipo instalado">
-            <div className="overflow-x-auto rounded-xl border border-line">
-              <table className="w-full text-[13px] border-collapse">
-                <thead>
-                  <tr className="bg-surface-2 text-muted text-[11px] uppercase tracking-wide">
-                    <th className="text-left px-3 py-2">Cant.</th>
-                    <th className="text-left px-3 py-2">Descripción</th>
-                    <th className="text-left px-3 py-2">Modelo</th>
-                    <th className="text-left px-3 py-2">Marca</th>
-                    <th className="text-left px-3 py-2">Serie</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {report.data.equipos.map((e: any, i: number) => (
-                    <tr key={i} className="border-t border-line">
-                      <td className="px-3 py-2">{e.cant}</td>
-                      <td className="px-3 py-2">{e.desc}</td>
-                      <td className="px-3 py-2">{e.modelo}</td>
-                      <td className="px-3 py-2">{e.marca}</td>
-                      <td className="px-3 py-2 font-mono">{e.serie}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <TablaEquiposInstalados equipos={report.data.equipos} />
           </Section>
         )}
 

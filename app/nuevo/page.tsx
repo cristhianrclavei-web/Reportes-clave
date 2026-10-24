@@ -40,7 +40,8 @@ import { usePlan } from '@/lib/planes';
 import { tieneModulo, soloLectura } from '@/lib/planesDatos';
 import EtiquetasMantenimiento from '@/components/EtiquetasMantenimiento';
 import { guardarCamposBorrador, guardarFotosBorrador, leerBorrador, borrarBorrador } from '@/lib/borradorReporte';
-import EquipoInstaladoRenglon, { EquipoFila, ArticuloCatalogo } from '@/components/EquipoInstaladoRenglon';
+import EquipoInstaladoRenglon, { EquipoFila, ArticuloCatalogo, faltaModelo, renglonEquipoVacio, textoEquiposAviso } from '@/components/EquipoInstaladoRenglon';
+import { cargarModelosEquipo, ModeloEquipo } from '@/lib/sugerenciasEquipos';
 import { sinRegistroDeReporte } from '@/lib/equiposInstalados';
 import { FilaTuberia, FilaCable, FilaSoporteria, tuberiasDe, cablesDe, soporteriaDe } from '@/lib/materialesReporte';
 import { SeccionTuberia, SeccionCable, SeccionSoporteria, tuberiaVacia, cableVacio, soporteriaVacia } from '@/components/reporte/MaterialesReporte';
@@ -323,6 +324,11 @@ export default function NuevoReportePage() {
       .in('categoria', ['equipo', 'material'])
       .then(({ data, error }) => { if (!error && data) setCatalogoEquipos(data as ArticuloCatalogo[]); });
   }, []);
+  // Modelos ya instalados antes, para sugerirlos (también sin señal).
+  const [modelosEquipo, setModelosEquipo] = useState<ModeloEquipo[]>([]);
+  useEffect(() => cargarModelosEquipo(setModelosEquipo), []);
+  // Casilla «Fotos de los equipos en el PDF» (solo las de SYSCOM).
+  const [fotosEquiposPdf, setFotosEquiposPdf] = useState(false);
   const [firmaIngNombre, setFirmaIngNombre] = useState('');
   const [firmaClienteNombre, setFirmaClienteNombre] = useState('');
   // Cliente que no estaba para firmar: queda registrado quién recibió y el
@@ -417,7 +423,7 @@ export default function NuevoReportePage() {
     empresaCliente, clienteId, contactosCliente, servicioSeleccionadoId, personalAsignado, fecha, ordCompra,
     horaLlegada, horaSalida, listaConceptos, contactoUsuario, puestoArea, vehiculo, placas, vehiculoOtro,
     manejadoPor, ingACargo, personalAdicional, tipoServicio, subTipo, tipoServicioOtroTexto, seguridad,
-    seguridadOtraTexto, tuberias, cables, soporteria, observaciones, actividades, showCaso, casoPuntos, equipos,
+    seguridadOtraTexto, tuberias, cables, soporteria, observaciones, actividades, showCaso, casoPuntos, equipos, fotosEquiposPdf,
     firmaIngNombre, firmaClienteNombre, servicioConcluido, paso, usaFormato, formatos, fotosServicio,
     firmaIngData, firmaClienteData,
     clienteAusente, motivoAusente, recibioNombre, recibioPuesto, recibioFirma,
@@ -443,7 +449,7 @@ export default function NuevoReportePage() {
     if (c.cables !== undefined) { const cb = cablesDe(c); setCables(cb.length ? cb : [cableVacio()]); }
     if (c.soporteria !== undefined) setSoporteria(c.soporteria.length ? c.soporteria : [soporteriaVacia()]);
     set(setObservaciones, c.observaciones); set(setActividades, c.actividades); set(setShowCaso, c.showCaso);
-    set(setCasoPuntos, c.casoPuntos); set(setEquipos, c.equipos); set(setFirmaIngNombre, c.firmaIngNombre);
+    set(setCasoPuntos, c.casoPuntos); set(setEquipos, c.equipos); set(setFotosEquiposPdf, c.fotosEquiposPdf); set(setFirmaIngNombre, c.firmaIngNombre);
     set(setFirmaClienteNombre, c.firmaClienteNombre); set(setServicioConcluido, c.servicioConcluido);
     set(setClienteAusente, c.clienteAusente); set(setMotivoAusente, c.motivoAusente);
     set(setRecibioNombre, c.recibioNombre); set(setRecibioPuesto, c.recibioPuesto); set(setRecibioFirma, c.recibioFirma);
@@ -517,6 +523,7 @@ export default function NuevoReportePage() {
       actividades: Array.isArray(d.actividades) && d.actividades.length ? d.actividades : [''],
       showCaso: Boolean(casos), casoPuntos: casos || [{ ...EMPTY_PUNTO }],
       equipos: Array.isArray(d.equipos) && d.equipos.length ? d.equipos : [{ cant: '', desc: '', modelo: '', marca: '', serie: '' }],
+      fotosEquiposPdf: Boolean(d.fotosEquiposPdf),
       firmaIngNombre: d.firmaIngNombre || '', firmaClienteNombre: d.firmaClienteNombre || '',
       servicioConcluido: d.servicioConcluido === true ? 'si' : d.servicioConcluido === false ? 'no' : null,
       clienteAusente: Boolean(d.clienteAusente), motivoAusente: d.clienteAusente?.motivo || '',
@@ -701,8 +708,9 @@ export default function NuevoReportePage() {
     // hora actual sola al momento de guardar (ver handleSave).
     if (!ingACargo.trim() && !personalAdicional.some((p) => p.trim())) f.push('al menos una persona en el servicio');
     if (clienteAusente && !motivoAusente.trim()) f.push('el motivo de que el cliente no firmara');
+    if (equipos.some(faltaModelo)) f.push('el modelo de cada equipo instalado (o «No tiene modelo visible»)');
     return f;
-  }, [empresaCliente, horaLlegada, horaSalida, ingACargo, personalAdicional, clienteAusente, motivoAusente, fechaNoCoincide]);
+  }, [empresaCliente, horaLlegada, horaSalida, ingACargo, personalAdicional, clienteAusente, motivoAusente, fechaNoCoincide, equipos]);
 
   // Duración entre llegada y salida, para que un 7:30 puesto en lugar de 19:30
   // salte a la vista antes de firmar.
@@ -937,6 +945,7 @@ export default function NuevoReportePage() {
     setCables([cableVacio()]);
     setSoporteria([soporteriaVacia()]);
     setEquipos([{ cant: '', desc: '', modelo: '', marca: '', serie: '' }]);
+    setFotosEquiposPdf(false);
     setFirmaIngNombre(''); setFirmaClienteNombre('');
     setClienteAusente(false); setMotivoAusente(''); setRecibioNombre(''); setRecibioPuesto(''); setRecibioFirma(null);
     sigIngRef.current?.clear();
@@ -974,7 +983,8 @@ export default function NuevoReportePage() {
           pasosFuturos: p.pasosFuturos.trim(),
         }))
         .filter((p) => p.definicion || p.descripcion || p.analisis || p.plan || p.resultados || p.pasosFuturos),
-      equipos: equipos.filter((e) => e.cant || e.desc || e.modelo || e.marca || e.serie),
+      equipos: equipos.filter((e) => !renglonEquipoVacio(e)),
+      fotosEquiposPdf,
       // Marca de versión: el trigger del almacén solo revisa reportes hechos
       // con el formulario que ya liga equipos al catálogo.
       equiposAlmacen: true,
@@ -1329,7 +1339,7 @@ export default function NuevoReportePage() {
         destino: 'supervisores',
         tipo: 'reporte_nuevo',
         titulo: 'Reporte de servicio nuevo',
-        mensaje: `${empresaCliente.trim()}${ingACargo.trim() ? ` · ${ingACargo.trim()}` : ''}`,
+        mensaje: `${empresaCliente.trim()}${ingACargo.trim() ? ` · ${ingACargo.trim()}` : ''}${textoEquiposAviso(equipos)}`,
         // Abre directo este reporte (ReportesList lee ?reporte=<id>).
         url: `/dashboard/reportes?reporte=${reportId}`,
         tag: 'reporte-nuevo',
@@ -1856,6 +1866,7 @@ export default function NuevoReportePage() {
               key={i}
               eq={eq}
               catalogo={catalogoEquipos}
+              modelos={modelosEquipo}
               inputCls={inputCls}
               onCambiar={(nuevo) => setEquipos((eqs) => eqs.map((e, idx) => (idx === i ? nuevo : e)))}
               onQuitar={equipos.length > 1 ? () => setEquipos((eqs) => eqs.filter((_, idx) => idx !== i)) : undefined}
@@ -1868,6 +1879,15 @@ export default function NuevoReportePage() {
           >
             + Agregar equipo
           </button>
+          {equipos.some((e) => e.imagen) && (
+            <label className="flex items-start gap-2.5 mt-3 cursor-pointer">
+              <input type="checkbox" className="mt-0.5 w-5 h-5 accent-teal shrink-0" checked={fotosEquiposPdf} onChange={(e) => setFotosEquiposPdf(e.target.checked)} />
+              <span className="text-[14px]">
+                Fotos de los equipos en el PDF
+                <span className="block text-[12px] text-faint mt-0.5">Agrega al reporte la foto de catálogo de cada equipo que tenga foto.</span>
+              </span>
+            </label>
+          )}
         </Plegable>
 
         </div>

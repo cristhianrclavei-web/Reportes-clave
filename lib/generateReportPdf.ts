@@ -12,11 +12,33 @@ import {
 } from './pdfBranding';
 import { MARCA, MARCA_MAYUS } from './marca';
 import QRCode from 'qrcode';
+import sharp from 'sharp';
 import { urlVerificacion } from './etiquetaMantenimiento';
 import {
   FormatoLlenado, ETIQUETA_FRECUENCIA, ETIQUETA_RESULTADO, ETIQUETA_RESULTADO_DISP, resumenFormato,
   resumenDispositivos, resumenPorTipo, tipoDispositivo,
 } from './formatosMantenimiento';
+
+// Foto de catálogo de un equipo (solo de SYSCOM), reducida a JPEG chico para
+// que el PDF no pese de más. Si falla, el equipo sale sin foto.
+async function descargarFotoEquipo(url: string): Promise<Uint8Array | null> {
+  if (!/^https:\/\/([a-z0-9-]+\.)*syscom\.mx\//i.test(url)) return null;
+  try {
+    const respuesta = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!respuesta.ok) return null;
+    const original = Buffer.from(await respuesta.arrayBuffer());
+    if (original.length > 10 * 1048576) return null;
+    const reducida = await sharp(original)
+      .resize({ width: 300, height: 300, fit: 'inside', withoutEnlargement: true })
+      .flatten({ background: '#ffffff' })
+      .jpeg({ quality: 80 })
+      .toBuffer();
+    return new Uint8Array(reducida);
+  } catch (err: any) {
+    console.error('[reporte-pdf] No se pudo incluir la foto de un equipo:', url, err?.message);
+    return null;
+  }
+}
 
 type ReportRow = {
   id: string;
@@ -326,6 +348,46 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
     });
   }
   y = eqTop - eqH - 10;
+
+  // Fotos de catálogo de los equipos (casilla «Fotos de los equipos en el PDF»).
+  if (data.fotosEquiposPdf) {
+    const conFoto = equipos.filter((eq) => typeof eq?.imagen === 'string' && eq.imagen);
+    const fotos = await Promise.all(conFoto.map((eq) => descargarFotoEquipo(eq.imagen)));
+    const listas = conFoto
+      .map((eq, i) => ({ eq, bytes: fotos[i] }))
+      .filter((f): f is { eq: any; bytes: Uint8Array } => f.bytes !== null);
+    if (listas.length > 0) {
+      const porRenglon = 4;
+      const celdaW = contentW / porRenglon;
+      const fotoLado = 80;
+      const celdaH = fotoLado + 30;
+      const renglones = Math.ceil(listas.length / porRenglon);
+      // Título junto con el primer renglón; cada renglón lleva su propio
+      // recuadro para poder pasar a otra hoja sin cortar una foto.
+      ensureSpace(18 + celdaH + 10);
+      boxBorder(MARGIN, y, contentW, 18);
+      boxTitle(MARGIN, contentW, y, 18, 'Fotos del equipo instalado');
+      y -= 18;
+      for (let r = 0; r < renglones; r++) {
+        ensureSpace(celdaH + 10);
+        boxBorder(MARGIN, y, contentW, celdaH);
+        for (let c = 0; c < porRenglon; c++) {
+          const item = listas[r * porRenglon + c];
+          if (!item) break;
+          const img = await pdfDoc.embedJpg(item.bytes);
+          const escala = Math.min(fotoLado / img.width, fotoLado / img.height);
+          const w = img.width * escala;
+          const h = img.height * escala;
+          const cx0 = MARGIN + c * celdaW;
+          page.drawImage(img, { x: cx0 + (celdaW - w) / 2, y: y - 6 - fotoLado + (fotoLado - h) / 2, width: w, height: h });
+          const pie = String(item.eq.modelo || item.eq.desc || '');
+          page.drawText(pie, { x: cx0 + 6, y: y - fotoLado - 18, size: 7.5, font: bold, color: NAVY, maxWidth: celdaW - 12 });
+        }
+        y -= celdaH;
+      }
+      y -= 10;
+    }
+  }
 
   // ================= DESCRIPCIÓN DE ACTIVIDADES REALIZADAS =================
   const actividades: string[] = data.actividades || [];
