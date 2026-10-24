@@ -8,6 +8,7 @@ import {
   TIPOS_CABLE, UNIDADES_CABLE, SUGERENCIAS_SOPORTERIA, UNIDADES_SOPORTERIA, soloNumero, inferirTuberia,
 } from '@/lib/materialesReporte';
 import type { ArticuloCatalogo } from '@/components/EquipoInstaladoRenglon';
+import { ConceptosAprendidos, formaCanonica, unirSugerencias } from '@/lib/conceptosMateriales';
 
 // Secciones de materiales del reporte (tubería, cable, soportería y
 // fijación). Cada renglón: datos estructurados, cantidad solo numérica con
@@ -108,6 +109,10 @@ function Tarjeta({ n, titulo, onQuitar, children }: { n: number; titulo: string;
   );
 }
 
+function Lista({ id, opciones }: { id: string; opciones: string[] }) {
+  return <datalist id={id}>{opciones.map((t) => <option key={t} value={t} />)}</datalist>;
+}
+
 function Agregar({ texto, onClick }: { texto: string; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick}
@@ -127,11 +132,16 @@ function unidadDe(a: ArticuloCatalogo, opciones: { valor: string }[], actual: st
 // ------------------------------------------------------------------
 // Tubería
 // ------------------------------------------------------------------
-export function SeccionTuberia({ filas, onCambiar, catalogo, inputCls }: { filas: FilaTuberia[]; onCambiar: (f: FilaTuberia[]) => void; catalogo: ArticuloCatalogo[] | null; inputCls: string }) {
+type Sugeridas = { aprendidos?: ConceptosAprendidos };
+
+export function SeccionTuberia({ filas, onCambiar, catalogo, inputCls, aprendidos = {} }: { filas: FilaTuberia[]; onCambiar: (f: FilaTuberia[]) => void; catalogo: ArticuloCatalogo[] | null; inputCls: string } & Sugeridas) {
   const set = (i: number, p: Partial<FilaTuberia>) => onCambiar(filas.map((f, j) => (j === i ? { ...f, ...p } : f)));
+  const medidas = useMemo(() => unirSugerencias(MEDIDAS_TUBERIA, aprendidos.tuberia_medida), [aprendidos]);
+  const especificas = useMemo(() => unirSugerencias([], aprendidos.tuberia_especifica), [aprendidos]);
   return (
     <div>
-      <datalist id="medidas-tuberia">{MEDIDAS_TUBERIA.map((m) => <option key={m} value={m} />)}</datalist>
+      <Lista id="medidas-tuberia" opciones={medidas} />
+      <Lista id="especificas-tuberia" opciones={especificas} />
       {filas.map((f, i) => (
         <Tarjeta key={i} n={i + 1} titulo="Tubería" onQuitar={filas.length > 1 ? () => onCambiar(filas.filter((_, j) => j !== i)) : undefined}>
           <div className="grid grid-cols-2 gap-2">
@@ -144,13 +154,13 @@ export function SeccionTuberia({ filas, onCambiar, catalogo, inputCls }: { filas
             </div>
             <div>
               <label className={labelCls}>Medida</label>
-              <input list="medidas-tuberia" value={f.medida} onChange={(e) => set(i, { medida: e.target.value })} placeholder='3/4"' className={inputCls} />
+              <input list="medidas-tuberia" value={f.medida} onChange={(e) => set(i, { medida: e.target.value })} onBlur={(e) => set(i, { medida: formaCanonica(e.target.value, medidas) })} placeholder='3/4"' className={inputCls} />
             </div>
           </div>
           {f.tipo === 'Otra' && (
             <div className="mt-2">
               <label className={labelCls}>Especifica</label>
-              <input value={f.especifica || ''} onChange={(e) => set(i, { especifica: e.target.value })} className={inputCls} />
+              <input list="especificas-tuberia" value={f.especifica || ''} onChange={(e) => set(i, { especifica: e.target.value })} onBlur={(e) => set(i, { especifica: formaCanonica(e.target.value, especificas) })} className={inputCls} />
             </div>
           )}
           <div className="grid grid-cols-2 gap-2 mt-2">
@@ -170,21 +180,24 @@ export function SeccionTuberia({ filas, onCambiar, catalogo, inputCls }: { filas
 // ------------------------------------------------------------------
 // Cable
 // ------------------------------------------------------------------
-export function SeccionCable({ filas, onCambiar, catalogo, inputCls }: { filas: FilaCable[]; onCambiar: (f: FilaCable[]) => void; catalogo: ArticuloCatalogo[] | null; inputCls: string }) {
+export function SeccionCable({ filas, onCambiar, catalogo, inputCls, aprendidos = {} }: { filas: FilaCable[]; onCambiar: (f: FilaCable[]) => void; catalogo: ArticuloCatalogo[] | null; inputCls: string } & Sugeridas) {
   const set = (i: number, p: Partial<FilaCable>) => onCambiar(filas.map((f, j) => (j === i ? { ...f, ...p } : f)));
+  const tipos = useMemo(() => unirSugerencias(TIPOS_CABLE, aprendidos.cable_tipo), [aprendidos]);
+  const calibres = useMemo(() => unirSugerencias([], aprendidos.cable_calibre), [aprendidos]);
   return (
     <div>
-      <datalist id="tipos-cable">{TIPOS_CABLE.map((t) => <option key={t} value={t} />)}</datalist>
+      <Lista id="tipos-cable" opciones={tipos} />
+      <Lista id="calibres-cable" opciones={calibres} />
       {filas.map((f, i) => (
         <Tarjeta key={i} n={i + 1} titulo="Cable" onQuitar={filas.length > 1 ? () => onCambiar(filas.filter((_, j) => j !== i)) : undefined}>
           <div className="grid grid-cols-3 gap-2">
             <div className="col-span-2">
               <label className={labelCls}>Tipo</label>
-              <input list="tipos-cable" value={f.tipo} onChange={(e) => set(i, { tipo: e.target.value })} placeholder="UTP Cat 6" className={inputCls} />
+              <input list="tipos-cable" value={f.tipo} onChange={(e) => set(i, { tipo: e.target.value })} onBlur={(e) => set(i, { tipo: formaCanonica(e.target.value, tipos) })} placeholder="UTP Cat 6" className={inputCls} />
             </div>
             <div>
               <label className={labelCls}>Calibre</label>
-              <input value={f.calibre} onChange={(e) => set(i, { calibre: e.target.value })} placeholder="23 AWG" className={inputCls} />
+              <input list="calibres-cable" value={f.calibre} onChange={(e) => set(i, { calibre: e.target.value })} onBlur={(e) => set(i, { calibre: formaCanonica(e.target.value, calibres) })} placeholder="23 AWG" className={inputCls} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2 mt-2">
@@ -204,21 +217,24 @@ export function SeccionCable({ filas, onCambiar, catalogo, inputCls }: { filas: 
 // ------------------------------------------------------------------
 // Soportería y fijación
 // ------------------------------------------------------------------
-export function SeccionSoporteria({ filas, onCambiar, catalogo, inputCls }: { filas: FilaSoporteria[]; onCambiar: (f: FilaSoporteria[]) => void; catalogo: ArticuloCatalogo[] | null; inputCls: string }) {
+export function SeccionSoporteria({ filas, onCambiar, catalogo, inputCls, aprendidos = {} }: { filas: FilaSoporteria[]; onCambiar: (f: FilaSoporteria[]) => void; catalogo: ArticuloCatalogo[] | null; inputCls: string } & Sugeridas) {
   const set = (i: number, p: Partial<FilaSoporteria>) => onCambiar(filas.map((f, j) => (j === i ? { ...f, ...p } : f)));
+  const conceptos = useMemo(() => unirSugerencias(SUGERENCIAS_SOPORTERIA, aprendidos.soporteria_desc), [aprendidos]);
+  const medidas = useMemo(() => unirSugerencias([], aprendidos.soporteria_medida), [aprendidos]);
   return (
     <div>
-      <datalist id="sugerencias-soporteria">{SUGERENCIAS_SOPORTERIA.map((t) => <option key={t} value={t} />)}</datalist>
+      <Lista id="sugerencias-soporteria" opciones={conceptos} />
+      <Lista id="medidas-soporteria" opciones={medidas} />
       {filas.map((f, i) => (
         <Tarjeta key={i} n={i + 1} titulo="Material" onQuitar={filas.length > 1 ? () => onCambiar(filas.filter((_, j) => j !== i)) : undefined}>
           <div className="grid grid-cols-3 gap-2">
             <div className="col-span-2">
               <label className={labelCls}>Qué se usó</label>
-              <input list="sugerencias-soporteria" value={f.desc} onChange={(e) => set(i, { desc: e.target.value })} placeholder="Taquete, unicanal, abrazadera…" className={inputCls} />
+              <input list="sugerencias-soporteria" value={f.desc} onChange={(e) => set(i, { desc: e.target.value })} onBlur={(e) => set(i, { desc: formaCanonica(e.target.value, conceptos) })} placeholder="Taquete, unicanal, abrazadera…" className={inputCls} />
             </div>
             <div>
               <label className={labelCls}>Medida</label>
-              <input value={f.medida} onChange={(e) => set(i, { medida: e.target.value })} placeholder='1/4"' className={inputCls} />
+              <input list="medidas-soporteria" value={f.medida} onChange={(e) => set(i, { medida: e.target.value })} onBlur={(e) => set(i, { medida: formaCanonica(e.target.value, medidas) })} placeholder='1/4"' className={inputCls} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2 mt-2">

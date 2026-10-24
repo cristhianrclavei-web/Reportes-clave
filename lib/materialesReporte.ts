@@ -38,9 +38,21 @@ export const UNIDADES_SOPORTERIA = [
   { valor: 'tramo', label: 'tramos' },
 ];
 
+// Equipo instalado: casi siempre piezas, pero también alambre de cerca,
+// cable o kits.
+export const UNIDADES_EQUIPO = [
+  { valor: 'pza', label: 'pza' },
+  { valor: 'm', label: 'm' },
+  { valor: 'rollo', label: 'rollo' },
+  { valor: 'bobina', label: 'bobina' },
+  { valor: 'juego', label: 'juego' },
+  { valor: 'caja', label: 'caja' },
+  { valor: 'kit', label: 'kit' },
+];
+
 const ETIQUETA_UNIDAD: Record<string, [string, string]> = {
   m: ['m', 'm'], tramo: ['tramo', 'tramos'], pza: ['pza', 'pzas'], bobina: ['bobina', 'bobinas'], rollo: ['rollo', 'rollos'],
-  caja: ['caja', 'cajas'], bolsa: ['bolsa', 'bolsas'], juego: ['juego', 'juegos'],
+  caja: ['caja', 'cajas'], bolsa: ['bolsa', 'bolsas'], juego: ['juego', 'juegos'], kit: ['kit', 'kits'],
 };
 
 export function cantidadTexto(cantidad: string | number | undefined, unidad: string | undefined): string {

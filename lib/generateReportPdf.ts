@@ -1,4 +1,4 @@
-import { tuberiasDe, cablesDe, soporteriaDe, textoTuberia, textoCable, textoSoporteria } from './materialesReporte';
+import { tuberiasDe, cablesDe, soporteriaDe, textoTuberia, textoCable, textoSoporteria, cantidadTexto } from './materialesReporte';
 import { tieneTipo } from './tiposServicio';
 import { fechaDMA } from './etiquetaMantenimiento';
 import { PDFDocument, PDFFont, rgb } from 'pdf-lib';
@@ -350,9 +350,9 @@ export async function generateReportPdf(report: ReportRow, supabase?: any, opcio
   // otra hoja repitiendo el encabezado.
   const equipos: any[] = data.equipos || [];
   const eqCols = [
-    { label: 'CANT.', key: 'cant', w: 0.08, fnt: font },
-    { label: 'MODELO', key: 'modelo', w: 0.22, fnt: bold },
-    { label: 'DESCRIPCIÓN', key: 'desc', w: 0.38, fnt: font },
+    { label: 'CANT.', key: 'cant', w: 0.1, fnt: font },
+    { label: 'MODELO', key: 'modelo', w: 0.21, fnt: bold },
+    { label: 'DESCRIPCIÓN', key: 'desc', w: 0.37, fnt: font },
     { label: 'MARCA', key: 'marca', w: 0.14, fnt: font },
     { label: 'NO. SERIE', key: 'serie', w: 0.18, fnt: font },
   ];
@@ -387,7 +387,12 @@ export async function generateReportPdf(report: ReportRow, supabase?: any, opcio
     equipos.forEach((eq) => {
       // Descripciones copiadas completas de SYSCOM (reportes anteriores): solo lo primero.
       const desc = String(eq?.desc || '');
-      const textoDe = (key: string) => (key === 'desc' && desc.length > 70 && / [\/|] /.test(desc) ? descripcionCorta(desc) : String(eq?.[key] || ''));
+      const textoDe = (key: string) => {
+        if (key === 'desc' && desc.length > 70 && / [\/|] /.test(desc)) return descripcionCorta(desc);
+        // «100 m», «2 pzas»; los reportes de antes no traen unidad: solo el número.
+        if (key === 'cant' && eq?.unidad && eq?.cant) return cantidadTexto(eq.cant, eq.unidad);
+        return String(eq?.[key] || '');
+      };
       const celdas = eqCols.map((c) => lineasCelda(textoDe(c.key), c.fnt, TAM_EQ, contentW * c.w - 12, 3));
       const filaH = Math.max(16, Math.max(...celdas.map((l) => l.length)) * RENGLON_EQ + 7);
       if (y - filaH < MARGIN + SIGNATURE_ZONE_H) {
@@ -443,7 +448,7 @@ export async function generateReportPdf(report: ReportRow, supabase?: any, opcio
           const textoW = tarjetaW - 12;
           const modelo = lineasCelda(String(item.eq.modelo || item.eq.desc || ''), bold, 8, textoW, 1)[0];
           page.drawText(modelo, { x: tx + (tarjetaW - bold.widthOfTextAtSize(modelo, 8)) / 2, y: y - fotoLado - 22, size: 8, font: bold, color: NAVY });
-          const detalle = lineasCelda([item.eq.cant ? `${item.eq.cant} pza` : '', item.eq.marca].filter(Boolean).join(' · '), font, 7, textoW, 1)[0];
+          const detalle = lineasCelda([item.eq.cant ? cantidadTexto(item.eq.cant, item.eq.unidad || 'pza') : '', item.eq.marca].filter(Boolean).join(' · '), font, 7, textoW, 1)[0];
           page.drawText(detalle, { x: tx + (tarjetaW - font.widthOfTextAtSize(detalle, 7)) / 2, y: y - fotoLado - 33, size: 7, font, color: GRAY_TEXT });
         }
         y -= tarjetaH + separacion;

@@ -42,6 +42,7 @@ import EtiquetasMantenimiento from '@/components/EtiquetasMantenimiento';
 import { guardarCamposBorrador, guardarFotosBorrador, leerBorrador, borrarBorrador } from '@/lib/borradorReporte';
 import EquipoInstaladoRenglon, { EquipoFila, ArticuloCatalogo, faltaModelo, renglonEquipoVacio, textoEquiposAviso } from '@/components/EquipoInstaladoRenglon';
 import { cargarModelosEquipo, ModeloEquipo } from '@/lib/sugerenciasEquipos';
+import { cargarConceptosMateriales, ConceptosAprendidos } from '@/lib/conceptosMateriales';
 import { sinRegistroDeReporte } from '@/lib/equiposInstalados';
 import { FilaTuberia, FilaCable, FilaSoporteria, tuberiasDe, cablesDe, soporteriaDe } from '@/lib/materialesReporte';
 import { SeccionTuberia, SeccionCable, SeccionSoporteria, tuberiaVacia, cableVacio, soporteriaVacia } from '@/components/reporte/MaterialesReporte';
@@ -338,6 +339,9 @@ export default function NuevoReportePage() {
   // Modelos ya instalados antes, para sugerirlos (también sin señal).
   const [modelosEquipo, setModelosEquipo] = useState<ModeloEquipo[]>([]);
   useEffect(() => cargarModelosEquipo(setModelosEquipo), []);
+  // Lo que ya se escribió en tubería, cable y soportería de otros reportes.
+  const [conceptosMateriales, setConceptosMateriales] = useState<ConceptosAprendidos>({});
+  useEffect(() => cargarConceptosMateriales(setConceptosMateriales), []);
   const [firmaIngNombre, setFirmaIngNombre] = useState('');
   const [firmaClienteNombre, setFirmaClienteNombre] = useState('');
   // Cliente que no estaba para firmar: queda registrado quién recibió y el
@@ -1900,17 +1904,17 @@ export default function NuevoReportePage() {
 
         {/* Tubería */}
         <Plegable titulo="Tubería" cuenta={tuberias.filter((t) => t.tipo || t.cantidad || t.articuloId).length}>
-          <SeccionTuberia filas={tuberias} onCambiar={setTuberias} catalogo={catalogoEquipos} inputCls={inputCls} />
+          <SeccionTuberia filas={tuberias} onCambiar={setTuberias} catalogo={catalogoEquipos} inputCls={inputCls} aprendidos={conceptosMateriales} />
         </Plegable>
 
         {/* Cable instalado */}
         <Plegable titulo="Cable instalado" cuenta={cables.filter((c) => c.tipo || c.cantidad || c.articuloId).length}>
-          <SeccionCable filas={cables} onCambiar={setCables} catalogo={catalogoEquipos} inputCls={inputCls} />
+          <SeccionCable filas={cables} onCambiar={setCables} catalogo={catalogoEquipos} inputCls={inputCls} aprendidos={conceptosMateriales} />
         </Plegable>
 
         {/* Montaje de soportería y fijación */}
         <Plegable titulo="Montaje de soportería y fijación" cuenta={soporteria.filter((x) => x.desc || x.cantidad || x.articuloId).length}>
-          <SeccionSoporteria filas={soporteria} onCambiar={setSoporteria} catalogo={catalogoEquipos} inputCls={inputCls} />
+          <SeccionSoporteria filas={soporteria} onCambiar={setSoporteria} catalogo={catalogoEquipos} inputCls={inputCls} aprendidos={conceptosMateriales} />
         </Plegable>
 
         {/* Montaje de equipo */}

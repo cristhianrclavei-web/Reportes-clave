@@ -1,6 +1,7 @@
 'use client';
 
 import { ExternalLink, Package } from 'lucide-react';
+import { cantidadTexto } from '@/lib/materialesReporte';
 
 // Equipo instalado de un reporte, como lo ve supervisión: el modelo primero
 // (es la referencia), con la foto y la ficha de SYSCOM cuando las tiene.
@@ -20,7 +21,7 @@ export default function TablaEquiposInstalados({ equipos }: { equipos: any[] }) 
           )}
           <div className="min-w-0 flex-1">
             <p className="text-[14px] font-semibold leading-tight">
-              <span className="tabular-nums text-teal">{e.cant || 1}×</span>{' '}
+              <span className="tabular-nums text-teal">{e.unidad && e.unidad !== 'pza' ? cantidadTexto(e.cant, e.unidad) : `${e.cant || 1}×`}</span>{' '}
               {e.modelo || <span className="text-muted font-normal">{e.sinModelo ? 'Sin modelo visible' : 'Sin modelo'}</span>}
               {e.marca && <span className="text-muted font-normal"> · {e.marca}</span>}
             </p>

@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Check, AlertTriangle, X, Search, ScanLine, ExternalLink, Package } from 'lucide-react';
 import { coincideBusqueda } from '@/lib/busqueda';
-import { soloNumero } from '@/lib/materialesReporte';
+import { soloNumero, UNIDADES_EQUIPO } from '@/lib/materialesReporte';
 import { buscarModelos, ModeloEquipo } from '@/lib/sugerenciasEquipos';
 import { descripcionCorta } from '@/lib/descripcionEquipo';
+import { formaCanonica } from '@/lib/conceptosMateriales';
 import SelectorProductoSyscom from '@/components/SelectorProductoSyscom';
 import EscanerCodigo, { hayEscanerDeCodigos } from '@/components/EscanerCodigo';
 import type { ProductoSyscom } from '@/lib/syscom';
@@ -18,6 +19,8 @@ import type { ProductoSyscom } from '@/lib/syscom';
 
 export type EquipoFila = {
   cant: string;
+  // pza, m, rollo… (los reportes de antes no la traen: son piezas).
+  unidad?: string;
   desc: string;
   modelo: string;
   marca: string;
@@ -44,7 +47,8 @@ export function faltaModelo(eq: EquipoFila): boolean {
 export function textoEquiposAviso(equipos: EquipoFila[]): string {
   const conDatos = equipos.filter((e) => !renglonEquipoVacio(e));
   if (conDatos.length === 0) return '';
-  const total = conDatos.reduce((suma, e) => suma + (parseFloat(e.cant) || 1), 0);
+  // Solo se suman piezas: 100 m de alambre cuentan como un equipo.
+  const total = conDatos.reduce((suma, e) => suma + (!e.unidad || e.unidad === 'pza' ? parseFloat(e.cant) || 1 : 1), 0);
   const modelos = [...new Set(conDatos.map((e) => e.modelo.trim()).filter(Boolean))];
   let texto = ` · ${total} ${total === 1 ? 'equipo' : 'equipos'}`;
   if (modelos.length > 0) {
@@ -97,6 +101,7 @@ export default function EquipoInstaladoRenglon({
   }, [catalogo, eq.modelo, eq.articuloId]);
 
   const haySugerencias = yaInstalados.length > 0 || delAlmacen.length > 0;
+  const marcasConocidas = useMemo(() => modelos.map((m) => m.marca || '').filter(Boolean), [modelos]);
 
   function cambiarModelo(valor: string) {
     // Otro modelo ya no es ese producto: se suelta el artículo y la foto.
@@ -133,10 +138,13 @@ export default function EquipoInstaladoRenglon({
           // eslint-disable-next-line @next/next/no-img-element
           <img src={eq.imagen} alt="" className="w-14 h-14 rounded-lg border border-line bg-white object-contain shrink-0" />
         )}
-        {/* Celular: Cant + Modelo / Descripción / Marca + Serie. Computadora: todo en un renglón. */}
-        <div className="flex-1 min-w-0 grid grid-cols-4 sm:grid-cols-[72px_1.3fr_1fr_1.6fr_1.2fr] gap-2">
-          <input placeholder="Cant." inputMode="decimal" className={`${inputCls} text-center tabular-nums order-1 sm:order-none`} value={eq.cant} onChange={(e) => onCambiar({ ...eq, cant: soloNumero(e.target.value) })} />
-          <div className="relative col-span-3 sm:col-span-1 order-2 sm:order-none">
+        {/* Celular: Modelo / Cant + Unidad + Marca / Descripción / Serie. Computadora: todo en un renglón. */}
+        <div className="flex-1 min-w-0 grid grid-cols-4 sm:grid-cols-[64px_84px_1.3fr_1fr_1.6fr_1.2fr] gap-2">
+          <input placeholder="Cant." inputMode="decimal" className={`${inputCls} text-center tabular-nums order-2 sm:order-none`} value={eq.cant} onChange={(e) => onCambiar({ ...eq, cant: soloNumero(e.target.value) })} />
+          <select aria-label="Unidad" className={`${inputCls} !px-2 order-3 sm:order-none`} value={eq.unidad || 'pza'} onChange={(e) => onCambiar({ ...eq, unidad: e.target.value })}>
+            {UNIDADES_EQUIPO.map((u) => <option key={u.valor} value={u.valor}>{u.label}</option>)}
+          </select>
+          <div className="relative col-span-4 sm:col-span-1 order-1 sm:order-none">
             <input
               placeholder={eq.sinModelo ? 'Sin modelo' : 'Modelo'}
               aria-label="Modelo"
@@ -144,7 +152,12 @@ export default function EquipoInstaladoRenglon({
               value={eq.modelo}
               onChange={(e) => cambiarModelo(e.target.value)}
               onFocus={() => setAbierto(true)}
-              onBlur={() => setTimeout(() => setAbierto(false), 150)}
+              onBlur={(e) => {
+                setTimeout(() => setAbierto(false), 150);
+                // «ds-2cd1043g2» escrito a mano se guarda como el modelo ya conocido.
+                const canonico = formaCanonica(e.target.value, modelos.map((m) => m.modelo));
+                if (canonico !== eq.modelo) onCambiar({ ...eq, modelo: canonico });
+              }}
             />
             {abierto && haySugerencias && (
               <div className="absolute z-30 left-0 w-[min(320px,80vw)] mt-1 rounded-xl bg-surface border border-line-strong shadow-diffuse overflow-hidden max-h-[320px] overflow-y-auto">
@@ -185,14 +198,23 @@ export default function EquipoInstaladoRenglon({
               </div>
             )}
           </div>
-          <input placeholder="Marca" className={`${inputCls} col-span-2 sm:col-span-1 order-4 sm:order-none`} value={eq.marca} onChange={(e) => onCambiar({ ...eq, marca: e.target.value })} />
+          <input
+            placeholder="Marca"
+            className={`${inputCls} col-span-2 sm:col-span-1 order-4 sm:order-none`}
+            value={eq.marca}
+            onChange={(e) => onCambiar({ ...eq, marca: e.target.value })}
+            onBlur={(e) => {
+              const canonica = formaCanonica(e.target.value, marcasConocidas);
+              if (canonica !== eq.marca) onCambiar({ ...eq, marca: canonica });
+            }}
+          />
           <input
             placeholder="Descripción"
-            className={`${inputCls} col-span-4 sm:col-span-1 order-3 sm:order-none`}
+            className={`${inputCls} col-span-4 sm:col-span-1 order-5 sm:order-none`}
             value={eq.desc}
             onChange={(e) => onCambiar({ ...eq, desc: e.target.value, articuloId: null })}
           />
-          <div className="relative col-span-2 sm:col-span-1 order-5 sm:order-none">
+          <div className="relative col-span-4 sm:col-span-1 order-6 sm:order-none">
             <input placeholder="No. Serie" className={`${inputCls} w-full ${conEscaner ? 'pr-11' : ''}`} value={eq.serie} onChange={(e) => onCambiar({ ...eq, serie: e.target.value })} />
             {conEscaner && (
               <button

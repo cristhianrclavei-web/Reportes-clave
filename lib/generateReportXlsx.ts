@@ -208,7 +208,7 @@ export async function generateReportXlsx(report: ReportRow): Promise<Buffer> {
   const eqMaxRows = 8;
   equipos.slice(0, eqMaxRows).forEach((eq, i) => {
     const row = eqStartRow + i;
-    if (eq.cant) setValueShrinkToFit(sheet.getCell(`A${row}`), String(eq.cant), 6);
+    if (eq.cant) setValueShrinkToFit(sheet.getCell(`A${row}`), eq.unidad && eq.unidad !== 'pza' ? cantidadTexto(eq.cant, eq.unidad) : String(eq.cant), 6);
     if (eq.desc) setValueShrinkToFit(sheet.getCell(`C${row}`), eq.desc, 18);
     if (eq.modelo) setValueShrinkToFit(sheet.getCell(`E${row}`), eq.modelo, 12);
     if (eq.marca) setValueShrinkToFit(sheet.getCell(`F${row}`), eq.marca, 12);

@@ -553,12 +553,12 @@ export default function ReportDetailModal({
                     Ver PDF
                   </button>
                   {menuPdf && (
-                    <div className="absolute left-0 top-full mt-2 glass-strong rounded-2xl p-1.5 flex flex-col gap-1 z-10 min-w-[200px] shadow-glow">
-                      <button onClick={() => abrirPdf(true)} className="flex items-center gap-2 text-left text-[13px] font-medium px-3 py-2.5 rounded-xl hover:bg-white/10 active:scale-95 transition-transform">
+                    <div className="absolute left-0 top-full mt-2 bg-surface border border-line-strong rounded-2xl p-1.5 flex flex-col gap-1 z-20 min-w-[220px] shadow-diffuse">
+                      <button onClick={() => abrirPdf(true)} className="flex items-center gap-2 text-left text-[13px] font-medium px-3 py-2.5 rounded-xl text-ink hover:bg-surface-2 active:scale-95 transition-transform">
                         <ImageIcon size={15} strokeWidth={2.4} className="text-teal" />
                         Con fotos de los equipos
                       </button>
-                      <button onClick={() => abrirPdf(false)} className="flex items-center gap-2 text-left text-[13px] font-medium px-3 py-2.5 rounded-xl hover:bg-white/10 active:scale-95 transition-transform">
+                      <button onClick={() => abrirPdf(false)} className="flex items-center gap-2 text-left text-[13px] font-medium px-3 py-2.5 rounded-xl text-ink hover:bg-surface-2 active:scale-95 transition-transform">
                         <FileText size={15} strokeWidth={2.4} className="text-teal" />
                         Sin fotos de equipos
                       </button>
@@ -586,13 +586,13 @@ export default function ReportDetailModal({
                     {sharing ? 'Preparando…' : 'Compartir'}
                   </button>
                   {shareMenuOpen && (
-                    <div className="absolute right-0 top-full mt-2 glass-strong rounded-2xl p-1.5 flex flex-col gap-1 z-10 min-w-[160px] shadow-glow">
-                      <button onClick={() => handleShare('pdf')} className="flex items-center gap-2 text-left text-[13px] font-medium px-3 py-2.5 rounded-xl hover:bg-white/10 active:scale-95 transition-transform">
+                    <div className="absolute right-0 top-full mt-2 bg-surface border border-line-strong rounded-2xl p-1.5 flex flex-col gap-1 z-20 min-w-[160px] shadow-diffuse">
+                      <button onClick={() => handleShare('pdf')} className="flex items-center gap-2 text-left text-[13px] font-medium px-3 py-2.5 rounded-xl text-ink hover:bg-surface-2 active:scale-95 transition-transform">
                         <FileText size={15} strokeWidth={2.4} className="text-teal" />
                         Como PDF
                       </button>
                       {MARCA.excelReporte && (
-                        <button onClick={() => handleShare('xlsx')} className="flex items-center gap-2 text-left text-[13px] font-medium px-3 py-2.5 rounded-xl hover:bg-white/10 active:scale-95 transition-transform">
+                        <button onClick={() => handleShare('xlsx')} className="flex items-center gap-2 text-left text-[13px] font-medium px-3 py-2.5 rounded-xl text-ink hover:bg-surface-2 active:scale-95 transition-transform">
                           <FileSpreadsheet size={15} strokeWidth={2.4} className="text-teal" />
                           Como Excel
                         </button>
