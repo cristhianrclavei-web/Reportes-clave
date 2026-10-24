@@ -106,7 +106,7 @@ export default function MapaTecnicos() {
           <p className="text-[12.5px] text-muted flex items-center gap-1.5">
             <Route size={14} className="text-teal shrink-0" />
             {recorrido.length >= 2
-              ? `${textoRecorrido}: ${recorrido.length} puntos, de ${horaCorta(recorrido[0].registrado_en)} a ${horaCorta(recorrido[recorrido.length - 1].registrado_en)}.`
+              ? `${textoRecorrido}: ${recorrido.length} puntos, de ${horaCorta(recorrido[0].registrado_en)} a ${horaCorta(recorrido[recorrido.length - 1].registrado_en)}`
               : `${textoRecorrido}: sin suficientes puntos.`}
           </p>
         )}
