@@ -4,26 +4,41 @@ import 'leaflet/dist/leaflet.css';
 import Link from 'next/link';
 import { Crosshair, ExternalLink, Maximize2, Radio, Smartphone } from 'lucide-react';
 import { estadoSenal, EstadoSenal, FALTA_SQL_UBICACION } from '@/lib/ubicacionTecnicos';
-import { COLOR_SENAL, TEXTO_SENAL, horaCorta, inicialesTecnico, useMapaTecnicos } from '@/components/servicios/useMapaTecnicos';
+import { COLOR_HISTORIAL, COLOR_SENAL, TEXTO_SENAL, horaCorta, inicialesTecnico, useMapaTecnicos } from '@/components/servicios/useMapaTecnicos';
+import SelectorDiaMapa from '@/components/servicios/SelectorDiaMapa';
+import { fechaLocal } from '@/lib/fechaHoy';
 import BotonMotorMapa from '@/components/servicios/BotonMotorMapa';
 import { enlaceGoogleMaps } from '@/components/servicios/motorMapa';
 
 // Primera tarjeta del Resumen: el mapa con dónde está cada técnico ahora.
 // Encima del mapa van el título con los conteos y, abajo, una tira con
 // cada técnico (tocarlo acerca el mapa y muestra su recorrido de hoy).
+// Con el selector de día se ven los días anteriores (hasta 90), sobre el
+// mismo mapa: no cuenta como otra carga de Google Maps.
 // «Abrir mapa» lleva a Servicios → Mapa, con la lista completa.
 
 const MAPA_COMPLETO = '/dashboard/servicios?sub=mapa';
 
 export default function TecnicosEnCampo() {
-  const { contenedorRef, tecnicos, elegido, recorrido, error, cargando, ahora, enfocar, encuadrarTodos, motor, hayGoogle, cambiarMotor } = useMapaTecnicos({ zoomControl: false });
+  const {
+    contenedorRef, tecnicos, elegido, recorrido, error, cargando, ahora, enfocar, encuadrarTodos, motor, hayGoogle, cambiarMotor,
+    fecha, hoy, esHoy, fechaMinima, irADia,
+  } = useMapaTecnicos({ zoomControl: false });
   const elegidoDatos = tecnicos.find((t) => t.tecnico_id === elegido) || null;
+  const textoDia = fecha ? fechaLocal(fecha).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' }) : '';
 
   const cuenta: Record<EstadoSenal, number> = { en_linea: 0, reciente: 0, sin_senal: 0 };
   if (ahora !== null) {
     for (const t of tecnicos) cuenta[estadoSenal(t.registrado_en, ahora)] += 1;
   }
   const sinDatos = !cargando && !error && tecnicos.length === 0;
+
+  function textoRecorrido(): string {
+    if (recorrido.length < 2) return esHoy ? 'Todavía no hay recorrido hoy' : 'Sin suficientes puntos ese día';
+    const desde = horaCorta(recorrido[0].registrado_en);
+    const hasta = horaCorta(recorrido[recorrido.length - 1].registrado_en);
+    return esHoy ? `Recorrido de hoy desde las ${desde}` : `Recorrido de ${desde} a ${hasta}`;
+  }
 
   // Una base sin el rastreo (por ejemplo, el demo) no muestra la tarjeta.
   if (error === FALTA_SQL_UBICACION) return null;
@@ -43,12 +58,23 @@ export default function TecnicosEnCampo() {
             </span>
             <h2 className="font-display font-bold text-[17px] lg:text-[19px] tracking-wide leading-none">Técnicos en campo</h2>
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px]">
-            <Conteo color={COLOR_SENAL.en_linea} numero={cuenta.en_linea} texto="en línea" />
-            {cuenta.reciente > 0 && <Conteo color={COLOR_SENAL.reciente} numero={cuenta.reciente} texto="sin puntos recientes" />}
-            {cuenta.sin_senal > 0 && <Conteo color={COLOR_SENAL.sin_senal} numero={cuenta.sin_senal} texto="sin señal" />}
-            {ahora !== null && <span className="text-muted">· {new Date(ahora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</span>}
-          </div>
+          {esHoy ? (
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px]">
+              <Conteo color={COLOR_SENAL.en_linea} numero={cuenta.en_linea} texto="en línea" />
+              {cuenta.reciente > 0 && <Conteo color={COLOR_SENAL.reciente} numero={cuenta.reciente} texto="sin puntos recientes" />}
+              {cuenta.sin_senal > 0 && <Conteo color={COLOR_SENAL.sin_senal} numero={cuenta.sin_senal} texto="sin señal" />}
+              {ahora !== null && <span className="text-muted">· {new Date(ahora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</span>}
+            </div>
+          ) : (
+            <p className="mt-2 text-[12.5px] text-muted first-letter:uppercase">
+              {textoDia} · <span className="font-semibold text-ink/85">{tecnicos.length}</span> {tecnicos.length === 1 ? 'técnico' : 'técnicos'}
+            </p>
+          )}
+          {fecha && hoy && fechaMinima && (
+            <div className="mt-2.5">
+              <SelectorDiaMapa fecha={fecha} hoy={hoy} fechaMinima={fechaMinima} irADia={irADia} />
+            </div>
+          )}
         </div>
 
         <div className="pointer-events-auto flex items-center gap-2">
@@ -84,8 +110,10 @@ export default function TecnicosEnCampo() {
               <p className="text-[13.5px] font-semibold text-red">{error}</p>
             ) : (
               <>
-                <p className="text-[14px] font-semibold">Nadie ha compartido su ubicación hoy</p>
-                <p className="text-[12.5px] text-muted mt-1">Los teléfonos de la empresa aparecen aquí en horario de trabajo.</p>
+                <p className="text-[14px] font-semibold">{esHoy ? 'Nadie ha compartido su ubicación hoy' : 'No hay ubicaciones ese día'}</p>
+                <p className="text-[12.5px] text-muted mt-1">
+                  {esHoy ? 'Los teléfonos de la empresa aparecen aquí en horario de trabajo.' : 'Ese día ningún teléfono con la app compartió su ubicación.'}
+                </p>
               </>
             )}
           </div>
@@ -99,6 +127,8 @@ export default function TecnicosEnCampo() {
             {tecnicos.map((t) => {
               const estado = estadoSenal(t.registrado_en, ahora);
               const activo = t.tecnico_id === elegido;
+              const color = esHoy ? COLOR_SENAL[estado] : COLOR_HISTORIAL;
+              const detalle = esHoy ? `${TEXTO_SENAL[estado]} · ${horaCorta(t.registrado_en)}` : `Último punto · ${horaCorta(t.registrado_en)}`;
               return (
                 <button
                   key={t.tecnico_id}
@@ -109,13 +139,13 @@ export default function TecnicosEnCampo() {
                     activo ? 'bg-teal text-inkOnAccent border-teal' : 'bg-surface/92 border-line hover:border-teal/50'
                   }`}
                 >
-                  <span className="w-8 h-8 rounded-full text-white text-[11.5px] font-bold flex items-center justify-center ring-2 ring-white/80" style={{ background: COLOR_SENAL[estado] }}>
+                  <span className="w-8 h-8 rounded-full text-white text-[11.5px] font-bold flex items-center justify-center ring-2 ring-white/80" style={{ background: color }}>
                     {inicialesTecnico(t.nombre)}
                   </span>
                   <span className="text-left leading-tight">
                     <span className="block text-[13px] font-semibold max-w-[150px] truncate">{t.nombre || 'Técnico'}</span>
                     <span className={`block text-[11.5px] ${activo ? 'opacity-85' : 'text-muted'}`}>
-                      {TEXTO_SENAL[estado]} · {horaCorta(t.registrado_en)}
+                      {detalle}
                     </span>
                   </span>
                 </button>
@@ -126,7 +156,7 @@ export default function TecnicosEnCampo() {
             <div className="pointer-events-auto mt-2 flex flex-wrap items-center gap-2">
               <p className="inline-flex items-center gap-1.5 rounded-full bg-surface/92 backdrop-blur-md border border-line px-3 py-1 text-[12px] text-ink/80">
                 <Radio size={13} className="text-teal" />
-                {recorrido.length >= 2 ? `Recorrido de hoy desde las ${horaCorta(recorrido[0].registrado_en)}` : 'Todavía no hay recorrido hoy'}
+                {textoRecorrido()}
               </p>
               {/* Abre la app de Google Maps para llegar (gratis, no usa la llave). */}
               <a
