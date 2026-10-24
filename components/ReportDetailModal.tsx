@@ -637,6 +637,20 @@ export default function ReportDetailModal({
             </Link>
           </div>
         )}
+        {esSupervisor && !report.data?.firmaClienteData && !revision.data && (
+          <div className="mt-3 p-3.5 rounded-2xl bg-surface-2/60 border border-line flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-[14px]">Editar el reporte</p>
+              <p className="text-[12.5px] text-muted leading-relaxed">
+                Se puede mientras el cliente no lo firme y no tenga tu firma de revisión. Se actualiza el mismo reporte, con el mismo folio, y queda registrado quién lo cambió.
+              </p>
+            </div>
+            <Link href={`/nuevo?editar=${report.id}`}
+              className="min-h-[46px] px-4 rounded-xl bg-teal text-inkOnAccent text-[14px] font-semibold flex items-center justify-center gap-2 active:scale-[0.98] shrink-0">
+              <Pencil size={16} strokeWidth={2.5} /> Editar reporte
+            </Link>
+          </div>
+        )}
         <AutorReporte id={report.created_by} nombre={techName(report.profiles)} variante="recuadro" />
         <Section title="Datos generales">
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">

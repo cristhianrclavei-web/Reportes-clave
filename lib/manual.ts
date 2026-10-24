@@ -330,6 +330,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
           'En Reportes abre uno para ver datos, fotos y firmas, y descargar su PDF.',
           'En la pestaña «Fotos» del reporte, el ojo de cada foto la incluye o la deja fuera del PDF del cliente (sigue viéndose en la app) y el botón de ajustes cambia su comentario, etapa y área. El PDF lleva las fotos en un anexo «Evidencia fotográfica», agrupadas por área y con el antes y después lado a lado.',
           'En la pestaña «Revisión» lo apruebas con tu firma o pides una corrección con una nota para el técnico.',
+          'Si hay que cambiar algo tú mismo, en la pestaña «Reporte» toca «Editar reporte»: se puede mientras el cliente no lo haya firmado y no tenga tu firma de revisión. Se guarda en el mismo reporte (mismo folio) y queda registrado en Eventos que lo editaste.',
           'Al concluir el servicio el reporte queda «pendiente de facturar». Se quita solo cuando el reporte entra en una factura; si no se va a cobrar, quien factura registra el motivo en «No se va a facturar».',
         ],
       },

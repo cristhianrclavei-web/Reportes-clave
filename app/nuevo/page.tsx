@@ -489,22 +489,46 @@ export default function NuevoReportePage() {
   const [fechaServicioOriginal, setFechaServicioOriginal] = useState<string | null>(null);
   const reporteOriginal = useRef<any>(null);
   const [errorEdicion, setErrorEdicion] = useState<string | null>(null);
+  // Supervisión edita el reporte (de cualquiera) desde su detalle: se puede
+  // mientras el cliente no firme y no tenga la firma de revisión.
+  const [editaSupervisor, setEditaSupervisor] = useState(false);
 
   async function cargarParaEditar(id: string, uid: string) {
     const { data: r, error } = await supabase.from('reports').select('*').eq('id', id).single();
     if (error || !r) { setErrorEdicion('No se encontró el reporte.'); return; }
-    if (r.created_by !== uid) { setErrorEdicion('Solo quien hizo el reporte puede corregirlo.'); return; }
-    if (r.data?.firmaClienteData) { setErrorEdicion('El cliente ya firmó este reporte: solo se pueden agregar fotos y cambiar el servicio desde su detalle.'); return; }
+    const { data: rol } = await supabase.rpc('get_my_role');
+    if (rol === 'supervisor') {
+      if (r.data?.firmaClienteData) { setErrorEdicion('El cliente ya firmó este reporte: ya no se puede editar.'); return; }
+      if (r.data?.firmaRevisionData) { setErrorEdicion('Este reporte ya tiene la firma de revisión: ya no se puede editar.'); return; }
+      setEditaSupervisor(true);
+    } else if (r.created_by !== uid) {
+      setErrorEdicion('Solo quien hizo el reporte puede corregirlo.');
+      return;
+    } else if (r.data?.firmaClienteData) {
+      setErrorEdicion('El cliente ya firmó este reporte: solo se pueden agregar fotos y cambiar el servicio desde su detalle.');
+      return;
+    }
+    if (rol !== 'supervisor' && !tecnicoPuedeEditar(r)) return;
+    await cargarCamposDeReporte(r, id);
+  }
+
+  // Reglas del técnico: corrección autorizada o primera hora sin firmas.
+  // Si no puede, deja el motivo en pantalla.
+  function tecnicoPuedeEditar(r: any): boolean {
     if (!r.correccion_habilitada && reporteFirmadoEnSitio(r.data)) {
       setErrorEdicion('Este reporte ya tiene la firma de quien recibió el servicio: para cambiarlo pide una corrección al supervisor desde su detalle.');
-      return;
+      return false;
     }
     const enPrimeraHora = puedeEditarSinPermiso(r, Date.now());
     if (!r.correccion_habilitada && !enPrimeraHora) {
       setErrorEdicion('Ya pasó la primera hora desde que guardaste este reporte: para cambiarlo pide una corrección al supervisor desde su detalle.');
-      return;
+      return false;
     }
     if (!r.correccion_habilitada) setEdicionLibreHasta(finEdicionLibre(r.created_at));
+    return true;
+  }
+
+  async function cargarCamposDeReporte(r: any, id: string) {
     reporteOriginal.current = r;
     const d = r.data || {};
     if (d.servicioProgramadoId) {
@@ -1123,6 +1147,18 @@ export default function NuevoReportePage() {
       }
 
       const folio = anterior.claveFormato ? ` (folio ${anterior.claveFormato})` : '';
+      // Editado por supervisión: queda en Eventos; no se avisa a supervisión
+      // (lo hizo ella misma) y se regresa a la lista de reportes.
+      if (editaSupervisor) {
+        await registrarAccionGlobal('aplico_correccion', 'reporte', editarId, `Editó como supervisor el reporte de «${empresaCliente.trim()}»${folio}`);
+        avance(100, 'Cambios guardados');
+        await pausaFinal();
+        setSaving(false);
+        showToast('Cambios guardados', 'success');
+        resetAll();
+        router.push(`/dashboard/reportes?reporte=${editarId}`);
+        return;
+      }
       // Editado en su primera hora: queda en Eventos, pero no se avisa a
       // supervisión porque nadie pidió ni autorizó esa corrección.
       if (edicionLibreHasta !== null) {
@@ -1455,7 +1491,10 @@ export default function NuevoReportePage() {
   // o edición en la primera hora.
   let tituloFormulario = 'Nuevo reporte';
   let textoGuardar = 'Guardar reporte';
-  if (editarId && edicionLibreHasta !== null) {
+  if (editarId && editaSupervisor) {
+    tituloFormulario = 'Editar reporte';
+    textoGuardar = 'Guardar cambios';
+  } else if (editarId && edicionLibreHasta !== null) {
     tituloFormulario = 'Editar reporte';
     textoGuardar = 'Guardar cambios';
   } else if (editarId) {
@@ -1469,7 +1508,7 @@ export default function NuevoReportePage() {
       {/* Header */}
       <div className="sticky top-0 z-20 glass-strong px-5 py-3.5 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
-          <Link href="/mis-reportes" className="shrink-0 w-8 h-8 rounded-full border border-line-strong flex items-center justify-center active:scale-90 transition-transform">
+          <Link href={editaSupervisor ? '/dashboard/reportes' : '/mis-reportes'} className="shrink-0 w-8 h-8 rounded-full border border-line-strong flex items-center justify-center active:scale-90 transition-transform">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
               <path d="M15 6l-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
@@ -1508,7 +1547,13 @@ export default function NuevoReportePage() {
             </p>
           </div>
         )}
-        {editarId && edicionLibreHasta === null && (
+        {editarId && editaSupervisor && (
+          <div className="rounded-2xl px-4 py-3 bg-teal/10 border border-teal/30 text-[13px]">
+            <p className="font-semibold text-teal">Editando como supervisor</p>
+            <p className="text-muted">Puedes cambiar cualquier dato, el formato y las fotos. Se actualiza el mismo reporte (mismo folio) y queda registrado que lo editaste.</p>
+          </div>
+        )}
+        {editarId && !editaSupervisor && edicionLibreHasta === null && (
           <div className="rounded-2xl px-4 py-3 bg-amber/10 border border-amber/30 text-[13px]">
             <p className="font-semibold text-amber">Corrigiendo el reporte</p>
             <p className="text-muted">Puedes cambiar cualquier dato, el formato y las fotos. Al guardar se actualiza el mismo reporte (mismo folio), vuelve a quedar pendiente de revisión y la corrección se cierra.</p>
@@ -1516,7 +1561,7 @@ export default function NuevoReportePage() {
         )}
         {errorEdicion && (
           <div className="rounded-2xl px-4 py-3 bg-red/10 border border-red/30 text-[13px] text-red font-semibold">
-            {errorEdicion} <Link href="/mis-reportes" className="underline">Volver a mis reportes</Link>
+            {errorEdicion} <Link href="/mis-reportes" className="underline">Volver a los reportes</Link>
           </div>
         )}
 
