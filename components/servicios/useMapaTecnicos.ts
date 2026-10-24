@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { EstadoSenal, PuntoRecorrido, UltimaUbicacion, estadoSenal, recorridoDelDia, ultimasUbicacionesDelDia, ultimasUbicacionesHoy, DIAS_HISTORIAL } from '@/lib/ubicacionTecnicos';
+import { EstadoSenal, PuntoRecorrido, UltimaUbicacion, estadoSenal, marcasPorHora, recorridoDelDia, ultimasUbicacionesDelDia, ultimasUbicacionesHoy, DIAS_HISTORIAL } from '@/lib/ubicacionTecnicos';
 import { useEnVivo } from '@/lib/useEnVivo';
 import { fechaLocal, hoyLocal, sumarDias } from '@/lib/fechaHoy';
-import { LLAVE_GOOGLE_MAPS, MotorMapa, PinMapa, Punto, crearMotorBasico, crearMotorGoogle } from './motorMapa';
+import { LLAVE_GOOGLE_MAPS, MarcaMapa, MotorMapa, PinMapa, Punto, crearMotorBasico, crearMotorGoogle } from './motorMapa';
 
 // Lo que comparten el mapa de Servicios → Mapa y la tarjeta del Resumen:
 // carga las últimas ubicaciones (y se actualiza sola), dibuja el mapa
@@ -50,6 +50,26 @@ function htmlPin(t: UltimaUbicacion, estado: EstadoSenal | null, elegido: boolea
     ? `<span style="position:absolute;inset:-6px;border-radius:50%;background:${color};opacity:.35;animation:pulsoTecnico 2s ease-out infinite"></span>`
     : '';
   return `<div style="position:relative;width:36px;height:36px">${halo}<div style="position:relative;width:36px;height:36px;border-radius:50%;background:${color};border:3px solid ${borde};color:#fff;font:700 12px sans-serif;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,.35)">${inicialesTecnico(t.nombre)}</div></div>`;
+}
+
+// Texto seguro para meterlo en el HTML de la marca.
+function sinEtiquetas(texto: string): string {
+  return texto.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// Marca de una hora del recorrido: etiqueta «9 a.m.» y, al pasar el mouse
+// o tocarla, la tarjeta con hora exacta, fecha y coordenadas.
+function htmlMarcaHora(p: PuntoRecorrido, nombre: string | null): string {
+  const fecha = new Date(p.registrado_en);
+  const etiqueta = fecha.toLocaleTimeString('es-MX', { hour: 'numeric' });
+  const hora = fecha.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+  const diaLargo = fecha.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const dia = diaLargo.charAt(0).toUpperCase() + diaLargo.slice(1);
+  const coordenadas = `${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`;
+  return `<div class="marca-hora" role="button" aria-label="${sinEtiquetas(`${hora}, ${coordenadas}`)}">`
+    + `<div class="marca-hora-detalle"><b>${sinEtiquetas(hora)}</b><small>${sinEtiquetas(dia)}</small>`
+    + `<code>${coordenadas}</code><i>${sinEtiquetas(nombre || 'Técnico')}</i></div>`
+    + `<div class="marca-hora-etiqueta">${sinEtiquetas(etiqueta)}</div><div class="marca-hora-pico"></div></div>`;
 }
 
 export function useMapaTecnicos({ zoomControl = true }: { zoomControl?: boolean } = {}) {
@@ -203,6 +223,11 @@ export function useMapaTecnicos({ zoomControl = true }: { zoomControl?: boolean 
 
   useEffect(() => {
     motorRef.current?.ponerRuta(recorrido.map((p) => [p.lat, p.lng] as Punto));
+    // Una marca por hora sobre el recorrido, como referencia de dónde estaba.
+    const nombre = tecnicos.find((t) => t.tecnico_id === elegido)?.nombre || null;
+    const marcas: MarcaMapa[] = marcasPorHora(recorrido).map((p) => ({ lat: p.lat, lng: p.lng, html: htmlMarcaHora(p, nombre) }));
+    motorRef.current?.ponerMarcas(marcas);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version, recorrido]);
 
   function encuadrarTodos() {

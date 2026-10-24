@@ -10,11 +10,15 @@
 // El tope diario se pone en Google Cloud (cuota de Maps JavaScript API).
 
 export type PinMapa = { id: string; lat: number; lng: number; html: string; titulo: string };
+// Marca informativa sobre el recorrido (una por hora). El HTML trae su
+// propia tarjeta de detalle (clases .marca-hora en globals.css).
+export type MarcaMapa = { lat: number; lng: number; html: string };
 export type Punto = [number, number];
 
 export interface MotorMapa {
   ponerPines(pines: PinMapa[], alTocar: (id: string) => void): void;
   ponerRuta(puntos: Punto[]): void;
+  ponerMarcas(marcas: MarcaMapa[]): void;
   encuadrar(puntos: Punto[]): void;
   centrar(punto: Punto, zoomMinimo: number): void;
   destruir(): void;
@@ -33,6 +37,7 @@ export async function crearMotorBasico(div: HTMLDivElement, zoomControl: boolean
   if (!zoomControl) L.control.zoom({ position: 'bottomright' }).addTo(mapa);
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(mapa);
   const pines = L.layerGroup().addTo(mapa);
+  const marcasCapa = L.layerGroup().addTo(mapa);
   let ruta: ReturnType<typeof L.polyline> | null = null;
 
   return {
@@ -44,6 +49,18 @@ export async function crearMotorBasico(div: HTMLDivElement, zoomControl: boolean
           .bindTooltip(p.titulo)
           .on('click', () => alTocar(p.id))
           .addTo(pines);
+      }
+    },
+    ponerMarcas(marcas) {
+      marcasCapa.clearLayers();
+      for (const m of marcas) {
+        const icono = L.divIcon({ className: '', html: m.html, iconSize: [0, 0], iconAnchor: [0, 0] });
+        const marca = L.marker([m.lat, m.lng], { icon: icono, zIndexOffset: 500, keyboard: false });
+        // Encima de lo demás mientras se ve su detalle; tocarla lo deja abierto (celular).
+        marca.on('mouseover', () => marca.setZIndexOffset(3000));
+        marca.on('mouseout', () => marca.setZIndexOffset(500));
+        marca.on('click', () => marca.getElement()?.querySelector('.marca-hora')?.classList.toggle('abierta'));
+        marca.addTo(marcasCapa);
       }
     },
     ponerRuta(puntos) {
@@ -145,7 +162,38 @@ export async function crearMotorGoogle(div: HTMLDivElement, zoomControl: boolean
     }
   }
 
+  // Marca por hora: el HTML se acomoda solo sobre el punto (ver .marca-hora).
+  class MarcaHtml extends OverlayView {
+    caja: HTMLDivElement;
+    posicion: any;
+    constructor(m: MarcaMapa) {
+      super();
+      this.posicion = new google.maps.LatLng(m.lat, m.lng);
+      this.caja = document.createElement('div');
+      this.caja.style.position = 'absolute';
+      this.caja.style.zIndex = '1';
+      this.caja.innerHTML = m.html;
+      this.caja.addEventListener('mouseenter', () => { this.caja.style.zIndex = '10'; });
+      this.caja.addEventListener('mouseleave', () => { this.caja.style.zIndex = '1'; });
+      this.caja.addEventListener('click', () => this.caja.querySelector('.marca-hora')?.classList.toggle('abierta'));
+      OverlayView.preventMapHitsAndGesturesFrom(this.caja);
+    }
+    onAdd() {
+      this.getPanes().floatPane.appendChild(this.caja);
+    }
+    draw() {
+      const pixel = this.getProjection().fromLatLngToDivPixel(this.posicion);
+      if (!pixel) return;
+      this.caja.style.left = `${pixel.x}px`;
+      this.caja.style.top = `${pixel.y}px`;
+    }
+    onRemove() {
+      this.caja.remove();
+    }
+  }
+
   let pines: PinHtml[] = [];
+  let marcas: MarcaHtml[] = [];
   let ruta: any = null;
 
   return {
@@ -155,6 +203,14 @@ export async function crearMotorGoogle(div: HTMLDivElement, zoomControl: boolean
         const pin = new PinHtml(p, alTocar);
         pin.setMap(mapa);
         return pin;
+      });
+    },
+    ponerMarcas(lista) {
+      for (const m of marcas) m.setMap(null);
+      marcas = lista.map((m) => {
+        const marca = new MarcaHtml(m);
+        marca.setMap(mapa);
+        return marca;
       });
     },
     ponerRuta(puntos) {
@@ -187,6 +243,7 @@ export async function crearMotorGoogle(div: HTMLDivElement, zoomControl: boolean
     destruir() {
       if (alFallarGoogle === siFalla) alFallarGoogle = null;
       for (const pin of pines) pin.setMap(null);
+      for (const m of marcas) m.setMap(null);
       ruta?.setMap(null);
       div.innerHTML = '';
     },

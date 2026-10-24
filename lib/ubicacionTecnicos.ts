@@ -94,3 +94,19 @@ function mensajeError(texto: string): string {
   }
   return 'No se pudieron cargar las ubicaciones. Revisa tu conexión e intenta de nuevo.';
 }
+
+// Una marca por hora en el recorrido: el primer punto de cada hora del reloj
+// (9:02, 10:00, 11:05…). El recorrido viene del más viejo al más nuevo.
+export function marcasPorHora(recorrido: PuntoRecorrido[]): PuntoRecorrido[] {
+  const marcas: PuntoRecorrido[] = [];
+  let horaAnterior = '';
+  for (const punto of recorrido) {
+    const fecha = new Date(punto.registrado_en);
+    // Día y hora local juntos: no se confunden las 9 de dos días distintos.
+    const hora = `${fecha.toDateString()} ${fecha.getHours()}`;
+    if (hora === horaAnterior) continue;
+    horaAnterior = hora;
+    marcas.push(punto);
+  }
+  return marcas;
+}

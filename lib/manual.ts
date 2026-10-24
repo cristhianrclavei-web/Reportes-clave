@@ -260,6 +260,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
           'El color de cada persona dice cómo está su señal: verde, en línea; naranja, sin puntos desde hace unos minutos; gris, sin señal.',
           'Toca a una persona en la lista o en el mapa para ver su recorrido de hoy.',
           'Para ver días anteriores usa las flechas o el calendario arriba de la lista (hasta 90 días atrás); «Hoy» te regresa al día actual. En un día pasado sale el último punto de cada técnico ese día y, al tocarlo, su recorrido completo. La tarjeta del Resumen tiene el mismo selector de día (‹ Hoy ›; tocar el día abre el calendario).',
+          'Al elegir a una persona, su recorrido lleva una marca por cada hora («9 a.m.», «10 a.m.»…). Pasa el mouse o toca una marca para ver la hora exacta, la fecha y las coordenadas de dónde estaba.',
           'Los recorridos se borran solos a los 90 días.',
           'En el teléfono: abre la app de Clave cada mañana. Debe quedar el aviso fijo «Clave» en la barra de notificaciones; si se quita, la ubicación deja de llegar.',
         ],
