@@ -1305,6 +1305,7 @@ export default function NuevoReportePage() {
       // pierden: se quedan en el teléfono y el sincronizador las sube después.
       const subidas: Record<number, EvidenciaReporte> = {};
       const fallidas: number[] = [];
+      let motivoFalla = '';
       for (let i = 0; i < fotos.length; i++) {
         avanceFoto(i, fotos.length, 30, 78);
         try {
@@ -1313,6 +1314,7 @@ export default function NuevoReportePage() {
         } catch (eFoto: any) {
           console.error('[reporte] No se pudo subir la foto', i + 1, eFoto?.message);
           fallidas.push(i);
+          if (!motivoFalla) motivoFalla = String(eFoto?.message || eFoto?.statusCode || 'error desconocido').slice(0, 200);
         }
       }
       if (fallidas.length > 0) {
@@ -1354,7 +1356,7 @@ export default function NuevoReportePage() {
 
       if (fotoData.length > 0 || fallidas.length > 0) {
         avance(82, 'Adjuntando las fotos al reporte');
-        const datosConFotos = { ...baseData, fotos: fotoData, ...(fallidas.length > 0 ? { fotosPendientes: true } : {}) };
+        const datosConFotos = { ...baseData, fotos: fotoData, ...(fallidas.length > 0 ? { fotosPendientes: true, motivoFotosPendientes: motivoFalla } : {}) };
         const { error: updateError } = await supabase.from('reports').update({ data: datosConFotos }).eq('id', reportId);
         if (updateError) {
           setSaving(false);
