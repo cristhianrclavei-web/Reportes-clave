@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { faltaModelo, textoEquiposAviso, EquipoFila } from '@/components/EquipoInstaladoRenglon';
 import { buscarModelos } from './sugerenciasEquipos';
+import { descripcionCorta } from './descripcionEquipo';
 
 const fila = (f: Partial<EquipoFila>): EquipoFila => ({ cant: '', desc: '', modelo: '', marca: '', serie: '', ...f });
 
@@ -27,5 +28,14 @@ describe('equipo del reporte', () => {
     expect(buscarModelos(lista, 'fuente').map((m) => m.modelo)).toEqual(['PS-12']);
     expect(buscarModelos(lista, 'ds-2').map((m) => m.modelo)).toEqual(['DS-2CD1043G2']);
     expect(buscarModelos(lista, 'd')).toEqual([]);
+  });
+
+  it('acorta la descripción que trae SYSCOM', () => {
+    expect(descripcionCorta('Contacto Magnético Inalámbrico para Exterior / Compatible con Panel AX PRO / Doble Transmisor')).toBe('Contacto Magnético Inalámbrico para Exterior');
+    expect(descripcionCorta('Poste de 5 m - Para cerca eléctrica')).toBe('Poste de 5 m');
+    expect(descripcionCorta('Cámara bala')).toBe('Cámara bala');
+    const larga = descripcionCorta('Bobina de alambre galvanizado calibre 16 para cerca electrificada de alta resistencia con recubrimiento especial');
+    expect(larga.length).toBeLessThanOrEqual(70);
+    expect(larga.endsWith(' ')).toBe(false);
   });
 });

@@ -67,3 +67,4 @@ export function buscarModelos(lista: ModeloEquipo[], texto: string, cuantos = 6)
   if (q.length < 2) return [];
   return lista.filter((m) => coincideBusqueda(`${m.modelo} ${m.marca || ''} ${m.descripcion || ''}`, q)).slice(0, cuantos);
 }
+

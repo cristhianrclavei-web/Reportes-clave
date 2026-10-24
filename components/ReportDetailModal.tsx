@@ -15,7 +15,7 @@ import { createClient } from '@/lib/supabaseClient';
 import { vincularReporteAServicio, Servicio, listarServiciosVinculables } from '@/lib/serviciosProgramados';
 import { eliminarReporte } from '@/lib/eliminarReporte';
 import { registrarAccionGlobal } from '@/lib/auditoriaGlobal';
-import { Check, X, CircleX, FileText, FileSpreadsheet, Share2, Trash2, Unlock, LockKeyhole, MessageSquareWarning, Camera, FolderKanban, ClipboardCheck, Tag, ReceiptText, Pencil, EyeOff, SlidersHorizontal } from 'lucide-react';
+import { Check, X, CircleX, FileText, FileSpreadsheet, Share2, Trash2, Unlock, LockKeyhole, MessageSquareWarning, Camera, FolderKanban, ClipboardCheck, Tag, ReceiptText, Pencil, EyeOff, SlidersHorizontal, Image as ImageIcon } from 'lucide-react';
 import { solicitarCorreccion, habilitarCorreccion, cancelarCorreccion, aplicarCorreccion } from '@/lib/correcciones';
 import { showToast } from '@/components/Toast';
 import { BotonIncluir, ChipEtapa, HojaEvidencia } from '@/components/EvidenciaEditor';
@@ -75,6 +75,8 @@ export default function ReportDetailModal({
 }) {
   const [eliminando, setEliminando] = useState(false);
   const [showEtiquetas, setShowEtiquetas] = useState(false);
+  // Menú «Con fotos de equipos / Sin fotos» de «Ver PDF».
+  const [menuPdf, setMenuPdf] = useState(false);
   const [pestana, setPestana] = useState<'reporte' | 'fotos' | 'gestion'>('reporte');
   // `idx` es la posición de la evidencia en data.fotos (para guardar sus cambios).
   const [fotoUrls, setFotoUrls] = useState<({ idx: number; url: string; caption: string; video?: string | null; dur?: number | null } & MetaFoto)[] | null>(null);
@@ -387,6 +389,12 @@ export default function ReportDetailModal({
     }
   }
 
+  function abrirPdf(conFotos: boolean) {
+    setMenuPdf(false);
+    const extra = conFotos ? '&fotosEquipos=1' : '';
+    window.open(`/api/reports/${report.id}/pdf?t=${Date.now()}${extra}`, '_blank', 'noopener,noreferrer');
+  }
+
   async function handleShare(format: 'pdf' | 'xlsx') {
     setShareMenuOpen(false);
     setSharing(true);
@@ -529,13 +537,34 @@ export default function ReportDetailModal({
             const secundario = `${base} bg-surface-2 border border-line text-ink/85 hover:border-teal/40`;
             return (
               <div className={`w-full grid gap-2 ${['grid-cols-2', 'grid-cols-3', 'grid-cols-4'][(conEtiqueta ? 1 : 0) + (MARCA.excelReporte ? 1 : 0)]}`}>
-                <button
-                  onClick={() => window.open(`/api/reports/${report.id}/pdf?t=${Date.now()}`, '_blank', 'noopener,noreferrer')}
-                  className={`${base} bg-teal text-inkOnAccent shadow-glow-teal`}
-                >
-                  <FileText size={19} strokeWidth={2.3} />
-                  Ver PDF
-                </button>
+                <div className="relative">
+                  <button
+                    onClick={() => {
+                      // Si algún equipo trae foto de SYSCOM se pregunta si se quiere en el PDF.
+                      if ((report.data?.equipos || []).some((e: any) => e?.imagen)) {
+                        setMenuPdf((v) => !v);
+                        return;
+                      }
+                      abrirPdf(false);
+                    }}
+                    className={`${base} bg-teal text-inkOnAccent shadow-glow-teal`}
+                  >
+                    <FileText size={19} strokeWidth={2.3} />
+                    Ver PDF
+                  </button>
+                  {menuPdf && (
+                    <div className="absolute left-0 top-full mt-2 glass-strong rounded-2xl p-1.5 flex flex-col gap-1 z-10 min-w-[200px] shadow-glow">
+                      <button onClick={() => abrirPdf(true)} className="flex items-center gap-2 text-left text-[13px] font-medium px-3 py-2.5 rounded-xl hover:bg-white/10 active:scale-95 transition-transform">
+                        <ImageIcon size={15} strokeWidth={2.4} className="text-teal" />
+                        Con fotos de los equipos
+                      </button>
+                      <button onClick={() => abrirPdf(false)} className="flex items-center gap-2 text-left text-[13px] font-medium px-3 py-2.5 rounded-xl hover:bg-white/10 active:scale-95 transition-transform">
+                        <FileText size={15} strokeWidth={2.4} className="text-teal" />
+                        Sin fotos de equipos
+                      </button>
+                    </div>
+                  )}
+                </div>
                 {conEtiqueta && (
                   <button onClick={() => setShowEtiquetas(true)} className={secundario}>
                     <Tag size={19} strokeWidth={2.3} className="text-teal" />

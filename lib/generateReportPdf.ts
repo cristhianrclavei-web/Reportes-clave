@@ -1,7 +1,7 @@
 import { tuberiasDe, cablesDe, soporteriaDe, textoTuberia, textoCable, textoSoporteria } from './materialesReporte';
 import { tieneTipo } from './tiposServicio';
 import { fechaDMA } from './etiquetaMantenimiento';
-import { PDFDocument, rgb } from 'pdf-lib';
+import { PDFDocument, PDFFont, rgb } from 'pdf-lib';
 import { evidenciasDe } from './evidencias';
 import { dibujarEvidencias, ItemPdf } from './pdfEvidencias';
 import { urlVideoPublico } from './videoPublico';
@@ -13,6 +13,7 @@ import {
 import { MARCA, MARCA_MAYUS } from './marca';
 import QRCode from 'qrcode';
 import sharp from 'sharp';
+import { descripcionCorta } from './descripcionEquipo';
 import { urlVerificacion } from './etiquetaMantenimiento';
 import {
   FormatoLlenado, ETIQUETA_FRECUENCIA, ETIQUETA_RESULTADO, ETIQUETA_RESULTADO_DISP, resumenFormato,
@@ -38,6 +39,42 @@ async function descargarFotoEquipo(url: string): Promise<Uint8Array | null> {
     console.error('[reporte-pdf] No se pudo incluir la foto de un equipo:', url, err?.message);
     return null;
   }
+}
+
+const FONDO_TABLA = rgb(0.95, 0.96, 0.97);
+
+// Acomoda un texto en una celda: renglones que caben en el ancho (cortando
+// también palabras sin espacios, como números de serie largos) y, si sobran,
+// el último termina en «...».
+function lineasCelda(texto: string, fnt: PDFFont, tam: number, ancho: number, maxLineas: number): string[] {
+  const cabe = (t: string) => fnt.widthOfTextAtSize(t, tam) <= ancho;
+  const lineas: string[] = [];
+  let actual = '';
+  for (const palabra of texto.split(/\s+/).filter(Boolean)) {
+    let resto = palabra;
+    // Palabra más ancha que la celda: se parte en pedazos.
+    while (!cabe(resto)) {
+      let n = resto.length - 1;
+      while (n > 1 && !cabe(resto.slice(0, n))) n--;
+      if (actual) { lineas.push(actual); actual = ''; }
+      lineas.push(resto.slice(0, n));
+      resto = resto.slice(n);
+    }
+    const prueba = actual ? `${actual} ${resto}` : resto;
+    if (cabe(prueba)) {
+      actual = prueba;
+    } else {
+      lineas.push(actual);
+      actual = resto;
+    }
+  }
+  if (actual) lineas.push(actual);
+  if (lineas.length <= maxLineas) return lineas.length ? lineas : [''];
+  const visibles = lineas.slice(0, maxLineas);
+  let ultima = visibles[maxLineas - 1];
+  while (ultima && !cabe(`${ultima}...`)) ultima = ultima.slice(0, -1);
+  visibles[maxLineas - 1] = `${ultima.trimEnd()}...`;
+  return visibles;
 }
 
 type ReportRow = {
@@ -69,7 +106,7 @@ const CASO_FIELDS: [string, string][] = [
   ['pasosFuturos', 'Pasos futuros'],
 ];
 
-export async function generateReportPdf(report: ReportRow, supabase?: any): Promise<Uint8Array> {
+export async function generateReportPdf(report: ReportRow, supabase?: any, opciones: { fotosEquipos?: boolean } = {}): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   let page = pdfDoc.addPage([PAGE_W, PAGE_H]);
 
@@ -307,50 +344,72 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
   cuadroLista('Montaje de soportería y fijación', soporteriaDe(data).map(textoSoporteria));
 
   // ================= MONTAJE DE EQUIPO =================
+  // El modelo es la referencia: va después de la cantidad y en negritas.
+  // Cada celda se acomoda en hasta 3 renglones (una descripción larga de
+  // SYSCOM ya no se encima) y cada fila se dibuja aparte para poder pasar a
+  // otra hoja repitiendo el encabezado.
   const equipos: any[] = data.equipos || [];
   const eqCols = [
-    { label: 'CANT.', key: 'cant', w: 0.09 },
-    { label: 'DESCRIPCIÓN', key: 'desc', w: 0.34 },
-    { label: 'MODELO', key: 'modelo', w: 0.2 },
-    { label: 'MARCA', key: 'marca', w: 0.17 },
-    { label: 'NO. SERIE', key: 'serie', w: 0.2 },
+    { label: 'CANT.', key: 'cant', w: 0.08, fnt: font },
+    { label: 'MODELO', key: 'modelo', w: 0.22, fnt: bold },
+    { label: 'DESCRIPCIÓN', key: 'desc', w: 0.38, fnt: font },
+    { label: 'MARCA', key: 'marca', w: 0.14, fnt: font },
+    { label: 'NO. SERIE', key: 'serie', w: 0.18, fnt: font },
   ];
-  const rowH = 16;
-  const eqBodyRows = Math.max(equipos.length, 1);
-  const eqH = 18 + rowH + eqBodyRows * rowH;
-  ensureSpace(eqH + 10);
-  const eqTop = y;
-  boxBorder(MARGIN, eqTop, contentW, eqH);
-  // Reportes viejos (sin sección de soportería) traían todo junto aquí.
-  boxTitle(MARGIN, contentW, eqTop, 18, Array.isArray(data.soporteria) ? 'Montaje de equipo' : 'Montaje de soportería y equipo');
-  let cx = MARGIN;
-  const headerRowY = eqTop - 18;
-  eqCols.forEach((c) => {
-    page.drawText(c.label, { x: cx + 6, y: headerRowY - rowH + 5, size: 7, font: bold, color: GRAY_TEXT });
-    cx += contentW * c.w;
-    page.drawLine({ start: { x: cx, y: headerRowY }, end: { x: cx, y: equipos.length === 0 ? headerRowY - rowH : eqTop - eqH }, thickness: 0.5, color: GRAY_LINE });
-  });
-  page.drawLine({ start: { x: MARGIN, y: headerRowY - rowH }, end: { x: MARGIN + contentW, y: headerRowY - rowH }, thickness: 0.5, color: GRAY_LINE });
+  const TAM_EQ = 8;
+  const RENGLON_EQ = 10;
+  const encabezadoH = 16;
+  const tituloEquipo = Array.isArray(data.soporteria) ? 'Montaje de equipo' : 'Montaje de soportería y equipo';
+
+  const dibujarEncabezadoEquipo = () => {
+    const top = y;
+    page.drawRectangle({ x: MARGIN, y: top - encabezadoH, width: contentW, height: encabezadoH, color: FONDO_TABLA, borderColor: GRAY_LINE, borderWidth: 0.5 });
+    let hx = MARGIN;
+    eqCols.forEach((c, k) => {
+      page.drawText(c.label, { x: hx + 6, y: top - encabezadoH + 5, size: 7, font: bold, color: GRAY_TEXT });
+      hx += contentW * c.w;
+      if (k < eqCols.length - 1) page.drawLine({ start: { x: hx, y: top }, end: { x: hx, y: top - encabezadoH }, thickness: 0.5, color: GRAY_LINE });
+    });
+    y = top - encabezadoH;
+  };
+
+  ensureSpace(18 + encabezadoH + 30);
+  boxBorder(MARGIN, y, contentW, 18);
+  boxTitle(MARGIN, contentW, y, 18, tituloEquipo);
+  y -= 18;
+  dibujarEncabezadoEquipo();
 
   if (equipos.length === 0) {
-    page.drawText('Sin equipo registrado', { x: MARGIN + 8, y: headerRowY - rowH - 11, size: 8.5, font, color: GRAY_TEXT });
+    page.drawRectangle({ x: MARGIN, y: y - 18, width: contentW, height: 18, borderColor: GRAY_LINE, borderWidth: 0.5 });
+    page.drawText('Sin equipo registrado', { x: MARGIN + 8, y: y - 12, size: 8.5, font, color: GRAY_TEXT });
+    y -= 18;
   } else {
-    equipos.forEach((eq, i) => {
-      const rowY = headerRowY - rowH - i * rowH;
-      let vx = MARGIN;
-      eqCols.forEach((c) => {
-        page.drawText(String((eq as any)[c.key] || ''), { x: vx + 6, y: rowY - rowH + 5, size: 8, font, color: NAVY, maxWidth: contentW * c.w - 10 });
-        vx += contentW * c.w;
-      });
-      if (i < equipos.length - 1) {
-        page.drawLine({ start: { x: MARGIN, y: rowY - rowH }, end: { x: MARGIN + contentW, y: rowY - rowH }, thickness: 0.5, color: GRAY_LINE });
+    equipos.forEach((eq) => {
+      // Descripciones copiadas completas de SYSCOM (reportes anteriores): solo lo primero.
+      const desc = String(eq?.desc || '');
+      const textoDe = (key: string) => (key === 'desc' && desc.length > 70 && / [\/|] /.test(desc) ? descripcionCorta(desc) : String(eq?.[key] || ''));
+      const celdas = eqCols.map((c) => lineasCelda(textoDe(c.key), c.fnt, TAM_EQ, contentW * c.w - 12, 3));
+      const filaH = Math.max(16, Math.max(...celdas.map((l) => l.length)) * RENGLON_EQ + 7);
+      if (y - filaH < MARGIN + SIGNATURE_ZONE_H) {
+        newPage();
+        dibujarEncabezadoEquipo();
       }
+      page.drawRectangle({ x: MARGIN, y: y - filaH, width: contentW, height: filaH, borderColor: GRAY_LINE, borderWidth: 0.5 });
+      let vx = MARGIN;
+      eqCols.forEach((c, k) => {
+        celdas[k].forEach((linea, n) => {
+          page.drawText(linea, { x: vx + 6, y: y - 11 - n * RENGLON_EQ, size: TAM_EQ, font: c.fnt, color: NAVY });
+        });
+        vx += contentW * c.w;
+        if (k < eqCols.length - 1) page.drawLine({ start: { x: vx, y }, end: { x: vx, y: y - filaH }, thickness: 0.5, color: GRAY_LINE });
+      });
+      y -= filaH;
     });
   }
-  y = eqTop - eqH - 10;
+  y -= 10;
 
-  // Fotos de catálogo de los equipos (casilla «Fotos de los equipos en el PDF»).
-  if (data.fotosEquiposPdf) {
+  // Fotos de catálogo de los equipos: solo si se pidió el PDF «con fotos».
+  if (opciones.fotosEquipos) {
     const conFoto = equipos.filter((eq) => typeof eq?.imagen === 'string' && eq.imagen);
     const fotos = await Promise.all(conFoto.map((eq) => descargarFotoEquipo(eq.imagen)));
     const listas = conFoto
@@ -358,34 +417,38 @@ export async function generateReportPdf(report: ReportRow, supabase?: any): Prom
       .filter((f): f is { eq: any; bytes: Uint8Array } => f.bytes !== null);
     if (listas.length > 0) {
       const porRenglon = 4;
-      const celdaW = contentW / porRenglon;
-      const fotoLado = 80;
-      const celdaH = fotoLado + 30;
+      const separacion = 8;
+      const tarjetaW = (contentW - separacion * (porRenglon - 1)) / porRenglon;
+      const fotoLado = 86;
+      const tarjetaH = fotoLado + 44;
       const renglones = Math.ceil(listas.length / porRenglon);
-      // Título junto con el primer renglón; cada renglón lleva su propio
-      // recuadro para poder pasar a otra hoja sin cortar una foto.
-      ensureSpace(18 + celdaH + 10);
+      // Título junto con el primer renglón de tarjetas.
+      ensureSpace(18 + tarjetaH + 16);
       boxBorder(MARGIN, y, contentW, 18);
       boxTitle(MARGIN, contentW, y, 18, 'Fotos del equipo instalado');
-      y -= 18;
+      y -= 18 + 8;
       for (let r = 0; r < renglones; r++) {
-        ensureSpace(celdaH + 10);
-        boxBorder(MARGIN, y, contentW, celdaH);
+        if (r > 0) ensureSpace(tarjetaH + 10);
         for (let c = 0; c < porRenglon; c++) {
           const item = listas[r * porRenglon + c];
           if (!item) break;
+          const tx = MARGIN + c * (tarjetaW + separacion);
+          page.drawRectangle({ x: tx, y: y - tarjetaH, width: tarjetaW, height: tarjetaH, color: WHITE, borderColor: GRAY_LINE, borderWidth: 0.75 });
           const img = await pdfDoc.embedJpg(item.bytes);
           const escala = Math.min(fotoLado / img.width, fotoLado / img.height);
           const w = img.width * escala;
           const h = img.height * escala;
-          const cx0 = MARGIN + c * celdaW;
-          page.drawImage(img, { x: cx0 + (celdaW - w) / 2, y: y - 6 - fotoLado + (fotoLado - h) / 2, width: w, height: h });
-          const pie = String(item.eq.modelo || item.eq.desc || '');
-          page.drawText(pie, { x: cx0 + 6, y: y - fotoLado - 18, size: 7.5, font: bold, color: NAVY, maxWidth: celdaW - 12 });
+          page.drawImage(img, { x: tx + (tarjetaW - w) / 2, y: y - 8 - fotoLado + (fotoLado - h) / 2, width: w, height: h });
+          // Pie centrado: modelo en negritas y, debajo, la marca.
+          const textoW = tarjetaW - 12;
+          const modelo = lineasCelda(String(item.eq.modelo || item.eq.desc || ''), bold, 8, textoW, 1)[0];
+          page.drawText(modelo, { x: tx + (tarjetaW - bold.widthOfTextAtSize(modelo, 8)) / 2, y: y - fotoLado - 22, size: 8, font: bold, color: NAVY });
+          const detalle = lineasCelda([item.eq.cant ? `${item.eq.cant} pza` : '', item.eq.marca].filter(Boolean).join(' · '), font, 7, textoW, 1)[0];
+          page.drawText(detalle, { x: tx + (tarjetaW - font.widthOfTextAtSize(detalle, 7)) / 2, y: y - fotoLado - 33, size: 7, font, color: GRAY_TEXT });
         }
-        y -= celdaH;
+        y -= tarjetaH + separacion;
       }
-      y -= 10;
+      y -= 6;
     }
   }
 

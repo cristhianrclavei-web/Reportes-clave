@@ -53,7 +53,9 @@ export async function GET(request: NextRequest, props: { params: Promise<{ id: s
   // Generar PDF
   let pdfBytes: Uint8Array;
   try {
-    pdfBytes = await generateReportPdf(report as any, supabase);
+    // ?fotosEquipos=1: el PDF lleva las fotos de catálogo del equipo instalado.
+    const fotosEquipos = request.nextUrl.searchParams.get('fotosEquipos') === '1';
+    pdfBytes = await generateReportPdf(report as any, supabase, { fotosEquipos });
   } catch (err: any) {
     console.error('[pdf-route] Error generando PDF:', err?.message, err?.stack);
     return NextResponse.json({ error: 'No se pudo generar el PDF. Intenta de nuevo; si sigue fallando, avisa a quien administra la app.' }, { status: 500 });

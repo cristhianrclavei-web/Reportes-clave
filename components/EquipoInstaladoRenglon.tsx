@@ -5,6 +5,7 @@ import { Check, AlertTriangle, X, Search, ScanLine, ExternalLink, Package } from
 import { coincideBusqueda } from '@/lib/busqueda';
 import { soloNumero } from '@/lib/materialesReporte';
 import { buscarModelos, ModeloEquipo } from '@/lib/sugerenciasEquipos';
+import { descripcionCorta } from '@/lib/descripcionEquipo';
 import SelectorProductoSyscom from '@/components/SelectorProductoSyscom';
 import EscanerCodigo, { hayEscanerDeCodigos } from '@/components/EscanerCodigo';
 import type { ProductoSyscom } from '@/lib/syscom';
@@ -105,7 +106,7 @@ export default function EquipoInstaladoRenglon({
 
   function elegirInstalado(m: ModeloEquipo) {
     onCambiar({
-      ...eq, modelo: m.modelo, marca: m.marca || eq.marca, desc: m.descripcion || eq.desc,
+      ...eq, modelo: m.modelo, marca: m.marca || eq.marca, desc: m.descripcion ? descripcionCorta(m.descripcion) : eq.desc,
       imagen: m.imagen, enlace: m.enlace, articuloId: null, sinModelo: false,
     });
     setAbierto(false);
@@ -118,7 +119,7 @@ export default function EquipoInstaladoRenglon({
 
   function elegirSyscom(p: ProductoSyscom) {
     onCambiar({
-      ...eq, modelo: p.modelo || eq.modelo, marca: p.marca || eq.marca, desc: p.titulo || eq.desc,
+      ...eq, modelo: p.modelo || eq.modelo, marca: p.marca || eq.marca, desc: p.titulo ? descripcionCorta(p.titulo) : eq.desc,
       imagen: p.imagen, enlace: p.link, articuloId: null, sinModelo: false,
     });
     setBuscandoSyscom(false);

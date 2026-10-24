@@ -86,13 +86,24 @@ function aEvidencia(f: FotoDelDia): EvidenciaReporte {
 
 // Si la evidencia es un video, lo sube a la carpeta del reporte. Si el video
 // no sube queda al menos su portada, como una foto más.
-async function conVideo(base: EvidenciaReporte, f: { video?: File; dur?: number }, carpeta: string): Promise<EvidenciaReporte> {
-  if (!f.video) return base;
-  try {
-    return { ...base, video: await subirVideo(carpeta, f.video), dur: f.dur || null };
-  } catch {
-    return base;
-  }
+// Sube una foto nueva del reporte (y su video, si es portada de uno). Si algo
+// falla, lanza el error: quien llama decide qué hacer, nunca se descarta en
+// silencio (así se perdían fotos de un reporte).
+async function subirEvidencia(
+  supabase: ReturnType<typeof createClient>,
+  carpeta: string,
+  i: number,
+  foto: { file: File; caption: string; video?: File; dur?: number },
+  meta: ReturnType<typeof metaLimpia>,
+): Promise<EvidenciaReporte> {
+  const f = await reducirFoto(foto.file);
+  const ext = (f as File).name?.split('.').pop() || 'jpg';
+  const path = `${carpeta}/${Date.now()}-${i}.${ext}`;
+  const { error } = await supabase.storage.from('evidencias').upload(path, f, { contentType: f.type || 'image/jpeg' });
+  if (error) throw error;
+  const base: EvidenciaReporte = { path, caption: foto.caption.trim(), ...meta };
+  if (!foto.video) return base;
+  return { ...base, video: await subirVideo(carpeta, foto.video), dur: foto.dur || null };
 }
 
 const inputCls =
@@ -327,8 +338,6 @@ export default function NuevoReportePage() {
   // Modelos ya instalados antes, para sugerirlos (también sin señal).
   const [modelosEquipo, setModelosEquipo] = useState<ModeloEquipo[]>([]);
   useEffect(() => cargarModelosEquipo(setModelosEquipo), []);
-  // Casilla «Fotos de los equipos en el PDF» (solo las de SYSCOM).
-  const [fotosEquiposPdf, setFotosEquiposPdf] = useState(false);
   const [firmaIngNombre, setFirmaIngNombre] = useState('');
   const [firmaClienteNombre, setFirmaClienteNombre] = useState('');
   // Cliente que no estaba para firmar: queda registrado quién recibió y el
@@ -423,7 +432,7 @@ export default function NuevoReportePage() {
     empresaCliente, clienteId, contactosCliente, servicioSeleccionadoId, personalAsignado, fecha, ordCompra,
     horaLlegada, horaSalida, listaConceptos, contactoUsuario, puestoArea, vehiculo, placas, vehiculoOtro,
     manejadoPor, ingACargo, personalAdicional, tipoServicio, subTipo, tipoServicioOtroTexto, seguridad,
-    seguridadOtraTexto, tuberias, cables, soporteria, observaciones, actividades, showCaso, casoPuntos, equipos, fotosEquiposPdf,
+    seguridadOtraTexto, tuberias, cables, soporteria, observaciones, actividades, showCaso, casoPuntos, equipos,
     firmaIngNombre, firmaClienteNombre, servicioConcluido, paso, usaFormato, formatos, fotosServicio,
     firmaIngData, firmaClienteData,
     clienteAusente, motivoAusente, recibioNombre, recibioPuesto, recibioFirma,
@@ -449,7 +458,7 @@ export default function NuevoReportePage() {
     if (c.cables !== undefined) { const cb = cablesDe(c); setCables(cb.length ? cb : [cableVacio()]); }
     if (c.soporteria !== undefined) setSoporteria(c.soporteria.length ? c.soporteria : [soporteriaVacia()]);
     set(setObservaciones, c.observaciones); set(setActividades, c.actividades); set(setShowCaso, c.showCaso);
-    set(setCasoPuntos, c.casoPuntos); set(setEquipos, c.equipos); set(setFotosEquiposPdf, c.fotosEquiposPdf); set(setFirmaIngNombre, c.firmaIngNombre);
+    set(setCasoPuntos, c.casoPuntos); set(setEquipos, c.equipos); set(setFirmaIngNombre, c.firmaIngNombre);
     set(setFirmaClienteNombre, c.firmaClienteNombre); set(setServicioConcluido, c.servicioConcluido);
     set(setClienteAusente, c.clienteAusente); set(setMotivoAusente, c.motivoAusente);
     set(setRecibioNombre, c.recibioNombre); set(setRecibioPuesto, c.recibioPuesto); set(setRecibioFirma, c.recibioFirma);
@@ -523,7 +532,6 @@ export default function NuevoReportePage() {
       actividades: Array.isArray(d.actividades) && d.actividades.length ? d.actividades : [''],
       showCaso: Boolean(casos), casoPuntos: casos || [{ ...EMPTY_PUNTO }],
       equipos: Array.isArray(d.equipos) && d.equipos.length ? d.equipos : [{ cant: '', desc: '', modelo: '', marca: '', serie: '' }],
-      fotosEquiposPdf: Boolean(d.fotosEquiposPdf),
       firmaIngNombre: d.firmaIngNombre || '', firmaClienteNombre: d.firmaClienteNombre || '',
       servicioConcluido: d.servicioConcluido === true ? 'si' : d.servicioConcluido === false ? 'no' : null,
       clienteAusente: Boolean(d.clienteAusente), motivoAusente: d.clienteAusente?.motivo || '',
@@ -945,7 +953,6 @@ export default function NuevoReportePage() {
     setCables([cableVacio()]);
     setSoporteria([soporteriaVacia()]);
     setEquipos([{ cant: '', desc: '', modelo: '', marca: '', serie: '' }]);
-    setFotosEquiposPdf(false);
     setFirmaIngNombre(''); setFirmaClienteNombre('');
     setClienteAusente(false); setMotivoAusente(''); setRecibioNombre(''); setRecibioPuesto(''); setRecibioFirma(null);
     sigIngRef.current?.clear();
@@ -984,7 +991,6 @@ export default function NuevoReportePage() {
         }))
         .filter((p) => p.definicion || p.descripcion || p.analisis || p.plan || p.resultados || p.pasosFuturos),
       equipos: equipos.filter((e) => !renglonEquipoVacio(e)),
-      fotosEquiposPdf,
       // Marca de versión: el trigger del almacén solo revisa reportes hechos
       // con el formulario que ya liga equipos al catálogo.
       equiposAlmacen: true,
@@ -1069,11 +1075,12 @@ export default function NuevoReportePage() {
       const fotoData: EvidenciaReporte[] = fotosServicio.map(aEvidencia);
       for (let i = 0; i < fotos.length; i++) {
         avanceFoto(i, fotos.length, 12, 68);
-        const f = await reducirFoto(fotos[i].file);
-        const ext = f.name.split('.').pop() || 'jpg';
-        const path = `${editarId}/${Date.now()}-${i}.${ext}`;
-        const { error: eUp } = await supabase.storage.from('evidencias').upload(path, f, { contentType: f.type || 'image/jpeg' });
-        if (!eUp) fotoData.push(await conVideo({ path, caption: fotos[i].caption.trim(), ...metaLimpia(fotos[i]) }, fotos[i], String(editarId)));
+        try {
+          fotoData.push(await subirEvidencia(supabase, String(editarId), i, fotos[i], metaLimpia(fotos[i])));
+        } catch (eFoto: any) {
+          // La corrección no se guarda a medias: se avisa y se puede reintentar.
+          throw new Error(`no se pudo subir la foto ${i + 1} (${eFoto?.message || 'error de red'}). Revisa tu señal e intenta de nuevo`);
+        }
       }
       avance(72, conFormato ? 'Guardando la corrección y sus formatos' : 'Guardando la corrección');
       const anterior = orig.data || {};
@@ -1294,21 +1301,61 @@ export default function NuevoReportePage() {
       // Fotos ya capturadas en el servicio: solo se referencia su path, ya
       // están subidas en el mismo bucket — no hace falta volver a subirlas.
       const fotoData: EvidenciaReporte[] = fotosServicio.map(aEvidencia);
-      // Subir fotos de evidencia nuevas, si hay
+      // Subir fotos de evidencia nuevas, si hay. Las que fallen no se
+      // pierden: se quedan en el teléfono y el sincronizador las sube después.
+      const subidas: Record<number, EvidenciaReporte> = {};
+      const fallidas: number[] = [];
       for (let i = 0; i < fotos.length; i++) {
         avanceFoto(i, fotos.length, 30, 78);
-        const f = await reducirFoto(fotos[i].file);
-        const ext = f.name.split('.').pop() || 'jpg';
-        const path = `${reportId}/${Date.now()}-${i}.${ext}`;
-        const { error: uploadError } = await supabase.storage.from('evidencias').upload(path, f, {
-          contentType: f.type || 'image/jpeg',
+        try {
+          subidas[i] = await subirEvidencia(supabase, String(reportId), i, fotos[i], metaLimpia(fotos[i]));
+          fotoData.push(subidas[i]);
+        } catch (eFoto: any) {
+          console.error('[reporte] No se pudo subir la foto', i + 1, eFoto?.message);
+          fallidas.push(i);
+        }
+      }
+      if (fallidas.length > 0) {
+        avance(80, 'Guardando en el teléfono las fotos que no subieron');
+        const fotosParaDespues = await Promise.all(
+          fotos.map(async (f, i) => {
+            // Las que ya subieron no se vuelven a guardar (el sincronizador las salta).
+            if (subidas[i]) return { fileName: f.file.name, fileType: f.file.type, fileDataUrl: '', caption: f.caption.trim(), meta: metaLimpia(f) };
+            return {
+              fileName: f.file.name,
+              fileType: f.file.type,
+              fileDataUrl: await fileToDataUrl(f.file),
+              caption: f.caption.trim(),
+              meta: metaLimpia(f),
+              ...(f.video ? { videoDataUrl: await fileToDataUrl(f.video), videoType: f.video.type, dur: f.dur } : {}),
+            };
+          })
+        );
+        await saveOfflineReport({
+          localId: generarUUID(),
+          createdAtLocal: new Date().toISOString(),
+          userId: user!.id,
+          userName,
+          userEmail,
+          empresaCliente,
+          clienteId,
+          fecha,
+          tipoServicio,
+          subTipoServicio: subTipo,
+          data: sharedData,
+          fotos: fotosParaDespues,
+          fotosExistentes: fotosServicio.map(aEvidencia),
+          servicioProgramadoId: servicioSeleccionadoId,
+          // El reporte ya existe: el sincronizador continúa desde las fotos.
+          sync: { reportId: String(reportId), claveFormato, subidas },
         });
-        if (!uploadError) fotoData.push(await conVideo({ path, caption: fotos[i].caption.trim(), ...metaLimpia(fotos[i]) }, fotos[i], String(reportId)));
+        setPendingCount((c) => c + 1);
       }
 
-      if (fotoData.length > 0) {
+      if (fotoData.length > 0 || fallidas.length > 0) {
         avance(82, 'Adjuntando las fotos al reporte');
-        const { error: updateError } = await supabase.from('reports').update({ data: { ...baseData, fotos: fotoData } }).eq('id', reportId);
+        const datosConFotos = { ...baseData, fotos: fotoData, ...(fallidas.length > 0 ? { fotosPendientes: true } : {}) };
+        const { error: updateError } = await supabase.from('reports').update({ data: datosConFotos }).eq('id', reportId);
         if (updateError) {
           setSaving(false);
           setMsg('Reporte guardado, pero hubo un error al adjuntar las fotos: ' + updateError.message);
@@ -1362,7 +1409,12 @@ export default function NuevoReportePage() {
       resetAll();
       // Guardado completo: se cierra el formulario y se regresa a la lista.
       // (Sin conexión se queda aquí: la lista necesita red para cargar.)
-      showToast('Reporte guardado', 'success');
+      if (fallidas.length > 0) {
+        const cuantas = fallidas.length === 1 ? '1 foto no se pudo subir' : `${fallidas.length} fotos no se pudieron subir`;
+        showToast(`Reporte guardado. ${cuantas}: quedaron en este teléfono y se subirán solas al reporte.`, 'success');
+      } else {
+        showToast('Reporte guardado', 'success');
+      }
       router.push('/mis-reportes');
     } catch (e: any) {
       // Se perdió la conexión a media subida (u otro error de red): guardamos
@@ -1879,15 +1931,6 @@ export default function NuevoReportePage() {
           >
             + Agregar equipo
           </button>
-          {equipos.some((e) => e.imagen) && (
-            <label className="flex items-start gap-2.5 mt-3 cursor-pointer">
-              <input type="checkbox" className="mt-0.5 w-5 h-5 accent-teal shrink-0" checked={fotosEquiposPdf} onChange={(e) => setFotosEquiposPdf(e.target.checked)} />
-              <span className="text-[14px]">
-                Fotos de los equipos en el PDF
-                <span className="block text-[12px] text-faint mt-0.5">Agrega al reporte la foto de catálogo de cada equipo que tenga foto.</span>
-              </span>
-            </label>
-          )}
         </Plegable>
 
         </div>
