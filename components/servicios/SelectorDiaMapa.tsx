@@ -16,7 +16,9 @@ export default function SelectorDiaMapa({
 }) {
   const calendarioRef = useRef<HTMLInputElement>(null);
   const esHoy = fecha === hoy;
-  let texto = fechaLocal(fecha).toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' });
+  // «jue 22 oct» → «Jue 22 oct» (solo la primera letra).
+  const largo = fechaLocal(fecha).toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/ de /g, ' ');
+  let texto = largo.charAt(0).toUpperCase() + largo.slice(1);
   if (esHoy) texto = 'Hoy';
   if (fecha === sumarDias(hoy, -1)) texto = 'Ayer';
 
@@ -42,7 +44,7 @@ export default function SelectorDiaMapa({
         type="button"
         onClick={abrirCalendario}
         aria-label="Elegir día"
-        className={`relative h-8 px-3 rounded-full flex items-center gap-1.5 text-[12.5px] font-semibold capitalize transition ${
+        className={`relative h-8 px-3 rounded-full flex items-center gap-1.5 text-[12.5px] font-semibold transition ${
           esHoy ? 'text-ink/85 hover:bg-surface' : 'bg-teal text-inkOnAccent'
         }`}
       >
