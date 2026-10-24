@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { CalendarClock, Clock, Contact, Lock, UserCog, Users } from 'lucide-react';
+import { CalendarClock, Clock, Contact, Lock, UserCog, Users, History } from 'lucide-react';
 import SupervisorShell from '@/components/SupervisorShell';
 import SubTabs from '@/components/SubTabs';
 import Solicitudes from '@/components/solicitudes/Solicitudes';
@@ -13,6 +13,7 @@ import JornadasEquipo from '@/components/personal/JornadasEquipo';
 import { usePlan } from '@/lib/planes';
 import { tieneModulo } from '@/lib/planesDatos';
 import { useSubseccionUrl } from '@/lib/useSubseccionUrl';
+import ActividadSeccion from '@/components/ActividadSeccion';
 
 // Personal: solicitudes (horas extra, vacaciones y permisos; quien autoriza
 // ve la bandeja de todos, los demás supervisores las suyas), la ficha del
@@ -20,7 +21,7 @@ import { useSubseccionUrl } from '@/lib/useSubseccionUrl';
 // usuarios, las cuentas (alta, rol, permisos, baja).
 // Las cuadrillas son de los paquetes Profesional y Empresa: en Campo la
 // pestaña se queda, con la invitación a subir de paquete.
-type Sub = 'solicitudes' | 'jornadas' | 'equipo' | 'cuadrillas' | 'usuarios';
+type Sub = 'solicitudes' | 'jornadas' | 'equipo' | 'cuadrillas' | 'usuarios' | 'actividad';
 
 export default function PersonalPanel({ userName, esGestor = false, subInicial }: {
   userName: string;
@@ -34,7 +35,7 @@ export default function PersonalPanel({ userName, esGestor = false, subInicial }
   const plan = usePlan();
   const conCuadrillas = tieneModulo(plan, 'cuadrillas');
   const mostrarPestana = conCuadrillas || plan.plan === 'campo';
-  const subsValidas: Sub[] = ['solicitudes', 'jornadas', 'equipo'];
+  const subsValidas: Sub[] = ['solicitudes', 'jornadas', 'equipo', 'actividad'];
   if (mostrarPestana) subsValidas.push('cuadrillas');
   if (esGestor) subsValidas.push('usuarios');
   useSubseccionUrl(sub, setSub, subsValidas);
@@ -49,9 +50,12 @@ export default function PersonalPanel({ userName, esGestor = false, subInicial }
           { k: 'equipo' as const, label: 'Equipo', Icono: Contact },
           ...(mostrarPestana ? [{ k: 'cuadrillas' as const, label: 'Cuadrillas', Icono: conCuadrillas ? Users : Lock }] : []),
           ...(esGestor ? [{ k: 'usuarios' as const, label: 'Usuarios', Icono: UserCog }] : []),
+          { k: 'actividad' as const, label: 'Actividad', Icono: History },
         ]}
       />
-      {sub === 'usuarios' && esGestor ? (
+      {sub === 'actividad' ? (
+        <ActividadSeccion seccion="personal" />
+      ) : sub === 'usuarios' && esGestor ? (
         <Usuarios />
       ) : sub === 'jornadas' ? (
         <JornadasEquipo />

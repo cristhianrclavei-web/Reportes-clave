@@ -14,7 +14,10 @@ import { ClienteConResumen, listarClientesConResumen, crearCliente } from '@/lib
 import { DatosCliente, datosClienteVacios, validarDatosCliente } from '@/lib/clienteDatos';
 import CamposCliente from '@/components/CamposCliente';
 import ClienteAvatar, { fondoAvatar } from '@/components/ClienteAvatar';
-import { Plus, Search, MapPin, Merge } from 'lucide-react';
+import { Plus, Search, MapPin, Merge, Users, History } from 'lucide-react';
+import SubTabs from '@/components/SubTabs';
+import ActividadSeccion from '@/components/ActividadSeccion';
+import { useSubseccionUrl } from '@/lib/useSubseccionUrl';
 import { createClient } from '@/lib/supabaseClient';
 
 export default function ClientesList({ userName }: { userName?: string }) {
@@ -23,6 +26,8 @@ export default function ClientesList({ userName }: { userName?: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [vista, setVista] = useState<'clientes' | 'actividad'>('clientes');
+  useSubseccionUrl(vista, setVista, ['clientes', 'actividad']);
 
   const [showNuevo, setShowNuevo] = useState(false);
   const [datosNuevo, setDatosNuevo] = useState<DatosCliente>(datosClienteVacios());
@@ -89,8 +94,29 @@ export default function ClientesList({ userName }: { userName?: string }) {
     }
   }
 
+  const pestanas = (
+    <SubTabs
+      activa={vista}
+      onCambiar={setVista}
+      opciones={[
+        { k: 'clientes', label: 'Clientes', Icono: Users },
+        { k: 'actividad', label: 'Actividad', Icono: History },
+      ]}
+    />
+  );
+
+  if (vista === 'actividad') {
+    return (
+      <SupervisorShell active="proyectos" title="Clientes y proyectos" userName={userName}>
+        {pestanas}
+        <ActividadSeccion seccion="clientes" />
+      </SupervisorShell>
+    );
+  }
+
   return (
     <SupervisorShell active="proyectos" title="Clientes y proyectos" userName={userName}>
+      {pestanas}
       {error && (
         <div className="mb-4 p-4 rounded-2xl bg-red/10 border border-red/30">
           <p className="text-[14px] font-semibold text-red mb-1">No se pudieron cargar los clientes</p>

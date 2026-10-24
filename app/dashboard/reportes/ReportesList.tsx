@@ -17,12 +17,13 @@ import LevantamientosSeccion from '@/components/LevantamientosSeccion';
 import { VistaCondicional } from '@/lib/vistaSupervisor';
 import { facturaChip } from '@/lib/reportStatus';
 import { showToast } from '@/components/Toast';
-import { Check, MessageSquareWarning, FileText, ClipboardList, CalendarCheck, ListChecks } from 'lucide-react';
+import { Check, MessageSquareWarning, FileText, ClipboardList, CalendarCheck, ListChecks, History } from 'lucide-react';
 import ControlReportes from '@/components/ControlReportes';
 import CoberturaReportes from '@/components/CoberturaReportes';
 import SelectorSemana, { RangoSeleccionado } from '@/components/SelectorSemana';
 import { textoTiposServicio, tieneTipo } from '@/lib/tiposServicio';
 import { useSubseccionUrl } from '@/lib/useSubseccionUrl';
+import ActividadSeccion from '@/components/ActividadSeccion';
 
 type Report = ReportDetail;
 
@@ -51,8 +52,8 @@ export default function ReportesList({
   const [rango, setRango] = useState<RangoSeleccionado | null>(null);
   const fechasDeReportes = useMemo(() => reports.map((r) => r.fecha).filter(Boolean), [reports]);
   const [open, setOpen] = useState<Report | null>(null);
-  const [subseccion, setSubseccion] = useState<'reportes' | 'control' | 'cobertura' | 'levantamientos'>('reportes');
-  useSubseccionUrl(subseccion, setSubseccion, ['reportes', 'control', 'cobertura', 'levantamientos']);
+  const [subseccion, setSubseccion] = useState<'reportes' | 'control' | 'cobertura' | 'levantamientos' | 'actividad'>('reportes');
+  useSubseccionUrl(subseccion, setSubseccion, ['reportes', 'control', 'cobertura', 'levantamientos', 'actividad']);
   // Ver el comentario en lib/reportStatus.ts: "ahora" solo se conoce ya
   // montado en el cliente, para que el chip de facturación no dispare un
   // error de hidratación.
@@ -159,8 +160,11 @@ export default function ReportesList({
             { k: 'control', label: 'Control', Icono: ListChecks },
             { k: 'cobertura', label: 'Cobertura', Icono: CalendarCheck },
             { k: 'levantamientos', label: 'Levantamientos', Icono: ClipboardList },
+            { k: 'actividad', label: 'Actividad', Icono: History },
           ]}
         />
+
+        {subseccion === 'actividad' && <ActividadSeccion seccion="reportes" />}
 
         {subseccion === 'levantamientos' && <LevantamientosSeccion soloPropios={false} />}
 

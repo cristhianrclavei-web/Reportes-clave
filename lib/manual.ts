@@ -304,7 +304,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
           'Arriba ves el horario (llegada y salida) y quién lo agendó y cuándo. Con «Editar» cambias el proyecto, la fecha, la duración, el horario y la ubicación, mientras el servicio no empiece.',
           'En la ubicación, «Marcar el punto en el mapa» abre un mapa (o vista de satélite): toca donde está el sitio o arrastra el pin para afinarlo. La dirección se llena sola.',
           'En «Lista de tareas» toca «Editar lista» (o «Agregar tareas» si no tiene) para agregar, renombrar o quitar tareas. Las que ya tienen avance llevan candado: no se quitan y su nombre se cambia con «Corregir». A los técnicos les llega un aviso del cambio.',
-          'Cada cambio queda registrado en Actividad.',
+          'Cada cambio queda registrado en la pestaña «Actividad» de Servicios. Cada sección (Reportes, Cotizaciones, Facturación, Clientes, Personal y Almacén) tiene su propia pestaña «Actividad» con lo que pasó en ella: altas, ediciones, eliminaciones, cambios de estado y, en Almacén, cada entrada, salida, vale, traspaso y conteo. La página «Actividad» del menú junta todo, con filtro por sección.',
         ],
       },
       {

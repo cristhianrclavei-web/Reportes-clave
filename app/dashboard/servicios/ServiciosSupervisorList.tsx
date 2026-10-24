@@ -35,7 +35,7 @@ import {
   listarPlantillas, guardarPlantillaDeItems, actualizarPlantilla, eliminarPlantilla, listarChecklists, ResumenChecklist,
   eliminarChecklist, agregarInsumosIniciales,
 } from '@/lib/insumos';
-import { Plus, X, FileText, AlertTriangle, Timer, MapPin, Play, Check, Clock, FolderKanban, Bookmark, Pencil, Copy, Trash2, PackageCheck, TrendingUp, ChevronRight, ChevronDown, Search, CalendarDays } from 'lucide-react';
+import { Plus, X, FileText, AlertTriangle, Timer, MapPin, Play, Check, Clock, FolderKanban, Bookmark, Pencil, Copy, Trash2, PackageCheck, TrendingUp, ChevronRight, ChevronDown, Search, CalendarDays, History } from 'lucide-react';
 import { calcularResultadoServicio } from '@/lib/resultadoServicio';
 import { ResultadoIconos } from '@/components/ResultadoServicioBadges';
 import { showToast } from '@/components/Toast';
@@ -45,6 +45,7 @@ import { zonaDeTrabajo } from '@/lib/geocoding';
 import { useSubseccionUrl } from '@/lib/useSubseccionUrl';
 import dynamic from 'next/dynamic';
 import { Map as IconoMapa } from 'lucide-react';
+import ActividadSeccion from '@/components/ActividadSeccion';
 // Leaflet usa `window`: el mapa se carga solo en el navegador.
 const MapaTecnicos = dynamic(() => import('@/components/servicios/MapaTecnicos'), { ssr: false });
 
@@ -124,8 +125,8 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   const [showNuevo, setShowNuevo] = useState(false);
   // La pantalla hace dos cosas distintas: programar algo nuevo y consultar lo
   // ya programado. Separarlas evita que el formulario y la lista compitan.
-  const [seccion, setSeccion] = useState<'hoy' | 'mapa' | 'agendar' | 'agendados' | 'concluidos' | 'checklists' | 'plantillas'>('hoy');
-  useSubseccionUrl(seccion, setSeccion, ['hoy', 'mapa', 'agendar', 'agendados', 'concluidos', 'checklists', 'plantillas']);
+  const [seccion, setSeccion] = useState<'hoy' | 'mapa' | 'agendar' | 'agendados' | 'concluidos' | 'checklists' | 'plantillas' | 'actividad'>('hoy');
+  useSubseccionUrl(seccion, setSeccion, ['hoy', 'mapa', 'agendar', 'agendados', 'concluidos', 'checklists', 'plantillas', 'actividad']);
   const [checklists, setChecklists] = useState<ResumenChecklist[]>([]);
   const [rango, setRango] = useState<RangoSeleccionado | null>(null);
   // Agendados abre en «Próximos» (todo lo pendiente, lo más cercano primero)
@@ -688,9 +689,12 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
               { k: 'concluidos', label: 'Concluidos', Icono: Check },
               { k: 'checklists', label: 'Listas de carga', Icono: PackageCheck },
               { k: 'plantillas', label: 'Plantillas', Icono: Bookmark },
+              { k: 'actividad', label: 'Actividad', Icono: History },
             ]}
           />
         )}
+
+        {seccion === 'actividad' && <ActividadSeccion seccion="servicios" />}
 
         {seccion === 'mapa' && <MapaTecnicos />}
 

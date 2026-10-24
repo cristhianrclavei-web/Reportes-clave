@@ -15,8 +15,9 @@ import { useRouter } from 'next/navigation';
 import { showToast } from '@/components/Toast';
 import { hoyLocal } from '@/lib/fechaHoy';
 import SubTabs from '@/components/SubTabs';
-import { Plus, Search, ReceiptText, FileClock } from 'lucide-react';
+import { Plus, Search, ReceiptText, FileClock, History } from 'lucide-react';
 import { useSubseccionUrl } from '@/lib/useSubseccionUrl';
+import ActividadSeccion from '@/components/ActividadSeccion';
 
 type FilaFactura = {
   id: string;
@@ -76,8 +77,8 @@ export default function FacturasList({
   // Reportes ya elegidos al llegar desde «Armar factura».
   reportesIniciales?: string[];
 }) {
-  const [seccion, setSeccion] = useState<'nueva' | 'facturas' | 'pendientes'>(clienteInicial ? 'nueva' : 'facturas');
-  useSubseccionUrl(seccion, setSeccion, ['nueva', 'facturas', 'pendientes']);
+  const [seccion, setSeccion] = useState<'nueva' | 'facturas' | 'pendientes' | 'actividad'>(clienteInicial ? 'nueva' : 'facturas');
+  useSubseccionUrl(seccion, setSeccion, ['nueva', 'facturas', 'pendientes', 'actividad']);
   // Reportes concluidos que nadie ha facturado ni descartado, por cliente.
   const [porFacturar, setPorFacturar] = useState<PorFacturarCliente[] | null>(null);
   useEffect(() => { reportesPorFacturar().then(setPorFacturar).catch(() => setPorFacturar([])); }, []);
@@ -162,8 +163,11 @@ export default function FacturasList({
           { k: 'facturas', label: 'Facturas', Icono: ReceiptText },
           { k: 'pendientes', label: totalPorFacturar > 0 ? `Por facturar · ${totalPorFacturar}` : 'Por facturar', Icono: FileClock },
           { k: 'nueva', label: 'Nueva factura', Icono: Plus },
+          { k: 'actividad', label: 'Actividad', Icono: History },
         ]}
       />
+
+      {seccion === 'actividad' && <ActividadSeccion seccion="facturacion" />}
 
       {seccion === 'nueva' && <FacturaForm modo="crear" clienteInicial={clienteInicial} reportesIniciales={reportesIniciales} />}
 

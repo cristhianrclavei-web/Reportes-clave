@@ -85,7 +85,7 @@ export async function crearCliente(input: DatosCliente): Promise<string> {
     .single();
   if (error) throw error;
 
-  await registrarAccionGlobal('creo_proyecto', 'proyecto', data.id, `Dio de alta al cliente «${fila.nombre}»`);
+  // El alta la anota la base en la actividad de Clientes (patch_actividad_por_seccion.sql).
   return data.id as string;
 }
 

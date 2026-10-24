@@ -49,11 +49,16 @@ export type AccionGlobal =
   | 'edito_usuario'
   | 'elimino_usuario';
 
+// Secciones con subsección «Actividad» (patch_actividad_por_seccion.sql).
+export type SeccionActividad = 'servicios' | 'reportes' | 'cotizaciones' | 'facturacion' | 'clientes' | 'personal' | 'almacen';
+
 export type EntradaAuditoria = {
   id: string;
   actor_id: string;
-  accion: AccionGlobal;
-  entidad: 'servicio' | 'reporte' | 'proyecto' | 'dia';
+  // Además de AccionGlobal, las que anota la base (creo_cotizacion, movimiento_almacen…).
+  accion: string;
+  entidad: string;
+  seccion?: string | null;
   entidad_id: string | null;
   detalle: string | null;
   created_at: string;
@@ -84,13 +89,21 @@ export async function registrarAccionGlobal(
   }
 }
 
-export async function listarAuditoriaGlobal(limite = 300): Promise<EntradaAuditoria[]> {
+export const FALTA_SQL_ACTIVIDAD = 'Falta correr supabase/patch_actividad_por_seccion.sql en la base.';
+
+// Sin sección: todo (página «Actividad»). Con sección: solo lo de esa sección.
+export async function listarAuditoriaGlobal(limite = 300, seccion?: SeccionActividad): Promise<EntradaAuditoria[]> {
   const supabase = createClient();
-  const { data, error } = await supabase
+  let consulta = supabase
     .from('auditoria_global')
     .select('*, profiles(full_name)')
     .order('created_at', { ascending: false })
     .limit(limite);
-  if (error) throw error;
+  if (seccion) consulta = consulta.eq('seccion', seccion);
+  const { data, error } = await consulta;
+  if (error) {
+    if (/seccion/.test(error.message) && /does not exist|not find|schema cache/i.test(error.message)) throw new Error(FALTA_SQL_ACTIVIDAD);
+    throw error;
+  }
   return (data as EntradaAuditoria[]) || [];
 }

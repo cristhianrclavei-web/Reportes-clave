@@ -25,9 +25,10 @@ import {
 } from '@/lib/almacen';
 import EntradaAlmacenWizard, { ModalNuevoArticulo } from '@/components/almacen/EntradaAlmacenWizard';
 import { useSubseccionUrl } from '@/lib/useSubseccionUrl';
+import ActividadSeccion from '@/components/ActividadSeccion';
 import {
   Plus, FileText, ScrollText, Wrench, Package, HardHat,
-  Trash2, Boxes, ArrowLeftRight, ArrowDown, ArrowUp, RotateCcw, AlertTriangle, LayoutGrid, Search, ClipboardList, MapPin, ClipboardCheck,
+  Trash2, Boxes, ArrowLeftRight, ArrowDown, ArrowUp, RotateCcw, AlertTriangle, LayoutGrid, Search, ClipboardList, MapPin, ClipboardCheck, History,
 } from 'lucide-react';
 
 const ICONO: Record<CategoriaInsumo, any> = { herramienta: Wrench, material: Package, equipo: HardHat };
@@ -38,8 +39,8 @@ function fmtFecha(iso: string | null): string {
 }
 
 export default function AlmacenList({ userName }: { userName?: string }) {
-  const [seccion, setSeccion] = useState<'vales' | 'existencias' | 'entrada' | 'movimientos' | 'catalogo' | 'sistemas' | 'ubicaciones' | 'conteo' | 'instalados'>('vales');
-  useSubseccionUrl(seccion, setSeccion, ['vales', 'existencias', 'entrada', 'movimientos', 'catalogo', 'sistemas', 'ubicaciones', 'conteo', 'instalados']);
+  const [seccion, setSeccion] = useState<'vales' | 'existencias' | 'entrada' | 'movimientos' | 'catalogo' | 'sistemas' | 'ubicaciones' | 'conteo' | 'instalados' | 'actividad'>('vales');
+  useSubseccionUrl(seccion, setSeccion, ['vales', 'existencias', 'entrada', 'movimientos', 'catalogo', 'sistemas', 'ubicaciones', 'conteo', 'instalados', 'actividad']);
   // ?sub=… lo maneja useSubseccionUrl.
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
@@ -171,9 +172,12 @@ export default function AlmacenList({ userName }: { userName?: string }) {
               { k: 'ubicaciones', label: 'Ubicaciones', Icono: MapPin },
               { k: 'conteo', label: 'Conteo', Icono: ClipboardCheck },
               { k: 'sistemas', label: 'Sistemas', Icono: LayoutGrid },
+              { k: 'actividad', label: 'Actividad', Icono: History },
             ]}
           />
         )}
+
+        {seccion === 'actividad' && <ActividadSeccion seccion="almacen" />}
 
         {error && (
           <div className="mb-4 p-4 rounded-2xl bg-red/10 border border-red/30">
@@ -183,7 +187,7 @@ export default function AlmacenList({ userName }: { userName?: string }) {
           </div>
         )}
 
-        {loading && seccion !== 'vales' && (
+        {loading && seccion !== 'vales' && seccion !== 'actividad' && (
           <div className="flex flex-col gap-2.5" aria-busy="true">
             {[0, 1, 2, 3].map((i) => (
               <div key={i} className="rounded-2xl bg-surface border border-line p-4 flex items-center gap-3">

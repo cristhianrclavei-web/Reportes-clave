@@ -18,9 +18,10 @@ import { descartarBorradorFormulario } from '@/lib/useBorradorFormulario';
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
 import SubTabs from '@/components/SubTabs';
-import { Plus, Search, Receipt, Copy, X } from 'lucide-react';
+import { Plus, Search, Receipt, Copy, X, History } from 'lucide-react';
 import SelectorSemana, { RangoSeleccionado } from '@/components/SelectorSemana';
 import { useSubseccionUrl } from '@/lib/useSubseccionUrl';
+import ActividadSeccion from '@/components/ActividadSeccion';
 
 function formatFecha(fecha: string): string {
   if (!fecha) return '—';
@@ -85,8 +86,8 @@ export default function CotizacionesList({
   // Mismo patrón que Servicios (Agendar/Agendados): armar y consultar son
   // dos tareas distintas, separarlas en pestañas evita que el formulario y
   // la lista compitan por espacio en la misma pantalla.
-  const [seccion, setSeccion] = useState<'nueva' | 'cotizaciones'>('cotizaciones');
-  useSubseccionUrl(seccion, setSeccion, ['nueva', 'cotizaciones']);
+  const [seccion, setSeccion] = useState<'nueva' | 'cotizaciones' | 'actividad'>('cotizaciones');
+  useSubseccionUrl(seccion, setSeccion, ['nueva', 'cotizaciones', 'actividad']);
   // Copia de otra cotización para un cliente nuevo (mismas partidas y condiciones).
   const [copia, setCopia] = useState<{ origen: Cotizacion; datos: { cotizacion: Cotizacion; lineas: LineaCotizacion[] } } | null>(null);
   const [eligiendoCopia, setEligiendoCopia] = useState(false);
@@ -200,8 +201,11 @@ export default function CotizacionesList({
         opciones={[
           { k: 'cotizaciones', label: 'Cotizaciones', Icono: Receipt },
           { k: 'nueva', label: 'Nueva cotización', Icono: Plus },
+          { k: 'actividad', label: 'Actividad', Icono: History },
         ]}
       />
+
+      {seccion === 'actividad' && <ActividadSeccion seccion="cotizaciones" />}
 
       {seccion === 'nueva' && (
         <>
