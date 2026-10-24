@@ -259,6 +259,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
           'Solo se comparte en horario de trabajo (lunes a viernes no festivos, entre la entrada y la salida de Personal → Jornadas) o mientras la persona tenga un servicio abierto. Fuera de eso la base no guarda nada.',
           'El color de cada persona dice cómo está su señal: verde, en línea; naranja, sin puntos desde hace unos minutos; gris, sin señal.',
           'Toca a una persona en la lista o en el mapa para ver su recorrido de hoy.',
+          'Para ver días anteriores usa las flechas o el calendario arriba de la lista (hasta 90 días atrás); «Hoy» te regresa al día actual. En un día pasado sale el último punto de cada técnico ese día y, al tocarlo, su recorrido completo.',
           'Los recorridos se borran solos a los 90 días.',
           'En el teléfono: abre la app de Clave cada mañana. Debe quedar el aviso fijo «Clave» en la barra de notificaciones; si se quita, la ubicación deja de llegar.',
         ],

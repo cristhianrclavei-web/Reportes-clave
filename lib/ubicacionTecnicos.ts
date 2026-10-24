@@ -31,13 +31,55 @@ export async function ultimasUbicacionesHoy(): Promise<UltimaUbicacion[]> {
   return (data || []) as UltimaUbicacion[];
 }
 
-// Recorrido de hoy de un técnico, del más viejo al más nuevo.
-export async function recorridoDeHoy(tecnicoId: string, desdeIso: string): Promise<PuntoRecorrido[]> {
+// Historial: la base guarda los puntos 90 días (patch_ubicacion_tecnicos.sql).
+export const DIAS_HISTORIAL = 90;
+
+// Último punto de cada técnico en un día pasado (desde/hasta en ISO). Los
+// de hoy salen de ultimasUbicacionesHoy. Supervisión no se rastrea, pero
+// se filtra por si quedaron puntos de antes de patch_rastreo_solo_tecnicos.sql.
+export async function ultimasUbicacionesDelDia(desdeIso: string, hastaIso: string): Promise<UltimaUbicacion[]> {
+  const supabase = createClient();
+  // Un punto por minuto en horario: ~650 por técnico al día.
+  // shortcut: tope de 8,000 puntos (unos 12 técnicos); con más personal, pasar a una función en la base.
+  const { data, error } = await supabase
+    .from('ubicaciones_tecnicos')
+    .select('tecnico_id, lat, lng, precision_m, registrado_en')
+    .gte('registrado_en', desdeIso)
+    .lt('registrado_en', hastaIso)
+    .order('registrado_en', { ascending: false })
+    .limit(8000);
+  if (error) throw new Error(mensajeError(error.message));
+
+  // Lista ordenada del más nuevo al más viejo: el primero de cada técnico es su último punto.
+  const ultimos = new Map<string, Omit<UltimaUbicacion, 'nombre'>>();
+  for (const p of (data || []) as Omit<UltimaUbicacion, 'nombre'>[]) {
+    if (!ultimos.has(p.tecnico_id)) ultimos.set(p.tecnico_id, p);
+  }
+  if (ultimos.size === 0) return [];
+
+  const { data: perfiles, error: ePerfiles } = await supabase
+    .from('profiles')
+    .select('id, full_name, role')
+    .in('id', [...ultimos.keys()]);
+  if (ePerfiles) throw new Error(mensajeError(ePerfiles.message));
+
+  const lista: UltimaUbicacion[] = [];
+  for (const perfil of (perfiles || []) as { id: string; full_name: string | null; role: string }[]) {
+    const punto = ultimos.get(perfil.id);
+    if (!punto || perfil.role === 'supervisor') continue;
+    lista.push({ ...punto, nombre: perfil.full_name });
+  }
+  return lista.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+}
+
+// Recorrido de un técnico en un día, del más viejo al más nuevo.
+export async function recorridoDelDia(tecnicoId: string, desdeIso: string, hastaIso: string): Promise<PuntoRecorrido[]> {
   const { data, error } = await createClient()
     .from('ubicaciones_tecnicos')
     .select('lat, lng, registrado_en')
     .eq('tecnico_id', tecnicoId)
     .gte('registrado_en', desdeIso)
+    .lt('registrado_en', hastaIso)
     .order('registrado_en', { ascending: true })
     .limit(1500);
   if (error) throw new Error(mensajeError(error.message));

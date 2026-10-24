@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { EstadoSenal, PuntoRecorrido, UltimaUbicacion, estadoSenal, recorridoDeHoy, ultimasUbicacionesHoy } from '@/lib/ubicacionTecnicos';
+import { EstadoSenal, PuntoRecorrido, UltimaUbicacion, estadoSenal, recorridoDelDia, ultimasUbicacionesDelDia, ultimasUbicacionesHoy, DIAS_HISTORIAL } from '@/lib/ubicacionTecnicos';
 import { useEnVivo } from '@/lib/useEnVivo';
-import { fechaLocal, hoyLocal } from '@/lib/fechaHoy';
+import { fechaLocal, hoyLocal, sumarDias } from '@/lib/fechaHoy';
 import { LLAVE_GOOGLE_MAPS, MotorMapa, PinMapa, Punto, crearMotorBasico, crearMotorGoogle } from './motorMapa';
 
 // Lo que comparten el mapa de Servicios → Mapa y la tarjeta del Resumen:
@@ -38,14 +38,18 @@ function preferenciaGuardada(): TipoMotor {
   return 'google';
 }
 
+// Días pasados: ya no hay «señal», el pin va de un solo color.
+export const COLOR_HISTORIAL = '#2563eb';
+
 // HTML del pin: las iniciales con el color de su señal y, si está en línea,
 // un halo que late. Lo usan los dos mapas.
-function htmlPin(t: UltimaUbicacion, estado: EstadoSenal, elegido: boolean): string {
+function htmlPin(t: UltimaUbicacion, estado: EstadoSenal | null, elegido: boolean): string {
   const borde = elegido ? '#111827' : '#ffffff';
+  const color = estado ? COLOR_SENAL[estado] : COLOR_HISTORIAL;
   const halo = estado === 'en_linea'
-    ? `<span style="position:absolute;inset:-6px;border-radius:50%;background:${COLOR_SENAL[estado]};opacity:.35;animation:pulsoTecnico 2s ease-out infinite"></span>`
+    ? `<span style="position:absolute;inset:-6px;border-radius:50%;background:${color};opacity:.35;animation:pulsoTecnico 2s ease-out infinite"></span>`
     : '';
-  return `<div style="position:relative;width:36px;height:36px">${halo}<div style="position:relative;width:36px;height:36px;border-radius:50%;background:${COLOR_SENAL[estado]};border:3px solid ${borde};color:#fff;font:700 12px sans-serif;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,.35)">${inicialesTecnico(t.nombre)}</div></div>`;
+  return `<div style="position:relative;width:36px;height:36px">${halo}<div style="position:relative;width:36px;height:36px;border-radius:50%;background:${color};border:3px solid ${borde};color:#fff;font:700 12px sans-serif;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,.35)">${inicialesTecnico(t.nombre)}</div></div>`;
 }
 
 export function useMapaTecnicos({ zoomControl = true }: { zoomControl?: boolean } = {}) {
@@ -67,22 +71,57 @@ export function useMapaTecnicos({ zoomControl = true }: { zoomControl?: boolean 
   const [motor, setMotor] = useState<TipoMotor | null>(null);
   // Cambia cada vez que se crea un mapa nuevo, para volver a dibujar todo.
   const [version, setVersion] = useState(0);
+  // Día que se ve (YYYY-MM-DD) y el de hoy; null hasta montar (no se lee el
+  // reloj en el render). Cambiar de día redibuja sobre el MISMO mapa: no
+  // cuenta como otra carga de Google Maps.
+  const [fecha, setFecha] = useState<string | null>(null);
+  const [hoy, setHoy] = useState<string | null>(null);
+  const esHoy = fecha !== null && fecha === hoy;
+  // La carga más reciente gana si se cambia de día muy rápido.
+  const pedidoRef = useRef(0);
 
-  async function cargar() {
+  function limitesDelDia(dia: string): [string, string] {
+    return [fechaLocal(dia).toISOString(), fechaLocal(sumarDias(dia, 1)).toISOString()];
+  }
+
+  async function cargar(dia: string | null = fecha) {
+    if (!dia) return;
+    const pedido = ++pedidoRef.current;
     try {
-      const lista = await ultimasUbicacionesHoy();
+      let lista: UltimaUbicacion[];
+      if (dia === hoyLocal()) {
+        lista = await ultimasUbicacionesHoy();
+      } else {
+        const [desde, hasta] = limitesDelDia(dia);
+        lista = await ultimasUbicacionesDelDia(desde, hasta);
+      }
+      if (pedido !== pedidoRef.current) return;
       setTecnicos(lista);
       setError(null);
     } catch (e: any) {
-      setError(e.message);
+      if (pedido === pedidoRef.current) setError(e.message);
     } finally {
-      setCargando(false);
-      setAhora(Date.now());
+      if (pedido === pedidoRef.current) {
+        setCargando(false);
+        setAhora(Date.now());
+      }
     }
   }
 
-  useEffect(() => { cargar(); }, []);
-  useEnVivo({ tablas: ['ubicaciones_tecnicos'], alCambiar: cargar, cadaMs: 60000 });
+  useEffect(() => {
+    const dia = hoyLocal();
+    setHoy(dia);
+    setFecha(dia);
+  }, []);
+  useEffect(() => {
+    if (!fecha) return;
+    setCargando(true);
+    yaEncuadreRef.current = false;
+    cargar(fecha);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fecha]);
+  // Solo el día de hoy se actualiza solo; un día pasado ya no cambia.
+  useEnVivo({ tablas: ['ubicaciones_tecnicos'], alCambiar: () => { if (esHoy) cargar(); }, cadaMs: 60000 });
   useEffect(() => { setMotor(preferenciaGuardada()); }, []);
 
   // El mapa se crea al montar y cada vez que se cambia entre Google y el
@@ -133,7 +172,7 @@ export function useMapaTecnicos({ zoomControl = true }: { zoomControl?: boolean 
       id: t.tecnico_id,
       lat: t.lat,
       lng: t.lng,
-      html: htmlPin(t, estadoSenal(t.registrado_en, ahora), t.tecnico_id === elegido),
+      html: htmlPin(t, esHoy ? estadoSenal(t.registrado_en, ahora) : null, t.tecnico_id === elegido),
       titulo: `${t.nombre || 'Técnico'} · ${horaCorta(t.registrado_en)}`,
     }));
     mapa.ponerPines(pines, setElegido);
@@ -142,18 +181,24 @@ export function useMapaTecnicos({ zoomControl = true }: { zoomControl?: boolean 
       encuadrarTodos();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [version, tecnicos, elegido, ahora]);
+  }, [version, tecnicos, elegido, ahora, esHoy]);
 
-  // Recorrido de hoy del técnico elegido (se recarga con cada punto nuevo).
+  // Recorrido del día del técnico elegido (hoy se recarga con cada punto nuevo).
   useEffect(() => {
-    if (!elegido) {
+    if (!elegido || !fecha) {
       setRecorrido([]);
       return;
     }
-    const inicioDelDia = fechaLocal(hoyLocal()).toISOString();
-    recorridoDeHoy(elegido, inicioDelDia)
+    // El técnico elegido no trabajó ese día: no hay recorrido que mostrar.
+    if (!tecnicos.some((t) => t.tecnico_id === elegido)) {
+      setRecorrido([]);
+      return;
+    }
+    const [desde, hasta] = limitesDelDia(fecha);
+    recorridoDelDia(elegido, desde, hasta)
       .then(setRecorrido)
       .catch((e) => setError(e.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [elegido, tecnicos]);
 
   useEffect(() => {
@@ -181,5 +226,16 @@ export function useMapaTecnicos({ zoomControl = true }: { zoomControl?: boolean 
   }
   const hayGoogle = LLAVE_GOOGLE_MAPS !== '';
 
-  return { contenedorRef, tecnicos, elegido, recorrido, error, cargando, ahora, enfocar, encuadrarTodos, motor, hayGoogle, cambiarMotor };
+  // Historial: de hoy hacia atrás hasta 90 días.
+  const fechaMinima = hoy ? sumarDias(hoy, -(DIAS_HISTORIAL - 1)) : null;
+  function irADia(dia: string) {
+    if (!hoy || !fechaMinima) return;
+    if (dia > hoy || dia < fechaMinima) return;
+    setFecha(dia);
+  }
+
+  return {
+    contenedorRef, tecnicos, elegido, recorrido, error, cargando, ahora, enfocar, encuadrarTodos, motor, hayGoogle, cambiarMotor,
+    fecha, hoy, esHoy, fechaMinima, irADia,
+  };
 }
