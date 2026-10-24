@@ -281,7 +281,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
         titulo: 'Agendar servicios',
         resumen: 'Desde Servicios → Agendados o desde la Agenda.',
         pasos: [
-          'Toca «Agendar», elige el cliente, la fecha, la hora y a quién va (personas o una cuadrilla completa). La ubicación del sitio la buscas escribiendo el nombre o la dirección (salen las mismas sugerencias que en Google Maps), la pegas de un enlace de Google Maps o la marcas en el mapa.',
+          'Toca «Agendar», elige el cliente, la fecha, la hora y a quién va (personas o una cuadrilla completa). La ubicación del sitio la buscas escribiendo el nombre o la dirección (salen las mismas sugerencias que en Google Maps), la pegas de un enlace de Google Maps o la marcas en el mapa. Abajo elige el «Tamaño del sitio»: Normal (120 m), Grande (300 m) o Planta o complejo (500 m), para que en una planta con naves lejanas no salga «fuera del sitio» aunque estén trabajando adentro.',
           'Puedes cargar una rutina de tareas y una lista de herramienta y material.',
           'Los servicios de varios días se agendan como un solo proyecto.',
           'Para eliminar: en Servicios despliega el proyecto. El bote de basura junto a un día quita solo ese día (pide el motivo; no aparece en días ya trabajados o con reporte), y «Eliminar el proyecto completo» borra todo. Las dos piden confirmación.',

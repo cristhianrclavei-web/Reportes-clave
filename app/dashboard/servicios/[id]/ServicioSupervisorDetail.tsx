@@ -14,13 +14,14 @@ import LogoutButton from '@/components/LogoutButton';
 import Logo from '@/components/Logo';
 import {
   Servicio, Tarea, Evento, Auditoria,
-  obtenerServicioCompleto, editarServicio, reasignarTecnicos, listarTecnicos, calcularEstadoTiempo, agregarDiasAGrupo, motivoNoEditable,
+  obtenerServicioCompleto, editarServicio, reasignarTecnicos, listarTecnicos, calcularEstadoTiempo, agregarDiasAGrupo, motivoNoEditable, cambiarTamanoSitio,
   calcularProgresoTareas, eliminarProyecto, eliminarDiaDeProyecto, reprogramarDia, cerrarDiaManualmente, cerrarServicioOlvidado, cancelarServicio, reactivarServicio,
   leerAjustesOperacion,
 } from '@/lib/serviciosProgramados';
 import ProgressBar from '@/components/ProgressBar';
 import { ChevronLeft, MapPin, Play, Check, Clock, Trash2, AlertTriangle, Timer, Flag, Camera, Plus, Users, Pencil, CalendarClock, PackageCheck, Bookmark, ChevronRight, X, TrendingUp, CalendarX, Lock, PauseCircle, PlayCircle, CheckCircle2, MapPinOff } from 'lucide-react';
 import CampoUbicacionSitio, { CamposUbicacion, UBICACION_VACIA, camposDeUbicacion, ubicacionDeCampos } from '@/components/servicios/CampoUbicacionSitio';
+import SelectorTamanoSitio, { RADIO_SITIO_POR_DEFECTO, textoTamanoSitio } from '@/components/servicios/SelectorTamanoSitio';
 import { calcularResultadoServicio } from '@/lib/resultadoServicio';
 import { formatMinutos } from '@/lib/kpis';
 import InsumosChecklist from '@/components/InsumosChecklist';
@@ -85,6 +86,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
   const [editando, setEditando] = useState(false);
   // Ubicación del sitio en el formulario de edición.
   const [ubicCampos, setUbicCampos] = useState<CamposUbicacion>(UBICACION_VACIA);
+  const [radioSitio, setRadioSitio] = useState(RADIO_SITIO_POR_DEFECTO);
   const [proyecto, setProyecto] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [fecha, setFecha] = useState('');
@@ -157,6 +159,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
     setHoraLlegada(horaCorta(s.hora_programada));
     setHoraSalida(horaCorta(s.hora_salida_programada));
     setUbicCampos(camposDeUbicacion(s.ubicacion_programada));
+    setRadioSitio(s.radio_geocerca_m || RADIO_SITIO_POR_DEFECTO);
     setTecnicoIdsSel(tc.map((x) => x.tecnico_id));
 
     const paths = [...t.filter((x) => x.foto_path).map((x) => x.foto_path as string), ...e.filter((x) => x.foto_path).map((x) => x.foto_path as string), ...e.filter((x) => x.video_path).map((x) => x.video_path as string)];
@@ -219,6 +222,9 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
       // Solo se manda la ubicación si cambió, para no tocar los demás días sin necesidad.
       const cambioUbicacion = JSON.stringify(ubicacion) !== JSON.stringify(servicio.ubicacion_programada || null);
       if (cambioUbicacion) cambios.push(ubicacion ? `ubicación del sitio: ${ubicacion.direccion || `${ubicacion.lat}, ${ubicacion.lng}`}` : 'se quitó la ubicación del sitio');
+      const radioAnterior = servicio.radio_geocerca_m || RADIO_SITIO_POR_DEFECTO;
+      const cambioRadio = radioSitio !== radioAnterior;
+      if (cambioRadio) cambios.push(`tamaño del sitio: ${textoTamanoSitio(radioAnterior)} → ${textoTamanoSitio(radioSitio)}`);
 
       if (cambios.length > 0) {
         avance(15, 'Guardando los cambios del servicio');
@@ -228,6 +234,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
           {
             proyecto, descripcion, fecha, duracion_estimada_min: duracionMin,
             ...(cambioUbicacion ? { ubicacion_programada: ubicacion } : {}),
+            ...(cambioRadio ? { radio_geocerca_m: radioSitio } : {}),
             ...(cambioLlegada ? { hora_programada: horaLlegada || null } : {}),
             ...(cambioSalida ? { hora_salida_programada: horaSalida || null } : {}),
           },
@@ -532,6 +539,20 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
     if (r.reportesFirmados > 0) mensaje += ` · ${r.reportesFirmados} reporte${r.reportesFirmados > 1 ? 's' : ''} ya firmado${r.reportesFirmados > 1 ? 's' : ''} no cambió`;
     showToast(mensaje, 'success');
   }
+  async function handleGuardarTamano() {
+    if (!servicio) return;
+    const anterior = servicio.radio_geocerca_m || RADIO_SITIO_POR_DEFECTO;
+    setGuardando(true);
+    try {
+      await cambiarTamanoSitio(servicioId, radioSitio, `tamaño del sitio: ${textoTamanoSitio(anterior)} → ${textoTamanoSitio(radioSitio)}`);
+      showToast('Tamaño del sitio actualizado', 'success');
+      await cargar();
+    } catch (e: any) {
+      avisar('No se pudo guardar el tamaño del sitio: ' + (e?.message || 'error desconocido') + '. Revisa tu conexión e intenta de nuevo.');
+    } finally {
+      setGuardando(false);
+    }
+  }
   const resultado = calcularResultadoServicio(servicio, progreso);
   const estadoTiempo = calcularEstadoTiempo(servicio);
   // Null cuando sí se puede editar; si no, el texto que explica por qué no.
@@ -598,6 +619,16 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
               <Lock size={13} strokeWidth={2.4} className="text-muted shrink-0 mt-0.5" />
               <span>{bloqueo}</span>
             </p>
+          )}
+          {servicio.estado === 'en_curso' && servicio.ubicacion_programada && (
+            <div className="mb-3 rounded-xl border border-line bg-surface-2/50 p-3">
+              <SelectorTamanoSitio valor={radioSitio} onCambio={setRadioSitio} />
+              {radioSitio !== (servicio.radio_geocerca_m || RADIO_SITIO_POR_DEFECTO) && (
+                <button onClick={handleGuardarTamano} disabled={guardando} className="mt-2.5 w-full py-2.5 rounded-xl bg-teal text-inkOnAccent text-[13px] font-semibold active:scale-95 transition-transform disabled:opacity-60">
+                  {guardando ? 'Guardando...' : 'Guardar tamaño del sitio'}
+                </button>
+              )}
+            </div>
           )}
 
           {!editando ? (
@@ -684,6 +715,11 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
                 {servicio.dias_totales > 1 ? 'Se aplica también a los demás días del proyecto que no han empezado. ' : ''}
                 Para quitarla, borra la latitud y la longitud.
               </p>
+              {ubicCampos.lat.trim() && (
+                <div className="mb-3">
+                  <SelectorTamanoSitio valor={radioSitio} onCambio={setRadioSitio} />
+                </div>
+              )}
               <button onClick={handleGuardarEdicion} disabled={guardando} className="w-full py-2.5 rounded-xl bg-teal text-inkOnAccent text-[13px] font-semibold active:scale-95 transition-transform disabled:opacity-60">
                 {guardando ? 'Guardando...' : 'Guardar cambios'}
               </button>

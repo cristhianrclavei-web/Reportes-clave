@@ -177,6 +177,8 @@ export async function crearServicio(input: {
   // Dónde debe ocurrir el servicio. Con esto el técnico puede detectar su
   // llegada solo, comparando su GPS contra este punto.
   ubicacionProgramada?: { lat: number; lng: number; direccion?: string } | null;
+  // Hasta qué distancia del punto cuenta como «en el sitio» (120 m si no viene).
+  radioGeocercaM?: number;
   duracionMin: number;
   // Días con fecha u horario propio. Si viene, manda sobre `fechas` y sobre
   // las horas y la duración generales (lib/diasProyecto.ts).
@@ -219,6 +221,7 @@ export async function crearServicio(input: {
         hora_programada: dias[dia - 1].llegada || null,
         hora_salida_programada: dias[dia - 1].salida || null,
         ubicacion_programada: input.ubicacionProgramada || null,
+        radio_geocerca_m: input.radioGeocercaM || 120,
         duracion_estimada_min: dias[dia - 1].duracionMin,
         grupo_id: grupoId,
         numero_dia: dia,
@@ -785,7 +788,7 @@ export function motivoNoEditable(estado: Servicio['estado']): string | null {
 
 export async function editarServicio(
   id: string,
-  cambios: Partial<Pick<Servicio, 'proyecto' | 'descripcion' | 'fecha' | 'duracion_estimada_min' | 'ubicacion_programada' | 'hora_programada' | 'hora_salida_programada'>>,
+  cambios: Partial<Pick<Servicio, 'proyecto' | 'descripcion' | 'fecha' | 'duracion_estimada_min' | 'ubicacion_programada' | 'radio_geocerca_m' | 'hora_programada' | 'hora_salida_programada'>>,
   descripcionCambio: string
 ) {
   const supabase = createClient();
@@ -801,12 +804,15 @@ export async function editarServicio(
   const { error: e1 } = await supabase.from('servicios_programados').update(cambios).eq('id', id);
   if (e1) throw e1;
 
-  // El sitio es el mismo para todo el proyecto: la ubicación se lleva también
+  // El sitio es el mismo para todo el proyecto: la ubicación y su tamaño se llevan también
   // a sus demás días que aún no empiezan (los ya trabajados no se tocan).
-  if ('ubicacion_programada' in cambios) {
+  const delSitio: Partial<Servicio> = {};
+  if ('ubicacion_programada' in cambios) delSitio.ubicacion_programada = cambios.ubicacion_programada;
+  if ('radio_geocerca_m' in cambios) delSitio.radio_geocerca_m = cambios.radio_geocerca_m;
+  if (Object.keys(delSitio).length > 0) {
     const { error: eDias } = await supabase
       .from('servicios_programados')
-      .update({ ubicacion_programada: cambios.ubicacion_programada })
+      .update(delSitio)
       .eq('grupo_id', actual.grupo_id).neq('id', id).eq('estado', 'programado');
     if (eDias) throw eDias;
   }
@@ -825,6 +831,30 @@ export async function editarServicio(
     const [y, m, d] = cambios.fecha.split('-');
     await avisarCambioATecnicos(id, sv?.proyecto || cambios.proyecto || 'Servicio', `ahora es el ${d}/${m}/${y}`);
   }
+}
+
+// El tamaño del sitio sí se puede cambiar con el servicio en curso: es
+// justo cuando se descubre que la planta es más grande de lo que se pensó.
+export async function cambiarTamanoSitio(id: string, metros: number, descripcionCambio: string) {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No hay sesión activa');
+
+  const { data: actual, error: eGet } = await supabase
+    .from('servicios_programados').select('estado, grupo_id').eq('id', id).single();
+  if (eGet) throw eGet;
+  if (actual.estado === 'concluido' || actual.estado === 'cancelado') throw new Error('Este servicio ya cerró; su registro no se modifica.');
+
+  const { error: e1 } = await supabase.from('servicios_programados').update({ radio_geocerca_m: metros }).eq('id', id);
+  if (e1) throw e1;
+  const { error: eDias } = await supabase
+    .from('servicios_programados')
+    .update({ radio_geocerca_m: metros })
+    .eq('grupo_id', actual.grupo_id).neq('id', id).eq('estado', 'programado');
+  if (eDias) throw eDias;
+
+  const { error: e2 } = await supabase.from('servicio_auditoria').insert({ servicio_id: id, supervisor_id: user.id, cambio: descripcionCambio });
+  if (e2) throw e2;
 }
 
 export async function reasignarTecnicos(id: string, tecnicoIds: string[], descripcionCambio: string) {
@@ -1729,6 +1759,7 @@ export async function reprogramarVisita(servicioId: string, fecha: string, onAva
     horaProgramada: (s as any).hora_programada || null,
     horaSalidaProgramada: (s as any).hora_salida_programada || null,
     ubicacionProgramada: (s as any).ubicacion_programada || null,
+    radioGeocercaM: (s as any).radio_geocerca_m || 120,
     duracionMin: s.duracion_estimada_min,
     tecnicoIds: ((tecs || []) as any[]).map((t) => t.tecnico_id as string),
     tareas: pendientes,

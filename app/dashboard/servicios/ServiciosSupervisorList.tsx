@@ -2,6 +2,7 @@
 
 import { avisar, confirmar, pedirTexto } from '@/lib/dialogos';
 import CampoUbicacionSitio, { CamposUbicacion, UBICACION_VACIA, ubicacionDeCampos } from '@/components/servicios/CampoUbicacionSitio';
+import SelectorTamanoSitio, { RADIO_SITIO_POR_DEFECTO } from '@/components/servicios/SelectorTamanoSitio';
 import DiasDelProyectoEditor from '@/components/servicios/DiasDelProyectoEditor';
 import { AjusteDia, armarDiasDelProyecto, errorEnDias } from '@/lib/diasProyecto';
 import { ElegirCuadrilla } from '@/components/cuadrillas/ChipsCuadrilla';
@@ -185,6 +186,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   // campos internos del componente (enlace pegado, sugerencias) al guardar.
   const [ubicCampos, setUbicCampos] = useState<CamposUbicacion>(UBICACION_VACIA);
   const [ubicReinicio, setUbicReinicio] = useState(0);
+  const [radioSitio, setRadioSitio] = useState(RADIO_SITIO_POR_DEFECTO);
   // Festivos: se avisa AL AGENDAR, no al reportar. Si el aviso sale antes de
   // guardar, el viaje perdido no llega a ocurrir.
   const [festivos, setFestivos] = useState<Festivo[]>(() => festivosEnCache());
@@ -611,6 +613,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
         horaProgramada: horaProgramada || null,
         horaSalidaProgramada: horaSalidaProgramada || null,
         ubicacionProgramada,
+        radioGeocercaM: radioSitio,
         duracionMin,
         dias: diasDelProyecto,
         tecnicoIds,
@@ -643,7 +646,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
       setSeccion(aHoy ? 'hoy' : 'agendados');
       setProyecto(''); setProyectoCliente(null); setDescripcion(''); setTecnicoIds([]); setTareas(['']); setDuracionMin(120);
       setHoraProgramada(''); setHoraSalidaProgramada(''); setUltimoCampoEditado(null);
-      setUbicCampos(UBICACION_VACIA); setUbicReinicio((n) => n + 1);
+      setUbicCampos(UBICACION_VACIA); setUbicReinicio((n) => n + 1); setRadioSitio(RADIO_SITIO_POR_DEFECTO);
       setDiasTotales(1);
       setDiasSeguidos(true); setFechasSalteadas([]); setOmitirFinDeSemana(false);
       setAjustesDia({});
@@ -942,6 +945,11 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
             <p className="text-[11px] text-faint">
               Con esto se puede marcar la llegada desde el sitio, comparando su GPS contra este punto.
             </p>
+            {ubicCampos.lat.trim() && (
+              <div className="mt-3">
+                <SelectorTamanoSitio valor={radioSitio} onCambio={setRadioSitio} />
+              </div>
+            )}
             </div>
 
             <div className={cardCls}>

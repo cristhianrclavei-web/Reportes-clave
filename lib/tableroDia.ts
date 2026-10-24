@@ -148,6 +148,7 @@ export async function copiarServicio(s: Servicio & { asignados?: { tecnico_id: s
     horaProgramada: s.hora_programada,
     horaSalidaProgramada: s.hora_salida_programada,
     ubicacionProgramada: s.ubicacion_programada,
+    radioGeocercaM: s.radio_geocerca_m,
     duracionMin: s.duracion_estimada_min || 120,
     tecnicoIds: tecnicoIds || (s.asignados || []).map((a) => a.tecnico_id),
     tareas: [],
