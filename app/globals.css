@@ -673,6 +673,14 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 .marca-hora.inicio .marca-hora-pico { border-top-color: #16a34a; }
 .marca-hora.inicio:hover .marca-hora-etiqueta,
 .marca-hora.inicio.abierta .marca-hora-etiqueta { background: #16a34a; }
+/* Fin del día: etiqueta roja, un poco más arriba para no tapar el pin del
+   técnico, que está en el mismo punto. */
+.marca-hora.fin { transform: translate(-50%, calc(-100% - 20px)); }
+.marca-hora.fin .marca-hora-etiqueta { border-color: #dc2626; }
+.marca-hora.fin .marca-hora-etiqueta::before { background: #dc2626; }
+.marca-hora.fin .marca-hora-pico { border-top-color: #dc2626; }
+.marca-hora.fin:hover .marca-hora-etiqueta,
+.marca-hora.fin.abierta .marca-hora-etiqueta { background: #dc2626; }
 /* Marcas que no son hora en punto: solo un punto sobre la línea, centrado. */
 .marca-hora.punto { transform: translate(-50%, -50%); }
 .marca-hora-punto {

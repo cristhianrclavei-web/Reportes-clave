@@ -67,7 +67,7 @@ function sinEtiquetas(texto: string): string {
 //  · las demás: solo un punto.
 // Al pasar el mouse o tocarla, la tarjeta con hora exacta, fecha, cuánto
 // tiempo se quedó ahí (si fueron 5 min o más) y coordenadas.
-type TipoMarca = 'inicio' | 'hora' | 'punto';
+type TipoMarca = 'inicio' | 'hora' | 'punto' | 'fin';
 function htmlMarcaHora(p: PuntoRecorrido, nombre: string | null, tipo: TipoMarca, minutosAqui: number): string {
   const fecha = new Date(p.registrado_en);
   // La etiqueta dice a qué tramo pertenece la marca («9 a.m.», «9:10 a.m.»…).
@@ -87,7 +87,20 @@ function htmlMarcaHora(p: PuntoRecorrido, nombre: string | null, tipo: TipoMarca
   let figura = '<div class="marca-hora-punto"></div>';
   if (tipo === 'hora') figura = `<div class="marca-hora-etiqueta">${sinEtiquetas(etiqueta)}</div><div class="marca-hora-pico"></div>`;
   if (tipo === 'inicio') figura = `<div class="marca-hora-etiqueta">Inicio · ${sinEtiquetas(hora)}</div><div class="marca-hora-pico"></div>`;
+  if (tipo === 'fin') figura = `<div class="marca-hora-etiqueta">Fin · ${sinEtiquetas(hora)}</div><div class="marca-hora-pico"></div>`;
   return `<div class="marca-hora ${tipo}" role="button" aria-label="${sinEtiquetas(`${hora}, ${coordenadas}`)}">${detalle}${figura}</div>`;
+}
+
+// ¿Ya terminó el recorrido del día? Un día pasado, sí. Hoy, solo después
+// de la salida (6:30 p.m.) y si el teléfono ya dejó de mandar puntos (más de
+// 15 min): así no sale «Fin» mientras alguien sigue con horas extra.
+const HORA_FIN_JORNADA = 18 * 60 + 30;
+function terminoElRecorrido(ultimo: PuntoRecorrido, esHoy: boolean, ahoraMs: number): boolean {
+  if (!esHoy) return true;
+  const ahora = new Date(ahoraMs);
+  const minutosDelDia = ahora.getHours() * 60 + ahora.getMinutes();
+  if (minutosDelDia < HORA_FIN_JORNADA) return false;
+  return estadoSenal(ultimo.registrado_en, ahoraMs) === 'sin_senal';
 }
 
 // «25 min», «1 h 20 min».
@@ -277,9 +290,13 @@ export function useMapaTecnicos({ zoomControl = true }: { zoomControl?: boolean 
       const minutosAqui = minutosEnElLugar(recorrido, recorrido.indexOf(p));
       return { lat: p.lat, lng: p.lng, html: htmlMarcaHora(p, nombre, tipo, minutosAqui) };
     });
+    const ultimo = recorrido[recorrido.length - 1];
+    if (recorrido.length >= 2 && ahora !== null && terminoElRecorrido(ultimo, esHoy, ahora)) {
+      marcas.push({ lat: ultimo.lat, lng: ultimo.lng, html: htmlMarcaHora(ultimo, nombre, 'fin', 0) });
+    }
     motorRef.current?.ponerMarcas(marcas);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [version, recorrido]);
+  }, [version, recorrido, esHoy, ahora]);
 
   function encuadrarTodos() {
     motorRef.current?.encuadrar(tecnicos.map((t) => [t.lat, t.lng] as Punto));
