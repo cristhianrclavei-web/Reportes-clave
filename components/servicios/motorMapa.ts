@@ -10,7 +10,7 @@
 // El tope diario se pone en Google Cloud (cuota de Maps JavaScript API).
 
 export type PinMapa = { id: string; lat: number; lng: number; html: string; titulo: string };
-// Marca informativa sobre el recorrido (una cada media hora). El HTML trae su
+// Marca informativa sobre el recorrido (una cada 10 minutos). El HTML trae su
 // propia tarjeta de detalle (clases .marca-hora en globals.css).
 export type MarcaMapa = { lat: number; lng: number; html: string };
 export type Punto = [number, number];
@@ -166,7 +166,7 @@ export async function crearMotorGoogle(div: HTMLDivElement, zoomControl: boolean
     }
   }
 
-  // Marca cada media hora: el HTML se acomoda solo sobre el punto (ver .marca-hora).
+  // Marca cada 10 minutos: el HTML se acomoda solo sobre el punto (ver .marca-hora).
   class MarcaHtml extends OverlayView {
     caja: HTMLDivElement;
     posicion: any;

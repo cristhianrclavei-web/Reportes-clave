@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { EstadoSenal, PuntoRecorrido, UltimaUbicacion, estadoSenal, marcasPorMediaHora, recorridoDelDia, ultimasUbicacionesDelDia, ultimasUbicacionesHoy, DIAS_HISTORIAL } from '@/lib/ubicacionTecnicos';
+import { EstadoSenal, PuntoRecorrido, UltimaUbicacion, estadoSenal, marcasDelRecorrido, MINUTOS_ENTRE_MARCAS, recorridoDelDia, ultimasUbicacionesDelDia, ultimasUbicacionesHoy, DIAS_HISTORIAL } from '@/lib/ubicacionTecnicos';
 import { useEnVivo } from '@/lib/useEnVivo';
 import { fechaLocal, hoyLocal, sumarDias } from '@/lib/fechaHoy';
 import { LLAVE_GOOGLE_MAPS, MarcaMapa, MotorMapa, PinMapa, Punto, crearMotorBasico, crearMotorGoogle } from './motorMapa';
@@ -61,13 +61,13 @@ function sinEtiquetas(texto: string): string {
 // o tocarla, la tarjeta con hora exacta, fecha y coordenadas.
 function htmlMarcaHora(p: PuntoRecorrido, nombre: string | null): string {
   const fecha = new Date(p.registrado_en);
-  // La etiqueta dice a qué media hora pertenece la marca («9 a.m.», «9:30 a.m.»).
-  const inicioMediaHora = new Date(fecha);
-  inicioMediaHora.setMinutes(fecha.getMinutes() < 30 ? 0 : 30);
-  const opciones: Intl.DateTimeFormatOptions = inicioMediaHora.getMinutes() === 0
+  // La etiqueta dice a qué tramo pertenece la marca («9 a.m.», «9:10 a.m.»…).
+  const inicioTramo = new Date(fecha);
+  inicioTramo.setMinutes(Math.floor(fecha.getMinutes() / MINUTOS_ENTRE_MARCAS) * MINUTOS_ENTRE_MARCAS);
+  const opciones: Intl.DateTimeFormatOptions = inicioTramo.getMinutes() === 0
     ? { hour: 'numeric' }
     : { hour: 'numeric', minute: '2-digit' };
-  const etiqueta = inicioMediaHora.toLocaleTimeString('es-MX', opciones);
+  const etiqueta = inicioTramo.toLocaleTimeString('es-MX', opciones);
   const hora = fecha.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
   const diaLargo = fecha.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const dia = diaLargo.charAt(0).toUpperCase() + diaLargo.slice(1);
@@ -239,9 +239,9 @@ export function useMapaTecnicos({ zoomControl = true }: { zoomControl?: boolean 
 
   useEffect(() => {
     motorRef.current?.ponerRuta(recorrido.map((p) => [p.lat, p.lng] as Punto));
-    // Una marca cada media hora sobre el recorrido, como referencia de dónde estaba.
+    // Una marca cada 10 minutos sobre el recorrido, como referencia de dónde estaba.
     const nombre = tecnicos.find((t) => t.tecnico_id === elegido)?.nombre || null;
-    const marcas: MarcaMapa[] = marcasPorMediaHora(recorrido).map((p) => ({ lat: p.lat, lng: p.lng, html: htmlMarcaHora(p, nombre) }));
+    const marcas: MarcaMapa[] = marcasDelRecorrido(recorrido).map((p) => ({ lat: p.lat, lng: p.lng, html: htmlMarcaHora(p, nombre) }));
     motorRef.current?.ponerMarcas(marcas);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version, recorrido]);

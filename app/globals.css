@@ -518,7 +518,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   .leaflet-marker-icon span { animation: none !important; }
 }
 
-/* Marcas cada media hora del recorrido (mapa de técnicos): una etiqueta con la
+/* Marcas cada 10 minutos del recorrido (mapa de técnicos): una etiqueta con la
    hora y, al pasar el mouse o tocarla, una tarjeta con fecha, hora y
    coordenadas. Colores fijos: el mapa es claro en los dos temas. */
 .marca-hora {

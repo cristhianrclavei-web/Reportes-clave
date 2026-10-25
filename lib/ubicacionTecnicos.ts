@@ -97,19 +97,22 @@ function mensajeError(texto: string): string {
   return 'No se pudieron cargar las ubicaciones. Revisa tu conexión e intenta de nuevo.';
 }
 
-// Una marca cada media hora en el recorrido: el primer punto de cada media
-// hora del reloj (9:02, 9:30, 10:05…). El recorrido viene del más viejo al más nuevo.
-export function marcasPorMediaHora(recorrido: PuntoRecorrido[]): PuntoRecorrido[] {
+// Cada cuántos minutos del reloj lleva una marca el recorrido.
+export const MINUTOS_ENTRE_MARCAS = 10;
+
+// El primer punto de cada tramo de 10 minutos del reloj (9:02, 9:10, 9:24…).
+// El recorrido viene del más viejo al más nuevo.
+export function marcasDelRecorrido(recorrido: PuntoRecorrido[], minutos = MINUTOS_ENTRE_MARCAS): PuntoRecorrido[] {
   const marcas: PuntoRecorrido[] = [];
   let horaAnterior = '';
   for (const punto of recorrido) {
     const fecha = new Date(punto.registrado_en);
-    // Día, hora y mitad de la hora (0 = :00-:29, 1 = :30-:59) juntos: no se
-    // confunden las 9 de dos días distintos.
-    const mitad = fecha.getMinutes() < 30 ? 0 : 1;
-    const mediaHora = `${fecha.toDateString()} ${fecha.getHours()} ${mitad}`;
-    if (mediaHora === horaAnterior) continue;
-    horaAnterior = mediaHora;
+    // Día, hora y tramo (con 10 min: 0 = :00-:09, 1 = :10-:19…) juntos: no
+    // se confunden las 9 de dos días distintos.
+    const tramo = Math.floor(fecha.getMinutes() / minutos);
+    const clave = `${fecha.toDateString()} ${fecha.getHours()} ${tramo}`;
+    if (clave === horaAnterior) continue;
+    horaAnterior = clave;
     marcas.push(punto);
   }
   return marcas;
