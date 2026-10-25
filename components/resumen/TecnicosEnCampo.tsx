@@ -77,7 +77,8 @@ export default function TecnicosEnCampo({ enServicios = false }: { enServicios?:
       </div>
 
       {/* Encabezado sobre el mapa */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 p-3 lg:p-4 flex items-start justify-between gap-3">
+      {/* z-20: siempre encima del aviso de «nadie ha compartido», para que el selector de día se pueda usar. */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 p-3 lg:p-4 flex items-start justify-between gap-3">
         <div className="pointer-events-auto rounded-2xl bg-surface/90 backdrop-blur-md border border-line shadow-diffuse px-4 py-3">
           <div className="flex items-center gap-2">
             <span className="relative flex w-2.5 h-2.5">
@@ -140,11 +141,12 @@ export default function TecnicosEnCampo({ enServicios = false }: { enServicios?:
         </div>
       </div>
 
-      {/* Sin técnicos hoy o falta el SQL: aviso al centro del mapa */}
+      {/* Sin técnicos ese día o falta el SQL: en el celular el aviso va abajo
+          (al centro tapaba el selector de día); en la computadora, al centro. */}
       {(sinDatos || error) && (
-        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-4">
-          <div className="pointer-events-auto max-w-sm rounded-2xl bg-surface/95 backdrop-blur-md border border-line shadow-diffuse px-5 py-4 text-center">
-            <Smartphone size={22} className="mx-auto text-muted mb-1.5" />
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-end lg:items-center justify-center p-3 lg:p-4">
+          <div className="pointer-events-auto max-w-sm rounded-2xl bg-surface/95 backdrop-blur-md border border-line shadow-diffuse px-4 py-3 lg:px-5 lg:py-4 text-center">
+            <Smartphone size={22} className="hidden lg:block mx-auto text-muted mb-1.5" />
             {error ? (
               <p className="text-[13.5px] font-semibold text-red">{error}</p>
             ) : (
