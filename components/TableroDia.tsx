@@ -371,6 +371,24 @@ export default function TableroDia({ onAgendar }: {
 
   if (!fecha) return null;
 
+  // Asignar, actualizar y Excel. En el celular ocupan su renglón (Asignar a
+  // todo lo ancho); en la computadora se acomodan al final de la barra.
+  const acciones = (
+    <>
+      <button type="button" onClick={() => pedirAsignar([])}
+        className="flex-1 lg:flex-none lg:order-last lg:px-5 min-h-[42px] lg:min-h-[40px] rounded-full bg-teal text-inkOnAccent text-[14px] font-semibold flex items-center justify-center gap-2 shadow-glow-teal active:scale-[0.98]">
+        <Plus size={17} strokeWidth={2.6} /> Asignar servicio
+      </button>
+      <button type="button" onClick={() => cargar()} aria-label="Actualizar" title="Actualizar"
+        className="w-[42px] h-[42px] lg:w-10 lg:h-10 shrink-0 rounded-full bg-surface-2 border border-line flex items-center justify-center active:scale-95">
+        <RefreshCw size={16} className={cargando ? 'animate-spin' : ''} />
+      </button>
+      <button type="button" onClick={descargarExcel} disabled={!datos} aria-label="Descargar Excel" title="Descargar Excel"
+        className="w-[42px] h-[42px] lg:w-10 lg:h-10 shrink-0 rounded-full bg-surface-2 border border-line flex items-center justify-center active:scale-95 disabled:opacity-50">
+        <Download size={16} />
+      </button>
+    </>
+  );
   return (
     <div>
       {/* Día */}
@@ -405,26 +423,17 @@ export default function TableroDia({ onAgendar }: {
         </div>
       )}
 
-      <div className="flex gap-2 mb-3 lg:justify-end">
-        <button type="button" onClick={() => pedirAsignar([])}
-          className="flex-1 lg:flex-none lg:px-6 min-h-[42px] rounded-full bg-teal text-inkOnAccent text-[14px] font-semibold flex items-center justify-center gap-2 shadow-glow-teal active:scale-[0.98]">
-          <Plus size={17} strokeWidth={2.6} /> Asignar servicio
-        </button>
-        <button type="button" onClick={() => cargar()} aria-label="Actualizar" title="Actualizar"
-          className="w-[42px] h-[42px] rounded-full bg-surface-2 border border-line flex items-center justify-center active:scale-95">
-          <RefreshCw size={16} className={cargando ? 'animate-spin' : ''} />
-        </button>
-        <button type="button" onClick={descargarExcel} disabled={!datos} aria-label="Descargar Excel" title="Descargar Excel"
-          className="w-[42px] h-[42px] rounded-full bg-surface-2 border border-line flex items-center justify-center active:scale-95 disabled:opacity-50">
-          <Download size={16} />
-        </button>
-      </div>
+      {/* Celular: las acciones van arriba; en la computadora van en la barra
+          de filtros (VistaEscritorio), para no ocupar un renglón aparte. */}
+      <div className="flex gap-2 mb-3 lg:hidden">{acciones}</div>
 
       {error && <p className="text-[13px] text-red font-semibold mb-3">{error}</p>}
 
       {/* Cuadrillas: reducen el tablero a un grupo. Solo si existen. */}
       {cuadrillas.length > 0 && datos && (
-        <div className="flex items-center gap-1.5 mb-2.5 overflow-x-auto -mx-1 px-1 lg:flex-wrap lg:overflow-visible" style={{ scrollbarWidth: 'none' }}>
+        <div className="flex items-center gap-1 mb-2.5 overflow-x-auto no-scrollbar -mx-1 px-1">
+          {/* Un solo renglón aunque haya muchas cuadrillas: se desliza de lado. */}
+          <span className="hidden lg:inline shrink-0 mr-1 text-[11px] font-semibold uppercase tracking-wider text-muted">Cuadrilla</span>
           {[
             { k: TODAS, nombre: 'Todas', color: null as number | null, gente: filasTodas },
             // «Mis cuadrillas»: solo para el supervisor que tiene alguna a su cargo.
@@ -440,7 +449,7 @@ export default function TableroDia({ onAgendar }: {
             const conAlerta = g.k !== TODAS && g.gente.some((f) => f.servicios.some((sv) => alertaDe(sv, f.id)));
             return (
               <button key={g.k} type="button" onClick={() => setCuad(g.k)} aria-pressed={sel}
-                className={`shrink-0 h-8 pl-2.5 pr-3 rounded-full text-[12.5px] font-semibold border flex items-center gap-1.5 transition-colors active:scale-95 ${sel ? 'bg-ink text-bg border-ink' : 'bg-surface border-line text-ink/80'}`}>
+                className={`shrink-0 h-8 pl-2.5 pr-3 rounded-full text-[12.5px] font-semibold border flex items-center gap-1.5 transition-colors active:scale-95 ${sel ? 'bg-ink text-bg border-ink' : 'border-transparent text-ink/70 hover:text-ink hover:bg-surface-2'}`}>
                 {g.color !== null && <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: UNIFORMES[g.color % UNIFORMES.length] }} />}
                 {g.nombre}
                 <span className={`tabular-nums font-medium ${sel ? 'opacity-70' : 'text-muted'}`}>{g.gente.length}</span>
@@ -560,14 +569,18 @@ export default function TableroDia({ onAgendar }: {
             indiceTec={indiceTec}
             pedirAsignar={pedirAsignar}
             onCambio={setCambio}
+            acciones={acciones}
             chips={([
-              ['todos', `Todos ${filas.length}`],
-              ['alertas', `Alertas ${filas.filter((f) => f.servicios.some((sv) => alertaDe(sv, f.id))).length}`],
-              ['campo', `En campo ${filas.filter((f) => f.servicios.some((sv) => sv.estado === 'en_sitio' || sv.estado === 'en_curso')).length}`],
-              ['sin', `Disponibles ${filas.filter((f) => f.servicios.length === 0).length}`],
-            ] as [Filtro, string][]).map(([k, l]) => (
-              <button key={k} type="button" onClick={() => setFiltro(k)}
-                className={`h-8 px-3 rounded-full text-[12.5px] font-semibold border transition-colors ${filtro === k ? 'bg-teal text-inkOnAccent border-teal' : 'bg-surface border-line text-ink/75 hover:text-ink'}`}>{l}</button>
+              ['todos', 'Todos', filas.length],
+              ['alertas', 'Alertas', filas.filter((f) => f.servicios.some((sv) => alertaDe(sv, f.id))).length],
+              ['campo', 'En campo', filas.filter((f) => f.servicios.some((sv) => sv.estado === 'en_sitio' || sv.estado === 'en_curso')).length],
+              ['sin', 'Disponibles', filas.filter((f) => f.servicios.length === 0).length],
+            ] as [Filtro, string, number][]).map(([k, l, n]) => (
+              <button key={k} type="button" onClick={() => setFiltro(k)} aria-pressed={filtro === k}
+                className={`h-8 px-3 rounded-full text-[12.5px] font-semibold flex items-center gap-1.5 whitespace-nowrap transition-colors ${filtro === k ? 'bg-teal text-inkOnAccent' : 'text-ink/70 hover:text-ink'}`}>
+                {l}
+                <span className={`tabular-nums ${filtro === k ? 'opacity-75' : 'text-muted'} ${k === 'alertas' && n > 0 && filtro !== k ? 'text-red font-bold' : ''}`}>{n}</span>
+              </button>
             ))}
           />
         </div>
@@ -919,9 +932,11 @@ const KEY_VISTA_DIA = 'tablero-dia-vista';
 
 function VistaEscritorio({
   filas, servicios, filtro, hoy, minutos, fecha, alertaDe, estadoTecnico, indiceTec, pedirAsignar, onCambio, chips,
-  cuadrillas, mapaCuad,
+  cuadrillas, mapaCuad, acciones,
 }: {
   chips: React.ReactNode;
+  // Asignar, actualizar y Excel: van al final de la barra de filtros.
+  acciones: React.ReactNode;
   // Con cuadrillas, la lista «Por técnico» sale agrupada y plegable.
   cuadrillas: Cuadrilla[];
   mapaCuad: Map<string, Cuadrilla>;
@@ -1027,8 +1042,8 @@ function VistaEscritorio({
 
   // --- Barra: buscador + selector de vista ---
   const barra = (
-    <div className="flex items-center gap-3 mb-4">
-      <div className="relative w-[280px] shrink-0">
+    <div className="flex flex-wrap items-center gap-2.5 mb-4">
+      <div className="relative w-[260px] shrink-0">
         <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar persona o servicio"
           className="w-full h-10 pl-10 pr-9 rounded-full bg-surface border border-line focus:border-teal focus:outline-none text-[14px] placeholder:text-muted" />
@@ -1036,25 +1051,56 @@ function VistaEscritorio({
           <button type="button" onClick={() => setQ('')} aria-label="Limpiar" className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full flex items-center justify-center text-muted hover:bg-surface-2"><X size={14} /></button>
         )}
       </div>
-      <div className="flex items-center gap-1.5 flex-wrap">{chips}</div>
-      <div className="ml-auto flex items-center p-1 rounded-full bg-surface border border-line shrink-0">
-        {([['servicio', 'Por servicio', ListIcon], ['tecnico', 'Por persona', Users]] as const).map(([k, l, I]) => (
-          <button key={k} type="button" onClick={() => cambiarVista(k)}
-            className={`h-8 px-3.5 rounded-full text-[13px] font-semibold flex items-center gap-1.5 transition-colors ${vista === k ? 'bg-teal text-inkOnAccent' : 'text-ink/70 hover:text-ink'}`}>
-            <I size={14} /> {l}
-          </button>
-        ))}
+      <div className="flex items-center p-1 rounded-full bg-surface border border-line shrink-0">{chips}</div>
+      {/* Vista y acciones juntas: si no caben, bajan juntas a la derecha. */}
+      <div className="ml-auto flex items-center gap-2">
+        <div className="flex items-center p-1 rounded-full bg-surface border border-line shrink-0">
+          {([['servicio', 'Por servicio', ListIcon], ['tecnico', 'Por persona', Users]] as const).map(([k, l, I]) => (
+            <button key={k} type="button" onClick={() => cambiarVista(k)}
+              className={`h-8 px-3.5 rounded-full text-[13px] font-semibold flex items-center gap-1.5 transition-colors ${vista === k ? 'bg-teal text-inkOnAccent' : 'text-ink/70 hover:text-ink'}`}>
+              <I size={14} /> {l}
+            </button>
+          ))}
+        </div>
+        {acciones}
       </div>
     </div>
   );
 
   // --- Disponibles: compactos, se expanden si son muchos ---
-  const MAX_DISP = 10;
+  // Plegados: un renglón con las caritas encimadas (aguanta 25+ personas sin
+  // ocupar varios renglones). Abiertos: cada quien con su botón para asignar.
+  const MAX_CARITAS = 8;
+  const dispAbiertos = verDisponibles || filtro === 'sin';
   const bloqueDisponibles = (filtro === 'todos' || filtro === 'sin') && disponibles.length > 0 && (
-    <div className="mb-4 rounded-2xl border border-dashed border-line-strong px-4 py-3">
+    <div className="mb-4 rounded-2xl bg-surface border border-line px-4 py-2.5">
       <div className="flex items-center gap-3 flex-wrap">
         <p className="text-[12px] font-semibold uppercase tracking-wider text-muted flex items-center gap-1.5 shrink-0"><UserX size={14} /> Disponibles · {disponibles.length}</p>
-        {(verDisponibles || filtro === 'sin' ? disponibles : disponibles.slice(0, MAX_DISP)).map((f) => (
+        {!dispAbiertos && (
+          <div className="flex items-center">
+            {disponibles.slice(0, MAX_CARITAS).map((f, i) => (
+              <span key={f.id} title={f.nombre} className={`rounded-full ring-2 ring-surface ${i > 0 ? '-ml-2' : ''}`}>
+                <AvatarTecnico id={f.id} nombre={f.nombre} size={26} indice={indiceTec(f.id)} />
+              </span>
+            ))}
+            {disponibles.length > MAX_CARITAS && (
+              <span className="-ml-2 w-[26px] h-[26px] rounded-full ring-2 ring-surface bg-surface-2 text-[10.5px] font-bold text-ink/75 flex items-center justify-center">
+                +{disponibles.length - MAX_CARITAS}
+              </span>
+            )}
+          </div>
+        )}
+        {filtro !== 'sin' && (
+          <button type="button" onClick={() => setVerDisponibles((v) => !v)}
+            className="ml-auto text-[12.5px] font-semibold text-teal flex items-center gap-1">
+            {verDisponibles ? 'Ocultar' : 'Ver y asignar'}
+            <ChevronDown size={14} className={`transition-transform ${verDisponibles ? 'rotate-180' : ''}`} />
+          </button>
+        )}
+      </div>
+      {dispAbiertos && (
+      <div className="flex items-center gap-2 flex-wrap mt-2.5">
+        {disponibles.map((f) => (
           <button key={f.id} type="button" onClick={() => pedirAsignar([f.id])} title={`Asignar servicio a ${f.nombre}`}
             className="pl-1 pr-2.5 py-1 rounded-full bg-surface border border-line text-[12.5px] font-medium flex items-center gap-1.5 hover:border-teal/50">
             <AvatarTecnico id={f.id} nombre={f.nombre} size={22} indice={indiceTec(f.id)} />
@@ -1062,12 +1108,8 @@ function VistaEscritorio({
             <Plus size={12} className="text-teal" />
           </button>
         ))}
-        {filtro !== 'sin' && disponibles.length > MAX_DISP && (
-          <button type="button" onClick={() => setVerDisponibles((v) => !v)} className="text-[12.5px] font-semibold text-teal">
-            {verDisponibles ? 'Ver menos' : `+${disponibles.length - MAX_DISP} más`}
-          </button>
-        )}
       </div>
+      )}
     </div>
   );
 
