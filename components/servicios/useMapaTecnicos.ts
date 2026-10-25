@@ -100,7 +100,7 @@ function htmlMarcaHora(p: PuntoRecorrido, nombre: string | null, tipo: TipoMarca
   const dia = diaLargo.charAt(0).toUpperCase() + diaLargo.slice(1);
   const coordenadas = `${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`;
   const estancia = minutosAqui >= 5 ? `<em>Estuvo aquí ~${duracionCorta(minutosAqui)}</em>` : '';
-  const detalle = `<div class="marca-hora-detalle"><b>${sinEtiquetas(hora)}</b><small>${sinEtiquetas(dia)}</small>`
+  const detalle = `<div class="marca-hora-detalle"><button type="button" class="marca-hora-cerrar" aria-label="Cerrar">×</button><b>${sinEtiquetas(hora)}</b><small>${sinEtiquetas(dia)}</small>`
     + `${estancia}<code>${coordenadas}</code><i>${sinEtiquetas(nombre || 'Técnico')}</i></div>`;
   let figura = '<div class="marca-hora-punto"></div>';
   if (tipo === 'hora') figura = `<div class="marca-hora-etiqueta">${sinEtiquetas(etiqueta)}</div><div class="marca-hora-pico"></div>`;

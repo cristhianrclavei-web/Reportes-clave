@@ -31,6 +31,26 @@ const CENTRO_MEXICO: Punto = [23.6345, -102.5528];
 
 export const LLAVE_GOOGLE_MAPS = process.env.NEXT_PUBLIC_GOOGLE_MAPS_NAVEGADOR || '';
 
+// Tarjetas de detalle de las marcas: solo una abierta a la vez. Tocar otra
+// marca cierra la anterior, la × la cierra y tocar el mapa las cierra todas.
+function cerrarDetalles(contenedor: HTMLElement) {
+  contenedor.querySelectorAll('.marca-hora.abierta').forEach((m) => m.classList.remove('abierta'));
+}
+
+function tocarMarca(contenedor: HTMLElement, marca: Element | null | undefined, objetivo: EventTarget | null) {
+  if (!marca) return;
+  const tocado = objetivo instanceof Element ? objetivo : null;
+  if (tocado?.closest('.marca-hora-cerrar')) {
+    marca.classList.remove('abierta');
+    return;
+  }
+  // Tocar dentro de la tarjeta (por ejemplo, para copiar las coordenadas) no la cierra.
+  if (tocado?.closest('.marca-hora-detalle')) return;
+  const estabaAbierta = marca.classList.contains('abierta');
+  cerrarDetalles(contenedor);
+  if (!estabaAbierta) marca.classList.add('abierta');
+}
+
 // ---------- Mapa básico (Leaflet + OpenStreetMap) ----------
 
 export async function crearMotorBasico(div: HTMLDivElement, zoomControl: boolean): Promise<MotorMapa> {
@@ -40,6 +60,7 @@ export async function crearMotorBasico(div: HTMLDivElement, zoomControl: boolean
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(mapa);
   const pines = L.layerGroup().addTo(mapa);
   const marcasCapa = L.layerGroup().addTo(mapa);
+  mapa.on('click', () => cerrarDetalles(div));
   let ruta: ReturnType<typeof L.layerGroup> | null = null;
 
   return {
@@ -61,7 +82,7 @@ export async function crearMotorBasico(div: HTMLDivElement, zoomControl: boolean
         // Encima de lo demás mientras se ve su detalle; tocarla lo deja abierto (celular).
         marca.on('mouseover', () => marca.setZIndexOffset(3000));
         marca.on('mouseout', () => marca.setZIndexOffset(500));
-        marca.on('click', () => marca.getElement()?.querySelector('.marca-hora')?.classList.toggle('abierta'));
+        marca.on('click', (e) => tocarMarca(div, marca.getElement()?.querySelector('.marca-hora'), e.originalEvent.target));
         marca.addTo(marcasCapa);
       }
     },
@@ -146,6 +167,7 @@ export async function crearMotorGoogle(div: HTMLDivElement, zoomControl: boolean
     fullscreenControl: false,
     clickableIcons: false,
   });
+  mapa.addListener('click', () => cerrarDetalles(div));
 
   // Pin con HTML propio (las iniciales y el color de la señal), igual que en
   // el mapa básico. Los marcadores nuevos de Google piden un «Map ID».
@@ -191,7 +213,7 @@ export async function crearMotorGoogle(div: HTMLDivElement, zoomControl: boolean
       this.caja.innerHTML = m.html;
       this.caja.addEventListener('mouseenter', () => { this.caja.style.zIndex = '10'; });
       this.caja.addEventListener('mouseleave', () => { this.caja.style.zIndex = '1'; });
-      this.caja.addEventListener('click', () => this.caja.querySelector('.marca-hora')?.classList.toggle('abierta'));
+      this.caja.addEventListener('click', (e) => tocarMarca(div, this.caja.querySelector('.marca-hora'), e.target));
       OverlayView.preventMapHitsAndGesturesFrom(this.caja);
     }
     onAdd() {
