@@ -509,43 +509,46 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   .e404c-destello { animation: none !important; opacity: 0.6; }
 }
 
-/* Pin de un técnico (mapa de técnicos): círculo con sus iniciales en el
+/* Pin de un técnico (mapa de técnicos): su foto o avatar con un aro del
    color de su señal (--color-pin). En línea: halo que late. Elegido o con el
    mouse encima: se agranda y muestra nombre y hora del último punto.
-   Mide 36 px: los dos mapas lo anclan por el centro. */
+   Mide 40 px: los dos mapas lo anclan por el centro. */
 .pin-tec {
   position: relative;
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   font-family: Inter, system-ui, sans-serif;
 }
 .pin-tec-cara {
   position: relative;
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  background: var(--color-pin);
-  background: linear-gradient(145deg, color-mix(in srgb, var(--color-pin) 82%, #ffffff), var(--color-pin));
-  border: 3px solid #ffffff;
-  color: #ffffff;
-  font-weight: 700;
-  font-size: 12px;
-  letter-spacing: 0.02em;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.35);
+  overflow: hidden;
+  background: #e1ebe8;
+  /* Aro de la señal y un filo blanco por dentro, para que la foto no se confunda con el aro. */
+  border: 3px solid var(--color-pin);
+  box-shadow: inset 0 0 0 1.5px #ffffff, 0 4px 12px rgba(15, 23, 42, 0.35);
   transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.pin-tec-cara > svg,
+.pin-tec-cara > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
 }
 .pin-tec:hover .pin-tec-cara { transform: scale(1.1); }
 .pin-tec.elegido .pin-tec-cara {
   transform: scale(1.18);
   /* Aro del color de su recorrido: así se sabe qué línea es de quién. */
-  box-shadow: 0 0 0 3px var(--color-ruta, var(--color-pin)), 0 8px 20px rgba(15, 23, 42, 0.4);
+  box-shadow: inset 0 0 0 1.5px #ffffff, 0 0 0 3px var(--color-ruta, var(--color-pin)), 0 8px 20px rgba(15, 23, 42, 0.4);
 }
 .pin-tec.elegido .pin-tec-nombre { background: var(--color-ruta, #0f172a); }
 /* Sin señal: apagado, para que resalten los que sí están en línea. */
-.pin-tec.apagado .pin-tec-cara { filter: saturate(0.4); opacity: 0.85; }
+.pin-tec.apagado .pin-tec-cara { filter: grayscale(0.7); opacity: 0.85; }
 .pin-tec-halo {
   position: absolute;
   inset: -7px;
@@ -677,7 +680,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 .marca-hora.inicio.abierta .marca-hora-etiqueta { background: #16a34a; }
 /* Fin del día: etiqueta roja, un poco más arriba para no tapar el pin del
    técnico, que está en el mismo punto. */
-.marca-hora.fin { transform: translate(-50%, calc(-100% - 20px)); }
+.marca-hora.fin { transform: translate(-50%, calc(-100% - 22px)); }
 .marca-hora.fin .marca-hora-etiqueta { border-color: #dc2626; }
 .marca-hora.fin .marca-hora-etiqueta::before { background: #dc2626; }
 .marca-hora.fin .marca-hora-pico { border-top-color: #dc2626; }

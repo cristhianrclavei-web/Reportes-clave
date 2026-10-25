@@ -1,8 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { createElement, useEffect, useRef, useState } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { FiguraAvatar, colorUniforme } from '@/components/AvatarTecnico';
+import { PerfilPublico, urlFoto, usePerfiles } from '@/lib/perfiles';
 import { EstadoSenal, PuntoRecorrido, UltimaUbicacion, estadoSenal, marcasDelRecorrido, minutosEnElLugar, MINUTOS_ENTRE_MARCAS, recorridoDelDia, ultimasUbicacionesDelDia, ultimasUbicacionesHoy, DIAS_HISTORIAL } from '@/lib/ubicacionTecnicos';
 import { useEnVivo } from '@/lib/useEnVivo';
+import { distanciaMetros } from '@/lib/geocerca';
 import { fechaLocal, hoyLocal, sumarDias } from '@/lib/fechaHoy';
 import { LLAVE_GOOGLE_MAPS, MarcaMapa, MotorMapa, PinMapa, Punto, RutaMapa, crearMotorBasico, crearMotorGoogle } from './motorMapa';
 
@@ -16,14 +20,6 @@ export const TEXTO_SENAL: Record<EstadoSenal, string> = { en_linea: 'En línea',
 
 export function horaCorta(iso: string): string {
   return new Date(iso).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
-}
-
-export function inicialesTecnico(nombre: string | null): string {
-  // Solo letras y números: el texto va dentro del HTML del pin.
-  const limpio = (nombre || '').replace(/[^\p{L}\p{N}\s]/gu, '').trim();
-  const partes = limpio.split(/\s+/).filter(Boolean).slice(0, 2);
-  if (partes.length === 0) return '?';
-  return partes.map((p) => p[0]).join('').toUpperCase();
 }
 
 // Qué mapa prefiere quien lo ve (se recuerda en este aparato).
@@ -46,10 +42,23 @@ export const COLOR_HISTORIAL = '#2563eb';
 export const MAX_ELEGIDOS = 3;
 export const COLORES_RUTA = ['#2563eb', '#ea580c', '#9333ea'];
 
-// HTML del pin (clases .pin-tec en globals.css): las iniciales con el color
-// de su señal; si está en línea, un halo que late. El elegido se agranda y
-// muestra su nombre y la hora de su último punto (también al pasar el mouse).
-function htmlPin(t: UltimaUbicacion, estado: EstadoSenal | null, colorRuta: string | null): string {
+// Cara del pin: la foto de perfil si la subió y, debajo, su figura de avatar
+// (la misma de toda la app). Si la foto no carga, queda la figura.
+function htmlCara(t: UltimaUbicacion, perfil: PerfilPublico | undefined): string {
+  const figura = renderToStaticMarkup(createElement(FiguraAvatar, {
+    uniforme: colorUniforme(perfil?.avatar_color, t.nombre || 'Técnico'),
+    figura: perfil?.avatar_estilo ?? 0,
+    size: 40,
+  }));
+  const foto = urlFoto(perfil?.foto_path);
+  if (!foto) return figura;
+  return `${figura}<img src="${sinEtiquetas(foto)}" alt="" loading="lazy">`;
+}
+
+// HTML del pin (clases .pin-tec en globals.css): su foto o avatar con un aro
+// del color de su señal; si está en línea, un halo que late. El elegido se
+// agranda y muestra su nombre y la hora de su último punto (también al pasar el mouse).
+function htmlPin(t: UltimaUbicacion, perfil: PerfilPublico | undefined, estado: EstadoSenal | null, colorRuta: string | null): string {
   // Hoy el relleno dice la señal; en un día pasado no hay señal, así que el
   // elegido se rellena con el color de su recorrido.
   let color = estado ? COLOR_SENAL[estado] : COLOR_HISTORIAL;
@@ -61,7 +70,7 @@ function htmlPin(t: UltimaUbicacion, estado: EstadoSenal | null, colorRuta: stri
   const nombre = sinEtiquetas(`${t.nombre || 'Técnico'} · ${horaCorta(t.registrado_en)}`);
   const estilo = colorRuta ? `--color-pin:${color};--color-ruta:${colorRuta}` : `--color-pin:${color}`;
   return `<div class="${clases.join(' ')}" style="${estilo}">${halo}`
-    + `<div class="pin-tec-cara">${inicialesTecnico(t.nombre)}</div>`
+    + `<div class="pin-tec-cara">${htmlCara(t, perfil)}</div>`
     + `<div class="pin-tec-nombre">${nombre}</div></div>`;
 }
 
@@ -124,8 +133,11 @@ function duracionCorta(minutos: number): string {
 // Con varios recorridos a la vez (`horasConEtiqueta` en false) las horas en
 // punto también van como punto: solo «Inicio» y «Fin» llevan etiqueta, para
 // que no se encimen. La hora se ve al tocar o pasar el mouse.
-function marcasDeRecorrido(recorrido: PuntoRecorrido[], nombre: string | null, color: string, esHoy: boolean, ahora: number | null, horasConEtiqueta: boolean): MarcaMapa[] {
-  const marcas: MarcaMapa[] = marcasDelRecorrido(recorrido).map((p, i) => {
+// Los puntos a menos de 80 m de donde está su pin no se dibujan: quedarían
+// encima de su foto.
+function marcasDeRecorrido(recorrido: PuntoRecorrido[], nombre: string | null, color: string, esHoy: boolean, ahora: number | null, horasConEtiqueta: boolean, pin: { lat: number; lng: number } | null): MarcaMapa[] {
+  const debajoDelPin = (p: PuntoRecorrido) => pin !== null && distanciaMetros(p, pin) < 80;
+  const marcas: MarcaMapa[] = marcasDelRecorrido(recorrido).filter((p, i) => i === 0 || !debajoDelPin(p)).map((p, i) => {
     let tipo: TipoMarca = 'punto';
     if (i === 0) tipo = 'inicio';
     else if (horasConEtiqueta && new Date(p.registrado_en).getMinutes() < MINUTOS_ENTRE_MARCAS) tipo = 'hora';
@@ -148,6 +160,8 @@ export function useMapaTecnicos({ zoomControl = true }: { zoomControl?: boolean 
   const colaRef = useRef<Promise<void>>(Promise.resolve());
 
   const [tecnicos, setTecnicos] = useState<UltimaUbicacion[]>([]);
+  // Fotos y avatares de cada quien (se cargan una vez y se comparten en la app).
+  const perfiles = usePerfiles();
   // Técnicos elegidos (hasta 3, en el orden en que se eligieron), su color y su recorrido del día.
   const [elegidos, setElegidos] = useState<string[]>([]);
   const [colores, setColores] = useState<Record<string, string>>({});
@@ -271,7 +285,7 @@ export function useMapaTecnicos({ zoomControl = true }: { zoomControl?: boolean 
       id: t.tecnico_id,
       lat: t.lat,
       lng: t.lng,
-      html: htmlPin(t, esHoy ? estadoSenal(t.registrado_en, ahora) : null, elegidos.includes(t.tecnico_id) ? colores[t.tecnico_id] : null),
+      html: htmlPin(t, perfiles[t.tecnico_id], esHoy ? estadoSenal(t.registrado_en, ahora) : null, elegidos.includes(t.tecnico_id) ? colores[t.tecnico_id] : null),
       titulo: `${t.nombre || 'Técnico'} · ${horaCorta(t.registrado_en)}`,
     }));
     mapa.ponerPines(pines, (id) => {
@@ -283,7 +297,7 @@ export function useMapaTecnicos({ zoomControl = true }: { zoomControl?: boolean 
       encuadrarTodos();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [version, tecnicos, elegidos, colores, ahora, esHoy]);
+  }, [version, tecnicos, elegidos, colores, ahora, esHoy, perfiles]);
 
   // Recorrido del día de cada técnico elegido (hoy se recarga con cada punto nuevo).
   useEffect(() => {
@@ -330,8 +344,8 @@ export function useMapaTecnicos({ zoomControl = true }: { zoomControl?: boolean 
       const recorrido = recorridos[id] || [];
       const color = colores[id] || COLORES_RUTA[0];
       rutas.push({ puntos: recorrido.map((p) => [p.lat, p.lng] as Punto), color });
-      const nombre = tecnicos.find((t) => t.tecnico_id === id)?.nombre || null;
-      marcas.push(...marcasDeRecorrido(recorrido, nombre, color, esHoy, ahora, elegidos.length === 1));
+      const tecnico = tecnicos.find((t) => t.tecnico_id === id) || null;
+      marcas.push(...marcasDeRecorrido(recorrido, tecnico?.nombre || null, color, esHoy, ahora, elegidos.length === 1, tecnico));
     }
     motorRef.current?.ponerRutas(rutas);
     motorRef.current?.ponerMarcas(marcas);

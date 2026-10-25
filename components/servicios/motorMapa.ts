@@ -46,7 +46,7 @@ export async function crearMotorBasico(div: HTMLDivElement, zoomControl: boolean
     ponerPines(lista, alTocar) {
       pines.clearLayers();
       for (const p of lista) {
-        const icono = L.divIcon({ className: '', html: p.html, iconSize: [36, 36], iconAnchor: [18, 18] });
+        const icono = L.divIcon({ className: '', html: p.html, iconSize: [40, 40], iconAnchor: [20, 20] });
         L.marker([p.lat, p.lng], { icon: icono, title: p.titulo })
           .bindTooltip(p.titulo)
           .on('click', () => alTocar(p.id))
@@ -169,8 +169,9 @@ export async function crearMotorGoogle(div: HTMLDivElement, zoomControl: boolean
     draw() {
       const pixel = this.getProjection().fromLatLngToDivPixel(this.posicion);
       if (!pixel) return;
-      this.caja.style.left = `${pixel.x - 18}px`;
-      this.caja.style.top = `${pixel.y - 18}px`;
+      // El pin mide 40 px: se ancla por su centro.
+      this.caja.style.left = `${pixel.x - 20}px`;
+      this.caja.style.top = `${pixel.y - 20}px`;
     }
     onRemove() {
       this.caja.remove();

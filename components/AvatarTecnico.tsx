@@ -36,6 +36,53 @@ const PUNTO: Record<Exclude<EstadoAvatar, null>, string> = {
 export const ESTILOS_AVATAR = ['Clásico', 'Cabello largo', 'Cabello recogido', 'Barba'] as const;
 const CABELLO = '#4a2f22';
 
+// La figura del avatar genérico, sin estado ni datos: la usa AvatarTecnico y
+// el mapa de técnicos (que la convierte a HTML para sus pines).
+export function FiguraAvatar({ uniforme, figura, size }: { uniforme: string; figura: number; size: number }) {
+  return (
+  <svg viewBox="0 0 48 48" width={size} height={size} aria-hidden className="rounded-full block">
+      <circle cx="24" cy="24" r="24" fill={FONDO} />
+      {/* cabello largo: cae detrás de los hombros */}
+      {figura === 1 && <path d="M14.9 19.5c-2 6.5-2 13.5.6 18.5h17c2.600-5 2.600-12 .6-18.5z" fill={CABELLO} />}
+      {/* hombros / uniforme */}
+      <path d="M8 48c1.5-9 8-13.5 16-13.5S38.5 39 40 48z" fill={uniforme} />
+      <path d="M21 34.6h6l-3 5z" fill="#ffffff" opacity="0.85" />
+      {/* cuello y cara */}
+      <rect x="20.5" y="27" width="7" height="8" rx="3" fill={PIEL} />
+      <circle cx="24" cy="22" r="8.2" fill={PIEL} />
+      {/* cabello largo: mechones a los lados de la cara */}
+      {figura === 1 && (
+        <>
+          <path d="M15.6 20.4c-.5 3.200-.2 6 .9 8.600.9-2.600 1.200-5.400 1.100-8.600z" fill={CABELLO} />
+          <path d="M32.4 20.4c.5 3.200.2 6-.9 8.600-.9-2.600-1.200-5.400-1.100-8.600z" fill={CABELLO} />
+        </>
+      )}
+      {/* cabello recogido: coleta a un lado y patillas */}
+      {figura === 2 && (
+        <>
+          <path d="M31.6 20.6c5 .6 7.200 6 4.600 11.400-.5-3.400-2-6-4.800-7.400z" fill={CABELLO} />
+          <path d="M15.8 20.4c-.2 2 .1 3.800.8 5.200.6-1.600.8-3.400.7-5.200z" fill={CABELLO} />
+          <path d="M32.2 20.4c.2 2-.1 3.800-.8 5.200-.6-1.600-.8-3.400-.7-5.200z" fill={CABELLO} />
+        </>
+      )}
+      {/* barba */}
+      {figura === 3 && <path d="M16.2 23.200c.3 4.800 3.600 7.400 7.800 7.400s7.500-2.600 7.800-7.400c-1.800 2.200-4.400 3.200-7.800 3.200s-6-1-7.800-3.200z" fill={CABELLO} />}
+      <circle cx="21.2" cy="22.6" r="0.95" fill="#2b2b2b" />
+      <circle cx="26.8" cy="22.6" r="0.95" fill="#2b2b2b" />
+      <path d="M21.6 25.6c1.4 1.2 3.4 1.2 4.8 0" stroke="#2b2b2b" strokeWidth="0.9" strokeLinecap="round" fill="none" />
+      {/* casco */}
+      <path d="M14.6 19.6c0-6 4.2-9.6 9.4-9.6s9.4 3.6 9.4 9.6z" fill="#f2b53a" />
+      <rect x="13" y="18.6" width="22" height="2.6" rx="1.3" fill="#e09a1c" />
+      <rect x="22.8" y="10.4" width="2.4" height="8.4" rx="1.2" fill="#ffd36b" />
+    </svg>
+  );
+}
+
+// Color de uniforme de alguien: el que eligió, o uno fijo según su lugar o su nombre.
+export function colorUniforme(avatarColor: number | null | undefined, nombre: string, indice?: number): string {
+  return UNIFORMES[(avatarColor ?? indice ?? hash(nombre)) % UNIFORMES.length];
+}
+
 export function AvatarTecnico({ nombre, size = 44, estado = null, indice, id, estilo }: {
   nombre: string; size?: number; estado?: EstadoAvatar; indice?: number; id?: string;
   // Figura a dibujar (ESTILOS_AVATAR). Sin ella, la que eligió la persona en su perfil.
@@ -47,49 +94,14 @@ export function AvatarTecnico({ nombre, size = 44, estado = null, indice, id, es
   const url = urlFoto(perfil?.foto_path);
   // Si la foto no carga (borrada, sin red), se queda el avatar genérico.
   const foto = url && url !== fallo ? url : null;
-  const uniforme = UNIFORMES[(perfil?.avatar_color ?? indice ?? hash(nombre)) % UNIFORMES.length];
-  const piel = PIEL;
+  const uniforme = colorUniforme(perfil?.avatar_color, nombre, indice);
   const figura = estilo ?? perfil?.avatar_estilo ?? 0;
   return (
     <span className="relative inline-block shrink-0" style={{ width: size, height: size }}>
       {foto ? (
         <img src={foto} alt="" width={size} height={size} loading="lazy" onError={() => setFallo(foto)} className="rounded-full block object-cover w-full h-full" />
       ) : (
-      <svg viewBox="0 0 48 48" width={size} height={size} aria-hidden className="rounded-full block">
-        <circle cx="24" cy="24" r="24" fill={FONDO} />
-        {/* cabello largo: cae detrás de los hombros */}
-        {figura === 1 && <path d="M14.9 19.5c-2 6.5-2 13.5.6 18.5h17c2.600-5 2.600-12 .6-18.5z" fill={CABELLO} />}
-        {/* hombros / uniforme */}
-        <path d="M8 48c1.5-9 8-13.5 16-13.5S38.5 39 40 48z" fill={uniforme} />
-        <path d="M21 34.6h6l-3 5z" fill="#ffffff" opacity="0.85" />
-        {/* cuello y cara */}
-        <rect x="20.5" y="27" width="7" height="8" rx="3" fill={piel} />
-        <circle cx="24" cy="22" r="8.2" fill={piel} />
-        {/* cabello largo: mechones a los lados de la cara */}
-        {figura === 1 && (
-          <>
-            <path d="M15.6 20.4c-.5 3.200-.2 6 .9 8.600.9-2.600 1.200-5.400 1.100-8.600z" fill={CABELLO} />
-            <path d="M32.4 20.4c.5 3.200.2 6-.9 8.600-.9-2.600-1.200-5.400-1.100-8.600z" fill={CABELLO} />
-          </>
-        )}
-        {/* cabello recogido: coleta a un lado y patillas */}
-        {figura === 2 && (
-          <>
-            <path d="M31.6 20.6c5 .6 7.200 6 4.600 11.400-.5-3.400-2-6-4.800-7.400z" fill={CABELLO} />
-            <path d="M15.8 20.4c-.2 2 .1 3.800.8 5.200.6-1.600.8-3.400.7-5.200z" fill={CABELLO} />
-            <path d="M32.2 20.4c.2 2-.1 3.800-.8 5.200-.6-1.600-.8-3.400-.7-5.200z" fill={CABELLO} />
-          </>
-        )}
-        {/* barba */}
-        {figura === 3 && <path d="M16.2 23.200c.3 4.800 3.600 7.400 7.800 7.400s7.500-2.600 7.800-7.400c-1.800 2.200-4.400 3.200-7.800 3.200s-6-1-7.800-3.200z" fill={CABELLO} />}
-        <circle cx="21.2" cy="22.6" r="0.95" fill="#2b2b2b" />
-        <circle cx="26.8" cy="22.6" r="0.95" fill="#2b2b2b" />
-        <path d="M21.6 25.6c1.4 1.2 3.4 1.2 4.8 0" stroke="#2b2b2b" strokeWidth="0.9" strokeLinecap="round" fill="none" />
-        {/* casco */}
-        <path d="M14.6 19.6c0-6 4.2-9.6 9.4-9.6s9.4 3.6 9.4 9.6z" fill="#f2b53a" />
-        <rect x="13" y="18.6" width="22" height="2.6" rx="1.3" fill="#e09a1c" />
-        <rect x="22.8" y="10.4" width="2.4" height="8.4" rx="1.2" fill="#ffd36b" />
-      </svg>
+      <FiguraAvatar uniforme={uniforme} figura={figura} size={size} />
       )}
       {estado && (
         <span className="absolute -bottom-0.5 -right-0.5 flex">

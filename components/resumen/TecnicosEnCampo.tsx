@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Crosshair, ExternalLink, MapIcon, Maximize2, Minimize2, Route, Smartphone, X } from 'lucide-react';
 import { estadoSenal, EstadoSenal, FALTA_SQL_UBICACION } from '@/lib/ubicacionTecnicos';
-import { COLOR_HISTORIAL, COLOR_SENAL, MAX_ELEGIDOS, TEXTO_SENAL, horaCorta, inicialesTecnico, useMapaTecnicos } from '@/components/servicios/useMapaTecnicos';
+import { COLOR_HISTORIAL, COLOR_SENAL, MAX_ELEGIDOS, TEXTO_SENAL, horaCorta, useMapaTecnicos } from '@/components/servicios/useMapaTecnicos';
+import { AvatarTecnico } from '@/components/AvatarTecnico';
 import SelectorDiaMapa from '@/components/servicios/SelectorDiaMapa';
 import { fechaLocal } from '@/lib/fechaHoy';
 import BotonMotorMapa from '@/components/servicios/BotonMotorMapa';
@@ -226,8 +227,9 @@ export default function TecnicosEnCampo({ enServicios = false }: { enServicios?:
                     colorRuta ? 'text-white' : 'bg-surface/92 border-line hover:border-teal/50'
                   }`}
                 >
-                  <span className="w-8 h-8 rounded-full text-white text-[11.5px] font-bold flex items-center justify-center ring-2 ring-white/80" style={{ background: color }}>
-                    {inicialesTecnico(t.nombre)}
+                  {/* Foto o avatar con un aro del color de su señal, como en el mapa. */}
+                  <span className="shrink-0 rounded-full p-[2.5px] ring-2 ring-white/80" style={{ background: color }}>
+                    <AvatarTecnico id={t.tecnico_id} nombre={t.nombre || 'Técnico'} size={28} />
                   </span>
                   <span className="text-left leading-tight">
                     <span className="block text-[13px] font-semibold max-w-[150px] truncate">{t.nombre || 'Técnico'}</span>
