@@ -49,7 +49,9 @@ export default function TecnicosEnCampo({ enServicios = false }: { enServicios?:
     return () => window.removeEventListener('keydown', alTeclear);
   }, [ampliado]);
 
-  let clasesTarjeta = 'relative mb-5 rounded-3xl border border-line overflow-hidden shadow-diffuse bg-surface';
+  // isolate: los botones y capas del mapa (z-20, Leaflet hasta z-1000) se
+  // quedan dentro de la tarjeta y no tapan el menú de perfil ni otros menús.
+  let clasesTarjeta = 'relative isolate mb-5 rounded-3xl border border-line overflow-hidden shadow-diffuse bg-surface';
   let clasesMapa = enServicios ? 'h-[480px] lg:h-[620px]' : 'h-[320px] lg:h-[400px]';
   if (ampliado) {
     // z-[95]: encima de las barras de la app y del botón del asistente (z-90),
