@@ -42,6 +42,8 @@ function tocarMarca(contenedor: HTMLElement, marca: Element | null | undefined, 
   const tocado = objetivo instanceof Element ? objetivo : null;
   if (tocado?.closest('.marca-hora-cerrar')) {
     marca.classList.remove('abierta');
+    marca.classList.add('sin-hover');
+    marca.addEventListener('mouseleave', () => marca.classList.remove('sin-hover'), { once: true });
     return;
   }
   // Tocar dentro de la tarjeta (por ejemplo, para copiar las coordenadas) no la cierra.

@@ -655,10 +655,18 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   pointer-events: none;
   transition: opacity 0.15s ease, transform 0.15s ease;
 }
-.marca-hora:hover .marca-hora-detalle,
 .marca-hora.abierta .marca-hora-detalle {
   opacity: 1;
   transform: translate(-50%, 0);
+}
+/* Pasar el mouse también la muestra, solo con mouse: en el celular el toque
+   deja el «hover» pegado y la × no podía cerrarla. Tras cerrarla con la ×
+   (sin-hover) no se vuelve a mostrar hasta que el mouse sale de la marca. */
+@media (hover: hover) {
+  .marca-hora:not(.sin-hover):hover .marca-hora-detalle {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
 }
 /* Abierta con un toque: se puede tocar su × para cerrarla. */
 .marca-hora.abierta .marca-hora-detalle { pointer-events: auto; cursor: default; }
