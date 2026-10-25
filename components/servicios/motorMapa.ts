@@ -14,10 +14,12 @@ export type PinMapa = { id: string; lat: number; lng: number; html: string; titu
 // propia tarjeta de detalle (clases .marca-hora en globals.css).
 export type MarcaMapa = { lat: number; lng: number; html: string };
 export type Punto = [number, number];
+export type RutaMapa = { puntos: Punto[]; color: string };
 
 export interface MotorMapa {
   ponerPines(pines: PinMapa[], alTocar: (id: string) => void): void;
-  ponerRuta(puntos: Punto[]): void;
+  // Un recorrido por técnico elegido (hasta 3), cada uno con su color.
+  ponerRutas(rutas: RutaMapa[]): void;
   ponerMarcas(marcas: MarcaMapa[]): void;
   encuadrar(puntos: Punto[]): void;
   centrar(punto: Punto, zoomMinimo: number): void;
@@ -26,7 +28,6 @@ export interface MotorMapa {
 }
 
 const CENTRO_MEXICO: Punto = [23.6345, -102.5528];
-const COLOR_RUTA = '#2563eb';
 
 export const LLAVE_GOOGLE_MAPS = process.env.NEXT_PUBLIC_GOOGLE_MAPS_NAVEGADOR || '';
 
@@ -64,15 +65,14 @@ export async function crearMotorBasico(div: HTMLDivElement, zoomControl: boolean
         marca.addTo(marcasCapa);
       }
     },
-    ponerRuta(puntos) {
+    ponerRutas(lista) {
       ruta?.remove();
-      ruta = null;
-      if (puntos.length < 2) return;
-      // Borde blanco debajo de la línea azul: se lee sobre calles y satélite.
-      ruta = L.layerGroup([
-        L.polyline(puntos, { color: '#ffffff', weight: 8, opacity: 0.9, lineCap: 'round', lineJoin: 'round' }),
-        L.polyline(puntos, { color: COLOR_RUTA, weight: 4.5, opacity: 0.95, lineCap: 'round', lineJoin: 'round' }),
-      ]).addTo(mapa);
+      // Borde blanco debajo de cada línea de color: se lee sobre calles y satélite.
+      const lineas = lista.filter((r) => r.puntos.length >= 2).flatMap((r) => [
+        L.polyline(r.puntos, { color: '#ffffff', weight: 8, opacity: 0.9, lineCap: 'round', lineJoin: 'round' }),
+        L.polyline(r.puntos, { color: r.color, weight: 4.5, opacity: 0.95, lineCap: 'round', lineJoin: 'round' }),
+      ]);
+      ruta = L.layerGroup(lineas).addTo(mapa);
     },
     encuadrar(puntos) {
       if (puntos.length === 0) return;
@@ -228,16 +228,16 @@ export async function crearMotorGoogle(div: HTMLDivElement, zoomControl: boolean
         return marca;
       });
     },
-    ponerRuta(puntos) {
+    ponerRutas(lista) {
       for (const r of rutas) r.setMap(null);
-      rutas = [];
-      if (puntos.length < 2) return;
-      const path = puntos.map(([lat, lng]) => ({ lat, lng }));
-      // Borde blanco debajo de la línea azul, igual que en el mapa básico.
-      rutas = [
-        new Polyline({ path, strokeColor: '#ffffff', strokeWeight: 8, strokeOpacity: 0.9, map: mapa }),
-        new Polyline({ path, strokeColor: COLOR_RUTA, strokeWeight: 4.5, strokeOpacity: 0.95, map: mapa }),
-      ];
+      // Borde blanco debajo de cada línea de color, igual que en el mapa básico.
+      rutas = lista.filter((r) => r.puntos.length >= 2).flatMap((r) => {
+        const path = r.puntos.map(([lat, lng]) => ({ lat, lng }));
+        return [
+          new Polyline({ path, strokeColor: '#ffffff', strokeWeight: 8, strokeOpacity: 0.9, map: mapa }),
+          new Polyline({ path, strokeColor: r.color, strokeWeight: 4.5, strokeOpacity: 0.95, map: mapa }),
+        ];
+      });
     },
     encuadrar(puntos) {
       if (puntos.length === 0) return;

@@ -540,8 +540,10 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 .pin-tec:hover .pin-tec-cara { transform: scale(1.1); }
 .pin-tec.elegido .pin-tec-cara {
   transform: scale(1.18);
-  box-shadow: 0 0 0 3px var(--color-pin), 0 8px 20px rgba(15, 23, 42, 0.4);
+  /* Aro del color de su recorrido: así se sabe qué línea es de quién. */
+  box-shadow: 0 0 0 3px var(--color-ruta, var(--color-pin)), 0 8px 20px rgba(15, 23, 42, 0.4);
 }
+.pin-tec.elegido .pin-tec-nombre { background: var(--color-ruta, #0f172a); }
 /* Sin señal: apagado, para que resalten los que sí están en línea. */
 .pin-tec.apagado .pin-tec-cara { filter: saturate(0.4); opacity: 0.85; }
 .pin-tec-halo {
@@ -600,7 +602,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   padding: 3px 8px 3px 6px;
   border-radius: 999px;
   background: #ffffff;
-  border: 2px solid #2563eb;
+  border: 2px solid var(--color-ruta, #2563eb);
   color: #0f172a;
   font: 700 11px/1.1 Inter, system-ui, sans-serif;
   white-space: nowrap;
@@ -612,7 +614,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #2563eb;
+  background: var(--color-ruta, #2563eb);
 }
 /* Pico que apunta al lugar exacto. */
 .marca-hora-pico {
@@ -621,11 +623,11 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   margin: -1px auto 0;
   border-left: 6px solid transparent;
   border-right: 6px solid transparent;
-  border-top: 7px solid #2563eb;
+  border-top: 7px solid var(--color-ruta, #2563eb);
 }
 .marca-hora:hover .marca-hora-etiqueta,
 .marca-hora.abierta .marca-hora-etiqueta {
-  background: #2563eb;
+  background: var(--color-ruta, #2563eb);
   color: #ffffff;
   transform: scale(1.06);
 }
@@ -666,7 +668,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   color: #334155;
   font: 600 11px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
 }
-.marca-hora-detalle i { display: block; margin-top: 5px; color: #2563eb; font-style: normal; font-weight: 600; font-size: 11px; }
+.marca-hora-detalle i { display: block; margin-top: 5px; color: var(--color-ruta, #2563eb); font-style: normal; font-weight: 600; font-size: 11px; }
 /* Inicio del día: etiqueta verde. */
 .marca-hora.inicio .marca-hora-etiqueta { border-color: #16a34a; }
 .marca-hora.inicio .marca-hora-etiqueta::before { background: #16a34a; }
@@ -688,13 +690,13 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   height: 11px;
   border-radius: 50%;
   background: #ffffff;
-  border: 2.5px solid #2563eb;
+  border: 2.5px solid var(--color-ruta, #2563eb);
   box-shadow: 0 1px 4px rgba(15, 23, 42, 0.3);
   transition: transform 0.15s ease, background 0.15s ease;
 }
 .marca-hora.punto:hover .marca-hora-punto,
 .marca-hora.punto.abierta .marca-hora-punto {
-  background: #2563eb;
+  background: var(--color-ruta, #2563eb);
   transform: scale(1.35);
 }
 .marca-hora-detalle em {

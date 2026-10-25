@@ -3,9 +3,9 @@
 import 'leaflet/dist/leaflet.css';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Crosshair, ExternalLink, MapIcon, Maximize2, Minimize2, Radio, Smartphone } from 'lucide-react';
+import { Crosshair, ExternalLink, MapIcon, Maximize2, Minimize2, Route, Smartphone, X } from 'lucide-react';
 import { estadoSenal, EstadoSenal, FALTA_SQL_UBICACION } from '@/lib/ubicacionTecnicos';
-import { COLOR_HISTORIAL, COLOR_SENAL, TEXTO_SENAL, horaCorta, inicialesTecnico, useMapaTecnicos } from '@/components/servicios/useMapaTecnicos';
+import { COLOR_HISTORIAL, COLOR_SENAL, MAX_ELEGIDOS, TEXTO_SENAL, horaCorta, inicialesTecnico, useMapaTecnicos } from '@/components/servicios/useMapaTecnicos';
 import SelectorDiaMapa from '@/components/servicios/SelectorDiaMapa';
 import { fechaLocal } from '@/lib/fechaHoy';
 import BotonMotorMapa from '@/components/servicios/BotonMotorMapa';
@@ -23,10 +23,11 @@ const MAPA_COMPLETO = '/dashboard/servicios?sub=mapa';
 
 export default function TecnicosEnCampo({ enServicios = false }: { enServicios?: boolean }) {
   const {
-    contenedorRef, tecnicos, elegido, recorrido, error, cargando, ahora, enfocar, encuadrarTodos, motor, hayGoogle, cambiarMotor,
+    contenedorRef, tecnicos, elegidos, colores, recorridos, error, cargando, ahora, enfocar, quitar, encuadrarTodos, motor, hayGoogle, cambiarMotor,
     fecha, hoy, esHoy, fechaMinima, irADia,
   } = useMapaTecnicos({ zoomControl: false });
-  const elegidoDatos = tecnicos.find((t) => t.tecnico_id === elegido) || null;
+  // El último elegido es el que se abre en Google Maps.
+  const ultimoElegido = tecnicos.find((t) => t.tecnico_id === elegidos[elegidos.length - 1]) || null;
   const textoDia = fecha ? fechaLocal(fecha).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' }) : '';
 
   const cuenta: Record<EstadoSenal, number> = { en_linea: 0, reciente: 0, sin_senal: 0 };
@@ -56,11 +57,13 @@ export default function TecnicosEnCampo({ enServicios = false }: { enServicios?:
     clasesMapa = 'h-full';
   }
 
-  function textoRecorrido(): string {
-    if (recorrido.length < 2) return esHoy ? 'Todavía no hay recorrido hoy' : 'Sin suficientes puntos ese día';
+  // «8:02 a.m. – 6:00 p.m.» (o «desde 8:02 a.m.» hoy) del recorrido de alguien.
+  function horarioRecorrido(id: string): string {
+    const recorrido = recorridos[id] || [];
+    if (recorrido.length < 2) return 'sin recorrido';
     const desde = horaCorta(recorrido[0].registrado_en);
     const hasta = horaCorta(recorrido[recorrido.length - 1].registrado_en);
-    return esHoy ? `Recorrido de hoy desde las ${desde}` : `Recorrido de ${desde} a ${hasta}`;
+    return esHoy ? `desde ${desde}` : `${desde} – ${hasta}`;
   }
 
   // Una base sin el rastreo (por ejemplo, el demo) no muestra la tarjeta en
@@ -161,13 +164,54 @@ export default function TecnicosEnCampo({ enServicios = false }: { enServicios?:
         </div>
       )}
 
-      {/* Tira de técnicos sobre el borde de abajo */}
+      {/* Tira de técnicos sobre el borde de abajo. Se eligen hasta 3: cada uno
+          con el color de su recorrido (en la línea, sus marcas, su pin y aquí). */}
       {ahora !== null && tecnicos.length > 0 && (
         <div className="absolute inset-x-0 bottom-0 z-10 pt-10 pb-3 px-3 lg:px-4 bg-gradient-to-t from-black/35 to-transparent pointer-events-none">
+          {/* Leyenda: en el celular, un solo renglón que se desliza; en la computadora, los que quepan. */}
+          <div className="pointer-events-auto mb-2 flex items-center gap-2 overflow-x-auto no-scrollbar sm:flex-wrap sm:overflow-visible">
+            {elegidos.length === 0 && (
+              <p className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-surface/92 backdrop-blur-md border border-line px-3 py-1 text-[12px] text-ink/80">
+                <Route size={13} className="text-teal" />
+                Toca hasta {MAX_ELEGIDOS} técnicos para ver y comparar sus recorridos
+              </p>
+            )}
+            {elegidos.map((id) => {
+              const t = tecnicos.find((x) => x.tecnico_id === id);
+              if (!t) return null;
+              return (
+                <span key={id} className="shrink-0 inline-flex items-center gap-2 rounded-full bg-surface/95 backdrop-blur-md border border-line shadow-diffuse pl-3 pr-1 py-0.5 text-[12px]">
+                  <span className="w-5 h-1.5 rounded-full shrink-0" style={{ background: colores[id] }} aria-hidden="true" />
+                  <span className="font-semibold max-w-[120px] truncate">{t.nombre || 'Técnico'}</span>
+                  <span className="hidden sm:inline text-muted tabular-nums whitespace-nowrap">{horarioRecorrido(id)}</span>
+                  <button
+                    type="button"
+                    onClick={() => quitar(id)}
+                    aria-label={`Quitar el recorrido de ${t.nombre || 'este técnico'}`}
+                    className="w-6 h-6 rounded-full flex items-center justify-center text-muted hover:text-ink hover:bg-surface-2 transition"
+                  >
+                    <X size={13} strokeWidth={2.4} />
+                  </button>
+                </span>
+              );
+            })}
+            {/* Abre la app de Google Maps para llegar con el último elegido (gratis, no usa la llave). */}
+            {ultimoElegido && (
+              <a
+                href={enlaceGoogleMaps(ultimoElegido.lat, ultimoElegido.lng)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 rounded-full bg-teal text-inkOnAccent px-3 py-1 text-[12px] font-semibold"
+              >
+                <ExternalLink size={13} />
+                Abrir en Google Maps
+              </a>
+            )}
+          </div>
           <div className="pointer-events-auto flex gap-2 overflow-x-auto no-scrollbar pr-12">
             {tecnicos.map((t) => {
               const estado = estadoSenal(t.registrado_en, ahora);
-              const activo = t.tecnico_id === elegido;
+              const colorRuta = elegidos.includes(t.tecnico_id) ? colores[t.tecnico_id] : null;
               const color = esHoy ? COLOR_SENAL[estado] : COLOR_HISTORIAL;
               const detalle = esHoy ? `${TEXTO_SENAL[estado]} · ${horaCorta(t.registrado_en)}` : `Último punto · ${horaCorta(t.registrado_en)}`;
               return (
@@ -175,9 +219,11 @@ export default function TecnicosEnCampo({ enServicios = false }: { enServicios?:
                   key={t.tecnico_id}
                   type="button"
                   onClick={() => enfocar(t)}
-                  aria-pressed={activo}
+                  aria-pressed={colorRuta !== null}
+                  // Elegido: el botón toma el color de su recorrido.
+                  style={colorRuta ? { background: colorRuta, borderColor: colorRuta } : undefined}
                   className={`shrink-0 flex items-center gap-2.5 pl-1.5 pr-3.5 py-1.5 rounded-full border backdrop-blur-md shadow-diffuse transition ${
-                    activo ? 'bg-teal text-inkOnAccent border-teal' : 'bg-surface/92 border-line hover:border-teal/50'
+                    colorRuta ? 'text-white' : 'bg-surface/92 border-line hover:border-teal/50'
                   }`}
                 >
                   <span className="w-8 h-8 rounded-full text-white text-[11.5px] font-bold flex items-center justify-center ring-2 ring-white/80" style={{ background: color }}>
@@ -185,7 +231,7 @@ export default function TecnicosEnCampo({ enServicios = false }: { enServicios?:
                   </span>
                   <span className="text-left leading-tight">
                     <span className="block text-[13px] font-semibold max-w-[150px] truncate">{t.nombre || 'Técnico'}</span>
-                    <span className={`block text-[11.5px] ${activo ? 'opacity-85' : 'text-muted'}`}>
+                    <span className={`block text-[11.5px] ${colorRuta ? 'opacity-85' : 'text-muted'}`}>
                       {detalle}
                     </span>
                   </span>
@@ -193,24 +239,6 @@ export default function TecnicosEnCampo({ enServicios = false }: { enServicios?:
               );
             })}
           </div>
-          {elegidoDatos && (
-            <div className="pointer-events-auto mt-2 flex flex-wrap items-center gap-2">
-              <p className="inline-flex items-center gap-1.5 rounded-full bg-surface/92 backdrop-blur-md border border-line px-3 py-1 text-[12px] text-ink/80">
-                <Radio size={13} className="text-teal" />
-                {textoRecorrido()}
-              </p>
-              {/* Abre la app de Google Maps para llegar (gratis, no usa la llave). */}
-              <a
-                href={enlaceGoogleMaps(elegidoDatos.lat, elegidoDatos.lng)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-full bg-teal text-inkOnAccent px-3 py-1 text-[12px] font-semibold"
-              >
-                <ExternalLink size={13} />
-                Abrir en Google Maps
-              </a>
-            </div>
-          )}
         </div>
       )}
     </section>

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { EstadoSenal, PuntoRecorrido, UltimaUbicacion, estadoSenal, marcasDelRecorrido, minutosEnElLugar, MINUTOS_ENTRE_MARCAS, recorridoDelDia, ultimasUbicacionesDelDia, ultimasUbicacionesHoy, DIAS_HISTORIAL } from '@/lib/ubicacionTecnicos';
 import { useEnVivo } from '@/lib/useEnVivo';
 import { fechaLocal, hoyLocal, sumarDias } from '@/lib/fechaHoy';
-import { LLAVE_GOOGLE_MAPS, MarcaMapa, MotorMapa, PinMapa, Punto, crearMotorBasico, crearMotorGoogle } from './motorMapa';
+import { LLAVE_GOOGLE_MAPS, MarcaMapa, MotorMapa, PinMapa, Punto, RutaMapa, crearMotorBasico, crearMotorGoogle } from './motorMapa';
 
 // Lo que comparten el mapa de Servicios → Mapa y la tarjeta del Resumen:
 // carga las últimas ubicaciones (y se actualiza sola), dibuja el mapa
@@ -41,17 +41,26 @@ function preferenciaGuardada(): TipoMotor {
 // Días pasados: ya no hay «señal», el pin va de un solo color.
 export const COLOR_HISTORIAL = '#2563eb';
 
+// Se pueden ver hasta 3 recorridos a la vez; cada técnico elegido toma el
+// primer color libre (azul, naranja, morado) y lo conserva mientras siga elegido.
+export const MAX_ELEGIDOS = 3;
+export const COLORES_RUTA = ['#2563eb', '#ea580c', '#9333ea'];
+
 // HTML del pin (clases .pin-tec en globals.css): las iniciales con el color
 // de su señal; si está en línea, un halo que late. El elegido se agranda y
 // muestra su nombre y la hora de su último punto (también al pasar el mouse).
-function htmlPin(t: UltimaUbicacion, estado: EstadoSenal | null, elegido: boolean): string {
-  const color = estado ? COLOR_SENAL[estado] : COLOR_HISTORIAL;
+function htmlPin(t: UltimaUbicacion, estado: EstadoSenal | null, colorRuta: string | null): string {
+  // Hoy el relleno dice la señal; en un día pasado no hay señal, así que el
+  // elegido se rellena con el color de su recorrido.
+  let color = estado ? COLOR_SENAL[estado] : COLOR_HISTORIAL;
+  if (!estado && colorRuta) color = colorRuta;
   const clases = ['pin-tec'];
-  if (elegido) clases.push('elegido');
+  if (colorRuta) clases.push('elegido');
   if (estado === 'sin_senal') clases.push('apagado');
   const halo = estado === 'en_linea' ? '<span class="pin-tec-halo"></span>' : '';
   const nombre = sinEtiquetas(`${t.nombre || 'Técnico'} · ${horaCorta(t.registrado_en)}`);
-  return `<div class="${clases.join(' ')}" style="--color-pin:${color}">${halo}`
+  const estilo = colorRuta ? `--color-pin:${color};--color-ruta:${colorRuta}` : `--color-pin:${color}`;
+  return `<div class="${clases.join(' ')}" style="${estilo}">${halo}`
     + `<div class="pin-tec-cara">${inicialesTecnico(t.nombre)}</div>`
     + `<div class="pin-tec-nombre">${nombre}</div></div>`;
 }
@@ -68,7 +77,7 @@ function sinEtiquetas(texto: string): string {
 // Al pasar el mouse o tocarla, la tarjeta con hora exacta, fecha, cuánto
 // tiempo se quedó ahí (si fueron 5 min o más) y coordenadas.
 type TipoMarca = 'inicio' | 'hora' | 'punto' | 'fin';
-function htmlMarcaHora(p: PuntoRecorrido, nombre: string | null, tipo: TipoMarca, minutosAqui: number): string {
+function htmlMarcaHora(p: PuntoRecorrido, nombre: string | null, tipo: TipoMarca, minutosAqui: number, colorRuta: string): string {
   const fecha = new Date(p.registrado_en);
   // La etiqueta dice a qué tramo pertenece la marca («9 a.m.», «9:10 a.m.»…).
   const inicioTramo = new Date(fecha);
@@ -88,7 +97,7 @@ function htmlMarcaHora(p: PuntoRecorrido, nombre: string | null, tipo: TipoMarca
   if (tipo === 'hora') figura = `<div class="marca-hora-etiqueta">${sinEtiquetas(etiqueta)}</div><div class="marca-hora-pico"></div>`;
   if (tipo === 'inicio') figura = `<div class="marca-hora-etiqueta">Inicio · ${sinEtiquetas(hora)}</div><div class="marca-hora-pico"></div>`;
   if (tipo === 'fin') figura = `<div class="marca-hora-etiqueta">Fin · ${sinEtiquetas(hora)}</div><div class="marca-hora-pico"></div>`;
-  return `<div class="marca-hora ${tipo}" role="button" aria-label="${sinEtiquetas(`${hora}, ${coordenadas}`)}">${detalle}${figura}</div>`;
+  return `<div class="marca-hora ${tipo}" style="--color-ruta:${colorRuta}" role="button" aria-label="${sinEtiquetas(`${hora}, ${coordenadas}`)}">${detalle}${figura}</div>`;
 }
 
 // ¿Ya terminó el recorrido del día? Un día pasado, sí. Hoy, solo después
@@ -111,6 +120,25 @@ function duracionCorta(minutos: number): string {
   return resto === 0 ? `${horas} h` : `${horas} h ${resto} min`;
 }
 
+// Las marcas de un recorrido: inicio, horas en punto, puntos cada 10 min y fin.
+// Con varios recorridos a la vez (`horasConEtiqueta` en false) las horas en
+// punto también van como punto: solo «Inicio» y «Fin» llevan etiqueta, para
+// que no se encimen. La hora se ve al tocar o pasar el mouse.
+function marcasDeRecorrido(recorrido: PuntoRecorrido[], nombre: string | null, color: string, esHoy: boolean, ahora: number | null, horasConEtiqueta: boolean): MarcaMapa[] {
+  const marcas: MarcaMapa[] = marcasDelRecorrido(recorrido).map((p, i) => {
+    let tipo: TipoMarca = 'punto';
+    if (i === 0) tipo = 'inicio';
+    else if (horasConEtiqueta && new Date(p.registrado_en).getMinutes() < MINUTOS_ENTRE_MARCAS) tipo = 'hora';
+    const minutosAqui = minutosEnElLugar(recorrido, recorrido.indexOf(p));
+    return { lat: p.lat, lng: p.lng, html: htmlMarcaHora(p, nombre, tipo, minutosAqui, color) };
+  });
+  const ultimo = recorrido[recorrido.length - 1];
+  if (recorrido.length >= 2 && ahora !== null && terminoElRecorrido(ultimo, esHoy, ahora)) {
+    marcas.push({ lat: ultimo.lat, lng: ultimo.lng, html: htmlMarcaHora(ultimo, nombre, 'fin', 0, color) });
+  }
+  return marcas;
+}
+
 export function useMapaTecnicos({ zoomControl = true }: { zoomControl?: boolean } = {}) {
   const contenedorRef = useRef<HTMLDivElement | null>(null);
   const motorRef = useRef<MotorMapa | null>(null);
@@ -120,8 +148,10 @@ export function useMapaTecnicos({ zoomControl = true }: { zoomControl?: boolean 
   const colaRef = useRef<Promise<void>>(Promise.resolve());
 
   const [tecnicos, setTecnicos] = useState<UltimaUbicacion[]>([]);
-  const [elegido, setElegido] = useState<string | null>(null);
-  const [recorrido, setRecorrido] = useState<PuntoRecorrido[]>([]);
+  // Técnicos elegidos (hasta 3, en el orden en que se eligieron), su color y su recorrido del día.
+  const [elegidos, setElegidos] = useState<string[]>([]);
+  const [colores, setColores] = useState<Record<string, string>>({});
+  const [recorridos, setRecorridos] = useState<Record<string, PuntoRecorrido[]>>({});
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
   // Hora de la última carga; null hasta montar (no se lee el reloj en el render).
@@ -241,72 +271,95 @@ export function useMapaTecnicos({ zoomControl = true }: { zoomControl?: boolean 
       id: t.tecnico_id,
       lat: t.lat,
       lng: t.lng,
-      html: htmlPin(t, esHoy ? estadoSenal(t.registrado_en, ahora) : null, t.tecnico_id === elegido),
+      html: htmlPin(t, esHoy ? estadoSenal(t.registrado_en, ahora) : null, elegidos.includes(t.tecnico_id) ? colores[t.tecnico_id] : null),
       titulo: `${t.nombre || 'Técnico'} · ${horaCorta(t.registrado_en)}`,
     }));
-    mapa.ponerPines(pines, setElegido);
+    mapa.ponerPines(pines, (id) => {
+      const t = tecnicos.find((x) => x.tecnico_id === id);
+      if (t) enfocar(t);
+    });
     if (!yaEncuadreRef.current && tecnicos.length > 0) {
       yaEncuadreRef.current = true;
       encuadrarTodos();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [version, tecnicos, elegido, ahora, esHoy]);
+  }, [version, tecnicos, elegidos, colores, ahora, esHoy]);
 
-  // Recorrido del día del técnico elegido (hoy se recarga con cada punto nuevo).
+  // Recorrido del día de cada técnico elegido (hoy se recarga con cada punto nuevo).
   useEffect(() => {
-    if (!elegido || !fecha) {
-      setRecorrido([]);
-      return;
-    }
-    // El técnico elegido no trabajó ese día: no hay recorrido que mostrar.
-    if (!tecnicos.some((t) => t.tecnico_id === elegido)) {
-      setRecorrido([]);
+    if (!fecha) return;
+    // Solo los que trabajaron ese día tienen recorrido.
+    const conDatos = elegidos.filter((id) => tecnicos.some((t) => t.tecnico_id === id));
+    if (conDatos.length === 0) {
+      setRecorridos({});
       return;
     }
     const [desde, hasta] = limitesDelDia(fecha);
-    recorridoDelDia(elegido, desde, hasta)
-      .then(setRecorrido)
+    Promise.all(conDatos.map((id) => recorridoDelDia(id, desde, hasta)))
+      .then((listas) => {
+        const nuevos: Record<string, PuntoRecorrido[]> = {};
+        conDatos.forEach((id, i) => { nuevos[id] = listas[i]; });
+        setRecorridos(nuevos);
+      })
       .catch((e) => setError(e.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [elegido, tecnicos]);
+  }, [elegidos, tecnicos]);
 
-  // Al elegir a alguien, el mapa encuadra su recorrido completo una sola vez
-  // (no en cada punto nuevo, para no mover el mapa mientras se mira).
-  const recorridoEncuadradoRef = useRef<string | null>(null);
+  // Al elegir a alguien, el mapa encuadra los recorridos elegidos una sola
+  // vez (no en cada punto nuevo, para no mover el mapa mientras se mira).
+  const encuadradosRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    const puntos = recorrido.map((p) => [p.lat, p.lng] as Punto);
-    if (elegido && puntos.length >= 2 && recorridoEncuadradoRef.current !== elegido) {
-      recorridoEncuadradoRef.current = elegido;
-      motorRef.current?.encuadrar(puntos);
+    for (const id of [...encuadradosRef.current]) {
+      if (!elegidos.includes(id)) encuadradosRef.current.delete(id);
     }
-    if (!elegido) recorridoEncuadradoRef.current = null;
-    motorRef.current?.ponerRuta(puntos);
-    // Una marca cada 10 minutos sobre el recorrido, como referencia de dónde estaba.
-    const nombre = tecnicos.find((t) => t.tecnico_id === elegido)?.nombre || null;
-    const marcas: MarcaMapa[] = marcasDelRecorrido(recorrido).map((p, i) => {
-      let tipo: TipoMarca = 'punto';
-      if (i === 0) tipo = 'inicio';
-      else if (new Date(p.registrado_en).getMinutes() < MINUTOS_ENTRE_MARCAS) tipo = 'hora';
-      const minutosAqui = minutosEnElLugar(recorrido, recorrido.indexOf(p));
-      return { lat: p.lat, lng: p.lng, html: htmlMarcaHora(p, nombre, tipo, minutosAqui) };
-    });
-    const ultimo = recorrido[recorrido.length - 1];
-    if (recorrido.length >= 2 && ahora !== null && terminoElRecorrido(ultimo, esHoy, ahora)) {
-      marcas.push({ lat: ultimo.lat, lng: ultimo.lng, html: htmlMarcaHora(ultimo, nombre, 'fin', 0) });
+    const nuevo = elegidos.find((id) => recorridos[id] && !encuadradosRef.current.has(id));
+    if (nuevo) {
+      encuadradosRef.current.add(nuevo);
+      const todos = elegidos.flatMap((id) => (recorridos[id] || []).map((p) => [p.lat, p.lng] as Punto));
+      if (todos.length >= 2) {
+        motorRef.current?.encuadrar(todos);
+      } else {
+        const t = tecnicos.find((x) => x.tecnico_id === nuevo);
+        if (t) motorRef.current?.centrar([t.lat, t.lng], 15);
+      }
     }
+
+    const rutas: RutaMapa[] = [];
+    const marcas: MarcaMapa[] = [];
+    for (const id of elegidos) {
+      const recorrido = recorridos[id] || [];
+      const color = colores[id] || COLORES_RUTA[0];
+      rutas.push({ puntos: recorrido.map((p) => [p.lat, p.lng] as Punto), color });
+      const nombre = tecnicos.find((t) => t.tecnico_id === id)?.nombre || null;
+      marcas.push(...marcasDeRecorrido(recorrido, nombre, color, esHoy, ahora, elegidos.length === 1));
+    }
+    motorRef.current?.ponerRutas(rutas);
     motorRef.current?.ponerMarcas(marcas);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [version, recorrido, esHoy, ahora]);
+  }, [version, recorridos, elegidos, colores, esHoy, ahora]);
 
   function encuadrarTodos() {
     motorRef.current?.encuadrar(tecnicos.map((t) => [t.lat, t.lng] as Punto));
   }
 
-  // Elegir (o soltar) a un técnico y acercar el mapa a él.
+  // Elegir o soltar a un técnico. Con 3 elegidos, el nuevo reemplaza al
+  // primero que se eligió. Cada quien toma el primer color libre.
   function enfocar(t: UltimaUbicacion) {
-    const yaElegido = t.tecnico_id === elegido;
-    setElegido(yaElegido ? null : t.tecnico_id);
-    if (!yaElegido) motorRef.current?.centrar([t.lat, t.lng], 15);
+    const id = t.tecnico_id;
+    if (elegidos.includes(id)) {
+      quitar(id);
+      return;
+    }
+    let lista = [...elegidos];
+    if (lista.length >= MAX_ELEGIDOS) lista = lista.slice(1);
+    const usados = lista.map((x) => colores[x]);
+    const libre = COLORES_RUTA.find((c) => !usados.includes(c)) || COLORES_RUTA[0];
+    setColores((c) => ({ ...c, [id]: libre }));
+    setElegidos([...lista, id]);
+  }
+
+  function quitar(id: string) {
+    setElegidos((lista) => lista.filter((x) => x !== id));
   }
 
   // Botón «Google Maps / Mapa básico». Se recuerda en este aparato.
@@ -328,7 +381,7 @@ export function useMapaTecnicos({ zoomControl = true }: { zoomControl?: boolean 
   }
 
   return {
-    contenedorRef, tecnicos, elegido, recorrido, error, cargando, ahora, enfocar, encuadrarTodos, motor, hayGoogle, cambiarMotor,
+    contenedorRef, tecnicos, elegidos, colores, recorridos, error, cargando, ahora, enfocar, quitar, encuadrarTodos, motor, hayGoogle, cambiarMotor,
     fecha, hoy, esHoy, fechaMinima, irADia,
   };
 }
