@@ -10,7 +10,7 @@
 // El tope diario se pone en Google Cloud (cuota de Maps JavaScript API).
 
 export type PinMapa = { id: string; lat: number; lng: number; html: string; titulo: string };
-// Marca informativa sobre el recorrido (una por hora). El HTML trae su
+// Marca informativa sobre el recorrido (una cada media hora). El HTML trae su
 // propia tarjeta de detalle (clases .marca-hora en globals.css).
 export type MarcaMapa = { lat: number; lng: number; html: string };
 export type Punto = [number, number];
@@ -21,6 +21,7 @@ export interface MotorMapa {
   ponerMarcas(marcas: MarcaMapa[]): void;
   encuadrar(puntos: Punto[]): void;
   centrar(punto: Punto, zoomMinimo: number): void;
+  ajustarTamano(): void;
   destruir(): void;
 }
 
@@ -79,6 +80,9 @@ export async function crearMotorBasico(div: HTMLDivElement, zoomControl: boolean
     },
     centrar(punto, zoomMinimo) {
       mapa.setView(punto, Math.max(mapa.getZoom(), zoomMinimo));
+    },
+    ajustarTamano() {
+      mapa.invalidateSize();
     },
     destruir() {
       mapa.remove();
@@ -162,7 +166,7 @@ export async function crearMotorGoogle(div: HTMLDivElement, zoomControl: boolean
     }
   }
 
-  // Marca por hora: el HTML se acomoda solo sobre el punto (ver .marca-hora).
+  // Marca cada media hora: el HTML se acomoda solo sobre el punto (ver .marca-hora).
   class MarcaHtml extends OverlayView {
     caja: HTMLDivElement;
     posicion: any;
@@ -240,6 +244,8 @@ export async function crearMotorGoogle(div: HTMLDivElement, zoomControl: boolean
       mapa.setCenter({ lat, lng });
       mapa.setZoom(Math.max(mapa.getZoom() || 0, zoomMinimo));
     },
+    // Google Maps se acomoda solo cuando cambia el tamaño de su caja.
+    ajustarTamano() {},
     destruir() {
       if (alFallarGoogle === siFalla) alFallarGoogle = null;
       for (const pin of pines) pin.setMap(null);

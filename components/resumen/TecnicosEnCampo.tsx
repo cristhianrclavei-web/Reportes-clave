@@ -2,7 +2,8 @@
 
 import 'leaflet/dist/leaflet.css';
 import Link from 'next/link';
-import { Crosshair, ExternalLink, Maximize2, Radio, Smartphone } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Crosshair, ExternalLink, MapIcon, Maximize2, Minimize2, Radio, Smartphone } from 'lucide-react';
 import { estadoSenal, EstadoSenal, FALTA_SQL_UBICACION } from '@/lib/ubicacionTecnicos';
 import { COLOR_HISTORIAL, COLOR_SENAL, TEXTO_SENAL, horaCorta, inicialesTecnico, useMapaTecnicos } from '@/components/servicios/useMapaTecnicos';
 import SelectorDiaMapa from '@/components/servicios/SelectorDiaMapa';
@@ -15,11 +16,12 @@ import { enlaceGoogleMaps } from '@/components/servicios/motorMapa';
 // cada técnico (tocarlo acerca el mapa y muestra su recorrido de hoy).
 // Con el selector de día se ven los días anteriores (hasta 90), sobre el
 // mismo mapa: no cuenta como otra carga de Google Maps.
-// «Abrir mapa» lleva a Servicios → Mapa, con la lista completa.
+// «Abrir mapa» lleva a Servicios → Mapa, que usa esta misma tarjeta más alta
+// (enServicios). El botón de ampliar pone el mapa en toda la pantalla.
 
 const MAPA_COMPLETO = '/dashboard/servicios?sub=mapa';
 
-export default function TecnicosEnCampo() {
+export default function TecnicosEnCampo({ enServicios = false }: { enServicios?: boolean }) {
   const {
     contenedorRef, tecnicos, elegido, recorrido, error, cargando, ahora, enfocar, encuadrarTodos, motor, hayGoogle, cambiarMotor,
     fecha, hoy, esHoy, fechaMinima, irADia,
@@ -33,6 +35,27 @@ export default function TecnicosEnCampo() {
   }
   const sinDatos = !cargando && !error && tecnicos.length === 0;
 
+  // Pantalla completa con CSS (fixed) y no con la API del navegador: así
+  // también funciona en iPhone. Esc la cierra en la computadora.
+  const [ampliado, setAmpliado] = useState(false);
+  useEffect(() => {
+    if (!ampliado) return;
+    function alTeclear(e: KeyboardEvent) {
+      if (e.key === 'Escape') setAmpliado(false);
+    }
+    window.addEventListener('keydown', alTeclear);
+    return () => window.removeEventListener('keydown', alTeclear);
+  }, [ampliado]);
+
+  let clasesTarjeta = 'relative mb-5 rounded-3xl border border-line overflow-hidden shadow-diffuse bg-surface';
+  let clasesMapa = enServicios ? 'h-[480px] lg:h-[620px]' : 'h-[320px] lg:h-[400px]';
+  if (ampliado) {
+    // z-[95]: encima de las barras de la app y del botón del asistente (z-90),
+    // que si no tapa los botones de zoom.
+    clasesTarjeta = 'fixed inset-0 z-[95] overflow-hidden bg-surface';
+    clasesMapa = 'h-full';
+  }
+
   function textoRecorrido(): string {
     if (recorrido.length < 2) return esHoy ? 'Todavía no hay recorrido hoy' : 'Sin suficientes puntos ese día';
     const desde = horaCorta(recorrido[0].registrado_en);
@@ -40,13 +63,18 @@ export default function TecnicosEnCampo() {
     return esHoy ? `Recorrido de hoy desde las ${desde}` : `Recorrido de ${desde} a ${hasta}`;
   }
 
-  // Una base sin el rastreo (por ejemplo, el demo) no muestra la tarjeta.
-  if (error === FALTA_SQL_UBICACION) return null;
+  // Una base sin el rastreo (por ejemplo, el demo) no muestra la tarjeta en
+  // el Resumen; en Servicios → Mapa sí, con el aviso al centro.
+  if (error === FALTA_SQL_UBICACION && !enServicios) return null;
 
   return (
-    <section aria-label="Técnicos en campo" className="relative mb-5 rounded-3xl border border-line overflow-hidden shadow-diffuse bg-surface">
-      {/* z-0: el mapa no debe quedar encima de los menús de la app. */}
-      <div ref={contenedorRef} className="h-[320px] lg:h-[400px] w-full z-0" />
+    <section aria-label="Técnicos en campo" className={clasesTarjeta}>
+      {/* El tamaño va en la caja de afuera: el div del mapa no debe cambiar
+          de clase, porque React borraría las que le pone Leaflet.
+          z-0: el mapa no debe quedar encima de los menús de la app. */}
+      <div className={`${clasesMapa} w-full relative z-0`}>
+        <div ref={contenedorRef} className="h-full w-full" />
+      </div>
 
       {/* Encabezado sobre el mapa */}
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 p-3 lg:p-4 flex items-start justify-between gap-3">
@@ -91,13 +119,24 @@ export default function TecnicosEnCampo() {
               <Crosshair size={18} strokeWidth={2.2} />
             </button>
           )}
-          <Link
-            href={MAPA_COMPLETO}
-            className="h-11 px-4 rounded-2xl bg-teal text-inkOnAccent text-[13.5px] font-semibold shadow-glow-teal flex items-center gap-2 hover:brightness-110 active:scale-95 transition"
+          <button
+            type="button"
+            onClick={() => setAmpliado(!ampliado)}
+            aria-label={ampliado ? 'Salir de pantalla completa' : 'Ampliar a pantalla completa'}
+            title={ampliado ? 'Salir de pantalla completa (Esc)' : 'Pantalla completa'}
+            className="w-11 h-11 rounded-2xl bg-surface/90 backdrop-blur-md border border-line shadow-diffuse flex items-center justify-center text-ink/75 hover:text-teal hover:border-teal/50 active:scale-95 transition"
           >
-            <Maximize2 size={16} strokeWidth={2.4} />
-            <span className="hidden sm:inline">Abrir mapa</span>
-          </Link>
+            {ampliado ? <Minimize2 size={18} strokeWidth={2.2} /> : <Maximize2 size={18} strokeWidth={2.2} />}
+          </button>
+          {!enServicios && !ampliado && (
+            <Link
+              href={MAPA_COMPLETO}
+              className="h-11 px-4 rounded-2xl bg-teal text-inkOnAccent text-[13.5px] font-semibold shadow-glow-teal flex items-center gap-2 hover:brightness-110 active:scale-95 transition"
+            >
+              <MapIcon size={16} strokeWidth={2.4} />
+              <span className="hidden sm:inline">Abrir mapa</span>
+            </Link>
+          )}
         </div>
       </div>
 

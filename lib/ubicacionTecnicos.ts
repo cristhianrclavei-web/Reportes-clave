@@ -86,26 +86,30 @@ export async function recorridoDelDia(tecnicoId: string, desdeIso: string, hasta
   return (data || []) as PuntoRecorrido[];
 }
 
-export const FALTA_SQL_UBICACION = 'Falta correr supabase/patch_ubicacion_tecnicos.sql en la base.';
+// Lo que ve el usuario; el nombre del patch va a la consola (mensajeError).
+export const FALTA_SQL_UBICACION = 'El mapa de técnicos todavía no está activado en tu cuenta. Avísale a quien administra la app.';
 
 function mensajeError(texto: string): string {
   if (/ultimas_ubicaciones_hoy|ubicaciones_tecnicos/.test(texto) && /does not exist|not find|schema cache/i.test(texto)) {
+    console.error('Falta correr supabase/patch_ubicacion_tecnicos.sql en la base.');
     return FALTA_SQL_UBICACION;
   }
   return 'No se pudieron cargar las ubicaciones. Revisa tu conexión e intenta de nuevo.';
 }
 
-// Una marca por hora en el recorrido: el primer punto de cada hora del reloj
-// (9:02, 10:00, 11:05…). El recorrido viene del más viejo al más nuevo.
-export function marcasPorHora(recorrido: PuntoRecorrido[]): PuntoRecorrido[] {
+// Una marca cada media hora en el recorrido: el primer punto de cada media
+// hora del reloj (9:02, 9:30, 10:05…). El recorrido viene del más viejo al más nuevo.
+export function marcasPorMediaHora(recorrido: PuntoRecorrido[]): PuntoRecorrido[] {
   const marcas: PuntoRecorrido[] = [];
   let horaAnterior = '';
   for (const punto of recorrido) {
     const fecha = new Date(punto.registrado_en);
-    // Día y hora local juntos: no se confunden las 9 de dos días distintos.
-    const hora = `${fecha.toDateString()} ${fecha.getHours()}`;
-    if (hora === horaAnterior) continue;
-    horaAnterior = hora;
+    // Día, hora y mitad de la hora (0 = :00-:29, 1 = :30-:59) juntos: no se
+    // confunden las 9 de dos días distintos.
+    const mitad = fecha.getMinutes() < 30 ? 0 : 1;
+    const mediaHora = `${fecha.toDateString()} ${fecha.getHours()} ${mitad}`;
+    if (mediaHora === horaAnterior) continue;
+    horaAnterior = mediaHora;
     marcas.push(punto);
   }
   return marcas;
