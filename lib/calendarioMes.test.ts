@@ -20,17 +20,21 @@ describe('calendario mensual', () => {
     expect(moverMes(2026, 0, -1)).toEqual({ anio: 2025, mes: 11 });
   });
 
-  it('separa hechos, por venir, vencidos y cancelados de cada día', () => {
+  it('separa hechos, en curso, por venir, vencidos y cancelados de cada día', () => {
     const r = resumenPorDia([
       { id: 'a', fecha: '2026-10-08', estado: 'concluido' },
       { id: 'b', fecha: '2026-10-08', estado: 'programado' },
       { id: 'c', fecha: '2026-10-09', estado: 'en_curso' },
+      { id: 'f', fecha: '2026-10-09', estado: 'en_sitio' },
+      { id: 'g', fecha: '2026-10-09', estado: 'programado' },
+      { id: 'h', fecha: '2026-10-08', estado: 'en_curso' },
       { id: 'd', fecha: '2026-10-12', estado: 'programado' },
       { id: 'e', fecha: '2026-10-12', estado: 'cancelado' },
     ], '2026-10-09');
-    expect(r['2026-10-08']).toEqual({ hechos: 1, porVenir: 0, vencidos: 1, cancelados: 0 });
-    expect(r['2026-10-09']).toEqual({ hechos: 0, porVenir: 1, vencidos: 0, cancelados: 0 });
-    expect(r['2026-10-12']).toEqual({ hechos: 0, porVenir: 1, vencidos: 0, cancelados: 1 });
+    // Uno en curso de un día que ya pasó cuenta como sin concluir.
+    expect(r['2026-10-08']).toEqual({ hechos: 1, enCurso: 0, porVenir: 0, vencidos: 2, cancelados: 0 });
+    expect(r['2026-10-09']).toEqual({ hechos: 0, enCurso: 2, porVenir: 1, vencidos: 0, cancelados: 0 });
+    expect(r['2026-10-12']).toEqual({ hechos: 0, enCurso: 0, porVenir: 1, vencidos: 0, cancelados: 1 });
   });
 
   it('escribe la fecha larga sin correrse de día', () => {

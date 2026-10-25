@@ -9,13 +9,13 @@ import { Festivo, festivoDe } from '@/lib/avisos';
 import { hoyLocal } from '@/lib/fechaHoy';
 import { debeReporte } from '@/lib/visitaSinTrabajo';
 import {
-  MESES, DIAS_CORTOS, semanasDelMes, moverMes, resumenPorDia, fechaLargaCalendario,
+  MESES, DIAS_CORTOS, semanasDelMes, moverMes, resumenPorDia, fechaLargaCalendario, estaEnCurso,
 } from '@/lib/calendarioMes';
 
 // Calendario mensual de servicios con el detalle del día al lado.
-//   · Rejilla del mes: hoy resaltado y puntos por día (hecho, por venir,
-//     vencido). Al cambiar de mes la rejilla se desliza.
-//   · Panel del día elegido: «Hecho» y «Por venir», cada servicio con su
+//   · Rejilla del mes: hoy resaltado y puntos por día (hecho, en curso, por
+//     venir, vencido). Al cambiar de mes la rejilla se desliza.
+//   · Panel del día elegido: «En curso», «Por venir» y «Hecho», cada servicio con su
 //     hora, su gente y su estado, y de ahí al servicio.
 // Lo usan la Agenda del supervisor (todos los servicios, con «Programar») y
 // Servicios del técnico (los suyos). En celular el panel va debajo.
@@ -24,10 +24,14 @@ import {
 
 type ServicioMes = Servicio & { tecnicos?: string[] };
 
+// Color de «En curso»: violeta, distinto del acento (hecho), del ámbar (por
+// venir) y del rojo (sin concluir) en todas las marcas de la app.
+const PUNTO_EN_CURSO = 'bg-[#8b5cf6]';
+
 const ESTADO: Record<Servicio['estado'], { label: string; cls: string }> = {
   programado: { label: 'Programado', cls: 'bg-surface-2 text-muted' },
-  en_sitio: { label: 'En sitio', cls: 'bg-amber/15 text-amber' },
-  en_curso: { label: 'En curso', cls: 'bg-teal/15 text-teal' },
+  en_sitio: { label: 'En sitio', cls: 'bg-[#8b5cf6]/15 text-[#8b5cf6]' },
+  en_curso: { label: 'En curso', cls: 'bg-[#8b5cf6]/15 text-[#8b5cf6]' },
   concluido: { label: 'Concluido', cls: 'bg-teal/15 text-teal' },
   cancelado: { label: 'Cancelado', cls: 'bg-surface-2 text-faint' },
 };
@@ -37,7 +41,7 @@ function hora(s: ServicioMes): string | null {
   return h ? h.slice(0, 5) : null;
 }
 
-function Renglon({ s, href, hecho, vencido }: { s: ServicioMes; href: string; hecho: boolean; vencido: boolean }) {
+function Renglon({ s, href, hecho, vencido, enCurso = false }: { s: ServicioMes; href: string; hecho: boolean; vencido: boolean; enCurso?: boolean }) {
   const h = hora(s);
   const sinReporte = hecho && debeReporte(s);
   return (
@@ -45,9 +49,7 @@ function Renglon({ s, href, hecho, vencido }: { s: ServicioMes; href: string; he
       href={href}
       className="group flex items-start gap-3 rounded-xl border border-line bg-surface px-3.5 py-3 transition-all duration-150 hover:border-teal/45 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]"
     >
-      <span className={`mt-0.5 w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${hecho ? 'bg-teal text-inkOnAccent' : vencido ? 'bg-red/15 text-red' : 'bg-surface-2 text-muted border border-line'}`}>
-        {hecho ? <Check size={14} strokeWidth={3} /> : vencido ? <AlertTriangle size={13} strokeWidth={2.6} /> : <Clock size={13} strokeWidth={2.4} />}
-      </span>
+      <IconoRenglon hecho={hecho} vencido={vencido} enCurso={enCurso} />
       <span className="min-w-0 flex-1">
         <span className="block text-[14px] font-semibold leading-snug truncate transition-colors group-hover:text-teal">
           {s.proyecto}{s.dias_totales > 1 ? ` · día ${s.numero_dia}/${s.dias_totales}` : ''}
@@ -74,6 +76,28 @@ function Renglon({ s, href, hecho, vencido }: { s: ServicioMes; href: string; he
       <ChevronRight size={16} strokeWidth={2.3} className="mt-1 shrink-0 text-faint transition-all group-hover:text-teal group-hover:translate-x-0.5" />
     </Link>
   );
+}
+
+// Ícono de la izquierda del renglón: palomita (hecho), alerta (sin concluir),
+// punto violeta que late (en curso) o reloj (por venir).
+function IconoRenglon({ hecho, vencido, enCurso }: { hecho: boolean; vencido: boolean; enCurso: boolean }) {
+  if (hecho) {
+    return <span className="mt-0.5 w-6 h-6 rounded-full flex items-center justify-center shrink-0 bg-teal text-inkOnAccent"><Check size={14} strokeWidth={3} /></span>;
+  }
+  if (vencido) {
+    return <span className="mt-0.5 w-6 h-6 rounded-full flex items-center justify-center shrink-0 bg-red/15 text-red"><AlertTriangle size={13} strokeWidth={2.6} /></span>;
+  }
+  if (enCurso) {
+    return (
+      <span className="mt-0.5 w-6 h-6 rounded-full flex items-center justify-center shrink-0 bg-[#8b5cf6]/15">
+        <span className="relative flex w-2.5 h-2.5">
+          <span className={`absolute inset-0 rounded-full ${PUNTO_EN_CURSO} opacity-60 animate-ping motion-reduce:animate-none`} />
+          <span className={`relative w-2.5 h-2.5 rounded-full ${PUNTO_EN_CURSO}`} />
+        </span>
+      </span>
+    );
+  }
+  return <span className="mt-0.5 w-6 h-6 rounded-full flex items-center justify-center shrink-0 bg-surface-2 text-muted border border-line"><Clock size={13} strokeWidth={2.4} /></span>;
 }
 
 export default function CalendarioMes({
@@ -104,13 +128,15 @@ export default function CalendarioMes({
   const semanas = useMemo(() => (mesVisto ? semanasDelMes(mesVisto.anio, mesVisto.mes) : []), [mesVisto]);
 
   const delDia = useMemo(() => {
-    if (!elegido || !hoy) return { hechos: [], porVenir: [], cancelados: [] as ServicioMes[] };
+    if (!elegido || !hoy) return { hechos: [], enCurso: [], porVenir: [], cancelados: [] as ServicioMes[] };
     const lista = servicios
       .filter((s) => s.fecha === elegido)
       .sort((a, b) => (hora(a) || '99').localeCompare(hora(b) || '99') || a.proyecto.localeCompare(b.proyecto, 'es'));
     return {
       hechos: lista.filter((s) => s.estado === 'concluido'),
-      porVenir: lista.filter((s) => s.estado !== 'concluido' && s.estado !== 'cancelado'),
+      // En curso solo hoy o después: de un día pasado cuenta como sin concluir.
+      enCurso: lista.filter((s) => elegido >= hoy && estaEnCurso(s.estado)),
+      porVenir: lista.filter((s) => s.estado !== 'concluido' && s.estado !== 'cancelado' && !(elegido >= hoy && estaEnCurso(s.estado))),
       cancelados: lista.filter((s) => s.estado === 'cancelado'),
     };
   }, [servicios, elegido, hoy]);
@@ -140,7 +166,7 @@ export default function CalendarioMes({
 
   const festivoElegido = festivoDe(elegido, festivos);
   const pasado = elegido < hoy;
-  const totalDia = delDia.hechos.length + delDia.porVenir.length + delDia.cancelados.length;
+  const totalDia = delDia.hechos.length + delDia.enCurso.length + delDia.porVenir.length + delDia.cancelados.length;
   const enMesActual = hoy.startsWith(`${mesVisto.anio}-${String(mesVisto.mes + 1).padStart(2, '0')}`);
 
   return (
@@ -197,7 +223,7 @@ export default function CalendarioMes({
               const esHoy = c.fecha === hoy;
               const sel = c.fecha === elegido;
               const festivo = festivoDe(c.fecha, festivos);
-              const total = r ? r.hechos + r.porVenir + r.vencidos : 0;
+              const total = r ? r.hechos + r.enCurso + r.porVenir + r.vencidos : 0;
               return (
                 <button
                   key={c.fecha}
@@ -226,6 +252,7 @@ export default function CalendarioMes({
                   {r && total > 0 && (
                     <span className="mt-auto flex items-center gap-1 pt-1">
                       {r.vencidos > 0 && <span className="w-2 h-2 rounded-full bg-red" aria-hidden="true" />}
+                      {r.enCurso > 0 && <span className={`w-2 h-2 rounded-full ${PUNTO_EN_CURSO}`} aria-hidden="true" />}
                       {r.porVenir > 0 && <span className="w-2 h-2 rounded-full bg-amber" aria-hidden="true" />}
                       {r.hechos > 0 && <span className="w-2 h-2 rounded-full bg-teal" aria-hidden="true" />}
                       <span className="hidden sm:inline text-[11px] font-semibold text-muted tabular-nums ml-0.5">{total}</span>
@@ -239,6 +266,7 @@ export default function CalendarioMes({
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-4 text-[12px] text-muted">
           <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-teal" />Hecho</span>
+          <span className="flex items-center gap-1.5"><span className={`w-2 h-2 rounded-full ${PUNTO_EN_CURSO}`} />En curso</span>
           <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber" />Por venir</span>
           <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red" />Sin concluir</span>
           {cargando && <span className="ml-auto">Actualizando…</span>}
@@ -290,6 +318,18 @@ export default function CalendarioMes({
                 <p className="text-[14px] font-medium">Nada programado este día</p>
                 <p className="text-[12.5px] text-muted mt-1">{pasado ? 'No hubo servicios.' : hrefProgramar ? 'Puedes agendar uno desde aquí.' : 'Tu supervisor no ha programado nada.'}</p>
               </div>
+            )}
+
+            {delDia.enCurso.length > 0 && (
+              <section className="mb-4">
+                <p className="text-[11.5px] font-semibold uppercase tracking-[0.08em] text-muted mb-2 flex items-center gap-2">
+                  En curso
+                  <span className="text-faint tabular-nums">{delDia.enCurso.length}</span>
+                </p>
+                <div className="flex flex-col gap-2">
+                  {delDia.enCurso.map((s) => <Renglon key={s.id} s={s} href={hrefServicio(s)} hecho={false} vencido={false} enCurso />)}
+                </div>
+              </section>
             )}
 
             {delDia.porVenir.length > 0 && (

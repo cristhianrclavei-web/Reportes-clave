@@ -47,20 +47,28 @@ export function moverMes(anio: number, mes: number, pasos: number): { anio: numb
 
 export type ResumenDia = {
   hechos: number;
-  // Programados o en marcha cuya fecha es hoy o futura.
+  // Hoy, con alguien ya en sitio o trabajando (en_sitio / en_curso).
+  enCurso: number;
+  // Programados cuya fecha es hoy o futura.
   porVenir: number;
   // La fecha ya pasó y no se concluyeron: hay que reprogramarlos.
   vencidos: number;
   cancelados: number;
 };
 
+// Alguien ya llegó al sitio o está trabajando.
+export function estaEnCurso(estado: string): boolean {
+  return estado === 'en_sitio' || estado === 'en_curso';
+}
+
 export function resumenPorDia(servicios: ServicioCalendario[], hoy: string): Record<string, ResumenDia> {
   const mapa: Record<string, ResumenDia> = {};
   servicios.forEach((s) => {
-    const r = (mapa[s.fecha] ||= { hechos: 0, porVenir: 0, vencidos: 0, cancelados: 0 });
+    const r = (mapa[s.fecha] ||= { hechos: 0, enCurso: 0, porVenir: 0, vencidos: 0, cancelados: 0 });
     if (s.estado === 'cancelado') r.cancelados++;
     else if (s.estado === 'concluido') r.hechos++;
     else if (s.fecha < hoy) r.vencidos++;
+    else if (estaEnCurso(s.estado)) r.enCurso++;
     else r.porVenir++;
   });
   return mapa;
