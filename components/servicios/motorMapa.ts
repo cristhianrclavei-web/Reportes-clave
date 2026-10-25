@@ -39,7 +39,7 @@ export async function crearMotorBasico(div: HTMLDivElement, zoomControl: boolean
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(mapa);
   const pines = L.layerGroup().addTo(mapa);
   const marcasCapa = L.layerGroup().addTo(mapa);
-  let ruta: ReturnType<typeof L.polyline> | null = null;
+  let ruta: ReturnType<typeof L.layerGroup> | null = null;
 
   return {
     ponerPines(lista, alTocar) {
@@ -68,7 +68,11 @@ export async function crearMotorBasico(div: HTMLDivElement, zoomControl: boolean
       ruta?.remove();
       ruta = null;
       if (puntos.length < 2) return;
-      ruta = L.polyline(puntos, { color: COLOR_RUTA, weight: 4, opacity: 0.8 }).addTo(mapa);
+      // Borde blanco debajo de la línea azul: se lee sobre calles y satélite.
+      ruta = L.layerGroup([
+        L.polyline(puntos, { color: '#ffffff', weight: 8, opacity: 0.9, lineCap: 'round', lineJoin: 'round' }),
+        L.polyline(puntos, { color: COLOR_RUTA, weight: 4.5, opacity: 0.95, lineCap: 'round', lineJoin: 'round' }),
+      ]).addTo(mapa);
     },
     encuadrar(puntos) {
       if (puntos.length === 0) return;
@@ -76,7 +80,11 @@ export async function crearMotorBasico(div: HTMLDivElement, zoomControl: boolean
         mapa.setView(puntos[0], 15);
         return;
       }
-      mapa.fitBounds(puntos, { padding: [50, 50] });
+      const ajustar = () => mapa.fitBounds(puntos, { padding: [50, 50] });
+      // Si el mapa todavía se está acercando (al elegir a alguien), Leaflet
+      // ignora el nuevo encuadre: se espera a que termine.
+      if ((mapa as any)._animatingZoom) mapa.once('zoomend', ajustar);
+      else ajustar();
     },
     centrar(punto, zoomMinimo) {
       mapa.setView(punto, Math.max(mapa.getZoom(), zoomMinimo));
@@ -198,7 +206,7 @@ export async function crearMotorGoogle(div: HTMLDivElement, zoomControl: boolean
 
   let pines: PinHtml[] = [];
   let marcas: MarcaHtml[] = [];
-  let ruta: any = null;
+  let rutas: any[] = [];
 
   return {
     ponerPines(lista, alTocar) {
@@ -218,16 +226,15 @@ export async function crearMotorGoogle(div: HTMLDivElement, zoomControl: boolean
       });
     },
     ponerRuta(puntos) {
-      ruta?.setMap(null);
-      ruta = null;
+      for (const r of rutas) r.setMap(null);
+      rutas = [];
       if (puntos.length < 2) return;
-      ruta = new Polyline({
-        path: puntos.map(([lat, lng]) => ({ lat, lng })),
-        strokeColor: COLOR_RUTA,
-        strokeWeight: 4,
-        strokeOpacity: 0.8,
-        map: mapa,
-      });
+      const path = puntos.map(([lat, lng]) => ({ lat, lng }));
+      // Borde blanco debajo de la línea azul, igual que en el mapa básico.
+      rutas = [
+        new Polyline({ path, strokeColor: '#ffffff', strokeWeight: 8, strokeOpacity: 0.9, map: mapa }),
+        new Polyline({ path, strokeColor: COLOR_RUTA, strokeWeight: 4.5, strokeOpacity: 0.95, map: mapa }),
+      ];
     },
     encuadrar(puntos) {
       if (puntos.length === 0) return;
@@ -250,7 +257,7 @@ export async function crearMotorGoogle(div: HTMLDivElement, zoomControl: boolean
       if (alFallarGoogle === siFalla) alFallarGoogle = null;
       for (const pin of pines) pin.setMap(null);
       for (const m of marcas) m.setMap(null);
-      ruta?.setMap(null);
+      for (const r of rutas) r.setMap(null);
       div.innerHTML = '';
     },
   };

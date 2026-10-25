@@ -261,7 +261,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
           'Toca a una persona en la tira de abajo del mapa o en el mapa para ver su recorrido de hoy.',
           'El botón de ampliar (arriba a la derecha) pone el mapa en toda la pantalla, en la computadora y en el celular. Para salir, el mismo botón o la tecla Esc.',
           'Para ver días anteriores usa el selector de día de la tarjeta del mapa (‹ Hoy ›; tocar el día abre el calendario; hasta 90 días atrás). En un día pasado sale el último punto de cada técnico ese día y, al tocarlo, su recorrido completo. La tarjeta del Resumen es la misma que la de Servicios → Mapa.',
-          'Al elegir a una persona, su recorrido lleva una marca cada 10 minutos («9 a.m.», «9:10 a.m.», «9:20 a.m.»…). Pasa el mouse o toca una marca para ver la hora exacta, la fecha y las coordenadas de dónde estaba.',
+          'Al elegir a una persona, el mapa muestra su recorrido completo: la etiqueta verde «Inicio» donde empezó el día, una etiqueta en cada hora en punto («9 a.m.», «10 a.m.»…) y un punto cada 10 minutos. Pasa el mouse o toca una marca para ver la hora exacta, la fecha, cuánto tiempo se quedó ahí (si fueron 5 minutos o más) y las coordenadas.',
           'Los recorridos se borran solos a los 90 días.',
           'En el teléfono: abre la app de Clave cada mañana. Debe quedar el aviso fijo «Clave» en la barra de notificaciones; si se quita, la ubicación deja de llegar.',
         ],

@@ -509,13 +509,77 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   .e404c-destello { animation: none !important; opacity: 0.6; }
 }
 
-/* Halo que late en el pin de un técnico en línea (mapa de técnicos). */
+/* Pin de un técnico (mapa de técnicos): círculo con sus iniciales en el
+   color de su señal (--color-pin). En línea: halo que late. Elegido o con el
+   mouse encima: se agranda y muestra nombre y hora del último punto.
+   Mide 36 px: los dos mapas lo anclan por el centro. */
+.pin-tec {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  font-family: Inter, system-ui, sans-serif;
+}
+.pin-tec-cara {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--color-pin);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--color-pin) 82%, #ffffff), var(--color-pin));
+  border: 3px solid #ffffff;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.35);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.pin-tec:hover .pin-tec-cara { transform: scale(1.1); }
+.pin-tec.elegido .pin-tec-cara {
+  transform: scale(1.18);
+  box-shadow: 0 0 0 3px var(--color-pin), 0 8px 20px rgba(15, 23, 42, 0.4);
+}
+/* Sin señal: apagado, para que resalten los que sí están en línea. */
+.pin-tec.apagado .pin-tec-cara { filter: saturate(0.4); opacity: 0.85; }
+.pin-tec-halo {
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+  background: var(--color-pin);
+  animation: pulsoTecnico 2.2s ease-out infinite;
+}
+.pin-tec-nombre {
+  position: absolute;
+  top: calc(100% + 7px);
+  left: 50%;
+  transform: translate(-50%, -3px);
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.3);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.pin-tec:hover .pin-tec-nombre,
+.pin-tec.elegido .pin-tec-nombre {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
 @keyframes pulsoTecnico {
-  0% { transform: scale(0.8); opacity: 0.45; }
-  100% { transform: scale(1.6); opacity: 0; }
+  0% { transform: scale(0.75); opacity: 0.5; }
+  100% { transform: scale(1.7); opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .leaflet-marker-icon span { animation: none !important; }
+  .pin-tec-halo { animation: none; opacity: 0.25; }
+  .pin-tec-cara, .pin-tec-nombre { transition: none; }
 }
 
 /* Marcas cada 10 minutos del recorrido (mapa de técnicos): una etiqueta con la
@@ -603,6 +667,39 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   font: 600 11px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 .marca-hora-detalle i { display: block; margin-top: 5px; color: #2563eb; font-style: normal; font-weight: 600; font-size: 11px; }
+/* Inicio del día: etiqueta verde. */
+.marca-hora.inicio .marca-hora-etiqueta { border-color: #16a34a; }
+.marca-hora.inicio .marca-hora-etiqueta::before { background: #16a34a; }
+.marca-hora.inicio .marca-hora-pico { border-top-color: #16a34a; }
+.marca-hora.inicio:hover .marca-hora-etiqueta,
+.marca-hora.inicio.abierta .marca-hora-etiqueta { background: #16a34a; }
+/* Marcas que no son hora en punto: solo un punto sobre la línea, centrado. */
+.marca-hora.punto { transform: translate(-50%, -50%); }
+.marca-hora-punto {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2.5px solid #2563eb;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.3);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.marca-hora.punto:hover .marca-hora-punto,
+.marca-hora.punto.abierta .marca-hora-punto {
+  background: #2563eb;
+  transform: scale(1.35);
+}
+.marca-hora-detalle em {
+  display: inline-block;
+  margin-top: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-style: normal;
+  font-weight: 600;
+  font-size: 11px;
+}
 @media (prefers-reduced-motion: reduce) {
-  .marca-hora-etiqueta, .marca-hora-detalle { transition: none; }
+  .marca-hora-etiqueta, .marca-hora-detalle, .marca-hora-punto { transition: none; }
 }

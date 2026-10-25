@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { EstadoSenal, PuntoRecorrido, UltimaUbicacion, estadoSenal, marcasDelRecorrido, MINUTOS_ENTRE_MARCAS, recorridoDelDia, ultimasUbicacionesDelDia, ultimasUbicacionesHoy, DIAS_HISTORIAL } from '@/lib/ubicacionTecnicos';
+import { EstadoSenal, PuntoRecorrido, UltimaUbicacion, estadoSenal, marcasDelRecorrido, minutosEnElLugar, MINUTOS_ENTRE_MARCAS, recorridoDelDia, ultimasUbicacionesDelDia, ultimasUbicacionesHoy, DIAS_HISTORIAL } from '@/lib/ubicacionTecnicos';
 import { useEnVivo } from '@/lib/useEnVivo';
 import { fechaLocal, hoyLocal, sumarDias } from '@/lib/fechaHoy';
 import { LLAVE_GOOGLE_MAPS, MarcaMapa, MotorMapa, PinMapa, Punto, crearMotorBasico, crearMotorGoogle } from './motorMapa';
@@ -41,15 +41,19 @@ function preferenciaGuardada(): TipoMotor {
 // Días pasados: ya no hay «señal», el pin va de un solo color.
 export const COLOR_HISTORIAL = '#2563eb';
 
-// HTML del pin: las iniciales con el color de su señal y, si está en línea,
-// un halo que late. Lo usan los dos mapas.
+// HTML del pin (clases .pin-tec en globals.css): las iniciales con el color
+// de su señal; si está en línea, un halo que late. El elegido se agranda y
+// muestra su nombre y la hora de su último punto (también al pasar el mouse).
 function htmlPin(t: UltimaUbicacion, estado: EstadoSenal | null, elegido: boolean): string {
-  const borde = elegido ? '#111827' : '#ffffff';
   const color = estado ? COLOR_SENAL[estado] : COLOR_HISTORIAL;
-  const halo = estado === 'en_linea'
-    ? `<span style="position:absolute;inset:-6px;border-radius:50%;background:${color};opacity:.35;animation:pulsoTecnico 2s ease-out infinite"></span>`
-    : '';
-  return `<div style="position:relative;width:36px;height:36px">${halo}<div style="position:relative;width:36px;height:36px;border-radius:50%;background:${color};border:3px solid ${borde};color:#fff;font:700 12px sans-serif;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,.35)">${inicialesTecnico(t.nombre)}</div></div>`;
+  const clases = ['pin-tec'];
+  if (elegido) clases.push('elegido');
+  if (estado === 'sin_senal') clases.push('apagado');
+  const halo = estado === 'en_linea' ? '<span class="pin-tec-halo"></span>' : '';
+  const nombre = sinEtiquetas(`${t.nombre || 'Técnico'} · ${horaCorta(t.registrado_en)}`);
+  return `<div class="${clases.join(' ')}" style="--color-pin:${color}">${halo}`
+    + `<div class="pin-tec-cara">${inicialesTecnico(t.nombre)}</div>`
+    + `<div class="pin-tec-nombre">${nombre}</div></div>`;
 }
 
 // Texto seguro para meterlo en el HTML de la marca.
@@ -57,9 +61,14 @@ function sinEtiquetas(texto: string): string {
   return texto.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-// Marca de una hora del recorrido: etiqueta «9 a.m.» y, al pasar el mouse
-// o tocarla, la tarjeta con hora exacta, fecha y coordenadas.
-function htmlMarcaHora(p: PuntoRecorrido, nombre: string | null): string {
+// Marca del recorrido (cada 10 minutos). Tres formas, para no saturar:
+//  · inicio: etiqueta verde «Inicio · 8:02 a.m.» en el primer punto del día;
+//  · hora en punto: etiqueta «9 a.m.»;
+//  · las demás: solo un punto.
+// Al pasar el mouse o tocarla, la tarjeta con hora exacta, fecha, cuánto
+// tiempo se quedó ahí (si fueron 5 min o más) y coordenadas.
+type TipoMarca = 'inicio' | 'hora' | 'punto';
+function htmlMarcaHora(p: PuntoRecorrido, nombre: string | null, tipo: TipoMarca, minutosAqui: number): string {
   const fecha = new Date(p.registrado_en);
   // La etiqueta dice a qué tramo pertenece la marca («9 a.m.», «9:10 a.m.»…).
   const inicioTramo = new Date(fecha);
@@ -72,10 +81,21 @@ function htmlMarcaHora(p: PuntoRecorrido, nombre: string | null): string {
   const diaLargo = fecha.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const dia = diaLargo.charAt(0).toUpperCase() + diaLargo.slice(1);
   const coordenadas = `${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`;
-  return `<div class="marca-hora" role="button" aria-label="${sinEtiquetas(`${hora}, ${coordenadas}`)}">`
-    + `<div class="marca-hora-detalle"><b>${sinEtiquetas(hora)}</b><small>${sinEtiquetas(dia)}</small>`
-    + `<code>${coordenadas}</code><i>${sinEtiquetas(nombre || 'Técnico')}</i></div>`
-    + `<div class="marca-hora-etiqueta">${sinEtiquetas(etiqueta)}</div><div class="marca-hora-pico"></div></div>`;
+  const estancia = minutosAqui >= 5 ? `<em>Estuvo aquí ~${duracionCorta(minutosAqui)}</em>` : '';
+  const detalle = `<div class="marca-hora-detalle"><b>${sinEtiquetas(hora)}</b><small>${sinEtiquetas(dia)}</small>`
+    + `${estancia}<code>${coordenadas}</code><i>${sinEtiquetas(nombre || 'Técnico')}</i></div>`;
+  let figura = '<div class="marca-hora-punto"></div>';
+  if (tipo === 'hora') figura = `<div class="marca-hora-etiqueta">${sinEtiquetas(etiqueta)}</div><div class="marca-hora-pico"></div>`;
+  if (tipo === 'inicio') figura = `<div class="marca-hora-etiqueta">Inicio · ${sinEtiquetas(hora)}</div><div class="marca-hora-pico"></div>`;
+  return `<div class="marca-hora ${tipo}" role="button" aria-label="${sinEtiquetas(`${hora}, ${coordenadas}`)}">${detalle}${figura}</div>`;
+}
+
+// «25 min», «1 h 20 min».
+function duracionCorta(minutos: number): string {
+  if (minutos < 60) return `${minutos} min`;
+  const horas = Math.floor(minutos / 60);
+  const resto = minutos % 60;
+  return resto === 0 ? `${horas} h` : `${horas} h ${resto} min`;
 }
 
 export function useMapaTecnicos({ zoomControl = true }: { zoomControl?: boolean } = {}) {
@@ -237,11 +257,26 @@ export function useMapaTecnicos({ zoomControl = true }: { zoomControl?: boolean 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [elegido, tecnicos]);
 
+  // Al elegir a alguien, el mapa encuadra su recorrido completo una sola vez
+  // (no en cada punto nuevo, para no mover el mapa mientras se mira).
+  const recorridoEncuadradoRef = useRef<string | null>(null);
   useEffect(() => {
-    motorRef.current?.ponerRuta(recorrido.map((p) => [p.lat, p.lng] as Punto));
+    const puntos = recorrido.map((p) => [p.lat, p.lng] as Punto);
+    if (elegido && puntos.length >= 2 && recorridoEncuadradoRef.current !== elegido) {
+      recorridoEncuadradoRef.current = elegido;
+      motorRef.current?.encuadrar(puntos);
+    }
+    if (!elegido) recorridoEncuadradoRef.current = null;
+    motorRef.current?.ponerRuta(puntos);
     // Una marca cada 10 minutos sobre el recorrido, como referencia de dónde estaba.
     const nombre = tecnicos.find((t) => t.tecnico_id === elegido)?.nombre || null;
-    const marcas: MarcaMapa[] = marcasDelRecorrido(recorrido).map((p) => ({ lat: p.lat, lng: p.lng, html: htmlMarcaHora(p, nombre) }));
+    const marcas: MarcaMapa[] = marcasDelRecorrido(recorrido).map((p, i) => {
+      let tipo: TipoMarca = 'punto';
+      if (i === 0) tipo = 'inicio';
+      else if (new Date(p.registrado_en).getMinutes() < MINUTOS_ENTRE_MARCAS) tipo = 'hora';
+      const minutosAqui = minutosEnElLugar(recorrido, recorrido.indexOf(p));
+      return { lat: p.lat, lng: p.lng, html: htmlMarcaHora(p, nombre, tipo, minutosAqui) };
+    });
     motorRef.current?.ponerMarcas(marcas);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version, recorrido]);

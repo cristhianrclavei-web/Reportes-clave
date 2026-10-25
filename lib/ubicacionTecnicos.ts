@@ -1,4 +1,5 @@
 import { createClient } from './supabaseClient';
+import { distanciaMetros } from './geocerca';
 
 // Lectura de las ubicaciones de los técnicos para el mapa de supervisión
 // (supabase/patch_ubicacion_tecnicos.sql).
@@ -95,6 +96,20 @@ function mensajeError(texto: string): string {
     return FALTA_SQL_UBICACION;
   }
   return 'No se pudieron cargar las ubicaciones. Revisa tu conexión e intenta de nuevo.';
+}
+
+// Cuántos minutos se quedó el técnico cerca (60 m) del punto `indice`: se
+// avanza mientras los puntos siguientes sigan dentro del radio. Sirve para
+// decir «Estuvo aquí ~25 min» en la marca del recorrido.
+export function minutosEnElLugar(recorrido: PuntoRecorrido[], indice: number, radioMetros = 60): number {
+  const inicio = recorrido[indice];
+  if (!inicio) return 0;
+  let ultimo = inicio;
+  for (let i = indice + 1; i < recorrido.length; i++) {
+    if (distanciaMetros(inicio, recorrido[i]) > radioMetros) break;
+    ultimo = recorrido[i];
+  }
+  return Math.round((Date.parse(ultimo.registrado_en) - Date.parse(inicio.registrado_en)) / 60000);
 }
 
 // Cada cuántos minutos del reloj lleva una marca el recorrido.
