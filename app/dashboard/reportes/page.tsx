@@ -18,6 +18,9 @@ export default async function ReportesPage() {
   const { data: reports, error: errorReports } = await supabase
     .from('reports')
     .select('*, profiles!reports_created_by_profiles_fkey(full_name)')
+    // Por la fecha del servicio (la más reciente primero), no por cuándo se
+    // capturó: un reporte atrasado queda en su día. Mismo día: el último capturado arriba.
+    .order('fecha', { ascending: false })
     .order('created_at', { ascending: false });
 
   return (
