@@ -131,7 +131,10 @@ export async function crearMotorGoogle(div: HTMLDivElement, zoomControl: boolean
   alFallarGoogle = siFalla;
   // Sin los tipos de Google instalados: se usa `any` para su espacio de nombres.
   const google = (window as any).google;
-  const { Map, OverlayView, Polyline, LatLngBounds } = await google.maps.importLibrary('maps');
+  const { Map, OverlayView, Polyline } = await google.maps.importLibrary('maps');
+  // LatLngBounds no viene en la librería «maps» sino en la base (google.maps),
+  // que ya está cargada: tomarlo de «maps» daba «is not a constructor».
+  const { LatLngBounds } = google.maps;
 
   const mapa = new Map(div, {
     center: { lat: CENTRO_MEXICO[0], lng: CENTRO_MEXICO[1] },
