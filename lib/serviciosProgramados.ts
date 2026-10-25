@@ -19,6 +19,7 @@ import { motivoFechaNoCoincide } from './fechaVinculo';
 import { evidenciasDe } from './evidencias';
 import { PREFIJO_ESPERA_INICIO } from './esperaInicio';
 import { VisitaEstado, debeReporte, FILTRO_DEBE_REPORTE } from './visitaSinTrabajo';
+import { consultarPersonalDeCampo } from './personalDeCampo';
 
 export type Servicio = {
   id: string;
@@ -152,11 +153,11 @@ export async function listarTecnicosDeServicio(servicioId: string): Promise<stri
   return ((data || []) as any[]).map((r) => r.full_name).filter(Boolean) as string[];
 }
 
+// Para agendar: personal técnico y supervisión que sale a servicios.
 export async function listarTecnicos(): Promise<{ id: string; full_name: string }[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase.from('profiles').select('id, full_name').eq('role', 'tecnico').order('full_name');
+  const { data, error } = await consultarPersonalDeCampo('id, full_name');
   if (error) throw error;
-  return data || [];
+  return (data as unknown as { id: string; full_name: string }[]) || [];
 }
 
 // Cada día del proyecto tiene su PROPIA fecha. Antes todos los días

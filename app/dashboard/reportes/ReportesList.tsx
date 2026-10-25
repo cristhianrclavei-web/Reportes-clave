@@ -17,7 +17,8 @@ import LevantamientosSeccion from '@/components/LevantamientosSeccion';
 import { VistaCondicional } from '@/lib/vistaSupervisor';
 import { facturaChip } from '@/lib/reportStatus';
 import { showToast } from '@/components/Toast';
-import { Check, MessageSquareWarning, FileText, ClipboardList, CalendarCheck, ListChecks, History } from 'lucide-react';
+import { Check, MessageSquareWarning, FileText, ClipboardList, CalendarCheck, ListChecks, History, FilePlus2 } from 'lucide-react';
+import { useSaleAServicios } from '@/lib/useSaleAServicios';
 import ControlReportes from '@/components/ControlReportes';
 import CoberturaReportes from '@/components/CoberturaReportes';
 import SelectorSemana, { RangoSeleccionado } from '@/components/SelectorSemana';
@@ -53,6 +54,7 @@ export default function ReportesList({
   const fechasDeReportes = useMemo(() => reports.map((r) => r.fecha).filter(Boolean), [reports]);
   const [open, setOpen] = useState<Report | null>(null);
   const [subseccion, setSubseccion] = useState<'reportes' | 'control' | 'cobertura' | 'levantamientos' | 'actividad'>('reportes');
+  const saleAServicios = useSaleAServicios();
   useSubseccionUrl(subseccion, setSubseccion, ['reportes', 'control', 'cobertura', 'levantamientos', 'actividad']);
   // Ver el comentario en lib/reportStatus.ts: "ahora" solo se conoce ya
   // montado en el cliente, para que el chip de facturación no dispare un
@@ -151,6 +153,12 @@ export default function ReportesList({
       title="Reportes"
       userName={userName}
       wrapperClassName="max-w-3xl lg:max-w-none mx-auto pb-10 px-0 lg:px-8 2xl:px-10"
+      acciones={saleAServicios ? (
+        // Supervisión que sale a campo: hace su reporte con el mismo formulario del personal técnico.
+        <Link href="/nuevo" className="h-10 px-4 rounded-full bg-teal text-inkOnAccent text-[13.5px] font-semibold flex items-center gap-1.5 shadow-glow-teal active:scale-95 transition-transform">
+          <FilePlus2 size={16} strokeWidth={2.4} /> Hacer reporte
+        </Link>
+      ) : undefined}
     >
         <SubTabs
           activa={subseccion}

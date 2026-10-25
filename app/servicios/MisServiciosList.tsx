@@ -19,7 +19,7 @@ import { getCurrentLocation } from '@/lib/geolocation';
 import { distanciaMetros } from '@/lib/geocerca';
 import ProgressBar from '@/components/ProgressBar';
 import EmptyIllustration from '@/components/EmptyIllustration';
-import { MapPin, Play, Check, Clock, CheckCheck, LocateFixed, ChevronRight } from 'lucide-react';
+import { MapPin, Play, Check, Clock, CheckCheck, LocateFixed, ChevronRight, ChevronLeft } from 'lucide-react';
 import { Verificacion, miVerificacionPendiente } from '@/lib/presencia';
 import { calcularResultadoServicio } from '@/lib/resultadoServicio';
 import { ResultadoBadges } from '@/components/ResultadoServicioBadges';
@@ -48,7 +48,9 @@ function formatFecha(fecha: string): string {
   return `${d}/${m}/${y}`;
 }
 
-export default function MisServiciosList({ userName }: { userName?: string }) {
+// esSupervision: alguien de supervisión que sale a servicios. Ve solo sus
+// servicios asignados y, en vez de las pestañas del técnico, un regreso a su panel.
+export default function MisServiciosList({ userName, esSupervision = false }: { userName?: string; esSupervision?: boolean }) {
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [progresoPorGrupo, setProgresoPorGrupo] = useState<Record<string, ProgresoTareas>>({});
   // Servicio concluido con «Ver detalles» desplegado (uno a la vez).
@@ -138,10 +140,19 @@ export default function MisServiciosList({ userName }: { userName?: string }) {
         >
         <Logo variante="completo" size={34} className="min-w-0" />
         <div className="flex items-center gap-1 shrink-0">
-          <MenuCuenta nombre={userName} respaldo="Personal técnico" />
+          <MenuCuenta nombre={userName} respaldo={esSupervision ? 'Supervisión' : 'Personal técnico'} />
         </div>
         </div>
-        <TecnicoTabs active="servicios" />
+        {esSupervision ? (
+          <div className="px-4 pt-1 flex items-center justify-between gap-3">
+            <Link href="/dashboard/servicios" className="shrink-0 whitespace-nowrap h-10 pl-2.5 pr-4 rounded-full border border-line bg-surface text-[13.5px] font-semibold flex items-center gap-1.5 hover:border-teal/50 active:scale-95 transition">
+              <ChevronLeft size={17} strokeWidth={2.4} /> Volver a supervisión
+            </Link>
+            <span className="hidden sm:inline text-[12.5px] text-muted">Servicios donde estás asignado</span>
+          </div>
+        ) : (
+          <TecnicoTabs active="servicios" />
+        )}
       </div>
 
       <div className="px-4 pt-5 lg:pt-7">

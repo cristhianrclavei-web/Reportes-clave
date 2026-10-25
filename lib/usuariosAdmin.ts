@@ -11,6 +11,8 @@ import { createAdminClient, hayClienteAdmin } from '@/lib/supabaseAdmin';
 export const PERMISOS = [
   'can_manage_usuarios', 'can_manage_almacen', 'can_manage_billing',
   'can_approve_review', 'can_approve_cotizacion', 'can_approve_personal',
+  // Supervisión que sale a campo (patch_sale_a_servicios.sql).
+  'sale_a_servicios',
 ] as const;
 export type Permiso = (typeof PERMISOS)[number];
 

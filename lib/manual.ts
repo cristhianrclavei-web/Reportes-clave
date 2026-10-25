@@ -428,6 +428,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
           '«Nuevo usuario» crea la cuenta con una contraseña temporal; la persona la cambia al entrar.',
           'Desde su ficha cambias el rol, los permisos o la das de baja.',
           'Una cuenta con historial no se elimina: se da de baja para conservar sus reportes.',
+          'El permiso «Sale a servicios» es para supervisión que a veces va a campo: aparece como personal al agendar, tiene «Hacer reporte» en Reportes y «Mis servicios» en Servicios, donde marca llegada, pausas y conclusión como el personal técnico. No cuenta en la cobertura de reportes ni en los avisos de «falta reporte».',
         ],
       },
     ],

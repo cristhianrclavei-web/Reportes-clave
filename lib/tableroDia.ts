@@ -3,6 +3,7 @@ import {
   Servicio, crearServicio, reprogramarDia, agregarDiasAGrupo, reasignarTecnicos, motivoNoEditable, cancelarServicio,
 } from './serviciosProgramados';
 import { registrarAccionGlobal } from './auditoriaGlobal';
+import { consultarPersonalDeCampo } from './personalDeCampo';
 
 // Tablero del día para el supervisor: quién va a qué servicio y en qué va
 // cada uno. Reemplaza la hoja de Excel de la mañana.
@@ -33,7 +34,7 @@ export type TableroDia = {
 export async function cargarTableroDia(fecha: string): Promise<TableroDia> {
   const supabase = createClient();
   const [tec, sv] = await Promise.all([
-    supabase.from('profiles').select('id, full_name, activo').eq('role', 'tecnico').order('full_name'),
+    consultarPersonalDeCampo('id, full_name, activo'),
     supabase
       .from('servicios_programados')
       .select('*, servicio_tecnicos(tecnico_id, visto_en, enterado_en, profiles(full_name))')
@@ -88,7 +89,7 @@ export async function cargarTableroDia(fecha: string): Promise<TableroDia> {
 export async function cargarSemana(lunes: string, domingo: string): Promise<{ tecnicos: { id: string; nombre: string }[]; servicios: ServicioDia[] }> {
   const supabase = createClient();
   const [tec, sv] = await Promise.all([
-    supabase.from('profiles').select('id, full_name, activo').eq('role', 'tecnico').order('full_name'),
+    consultarPersonalDeCampo('id, full_name, activo'),
     supabase
       .from('servicios_programados')
       .select('*, servicio_tecnicos(tecnico_id, visto_en, enterado_en, profiles(full_name))')

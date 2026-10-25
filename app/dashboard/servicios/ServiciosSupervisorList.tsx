@@ -44,7 +44,8 @@ import { hoyLocal } from '@/lib/fechaHoy';
 import { zonaDeTrabajo } from '@/lib/geocoding';
 import { useSubseccionUrl } from '@/lib/useSubseccionUrl';
 import dynamic from 'next/dynamic';
-import { Map as IconoMapa } from 'lucide-react';
+import { Map as IconoMapa, HardHat } from 'lucide-react';
+import { useSaleAServicios } from '@/lib/useSaleAServicios';
 import ActividadSeccion from '@/components/ActividadSeccion';
 // Leaflet usa `window`: el mapa se carga solo en el navegador.
 const MapaTecnicos = dynamic(() => import('@/components/servicios/MapaTecnicos'), { ssr: false });
@@ -118,6 +119,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   const theme = useTheme();
   const router = useRouter();
   const [servicios, setServicios] = useState<Servicio[]>([]);
+  const saleAServicios = useSaleAServicios();
   const [progresoPorGrupo, setProgresoPorGrupo] = useState<Record<string, ProgresoTareas>>({});
   const [confirmaciones, setConfirmaciones] = useState<Record<string, ConfirmacionTecnico[]>>({});
   const [tecnicos, setTecnicos] = useState<{ id: string; full_name: string }[]>([]);
@@ -666,6 +668,12 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
       title={seccion === 'agendar' ? 'Agendar servicio' : 'Servicios'}
       userName={userName}
       wrapperClassName="max-w-2xl lg:max-w-none mx-auto pb-28 lg:pb-16 lg:px-8 2xl:px-10"
+      acciones={saleAServicios ? (
+        // Supervisión que sale a servicios: sus servicios asignados, para marcar llegada y conclusión.
+        <Link href="/servicios" className="h-10 px-4 rounded-full border border-teal/45 bg-teal/10 text-teal text-[13.5px] font-semibold flex items-center gap-1.5 active:scale-95 transition-transform">
+          <HardHat size={16} strokeWidth={2.4} /> Mis servicios
+        </Link>
+      ) : undefined}
     >
         <SavingOverlay show={guardando} pct={progreso.pct} label={progreso.etapa} />
         {seccion === 'agendar' ? (

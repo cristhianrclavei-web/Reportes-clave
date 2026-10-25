@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Check, ChevronRight, Copy, KeyRound, Mail, Phone, Plus, Search, ShieldCheck, Trash2, UserCheck, UserMinus, UserRound, Wrench, X,
-  Warehouse, ReceiptText, FileCheck, Receipt, CalendarClock, UsersRound, AlertTriangle,
+  Warehouse, ReceiptText, FileCheck, Receipt, CalendarClock, UsersRound, AlertTriangle, HardHat,
 } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
 import { AvatarTecnico } from '@/components/AvatarTecnico';
@@ -16,7 +16,7 @@ import { cargarPerfiles } from '@/lib/perfiles';
 // usuarios; todo pasa por /api/usuarios, que lo vuelve a comprobar.
 
 type Rol = 'tecnico' | 'supervisor';
-type ClavePermiso = 'can_manage_usuarios' | 'can_manage_almacen' | 'can_manage_billing' | 'can_approve_review' | 'can_approve_cotizacion' | 'can_approve_personal';
+type ClavePermiso = 'can_manage_usuarios' | 'can_manage_almacen' | 'can_manage_billing' | 'can_approve_review' | 'can_approve_cotizacion' | 'can_approve_personal' | 'sale_a_servicios';
 
 type Usuario = {
   id: string;
@@ -40,6 +40,8 @@ const PERMISOS: { clave: ClavePermiso; nombre: string; detalle: string; Icono: a
   { clave: 'can_approve_personal', nombre: 'Autorizar solicitudes de personal', detalle: 'Horas extra, vacaciones y permisos.', Icono: CalendarClock },
   { clave: 'can_manage_almacen', nombre: 'Almacén', detalle: 'Entradas, salidas, vales, conteos y catálogo.', Icono: Warehouse },
   { clave: 'can_manage_billing', nombre: 'Facturación', detalle: 'Prefacturas y registro de facturas.', Icono: ReceiptText },
+  // Para supervisión que a veces sale a campo (el personal técnico ya lo hace).
+  { clave: 'sale_a_servicios', nombre: 'Sale a servicios', detalle: 'Puede hacer reportes y aparece como personal al agendar servicios.', Icono: HardHat },
 ];
 
 const ROLES: { valor: Rol; nombre: string; detalle: string; Icono: any }[] = [
