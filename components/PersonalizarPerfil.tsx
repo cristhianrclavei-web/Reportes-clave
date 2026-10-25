@@ -38,7 +38,6 @@ export default function PersonalizarPerfil({ profile, children }: { profile: any
   const [foto, setFoto] = useState<string | null>(profile?.foto_path || null);
   const [color, setColor] = useState<number | null>(profile?.avatar_color ?? null);
   const [estilo, setEstilo] = useState<number>(profile?.avatar_estilo ?? 0);
-  const [apodo, setApodo] = useState(profile?.apodo || '');
   const [puesto, setPuesto] = useState(profile?.puesto || '');
   const [esp, setEsp] = useState<string[]>(profile?.especialidades || []);
   const [emNombre, setEmNombre] = useState(profile?.emergencia_nombre || '');
@@ -85,7 +84,7 @@ export default function PersonalizarPerfil({ profile, children }: { profile: any
     try {
       await guardarMiPerfil({
         avatar_color: color, avatar_estilo: estilo,
-        apodo: apodo.trim() || null, puesto: puesto.trim() || null, especialidades: esp,
+        puesto: puesto.trim() || null, especialidades: esp,
         emergencia_nombre: emNombre.trim() || null, emergencia_telefono: emTel.trim() || null,
         tipo_sangre: sangre || null, alergias: alergias.trim() || null,
         talla_camisa: camisa || null, talla_calzado: calzado.trim() || null,
@@ -127,7 +126,6 @@ export default function PersonalizarPerfil({ profile, children }: { profile: any
               {subiendo && <span className="absolute inset-0 rounded-full bg-bg/70 flex items-center justify-center text-[12px] font-semibold">Subiendo…</span>}
             </div>
             <p className="font-display font-bold text-[22px] tracking-wide leading-tight mt-3">{nombre || 'Tu nombre'}</p>
-            {apodo.trim() && <p className="text-[13.5px] text-teal font-semibold">«{apodo.trim()}»</p>}
             <p className="text-[13.5px] text-muted mt-0.5">{puesto.trim() || (esSupervision ? 'Supervisión' : 'Personal técnico')}</p>
             {esp.length > 0 && (
               <div className="flex flex-wrap justify-center gap-1.5 mt-3">
@@ -195,15 +193,9 @@ export default function PersonalizarPerfil({ profile, children }: { profile: any
         </Seccion>
 
         <Seccion Icono={BriefcaseBusiness} titulo="Tu trabajo" nota="Ayuda a quien programa los servicios a saber a quién mandar.">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
-            <div>
-              <label className={labelCls}>Apodo (cómo te dicen)</label>
-              <input className={inputCls} maxLength={24} value={apodo} onChange={(e) => setApodo(e.target.value)} placeholder="Ej. Beto, Lupita" />
-            </div>
-            <div>
-              <label className={labelCls}>Puesto</label>
-              <input className={inputCls} maxLength={60} value={puesto} onChange={(e) => setPuesto(e.target.value)} placeholder="Ej. Instalación de CCTV, Coordinación de servicio" />
-            </div>
+          <div className="mb-5">
+            <label className={labelCls}>Puesto</label>
+            <input className={inputCls} maxLength={60} value={puesto} onChange={(e) => setPuesto(e.target.value)} placeholder="Ej. Instalación de CCTV, Coordinación de servicio" />
           </div>
           <label className={labelCls}>Especialidades</label>
           <SelectorOpciones

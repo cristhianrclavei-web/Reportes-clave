@@ -93,7 +93,7 @@ export default function Directorio() {
                 <AvatarTecnico id={p.id} nombre={p.full_name} size={52} indice={i} />
                 <div className="min-w-0 flex-1">
                   <p className="font-display font-bold text-[18px] leading-tight tracking-wide truncate">
-                    {p.full_name}{p.apodo ? <span className="text-teal font-semibold text-[13.5px]"> «{p.apodo}»</span> : null}
+                    {p.full_name}
                   </p>
                   <p className="text-[12.5px] text-muted truncate">{p.puesto || (p.role === 'supervisor' ? 'Supervisión' : 'Personal técnico')}</p>
                 </div>

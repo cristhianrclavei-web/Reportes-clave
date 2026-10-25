@@ -37,7 +37,6 @@ export default function AutorReporte({ id, nombre, variante = 'compacto' }: { id
         <p className="text-[10.5px] uppercase tracking-wider text-muted mb-0.5">Elaborado por</p>
         <p className="font-display font-semibold text-[17px] leading-tight truncate">
           {nombre || 'Personal técnico'}
-          {perfil?.apodo && <span className="text-[13px] text-muted font-sans font-medium"> · «{perfil.apodo}»</span>}
         </p>
         <p className="text-[12.5px] text-muted">{puesto}</p>
         {perfil && perfil.especialidades.length > 0 && (
