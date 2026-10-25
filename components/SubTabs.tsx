@@ -2,6 +2,7 @@
 
 import { ReactNode, useEffect, useRef } from 'react';
 import { useDesvanecidoLateral } from '@/lib/useDesvanecidoLateral';
+import FlechasDeslizar from '@/components/FlechasDeslizar';
 
 // Pestañas DENTRO de una sección (Agendados / Concluidos, Reportes /
 // Levantamientos…). Van subrayadas y discretas a propósito: la navegación
@@ -23,7 +24,7 @@ export default function SubTabs<K extends string>({
   accion?: ReactNode;
 }) {
   const filaRef = useRef<HTMLDivElement | null>(null);
-  const desvanecido = useDesvanecidoLateral(filaRef);
+  const { estilo: desvanecido, bordes } = useDesvanecidoLateral(filaRef);
   // La pestaña activa se acomoda a la vista (solo de lado: sin mover la página).
   useEffect(() => {
     const fila = filaRef.current;
@@ -35,7 +36,8 @@ export default function SubTabs<K extends string>({
 
   return (
     <div className={`flex items-end gap-3 border-b border-line mb-5 ${className}`}>
-    <div ref={filaRef} style={desvanecido} className="flex lg:gap-1 flex-1 min-w-0 overflow-x-auto no-scrollbar -mb-px" role="tablist">
+    <div className="relative flex-1 min-w-0">
+    <div ref={filaRef} style={desvanecido} className="flex lg:gap-1 overflow-x-auto no-scrollbar -mb-px" role="tablist">
       {opciones.map(({ k, label, Icono, badge }) => {
         const on = activa === k;
         return (
@@ -58,6 +60,8 @@ export default function SubTabs<K extends string>({
           </button>
         );
       })}
+    </div>
+    <FlechasDeslizar filaRef={filaRef} bordes={bordes} />
     </div>
     {accion && <div className="hidden lg:block shrink-0 pb-2">{accion}</div>}
     </div>
