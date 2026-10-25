@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import EmptyIllustration from '@/components/EmptyIllustration';
 import { listarAuditoriaGlobal, EntradaAuditoria, SeccionActividad } from '@/lib/auditoriaGlobal';
 import { CalendarPlus, Pencil, Users, Plus, Trash2, BadgeCheck, Flag, Banknote, AlertTriangle, MessageSquareWarning, Unlock, LockKeyhole, FileCheck, CalendarClock, PackagePlus, PackageCheck, PackageX, Warehouse, CalendarX, ClipboardList, ClipboardCheck, Receipt, ArrowLeftRight } from 'lucide-react';
@@ -134,7 +134,8 @@ export const NOMBRE_SECCION: Record<SeccionActividad, string> = {
   almacen: 'Almacén',
 };
 
-export default function ActividadSeccion({ seccion, mostrarSeccion = false }: { seccion?: SeccionActividad; mostrarSeccion?: boolean }) {
+// filtroExtra: un filtro más (p. ej. la sección) que va en el mismo renglón que los demás.
+export default function ActividadSeccion({ seccion, mostrarSeccion = false, filtroExtra }: { seccion?: SeccionActividad; mostrarSeccion?: boolean; filtroExtra?: ReactNode }) {
   const [entradas, setEntradas] = useState<EntradaAuditoria[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -193,7 +194,8 @@ export default function ActividadSeccion({ seccion, mostrarSeccion = false }: { 
             : 'Registro permanente de lo que hace el equipo, incluidas las eliminaciones.'}
         </p>
 
-        <div className="flex gap-2 mb-5">
+        <div className="flex flex-wrap lg:flex-nowrap gap-2 mb-5">
+          {filtroExtra}
           <select
             value={filtroActor}
             onChange={(e) => setFiltroActor(e.target.value)}

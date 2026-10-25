@@ -21,6 +21,7 @@ import { etiquetaCausa } from '@/lib/avisos';
 import { calcularEstadoTiempo, motivoNoEditable, Servicio } from '@/lib/serviciosProgramados';
 import { textoTipoPausa } from '@/lib/pausas';
 import AjustesPausasSection from '@/components/AjustesPausasSection';
+import { fechaLargaCalendario } from '@/lib/calendarioMes';
 import {
   TableroDia as Datos, ServicioDia, cargarTableroDia, asignarRapido, registrarCambioDia, MOTIVOS_CAMBIO,
 } from '@/lib/tableroDia';
@@ -379,7 +380,7 @@ export default function TableroDia({ onAgendar }: {
           <ChevronLeft size={18} />
         </button>
         <div className="text-center min-w-0">
-          <p className="font-display font-semibold text-[16px] capitalize">{fecha === hoy ? 'Hoy, ' : ''}{etiquetaFecha(fecha)}</p>
+          <p className="font-display font-semibold text-[16px] first-letter:uppercase">{fecha === hoy ? 'Hoy · ' : ''}{fechaLargaCalendario(fecha)}</p>
           {fecha !== hoy && <button type="button" onClick={() => setFecha(hoy)} className="text-[12px] font-semibold text-teal">Ir a hoy</button>}
         </div>
         <button type="button" onClick={() => setFecha(sumarDias(fecha, 1))} aria-label="Día siguiente"

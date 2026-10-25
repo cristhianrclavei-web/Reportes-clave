@@ -6,6 +6,7 @@ import SelectorOpciones from '@/components/SelectorOpciones';
 import { showToast } from '@/components/Toast';
 import { AvatarTecnico, UNIFORMES, ESTILOS_AVATAR } from '@/components/AvatarTecnico';
 import { ESPECIALIDADES, TIPOS_SANGRE, TALLAS_CAMISA, guardarMiPerfil, subirMiFoto, quitarMiFoto, urlFoto } from '@/lib/perfiles';
+import { avisarFuncionNoActivada } from '@/lib/funcionNoActivada';
 
 // Mi perfil. En computadora van dos columnas: a la izquierda, fija, la
 // tarjeta de «así te ven los demás» (se actualiza mientras se edita); a la
@@ -91,7 +92,7 @@ export default function PersonalizarPerfil({ profile, children }: { profile: any
       });
       showToast('Perfil guardado', 'success');
     } catch (e: any) {
-      showToast(e?.message?.includes('actualizar_mi_perfil') ? 'Falta correr el SQL del perfil' : e?.message || 'No se pudo guardar', 'error');
+      showToast(e?.message?.includes('actualizar_mi_perfil') ? avisarFuncionNoActivada('patch_perfil_personalizado.sql') : e?.message || 'No se pudo guardar', 'error');
     } finally {
       setGuardando(false);
     }

@@ -9,6 +9,7 @@ import { showToast } from '@/components/Toast';
 import NuevoVale from './NuevoVale';
 import ValeDetalle from './ValeDetalle';
 import PrestamosParaMi from './PrestamosParaMi';
+import { avisarFuncionNoActivada } from '@/lib/funcionNoActivada';
 import {
   Vale, AltaSolicitada, ETIQUETA_ESTADO, valeVencido, listarVales, listarAltasPendientes, resolverAlta,
 } from '@/lib/vales';
@@ -67,7 +68,7 @@ export default function Vales({ modo }: { modo: 'tecnico' | 'almacen' }) {
       setAltas(a);
       setError(null);
     } catch (e: any) {
-      setError(e?.message?.includes('almacen_vales') ? 'Falta correr el SQL de vales en Supabase.' : 'No se pudieron cargar los vales.');
+      setError(e?.message?.includes('almacen_vales') ? avisarFuncionNoActivada('patch_vales_almacen.sql') : 'No se pudieron cargar los vales.');
       setVales([]);
     }
   }, [modo]);

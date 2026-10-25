@@ -11,6 +11,7 @@ import { useBorradorFormulario } from '@/lib/useBorradorFormulario';
 import { createClient } from '@/lib/supabaseClient';
 import { hoyLocal } from '@/lib/fechaHoy';
 import { listarFestivos, Festivo } from '@/lib/avisos';
+import { avisarFuncionNoActivada } from '@/lib/funcionNoActivada';
 import {
   Solicitud, TipoSolicitud, DatosSolicitud, MOTIVOS_PERMISO, TIPO_LABEL,
   minutosEntre, duracionTexto, corteDe, fechaBonita, diasSolicitados, diaDeRegreso,
@@ -182,7 +183,7 @@ export default function FormSolicitud({
       }
       onListo();
     } catch (e: any) {
-      setError(e?.message?.includes('solicitudes_personal') ? 'Falta correr el SQL de solicitudes' : e?.message || 'No se pudo enviar');
+      setError(e?.message?.includes('solicitudes_personal') ? avisarFuncionNoActivada('patch_solicitudes_personal.sql') : e?.message || 'No se pudo enviar');
       setGuardando(false);
     }
   }

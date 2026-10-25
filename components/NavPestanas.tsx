@@ -16,7 +16,9 @@ export default function NavPestanas({ items, active }: { items: readonly Item[];
   useEffect(() => {
     const activa = navRef.current?.querySelector<HTMLElement>('[aria-current="page"]');
     activa?.scrollIntoView({ block: 'nearest', inline: 'center' });
-  }, [active]);
+    // items.length: Almacén y Facturación se agregan un instante después
+    // (al saber los permisos); hay que volver a centrar cuando llegan.
+  }, [active, items.length]);
 
   return (
     <nav className="mx-3 mt-2 px-2.5 py-1.5 rounded-2xl pestanas-fijas shadow-glow" aria-label="Secciones">

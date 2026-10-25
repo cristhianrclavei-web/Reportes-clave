@@ -89,7 +89,7 @@ export async function registrarAccionGlobal(
   }
 }
 
-export const FALTA_SQL_ACTIVIDAD = 'Falta correr supabase/patch_actividad_por_seccion.sql en la base.';
+export const FALTA_SQL_ACTIVIDAD = 'La actividad por sección todavía no está activada en tu cuenta. Avísale a quien administra la app.';
 
 // Sin sección: todo (página «Actividad»). Con sección: solo lo de esa sección.
 export async function listarAuditoriaGlobal(limite = 300, seccion?: SeccionActividad): Promise<EntradaAuditoria[]> {
@@ -102,7 +102,10 @@ export async function listarAuditoriaGlobal(limite = 300, seccion?: SeccionActiv
   if (seccion) consulta = consulta.eq('seccion', seccion);
   const { data, error } = await consulta;
   if (error) {
-    if (/seccion/.test(error.message) && /does not exist|not find|schema cache/i.test(error.message)) throw new Error(FALTA_SQL_ACTIVIDAD);
+    if (/seccion/.test(error.message) && /does not exist|not find|schema cache/i.test(error.message)) {
+      console.error('Falta correr supabase/patch_actividad_por_seccion.sql en la base.');
+      throw new Error(FALTA_SQL_ACTIVIDAD);
+    }
     throw error;
   }
   return (data as EntradaAuditoria[]) || [];

@@ -39,8 +39,10 @@ export default function EquiposSinRegistro({
     try {
       const [p, r] = await Promise.all([listarEquiposSinRegistro(), listarEquiposResueltos()]);
       setPendientes(p); setResueltos(r); setError(null);
-    } catch {
-      setPendientes([]); setError('Falta correr el SQL de equipos instalados.');
+    } catch (e) {
+      console.error('No se pudieron cargar los equipos sin registro:', e);
+      setPendientes([]);
+      setError('No se pudieron cargar los equipos. Revisa tu conexión e intenta de nuevo; si sigue igual, avísale a quien administra la app.');
     }
   }, []);
   useEffect(() => { cargar(); }, [cargar]);

@@ -26,7 +26,11 @@ export default function ConteoFisico({ articulos, ubicaciones, onCerrado }: { ar
   const [error, setError] = useState<string | null>(null);
 
   const cargar = useCallback(() => {
-    listarConteos().then((c) => { setConteos(c); setError(null); }).catch(() => { setConteos([]); setError('Falta correr el SQL de ubicaciones y conteo.'); });
+    listarConteos().then((c) => { setConteos(c); setError(null); }).catch((e) => {
+      console.error('No se pudieron cargar los conteos:', e);
+      setConteos([]);
+      setError('No se pudieron cargar los conteos. Revisa tu conexión e intenta de nuevo; si sigue igual, avísale a quien administra la app.');
+    });
   }, []);
   useEffect(() => { cargar(); }, [cargar]);
 

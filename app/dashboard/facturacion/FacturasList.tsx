@@ -262,7 +262,7 @@ export default function FacturasList({
 
       {seccion === 'facturas' && (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
+          <div className="grid grid-cols-2 gap-2 mb-4">
             <div className="rounded-2xl bg-surface border border-line p-3.5">
               <p className="text-[10.5px] uppercase tracking-wider text-muted font-semibold">Prefacturas por timbrar</p>
               <p className="font-display font-bold text-[22px]">{conteo.borrador || 0}</p>

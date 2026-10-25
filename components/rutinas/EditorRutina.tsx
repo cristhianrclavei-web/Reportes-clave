@@ -5,6 +5,7 @@ import { X, Plus, ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
 import { Rutina, SeccionRutina, SISTEMAS_RUTINA, ETAPAS_SUGERIDAS, guardarRutina } from '@/lib/rutinas';
+import { avisarFuncionNoActivada } from '@/lib/funcionNoActivada';
 
 // Crear o editar una rutina: nombre, sistema y tareas agrupadas por etapa.
 
@@ -51,7 +52,7 @@ export default function EditorRutina({
       showToast('Rutina guardada', 'success');
       onGuardada(id);
     } catch (e: any) {
-      showToast(e?.message?.includes('rutinas_tareas') ? 'Falta correr el SQL de rutinas' : e?.message || 'No se pudo guardar', 'error');
+      showToast(e?.message?.includes('rutinas_tareas') ? avisarFuncionNoActivada('patch_rutinas_tareas.sql') : e?.message || 'No se pudo guardar', 'error');
       setGuardando(false);
     }
   }

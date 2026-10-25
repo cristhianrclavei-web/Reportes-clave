@@ -14,6 +14,7 @@ import {
 import { hoyLocal, sumarDias } from '@/lib/fechaHoy';
 import FormSolicitud from './FormSolicitud';
 import DetalleSolicitud from './DetalleSolicitud';
+import { avisarFuncionNoActivada } from '@/lib/funcionNoActivada';
 
 // Horas extra, vacaciones y permisos. El técnico ve las suyas; quien tiene
 // el permiso de autorizar ve además la bandeja de todos y el resumen de
@@ -51,7 +52,7 @@ export default function Solicitudes({ nombre }: { nombre: string }) {
       setError(null);
     } catch (e: any) {
       setLista([]);
-      setError(String(e?.message || '').includes('solicitudes_personal') ? 'Falta correr el SQL de solicitudes en Supabase.' : 'No se pudieron cargar las solicitudes.');
+      setError(String(e?.message || '').includes('solicitudes_personal') ? avisarFuncionNoActivada('patch_solicitudes_personal.sql') : 'No se pudieron cargar las solicitudes.');
     }
   }, []);
 

@@ -84,7 +84,11 @@ export default function Rutinas() {
   const [abierta, setAbierta] = useState<string | null>(null);
 
   const cargar = useCallback(() => {
-    listarRutinas().then((r) => { setRutinas(r); setError(null); }).catch(() => { setRutinas([]); setError('Falta correr el SQL de rutinas.'); });
+    listarRutinas().then((r) => { setRutinas(r); setError(null); }).catch((e) => {
+      console.error('No se pudieron cargar las rutinas:', e);
+      setRutinas([]);
+      setError('No se pudieron cargar las rutinas. Revisa tu conexión e intenta de nuevo; si sigue igual, avísale a quien administra la app.');
+    });
   }, []);
   useEffect(() => { cargar(); }, [cargar]);
 
