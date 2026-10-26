@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAvanceGuardado, pausaFinal } from '@/lib/useAvanceGuardado';
 import SavingOverlay from '@/components/SavingOverlay';
 import { X, Search, Plus, Minus, Trash2, AlertTriangle, PackageX } from 'lucide-react';
@@ -24,7 +24,15 @@ const chip = (sel: boolean) =>
 
 type Partida = { articulo: Articulo; existencia: number; cantidad: number };
 
-export default function NuevoVale({ onClose, onCreado }: { onClose: () => void; onCreado: () => void }) {
+// `servicioInicialId` y `partidasIniciales` llegan desde la lista del
+// proyecto («Pedir al almacén lo que falta»): el vale se abre ya armado y el
+// técnico solo revisa y envía.
+export default function NuevoVale({ onClose, onCreado, servicioInicialId, partidasIniciales }: {
+  onClose: () => void;
+  onCreado: () => void;
+  servicioInicialId?: string;
+  partidasIniciales?: { articuloId: string; cantidad: number }[];
+}) {
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [servicio, setServicio] = useState<Servicio | null>(null);
   const [cliente, setCliente] = useState('');
@@ -38,19 +46,54 @@ export default function NuevoVale({ onClose, onCreado }: { onClose: () => void; 
   const { progreso, avance } = useAvanceGuardado();
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<{ descripcion: string; unidad: string; sinExistencia: boolean } | null>(null);
+  // Lo de la lista que no se pudo agregar porque no hay existencia.
+  const [sinExistencia, setSinExistencia] = useState<{ descripcion: string; unidad: string; falta: number }[]>([]);
+  const partidasAplicadasRef = useRef(false);
+  // De qué proyecto son las existencias cargadas (cuenta lo reservado a él).
+  const catalogoGrupoRef = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
     const hoy = hoyLocal();
     listarMisServicios()
-      .then((l) => setServicios(l.filter((s) => s.fecha >= hoy && s.estado !== 'concluido').sort((a, b) => a.fecha.localeCompare(b.fecha)).slice(0, 6)))
+      .then((l) => {
+        const proximos = l.filter((s) => s.fecha >= hoy && s.estado !== 'concluido').sort((a, b) => a.fecha.localeCompare(b.fecha)).slice(0, 6);
+        // El servicio desde el que se abrió va siempre, aunque no sea de los próximos.
+        const inicial = servicioInicialId ? l.find((s) => s.id === servicioInicialId) : undefined;
+        if (inicial && !proximos.some((s) => s.id === inicial.id)) proximos.unshift(inicial);
+        setServicios(proximos);
+        if (inicial) setServicio(inicial);
+      })
       .catch(() => {});
-  }, []);
+  }, [servicioInicialId]);
 
   // Existencias: con servicio, cuenta también lo reservado a su proyecto.
   useEffect(() => {
+    const grupo = servicio?.grupo_id || null;
     setCatalogo(null);
-    catalogoParaPedir(servicio?.grupo_id || null).then(setCatalogo).catch(() => setCatalogo([]));
+    catalogoParaPedir(grupo)
+      .then((c) => { catalogoGrupoRef.current = grupo; setCatalogo(c); })
+      .catch(() => setCatalogo([]));
   }, [servicio?.grupo_id]);
+
+  // Cuando ya se sabe cuánto hay, se cargan las partidas de la lista. Se pide
+  // hasta lo que haya; lo que no alcanza se avisa abajo.
+  useEffect(() => {
+    if (!catalogo || !partidasIniciales || partidasAplicadasRef.current) return;
+    if (servicioInicialId && servicio?.id !== servicioInicialId) return;
+    if (catalogoGrupoRef.current !== (servicio?.grupo_id || null)) return;
+    partidasAplicadasRef.current = true;
+    const nuevas: Partida[] = [];
+    const faltantes: { descripcion: string; unidad: string; falta: number }[] = [];
+    for (const p of partidasIniciales) {
+      const c = catalogo.find((x) => x.articulo.id === p.articuloId);
+      if (!c) continue;
+      const cantidad = Math.min(p.cantidad, c.existencia);
+      if (cantidad > 0) nuevas.push({ ...c, cantidad });
+      if (cantidad < p.cantidad) faltantes.push({ descripcion: c.articulo.descripcion, unidad: c.articulo.unidad, falta: p.cantidad - cantidad });
+    }
+    setPartidas(nuevas);
+    setSinExistencia(faltantes);
+  }, [catalogo, partidasIniciales, servicio?.id, servicioInicialId]);
 
   const resultados = useMemo(() => {
     if (!catalogo) return [];
@@ -142,6 +185,16 @@ export default function NuevoVale({ onClose, onCreado }: { onClose: () => void; 
                 <button type="button" aria-label="Quitar" onClick={() => setPartidas(partidas.filter((x) => x.articulo.id !== p.articulo.id))} className="w-8 h-8 rounded-lg text-red flex items-center justify-center"><Trash2 size={15} /></button>
               </div>
             ))}
+          </div>
+        )}
+
+        {sinExistencia.length > 0 && (
+          <div className="mb-3 p-3 rounded-xl bg-amber/10 border border-amber/30">
+            <p className="text-[13px] font-semibold text-amber flex items-center gap-1.5"><PackageX size={15} /> No alcanza lo que hay en almacén</p>
+            {sinExistencia.map((f) => (
+              <p key={f.descripcion} className="text-[12.5px] text-ink/80 mt-1">Faltan {f.falta} {f.unidad} de {f.descripcion}</p>
+            ))}
+            <p className="text-[12px] text-muted mt-1.5">Se pide lo que hay. Comunícate con el almacenista por lo demás.</p>
           </div>
         )}
 

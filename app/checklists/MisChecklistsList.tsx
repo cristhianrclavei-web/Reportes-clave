@@ -27,13 +27,19 @@ function fmtFecha(fecha: string): string {
   return new Date(y, m - 1, d).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 
-// Estado del ciclo del día, resumido en una etiqueta: es lo primero que el
-// técnico quiere saber al abrir la sección.
+// Cómo va la lista, resumido en una etiqueta: es lo primero que el técnico
+// quiere saber al abrir la sección. Los días firmados con el sistema anterior
+// (resguardo de la lista) conservan sus etiquetas hasta cerrarse.
 function estadoDelDia(c: MiChecklist): { label: string; cls: string; Icono: any } {
-  if (c.recibidoEnAlmacen) return { label: 'Cerrado', cls: 'bg-teal/15 text-teal', Icono: Check };
-  if (c.devolucionFirmada) return { label: 'Esperando almacén', cls: 'bg-amber/15 text-amber', Icono: Clock };
-  if (c.salidaFirmada) return { label: 'En tu resguardo', cls: 'bg-teal/15 text-teal', Icono: PackageCheck };
-  return { label: 'Por recibir', cls: 'bg-amber/15 text-amber', Icono: PackageX };
+  if (c.salidaFirmada) {
+    if (c.recibidoEnAlmacen) return { label: 'Cerrado', cls: 'bg-teal/15 text-teal', Icono: Check };
+    if (c.devolucionFirmada) return { label: 'Esperando almacén', cls: 'bg-amber/15 text-amber', Icono: Clock };
+    return { label: 'En tu resguardo', cls: 'bg-teal/15 text-teal', Icono: PackageCheck };
+  }
+  if (c.renglonesCatalogo === 0) return { label: 'Por revisar', cls: 'bg-surface-2 text-muted', Icono: ClipboardList };
+  if (c.renglonesPorPedir > 0) return { label: 'Por pedir', cls: 'bg-red/12 text-red', Icono: PackageX };
+  if (c.renglonesPedidos > 0) return { label: 'Pedido al almacén', cls: 'bg-amber/15 text-amber', Icono: Clock };
+  return { label: 'Entregado', cls: 'bg-teal/15 text-teal', Icono: PackageCheck };
 }
 
 export default function MisChecklistsList({ userName }: { userName?: string }) {
@@ -82,7 +88,7 @@ export default function MisChecklistsList({ userName }: { userName?: string }) {
           onCambiar={setSub}
           opciones={[
             { k: 'vales', label: 'Vales de almacén', Icono: ClipboardList },
-            { k: 'listas', label: 'Listas de carga', Icono: PackageCheck },
+            { k: 'listas', label: 'Listas de proyecto', Icono: PackageCheck },
           ]}
         />
 
@@ -107,7 +113,7 @@ export default function MisChecklistsList({ userName }: { userName?: string }) {
         {!loading && !error && lista.length === 0 && (
           <EstadoVacio
             icono={<PackageCheck size={24} strokeWidth={1.8} />}
-            titulo="Aún no tienes listas de carga"
+            titulo="Aún no tienes listas de proyecto"
             detalle="Aparecen cuando tu supervisor arma la lista de un servicio."
           />
         )}

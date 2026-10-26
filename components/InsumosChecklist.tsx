@@ -8,15 +8,17 @@ import {
   Resguardo, obtenerInsumos, calcularProgresoInsumos, marcarInsumo, agregarInsumo, eliminarInsumo, editarInsumo,
   obtenerResguardos, firmarResguardo, registrarFaltante, registrarNoEntregado, confirmarRecepcion,
   Insumo, listarSolicitudesInsumo, resolverSolicitudInsumo,
-  marcarInsumosEnLote, registrarMotivoEnLote,
+  marcarInsumosEnLote, registrarMotivoEnLote, coberturaPorRenglon, CoberturaRenglon,
 } from '@/lib/insumos';
+import { coberturaDelProyecto, CoberturaArticulo } from '@/lib/vales';
+import NuevoVale from '@/components/vales/NuevoVale';
 import SignaturePad, { SignaturePadHandle } from '@/components/SignaturePad';
 import ProgressBar from '@/components/ProgressBar';
 import ModalOverlay from '@/components/ModalOverlay';
 import SelectorArticulo from '@/components/SelectorArticulo';
 import { createClient } from '@/lib/supabaseClient';
 import { showToast } from '@/components/Toast';
-import { Plus, X, Check, Square, PackageCheck, PackageX, PackagePlus, AlertTriangle, Wrench, Package, HardHat, PenLine, Info, CheckCheck, Pencil, Minus, Trash2 } from 'lucide-react';
+import { Plus, X, Check, Square, PackageCheck, PackageX, PackagePlus, AlertTriangle, Wrench, Package, HardHat, PenLine, Info, CheckCheck, Pencil, Minus, Trash2, ClipboardList } from 'lucide-react';
 
 function nombreDe(r: { profiles?: any }): string {
   const p = r.profiles;
@@ -34,8 +36,15 @@ const ICONO_CATEGORIA: Record<CategoriaInsumo, any> = {
   equipo: HardHat,
 };
 
-// Checklist de carga. Lo usan técnico y supervisor sobre los mismos datos; lo
-// que cambia es qué puede editar cada quien (`puedeEditarTodo`).
+// Lista de herramienta, material y equipo del proyecto. Lo usan técnico y
+// supervisor sobre los mismos datos; lo que cambia es qué puede editar cada
+// quien (`puedeEditarTodo`).
+//
+// Desde 2026-10-26 la lista no se firma: es la guía de lo que hay que pedir al
+// almacén, y el inventario solo se mueve con los vales (el almacén entrega y
+// el técnico firma de recibido). Cada renglón dice si ya se pidió o entregó
+// por vale. Los días que ya tenían un resguardo firmado con el sistema
+// anterior («cicloAnterior») conservan su salida/retorno para poder cerrarlos.
 export default function InsumosChecklist({
   grupoId,
   servicioId,
@@ -95,6 +104,8 @@ export default function InsumosChecklist({
   const [motivoSolicitud, setMotivoSolicitud] = useState('');
   const [solicitudes, setSolicitudes] = useState<Insumo[]>([]);
   const [errorCarga, setErrorCarga] = useState<string | null>(null);
+  const [cobertura, setCobertura] = useState<CoberturaArticulo[]>([]);
+  const [showPedirVale, setShowPedirVale] = useState(false);
 
   // Cada parte se carga por separado: si falla una (por ejemplo un patch de
   // SQL pendiente), las otras deben seguir funcionando. Antes iban en un solo
@@ -102,10 +113,11 @@ export default function InsumosChecklist({
   async function cargar() {
     const fallos: string[] = [];
 
-    const [rl, rr, rs] = await Promise.allSettled([
+    const [rl, rr, rs, rc] = await Promise.allSettled([
       obtenerInsumos(grupoId, servicioId),
       obtenerResguardos(servicioId),
       listarSolicitudesInsumo(grupoId),
+      coberturaDelProyecto(grupoId),
     ]);
 
     if (rl.status === 'fulfilled') setLista(rl.value);
@@ -116,6 +128,9 @@ export default function InsumosChecklist({
 
     if (rs.status === 'fulfilled') setSolicitudes(rs.value);
     else fallos.push(`solicitudes: ${(rs.reason as any)?.message || 'error'}`);
+
+    if (rc.status === 'fulfilled') setCobertura(rc.value);
+    else fallos.push(`vales del proyecto: ${(rc.reason as any)?.message || 'error'}`);
 
     setErrorCarga(fallos.length > 0 ? fallos.join(' · ') : null);
     setLoading(false);
@@ -148,6 +163,23 @@ export default function InsumosChecklist({
   const resguardoDevolucion = resguardos.find((r) => r.tipo === 'devolucion');
   // Una vez firmado, el documento no se altera: eso es lo que le da valor.
   const bloqueado = modo === 'salida' ? !!resguardoSalida : !!resguardoDevolucion;
+  // Día con salida firmada en el sistema anterior: se termina como antes.
+  const cicloAnterior = !!resguardoSalida;
+  const marcaAnterior = puedeMarcar && cicloAnterior && !bloqueado;
+
+  const porRenglon = useMemo(() => coberturaPorRenglon(lista, cobertura), [lista, cobertura]);
+  const conCatalogo = lista.filter((i) => i.articulo_id);
+  const entregados = conCatalogo.filter((i) => porRenglon[i.id]?.estado === 'entregado').length;
+  const foliosDelProyecto = Array.from(new Set(cobertura.flatMap((c) => c.folios))).sort();
+  // Lo que falta pedir, sumado por artículo, para armar el vale de un toque.
+  const partidasPorPedir = useMemo(() => {
+    const porArticulo: Record<string, number> = {};
+    for (const i of lista) {
+      const falta = porRenglon[i.id]?.faltaPedir || 0;
+      if (i.articulo_id && falta > 0) porArticulo[i.articulo_id] = (porArticulo[i.articulo_id] || 0) + falta;
+    }
+    return Object.entries(porArticulo).map(([articuloId, cantidad]) => ({ articuloId, cantidad }));
+  }, [lista, porRenglon]);
 
   function cantidadDe(i: InsumoConEstado): number {
     return modo === 'salida' ? (i.estado?.cantidad_entregada || 0) : (i.estado?.cantidad_retornada || 0);
@@ -159,7 +191,7 @@ export default function InsumosChecklist({
   }
 
   async function handleMarcar(insumo: InsumoConEstado) {
-    if (soloLectura || !puedeMarcar || bloqueado) return;
+    if (soloLectura || !marcaAnterior) return;
     const actual = cantidadDe(insumo) > 0;
     // Optimista: en el almacén se marcan muchos seguidos y esperar al servidor
     // en cada uno se siente lento.
@@ -483,6 +515,19 @@ export default function InsumosChecklist({
         </div>
       )}
 
+      {!cicloAnterior && (
+        <CoberturaDeVales
+          total={conCatalogo.length}
+          entregados={entregados}
+          sinCatalogo={lista.length - conCatalogo.length}
+          folios={foliosDelProyecto}
+          porPedir={partidasPorPedir.length}
+          puedePedir={puedeMarcar && !soloLectura}
+          onPedir={() => setShowPedirVale(true)}
+        />
+      )}
+
+      {cicloAnterior && (<>
       {/* Avance del día */}
       <div className="flex items-baseline justify-between mb-1.5">
         <p className="text-[13px] text-muted">
@@ -531,7 +576,7 @@ export default function InsumosChecklist({
 
       {/* Instrucción del ciclo. Cambia según el momento y desaparece cuando
           ya se firmó, porque entonces no hay nada que revisar. */}
-      {puedeMarcar && !bloqueado && progreso.total > 0 && (
+      {marcaAnterior && progreso.total > 0 && (
         <div className="mt-4 p-4 rounded-xl bg-amber/10 border border-amber/30 flex items-start gap-2.5">
           <Info size={17} strokeWidth={2.4} className="text-amber shrink-0 mt-0.5" />
           <p className="text-[13.5px] text-ink/85 leading-relaxed">
@@ -569,6 +614,7 @@ export default function InsumosChecklist({
           Retorno
         </button>
       </div>
+      </>)}
 
       {/* Solicitudes pendientes: el supervisor decide, el técnico ve en qué van */}
       {solicitudes.length > 0 && (
@@ -622,7 +668,7 @@ export default function InsumosChecklist({
 
       {/* Lo que el almacén no entregó: visible en los dos modos, para que ni
           el técnico ni el supervisor lo den por perdido. */}
-      {noEntregados.length > 0 && (
+      {cicloAnterior && noEntregados.length > 0 && (
         <div className="mb-4 p-3.5 rounded-xl bg-surface border border-line">
           <p className="text-[13px] font-semibold text-amber mb-1.5 flex items-center gap-2">
             <PackageX size={15} strokeWidth={2.4} />
@@ -641,7 +687,7 @@ export default function InsumosChecklist({
       )}
 
       {/* Lo que salió y no ha regresado: es el dato que evita perder herramienta */}
-      {modo === 'retorno' && progreso.faltantesAlRetorno > 0 && (
+      {cicloAnterior && modo === 'retorno' && progreso.faltantesAlRetorno > 0 && (
         <div className="mb-4 p-3.5 rounded-xl bg-amber/10 border border-amber/30 flex items-start gap-2.5">
           <AlertTriangle size={17} strokeWidth={2.4} className="text-amber shrink-0 mt-0.5" />
           <p className="text-[13.5px] text-ink/80 leading-relaxed">
@@ -652,7 +698,7 @@ export default function InsumosChecklist({
 
       {/* Acciones para toda la lista: en una carga de 20 piezas, tocar una por
           una es lento. La confirmación evita que se vuelva un "firmar sin ver". */}
-      {puedeMarcar && !bloqueado && listaVisible.length > 0 && (
+      {marcaAnterior && listaVisible.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-4">
           {sinMarcar.length > 0 && (
             <button
@@ -727,6 +773,7 @@ export default function InsumosChecklist({
                         de acción bajan a su propio renglón: en un celular no
                         caben junto a un nombre largo y se encimaban. */}
                     <div className="flex items-center gap-3">
+                      {cicloAnterior && (
                       <button
                         onClick={() => handleMarcar(i)}
                         disabled={soloLectura}
@@ -745,6 +792,7 @@ export default function InsumosChecklist({
                           <Square size={26} strokeWidth={2} className={salioYNoVolvio ? 'text-amber' : 'text-muted'} />
                         )}
                       </button>
+                      )}
 
                       <span className={`text-[15px] font-semibold shrink-0 ${marcado ? 'text-muted line-through' : parcial ? 'text-amber' : ''}`}>
                         {parcial ? `${cant} de ${max}` : `${i.cantidad}`} {i.unidad}
@@ -777,11 +825,15 @@ export default function InsumosChecklist({
                     </div>
 
                     {i.es_del_tecnico && (
-                      <p className="text-[11.5px] text-amber font-semibold mt-1 ml-[42px]">Se agregó en campo</p>
+                      <p className={`text-[11.5px] text-amber font-semibold mt-1 ${cicloAnterior ? 'ml-[42px]' : ''}`}>Se agregó en campo</p>
+                    )}
+
+                    {!cicloAnterior && porRenglon[i.id] && (
+                      <EstadoDelRenglon cobertura={porRenglon[i.id]} unidad={i.unidad} />
                     )}
 
                     {/* Segunda fila: acciones, solo cuando hay algo que hacer */}
-                    {puedeMarcar && !bloqueado && !marcado && (
+                    {marcaAnterior && !marcado && (
                       <div className="flex gap-2 mt-2 ml-[42px]">
                         {max > 1 && (
                           <button
@@ -833,7 +885,7 @@ export default function InsumosChecklist({
             </p>
             {!puedeEditarTodo && (
               <p className="text-[12.5px] text-muted mb-3 leading-relaxed">
-                No se agrega al resguardo hasta que un supervisor lo autorice.
+                No se agrega a la lista hasta que un supervisor lo autorice. Después lo pides al almacén con un vale.
               </p>
             )}
 
@@ -906,7 +958,7 @@ export default function InsumosChecklist({
       )}
 
       {/* Firmar el resguardo: cierra el documento del día */}
-      {puedeMarcar && !bloqueado && progreso.total > 0 && (
+      {marcaAnterior && progreso.total > 0 && (
         <button
           onClick={() => setShowFirma(true)}
           className="w-full min-h-[52px] mt-3 rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15px] flex items-center justify-center gap-2 active:scale-95 transition-transform"
@@ -914,6 +966,15 @@ export default function InsumosChecklist({
           <PenLine size={18} strokeWidth={2.4} />
           {modo === 'salida' ? 'Firmar resguardo de salida' : 'Firmar devolución'}
         </button>
+      )}
+
+      {showPedirVale && (
+        <NuevoVale
+          servicioInicialId={servicioId}
+          partidasIniciales={partidasPorPedir}
+          onClose={() => setShowPedirVale(false)}
+          onCreado={() => { setShowPedirVale(false); cargar(); onCambio?.(); }}
+        />
       )}
 
       {/* Motivo de lo que no regresó */}
@@ -1224,4 +1285,76 @@ export default function InsumosChecklist({
       )}
     </div>
   );
+}
+
+// Resumen arriba de la lista: cuánto ya entregó el almacén por vale y el
+// botón para pedir lo que falta.
+function CoberturaDeVales({ total, entregados, sinCatalogo, folios, porPedir, puedePedir, onPedir }: {
+  total: number;
+  entregados: number;
+  sinCatalogo: number;
+  folios: string[];
+  porPedir: number;
+  puedePedir: boolean;
+  onPedir: () => void;
+}) {
+  if (total === 0 && sinCatalogo === 0) return null;
+  const pct = total > 0 ? Math.round((entregados / total) * 100) : 0;
+  return (
+    <div className="mb-4">
+      <div className="flex items-baseline justify-between mb-1.5">
+        <p className="text-[13px] text-muted">{entregados} de {total} entregados por el almacén</p>
+        <span className={`font-display font-bold text-[15px] ${pct >= 100 ? 'text-teal' : 'text-amber'}`}>{pct}%</span>
+      </div>
+      <ProgressBar pct={pct} />
+
+      {folios.length > 0 && (
+        <p className="text-[12.5px] text-muted mt-2 flex items-center gap-1.5 flex-wrap">
+          <ClipboardList size={14} strokeWidth={2.3} className="shrink-0" />
+          Vales del proyecto: {folios.join(', ')}
+        </p>
+      )}
+
+      {puedePedir && porPedir > 0 && (
+        <button
+          onClick={onPedir}
+          className="w-full min-h-[50px] mt-3 rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15px] flex items-center justify-center gap-2 active:scale-95 transition-transform"
+        >
+          <PackagePlus size={18} strokeWidth={2.4} />
+          Pedir al almacén lo que falta ({porPedir})
+        </button>
+      )}
+      {total > 0 && porPedir === 0 && (
+        <p className="text-[13px] text-teal font-medium mt-2.5 flex items-center gap-1.5">
+          <Check size={15} strokeWidth={3} />
+          Todo lo de la lista ya está pedido o entregado.
+        </p>
+      )}
+      {sinCatalogo > 0 && (
+        <p className="text-[12.5px] text-muted mt-2 leading-relaxed">
+          {sinCatalogo === 1 ? 'Un renglón está escrito a mano' : `${sinCatalogo} renglones están escritos a mano`} y no se
+          puede pedir por vale: pídelo al almacenista para que lo dé de alta.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// Debajo de cada renglón: si ya se entregó, si está pedido o cuánto falta pedir.
+function EstadoDelRenglon({ cobertura, unidad }: { cobertura: CoberturaRenglon; unidad: string }) {
+  if (cobertura.estado === 'sin_catalogo') {
+    return <p className="text-[12px] text-muted mt-1">Escrito a mano: no está en el catálogo del almacén</p>;
+  }
+  if (cobertura.estado === 'entregado') {
+    return (
+      <p className="text-[12px] text-teal font-semibold mt-1 flex items-center gap-1">
+        <Check size={13} strokeWidth={3} /> Entregado por el almacén
+      </p>
+    );
+  }
+  const yaEntregado = cobertura.entregado > 0 ? ` · ya entregado: ${cobertura.entregado} ${unidad}` : '';
+  if (cobertura.estado === 'pedido') {
+    return <p className="text-[12px] text-amber font-semibold mt-1">Pedido al almacén, falta que lo entregue{yaEntregado}</p>;
+  }
+  return <p className="text-[12px] text-red font-semibold mt-1">Falta pedir {cobertura.faltaPedir} {unidad}{yaEntregado}</p>;
 }

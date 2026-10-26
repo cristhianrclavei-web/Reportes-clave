@@ -133,6 +133,8 @@ export const MANUAL_TECNICO: SeccionManual[] = [
         resumen: 'En «Insumos» pides lo que necesitas para un servicio.',
         pasos: [
           'Toca «Pedir al almacén», elige los artículos y la cantidad.',
+          'Si tu supervisor armó la lista de herramienta, material y equipo del proyecto, ábrela («Herramienta y material» en el servicio) y toca «Pedir al almacén lo que falta»: el vale se arma solo con lo que falta. Cada renglón dice si ya está entregado, pedido o falta pedir, contando los vales de toda la cuadrilla.',
+          'La lista ya no se firma: lo que se te entrega queda en el vale, que es lo que descuenta del almacén.',
           'Si se te vence el plazo para devolver, abre el vale y toca «Renovar plazo: pedir más días»: eliges cuántos y para qué. Mientras el almacén no responde, el vale dice «Ya pediste N día(s) más» y puedes tocar «Recordar al almacén».',
           'Cuando el almacén lo surte, firmas de recibido: desde tu celular, o ahí mismo en el dispositivo del almacén si recibes en persona.',
           'La herramienta prestada se devuelve desde ahí mismo al terminar.',
@@ -288,7 +290,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
         resumen: 'Desde Servicios → Agendados o desde la Agenda.',
         pasos: [
           'Toca «Agendar», elige el cliente, la fecha, la hora y a quién va (personas o una cuadrilla completa). La ubicación del sitio la buscas escribiendo el nombre o la dirección (salen las mismas sugerencias que en Google Maps), la pegas de un enlace de Google Maps o la marcas en el mapa. Abajo elige el «Tamaño del sitio»: Normal (120 m), Grande (300 m) o Planta o complejo (500 m), para que en una planta con naves lejanas no salga «fuera del sitio» aunque estén trabajando adentro.',
-          'Puedes cargar una rutina de tareas y una lista de herramienta y material.',
+          'Puedes cargar una rutina de tareas y una lista de herramienta y material. La lista es la guía de lo que el personal debe pedir al almacén: desde ella arman el vale de un toque, y en el detalle del servicio ves qué renglones ya entregó el almacén.',
           'Los servicios de varios días se agendan como un solo proyecto.',
           'En Agendados y Concluidos cada proyecto es una tarjeta con su fecha, su estado (Hoy, Mañana, En curso, Sin cerrar, Concluido), quién va y cuántos días tienen reporte. Arriba, los recuadros «En curso», «Hoy», «Sin confirmar» y «Sin cerrar» (o «Falta reporte» en Concluidos) filtran la lista al tocarlos; tócalo otra vez para ver todo.',
           'Para eliminar: en Servicios despliega el proyecto. El bote de basura junto a un día quita solo ese día (pide el motivo; no aparece en días ya trabajados o con reporte), y «Eliminar el proyecto completo» borra todo. Las dos piden confirmación.',

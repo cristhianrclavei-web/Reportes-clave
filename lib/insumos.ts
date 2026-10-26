@@ -423,10 +423,12 @@ export async function resumenDeChecklist(grupoId: string): Promise<ResumenCheckl
 // varias relaciones hacia profiles, y esto son pocos registros.
 export async function listarChecklists(): Promise<ResumenChecklist[]> {
   const supabase = createClient();
-  const [{ data: insumos, error: e1 }, { data: servicios, error: e2 }, { data: resguardos }] = await Promise.all([
+  const [{ data: insumos, error: e1 }, { data: servicios, error: e2 }, { data: resguardos }, { data: vales }] = await Promise.all([
     supabase.from('servicio_insumos').select('grupo_id, servicio_id, categoria, created_at, agregado_por'),
     supabase.from('servicios_programados').select('id, grupo_id, proyecto, numero_dia'),
     supabase.from('servicio_resguardos').select('servicio_id, tipo, firmado_en').eq('tipo', 'salida'),
+    // La entrega ahora es la del primer vale surtido del proyecto.
+    supabase.from('almacen_vales').select('servicio_id, entregado_en').not('servicio_id', 'is', null).not('entregado_en', 'is', null),
   ]);
   if (e1) throw e1;
   if (e2) throw e2;
@@ -440,9 +442,18 @@ export async function listarChecklists(): Promise<ResumenChecklist[]> {
 
   const proyectoPorGrupo: Record<string, string> = {};
   const primerDiaPorGrupo: Record<string, string> = {};
+  const grupoPorServicio: Record<string, string> = {};
   (servicios || []).forEach((sv: any) => {
     proyectoPorGrupo[sv.grupo_id] = sv.proyecto;
+    grupoPorServicio[sv.id] = sv.grupo_id;
     if (sv.numero_dia === 1) primerDiaPorGrupo[sv.grupo_id] = sv.id;
+  });
+
+  const primerValePorGrupo: Record<string, string> = {};
+  (vales || []).forEach((v: any) => {
+    const grupo = grupoPorServicio[v.servicio_id];
+    if (!grupo) return;
+    if (!primerValePorGrupo[grupo] || v.entregado_en < primerValePorGrupo[grupo]) primerValePorGrupo[grupo] = v.entregado_en;
   });
 
   const entregaPorServicio: Record<string, string> = {};
@@ -468,7 +479,7 @@ export async function listarChecklists(): Promise<ResumenChecklist[]> {
   });
 
   Object.values(mapa).forEach((r) => {
-    r.entregadoEn = entregaPorServicio[r.servicioId] || null;
+    r.entregadoEn = primerValePorGrupo[r.grupoId] || entregaPorServicio[r.servicioId] || null;
   });
 
   return Object.values(mapa).sort((a, b) => (b.creadoEn || '').localeCompare(a.creadoEn || ''));
@@ -485,6 +496,10 @@ export type MiChecklist = ResumenChecklist & {
   devolucionFirmada: boolean;
   recibidoEnAlmacen: boolean;
   solicitudesPendientes: number;
+  // Frente a los vales del proyecto (renglones del catálogo).
+  renglonesCatalogo: number;
+  renglonesPorPedir: number;
+  renglonesPedidos: number;
 };
 
 export async function listarMisChecklists(): Promise<MiChecklist[]> {
@@ -513,9 +528,16 @@ export async function listarMisChecklists(): Promise<MiChecklist[]> {
   if (grupos.length === 0) return [];
 
   const [{ data: insumos }, { data: resguardos }] = await Promise.all([
-    supabase.from('servicio_insumos').select('grupo_id, categoria, estado_solicitud').in('grupo_id', grupos),
+    supabase.from('servicio_insumos').select('id, grupo_id, categoria, estado_solicitud, articulo_id, cantidad').in('grupo_id', grupos),
     supabase.from('servicio_resguardos').select('servicio_id, tipo, recibido_en').in('servicio_id', idsAsignados),
   ]);
+
+  // Si un proyecto no puede leer sus vales, se muestra sin ese dato en vez de
+  // dejar toda la sección en blanco.
+  const { coberturaDelProyecto } = await import('./vales');
+  const coberturas = await Promise.all(grupos.map((g) => coberturaDelProyecto(g).catch(() => [])));
+  const coberturaPorGrupo: Record<string, Awaited<ReturnType<typeof coberturaDelProyecto>>> = {};
+  grupos.forEach((g, n) => { coberturaPorGrupo[g] = coberturas[n]; });
 
   const resultado: MiChecklist[] = [];
 
@@ -534,6 +556,8 @@ export async function listarMisChecklists(): Promise<MiChecklist[]> {
     const misResguardos = (resguardos || []).filter((r: any) => r.servicio_id === dia.id);
     const salida = misResguardos.find((r: any) => r.tipo === 'salida');
     const devolucion = misResguardos.find((r: any) => r.tipo === 'devolucion');
+    const porRenglon = coberturaPorRenglon(aprobados as any[], coberturaPorGrupo[grupoId] || []);
+    const estados = Object.values(porRenglon);
 
     resultado.push({
       grupoId,
@@ -553,6 +577,9 @@ export async function listarMisChecklists(): Promise<MiChecklist[]> {
       devolucionFirmada: !!devolucion,
       recibidoEnAlmacen: !!devolucion?.recibido_en,
       solicitudesPendientes: pendientes,
+      renglonesCatalogo: estados.filter((e) => e.estado !== 'sin_catalogo').length,
+      renglonesPorPedir: estados.filter((e) => e.estado === 'falta').length,
+      renglonesPedidos: estados.filter((e) => e.estado === 'pedido').length,
     });
   });
 
@@ -873,4 +900,49 @@ export async function aplicarPlantilla(
 
   const { error } = await supabase.from('servicio_insumos').insert(filas);
   if (error) throw error;
+}
+
+// --- La lista del proyecto frente a los vales ---
+// Desde 2026-10-26 la lista no se firma: es la guía de lo que hay que pedir
+// al almacén por vale, que es lo único que mueve el inventario.
+
+export type EstadoRenglon = 'sin_catalogo' | 'entregado' | 'pedido' | 'falta';
+
+export type CoberturaRenglon = {
+  estado: EstadoRenglon;
+  entregado: number;
+  pedido: number;
+  // Lo que todavía hay que pedir (0 si ya está cubierto).
+  faltaPedir: number;
+};
+
+// Reparte lo pedido y entregado de cada artículo entre los renglones de la
+// lista en orden: si el mismo artículo aparece dos veces, primero se llena
+// el primer renglón y el sobrante pasa al siguiente.
+export function coberturaPorRenglon(
+  lista: Pick<Insumo, 'id' | 'articulo_id' | 'cantidad'>[],
+  cobertura: { articulo_id: string; pedido: number; entregado: number }[]
+): Record<string, CoberturaRenglon> {
+  const restante: Record<string, { pedido: number; entregado: number }> = {};
+  for (const c of cobertura) restante[c.articulo_id] = { pedido: c.pedido, entregado: c.entregado };
+
+  const resultado: Record<string, CoberturaRenglon> = {};
+  for (const renglon of lista) {
+    if (!renglon.articulo_id) {
+      resultado[renglon.id] = { estado: 'sin_catalogo', entregado: 0, pedido: 0, faltaPedir: 0 };
+      continue;
+    }
+    const disponible = restante[renglon.articulo_id] || { pedido: 0, entregado: 0 };
+    const entregado = Math.min(disponible.entregado, renglon.cantidad);
+    const pedido = Math.min(disponible.pedido, renglon.cantidad - entregado);
+    disponible.entregado -= entregado;
+    disponible.pedido -= pedido;
+    const faltaPedir = renglon.cantidad - entregado - pedido;
+
+    let estado: EstadoRenglon = 'falta';
+    if (entregado >= renglon.cantidad) estado = 'entregado';
+    else if (faltaPedir <= 0) estado = 'pedido';
+    resultado[renglon.id] = { estado, entregado, pedido, faltaPedir };
+  }
+  return resultado;
 }

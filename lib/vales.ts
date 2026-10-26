@@ -452,3 +452,18 @@ export async function salidasDelServicio(servicioId: string): Promise<{ folios: 
   }
   return { folios: vales.map((v) => v.folio), items: [...porArticulo.values()] };
 }
+
+// Qué de cada artículo ya se pidió o se entregó por vale en todo el proyecto
+// (todos sus días y toda la cuadrilla). patch_cobertura_vales.sql.
+export type CoberturaArticulo = { articulo_id: string; pedido: number; entregado: number; folios: string[] };
+
+export async function coberturaDelProyecto(grupoId: string): Promise<CoberturaArticulo[]> {
+  const { data, error } = await createClient().rpc('cobertura_vales_proyecto', { p_grupo: grupoId });
+  if (error) throw new Error(error.message);
+  return ((data as any[]) || []).map((c) => ({
+    articulo_id: c.articulo_id,
+    pedido: Number(c.pedido) || 0,
+    entregado: Number(c.entregado) || 0,
+    folios: c.folios || [],
+  }));
+}

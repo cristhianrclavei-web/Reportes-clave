@@ -520,7 +520,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
 
   async function handleEliminarChecklist(c: ResumenChecklist) {
     const aviso = c.entregadoEn
-      ? '\n\nOJO: ya se entregó la herramienta de esta lista. Al borrarla se pierde el registro de qué se entregó.'
+      ? '\n\nOJO: ya se entregó herramienta para este proyecto. Los vales no se borran, solo la lista.'
       : '';
     if (!await confirmar(`¿Borrar la lista de carga de «${c.proyecto}» (${c.total} renglones)?${aviso}\n\nEl proyecto no se elimina, solo su lista de herramienta y material.`)) return;
     setEliminandoChecklist(c.grupoId);
