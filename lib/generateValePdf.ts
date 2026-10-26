@@ -7,7 +7,8 @@ import { MARCA, MARCA_MAYUS } from './marca';
 import type { Vale } from './vales';
 
 // Vale de almacén en PDF: lo que se pidió, entregó, devolvió y recibió, con
-// la firma de recibido del técnico. Reemplaza al vale de papel.
+// la firma de recibido del técnico y la del almacén al aceptar la devolución.
+// Reemplaza al vale de papel.
 
 const ESTADO: Record<string, string> = {
   solicitado: 'Por entregar', por_firmar: 'Entregado, por firmar', en_uso: 'En uso',
@@ -71,9 +72,14 @@ export async function generateValePdf(v: Vale & { entregadoPor?: string | null; 
   y -= 16;
   v.items.forEach((it, i) => {
     const desc = [it.articulo?.descripcion, [it.articulo?.marca, it.articulo?.modelo].filter(Boolean).join(' ')].filter(Boolean).join(' · ');
-    const falta = it.cantidad_entregada != null && it.cantidad_devuelta != null && it.cantidad_devuelta < it.cantidad_entregada
-      ? `${num(it.cantidad_entregada - it.cantidad_devuelta)} · ${MOTIVO[it.motivo_faltante || ''] || ''}` : '—';
-    const h = 18;
+    // Lo que no volvió al almacén: contra lo recibido si ya se confirmó (el
+    // almacén pudo recibir menos de lo que se declaró), si no contra lo devuelto.
+    const regreso = it.cantidad_recibida ?? it.cantidad_devuelta;
+    const falta = it.cantidad_entregada != null && regreso != null && regreso < it.cantidad_entregada
+      ? num(it.cantidad_entregada - regreso) : '—';
+    // El motivo va en una segunda línea bajo la cantidad, sin invadir la fila.
+    const motivoFalta = falta !== '—' ? MOTIVO[it.motivo_faltante || ''] || (it.nota_recepcion ? 'Ver nota' : '') : '';
+    const h = motivoFalta ? 24 : 18;
     if (y - h < MARGIN + 130) { page = pdf.addPage([PAGE_W, PAGE_H]); y = PAGE_H - MARGIN; }
     if (i % 2) page.drawRectangle({ x: MARGIN, y: y - h, width: w, height: h, color: rgb(0.96, 0.97, 0.97) });
     const vals = [desc, it.articulo?.unidad || '', num(it.cantidad_solicitada), num(it.cantidad_entregada), num(it.cantidad_devuelta), num(it.cantidad_recibida), falta];
@@ -82,6 +88,9 @@ export async function generateValePdf(v: Vale & { entregadoPor?: string | null; 
       page.drawText(t, { x: cx + 4, y: y - 12, size: k === 0 ? 7.5 : 8, font: k === 0 ? font : bold, color: k === 6 && t !== '—' ? ROJO : NAVY, maxWidth: w * cols[k].w - 8 });
       cx += w * cols[k].w;
     });
+    if (motivoFalta) {
+      page.drawText(motivoFalta, { x: MARGIN + w * (1 - cols[6].w) + 4, y: y - 20, size: 6.5, font, color: ROJO, maxWidth: w * cols[6].w - 6 });
+    }
     page.drawLine({ start: { x: MARGIN, y: y - h }, end: { x: MARGIN + w, y: y - h }, thickness: 0.4, color: GRAY_LINE });
     y -= h;
   });
@@ -89,26 +98,39 @@ export async function generateValePdf(v: Vale & { entregadoPor?: string | null; 
   [['Entrega', v.nota_entrega], ['Devolución', v.nota_devolucion], ['Recepción', v.nota_recepcion], ['Rechazo', v.motivo_rechazo]]
     .filter(([, t]) => t)
     .forEach(([k, t]) => { page.drawText(`${k}: ${t}`, { x: MARGIN, y, size: 8, font, color: NAVY, maxWidth: w }); y -= 13; });
-  if (v.fotos_devolucion?.length) {
-    page.drawText(`Fotos de devolución: ${v.fotos_devolucion.length} (en la app)`, { x: MARGIN, y, size: 8, font, color: GRAY_TEXT }); y -= 13;
-  }
+  // Notas del almacén por concepto, cuando lo recibido no cuadró.
+  v.items.filter((it) => it.nota_recepcion).forEach((it) => {
+    page.drawText(`Recepción · ${it.articulo?.descripcion || ''}: ${it.nota_recepcion}`, { x: MARGIN, y, size: 8, font, color: NAVY, maxWidth: w }); y -= 13;
+  });
+  const fotos = [
+    v.fotos_entrega?.length ? `${v.fotos_entrega.length} de la entrega` : '',
+    v.fotos_devolucion?.length ? `${v.fotos_devolucion.length} de la devolución` : '',
+  ].filter(Boolean).join(' · ');
+  if (fotos) { page.drawText(`Fotos de evidencia: ${fotos} (en la app)`, { x: MARGIN, y, size: 8, font, color: GRAY_TEXT }); y -= 13; }
 
-  // Firma de recibido
+  // Las dos firmas: el técnico al recibir y el almacén al aceptar la devolución.
   y -= 10;
-  page.drawText('FIRMA DE RECIBIDO DEL TÉCNICO', { x: MARGIN, y, size: 6.5, font: bold, color: GRAY_TEXT });
-  page.drawText(`${v.tecnico || ''}${v.firmado_en ? ` · ${fecha(v.firmado_en)}` : ''}`, { x: MARGIN, y: y - 11, size: 9, font, color: NAVY });
-  const boxW = 230, boxH = 70;
-  page.drawRectangle({ x: MARGIN, y: y - 20 - boxH, width: boxW, height: boxH, borderColor: GRAY_LINE, borderWidth: 0.75 });
-  if (v.firma_recepcion?.startsWith('data:image')) {
-    try {
-      const img = await pdf.embedPng(Uint8Array.from(Buffer.from(v.firma_recepcion.split(',')[1], 'base64')));
-      const s = Math.min((boxW - 10) / img.width, (boxH - 10) / img.height);
-      page.drawImage(img, { x: MARGIN + (boxW - img.width * s) / 2, y: y - 20 - boxH + (boxH - img.height * s) / 2, width: img.width * s, height: img.height * s });
-    } catch { /* sin firma si falla */ }
-  } else {
-    page.drawText('Sin firma', { x: MARGIN + 8, y: y - 20 - boxH / 2, size: 8, font, color: GRAY_TEXT });
+  const boxW = (w - 20) / 2, boxH = 70;
+  async function firma(x: number, titulo: string, quien: string, png: string | null | undefined) {
+    page.drawText(titulo, { x, y, size: 6.5, font: bold, color: GRAY_TEXT });
+    page.drawText(quien, { x, y: y - 11, size: 9, font, color: NAVY, maxWidth: boxW });
+    page.drawRectangle({ x, y: y - 20 - boxH, width: boxW, height: boxH, borderColor: GRAY_LINE, borderWidth: 0.75 });
+    if (png?.startsWith('data:image')) {
+      try {
+        const img = await pdf.embedPng(Uint8Array.from(Buffer.from(png.split(',')[1], 'base64')));
+        const s = Math.min((boxW - 10) / img.width, (boxH - 10) / img.height);
+        page.drawImage(img, { x: x + (boxW - img.width * s) / 2, y: y - 20 - boxH + (boxH - img.height * s) / 2, width: img.width * s, height: img.height * s });
+        return;
+      } catch { /* sin firma si falla */ }
+    }
+    page.drawText('Sin firma', { x: x + 8, y: y - 20 - boxH / 2, size: 8, font, color: GRAY_TEXT });
   }
-  page.drawText(v.estado === 'cerrado' ? 'Devolución confirmada por el almacén' : '', { x: MARGIN + boxW + 20, y: y - 20 - boxH / 2, size: 9, font: bold, color: VERDE });
+  await firma(MARGIN, 'FIRMA DE RECIBIDO DEL TÉCNICO', `${v.tecnico || ''}${v.firmado_en ? ` · ${fecha(v.firmado_en)}` : ''}`, v.firma_recepcion);
+  await firma(MARGIN + boxW + 20, 'FIRMA DEL ALMACÉN AL RECIBIR LA DEVOLUCIÓN',
+    `${v.recibidoPor || ''}${v.firma_almacen_en ? ` · ${fecha(v.firma_almacen_en)}` : ''}`, v.firma_almacen);
+  if (v.estado === 'cerrado') {
+    page.drawText('Devolución revisada y aceptada por el almacén', { x: MARGIN, y: y - 20 - boxH - 14, size: 9, font: bold, color: VERDE });
+  }
 
   page.drawText(`Generado el ${fecha(new Date().toISOString())} · ${MARCA.nombre} · Vale ${v.folio}`, { x: MARGIN, y: MARGIN / 2, size: 6.5, font, color: GRAY_TEXT });
   void TEAL_DARK;

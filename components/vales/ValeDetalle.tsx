@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAvanceGuardado, pausaFinal } from '@/lib/useAvanceGuardado';
 import SavingOverlay from '@/components/SavingOverlay';
 import type { Avance } from '@/lib/useAvanceGuardado';
-import { X, FileText, Camera, Images, Clock, AlertTriangle, Check, Users, BellRing } from 'lucide-react';
+import { X, FileText, Clock, AlertTriangle, Check, Users, BellRing, PackageCheck, ShieldCheck, Undo2 } from 'lucide-react';
+import { LineaDelVale, FotosDelVale, SelectorFotos, Cantidad } from './EvidenciaVale';
 import ModalOverlay from '@/components/ModalOverlay';
 import SignaturePad, { SignaturePadHandle } from '@/components/SignaturePad';
 import { showToast } from '@/components/Toast';
@@ -12,7 +13,7 @@ import { mapaDeExistencias } from '@/lib/almacen';
 import { createClient } from '@/lib/supabaseClient';
 import {
   Vale, ETIQUETA_ESTADO, MOTIVOS_FALTANTE, valeVencido,
-  firmarVale, firmarValeEnAlmacen, devolverVale, subirFotoDevolucion, pedirMasDias, recordarMasDias, cancelarVale,
+  firmarVale, firmarValeEnAlmacen, devolverVale, subirFotoVale, pedirMasDias, recordarMasDias, cancelarVale,
   entregarVale, recibirDevolucion, resolverMasDias, urlsFotos,
   Traspaso, traspasosDeVale, companerosParaPrestamo, proponerTraspaso, cancelarTraspaso, disponiblesParaPrestar, nombreCorto,
 } from '@/lib/vales';
@@ -44,6 +45,9 @@ export default function ValeDetalle({
   const vencido = valeVencido(vale);
   const [traspasos, setTraspasos] = useState<Traspaso[]>([]);
   const [recargaT, setRecargaT] = useState(0);
+  // Recién entregado en este dispositivo: lo normal es que el técnico esté
+  // ahí, así que la firma se abre sola.
+  const [recienEntregado, setRecienEntregado] = useState(false);
   useEffect(() => { traspasosDeVale(vale.id).then(setTraspasos); }, [vale.id, recargaT]);
 
   // Toda acción muestra la pantalla de avance. `conEtapas`: la acción reporta
@@ -87,8 +91,9 @@ export default function ValeDetalle({
           {vale.extension_estado === 'pendiente' && <span className="px-2.5 py-0.5 rounded-full bg-amber/15 text-amber">Pide {vale.extension_dias} día(s) más</span>}
         </div>
 
+        <LineaDelVale vale={vale} />
+
         {vale.nota && <p className="text-[13px] mt-2"><span className="text-muted">Nota: </span>{vale.nota}</p>}
-        {vale.motivo_rechazo && <p className="text-[13px] mt-2 text-red">Motivo: {vale.motivo_rechazo}</p>}
 
         {/* Partidas */}
         <div className="mt-3 rounded-xl border border-line overflow-hidden">
@@ -108,6 +113,7 @@ export default function ValeDetalle({
                     <span className="font-medium">{it.articulo?.descripcion}</span>
                     <span className="block text-[11px] text-muted">{[it.articulo?.marca, it.articulo?.modelo].filter(Boolean).join(' ')} {it.articulo?.unidad}</span>
                     {it.motivo_faltante && <span className="block text-[11px] text-red">{MOTIVOS_FALTANTE.find((m) => m.valor === it.motivo_faltante)?.label}{it.nota ? ` · ${it.nota}` : ''}</span>}
+                    {it.nota_recepcion && <span className="block text-[11px] text-amber">Almacén: {it.nota_recepcion}</span>}
                   </td>
                   <td className="text-center px-1.5 py-1.5 tabular-nums">{n(it.cantidad_solicitada)}</td>
                   <td className="text-center px-1.5 py-1.5 tabular-nums">{n(it.cantidad_entregada)}</td>
@@ -118,7 +124,8 @@ export default function ValeDetalle({
           </table>
         </div>
 
-        {vale.fotos_devolucion?.length > 0 && <FotosDevolucion paths={vale.fotos_devolucion} />}
+        {(vale.fotos_entrega?.length || 0) > 0 && <FotosDelVale titulo="Fotos de la entrega" paths={vale.fotos_entrega!} />}
+        {vale.fotos_devolucion?.length > 0 && <FotosDelVale titulo="Fotos de la devolución" paths={vale.fotos_devolucion} />}
 
         {traspasos.length > 0 && (
           <div className="mt-3 rounded-xl border border-line p-3">
@@ -181,8 +188,11 @@ export default function ValeDetalle({
               )}
             </>
           )}
-          {modo === 'almacen' && vale.estado === 'por_firmar' && <FirmarEnAlmacen vale={vale} guardando={guardando} ejecutar={ejecutar} />}
-          {modo === 'almacen' && vale.estado === 'solicitado' && <Entregar vale={vale} guardando={guardando} ejecutar={ejecutar} />}
+          {modo === 'almacen' && vale.estado === 'por_firmar' && <FirmarEnAlmacen vale={vale} guardando={guardando} ejecutar={ejecutar} abiertoInicial={recienEntregado} />}
+          {modo === 'almacen' && vale.estado === 'solicitado' && (
+            <Entregar vale={vale} guardando={guardando}
+              ejecutar={(fn, ok, conEtapas) => ejecutar(async (av) => { await fn(av); setRecienEntregado(true); }, ok, conEtapas)} />
+          )}
           {modo === 'almacen' && vale.estado === 'devolucion_por_confirmar' && <Recibir vale={vale} guardando={guardando} ejecutar={ejecutar} />}
           {modo === 'almacen' && vale.extension_estado === 'pendiente' && (
             <div className="rounded-xl border border-amber/40 bg-amber/5 p-3">
@@ -207,27 +217,13 @@ export default function ValeDetalle({
 
 type Ejecutar = (fn: (avance: Avance) => Promise<void>, ok: string, conEtapas?: boolean) => void;
 
-function FotosDevolucion({ paths }: { paths: string[] }) {
-  const [urls, setUrls] = useState<string[]>([]);
-  useEffect(() => { urlsFotos(paths).then(setUrls).catch(() => {}); }, [paths]);
-  return (
-    <div className="mt-3">
-      <p className={labelCls}>Fotos de la devolución</p>
-      <div className="grid grid-cols-3 gap-2">
-        {urls.map((u, i) => u && (
-          <a key={i} href={u} target="_blank" rel="noopener noreferrer"><img src={u} alt={`Devolución ${i + 1}`} className="w-full h-24 object-cover rounded-lg border border-line" /></a>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // Para cuando el técnico recibe en persona: firma aquí mismo, en la pantalla
 // del almacén. Va plegado para que nadie firme por error; si el técnico no
 // está, el vale se queda esperando su firma desde su celular, como siempre.
-function FirmarEnAlmacen({ vale, guardando, ejecutar }: { vale: Vale; guardando: boolean; ejecutar: Ejecutar }) {
+function FirmarEnAlmacen({ vale, guardando, ejecutar, abiertoInicial = false }: { vale: Vale; guardando: boolean; ejecutar: Ejecutar; abiertoInicial?: boolean }) {
   const ref = useRef<SignaturePadHandle>(null);
-  const [abierto, setAbierto] = useState(false);
+  const [abierto, setAbierto] = useState(abiertoInicial);
+  useEffect(() => { if (abiertoInicial) setAbierto(true); }, [abiertoInicial]);
   const [firma, setFirma] = useState<string | null>(null);
   if (!abierto) {
     return (
@@ -278,97 +274,121 @@ function FirmarRecibido({ vale, guardando, ejecutar }: { vale: Vale; guardando: 
   );
 }
 
+// El técnico devuelve: por cada concepto, «regresa completo» o «regresa
+// menos» (con cuánto y qué pasó), más la foto de lo que entrega. Al almacén
+// le llega el aviso para revisarlo.
 function Devolver({ vale, guardando, ejecutar }: { vale: Vale; guardando: boolean; ejecutar: Ejecutar }) {
   const [abierto, setAbierto] = useState(false);
   const entregados = vale.items.filter((i) => (i.cantidad_entregada || 0) > 0);
-  const [cant, setCant] = useState<Record<string, string>>(() => Object.fromEntries(entregados.map((i) => [i.id, String(i.cantidad_entregada)])));
+  const [cant, setCant] = useState<Record<string, number>>(() => Object.fromEntries(entregados.map((i) => [i.id, Number(i.cantidad_entregada)])));
+  const [menos, setMenos] = useState<Record<string, boolean>>({});
   const [motivo, setMotivo] = useState<Record<string, string>>({});
   const [nota, setNota] = useState<Record<string, string>>({});
   const [notaGral, setNotaGral] = useState('');
   const [fotos, setFotos] = useState<File[]>([]);
-  const camara = useRef<HTMLInputElement>(null);
-  const galeria = useRef<HTMLInputElement>(null);
-  const previews = useMemo(() => fotos.map((f) => URL.createObjectURL(f)), [fotos]);
 
   if (!abierto) {
     return (
-      <button type="button" onClick={() => setAbierto(true)} className="min-h-[46px] rounded-xl bg-teal text-inkOnAccent text-[14px] font-semibold">
-        Devolver al almacén
+      <button type="button" onClick={() => setAbierto(true)}
+        className="min-h-[50px] rounded-2xl bg-teal text-inkOnAccent text-[15px] font-display font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform">
+        <Undo2 size={18} /> Devolver al almacén
       </button>
     );
   }
 
+  // Lo que regresa de cada concepto: todo, salvo que se marque «menos».
+  const devuelve = (id: string, entregado: number) => (menos[id] ? Math.min(cant[id] ?? 0, entregado) : entregado);
+  const conDiferencia = entregados.filter((i) => devuelve(i.id, Number(i.cantidad_entregada)) < Number(i.cantidad_entregada));
+  const motivoDe = (i: typeof entregados[number]) => motivo[i.id] || (i.articulo?.categoria === 'material' ? 'consumido' : '');
+  const faltanMotivos = conDiferencia.filter((i) => !motivoDe(i));
+
   async function enviar(avance: Avance) {
     if (fotos.length === 0) throw new Error('Agrega al menos una foto de lo que entregas');
+    if (faltanMotivos.length > 0) throw new Error(`Indica qué pasó con «${faltanMotivos[0].articulo?.descripcion}»`);
     const items = entregados.map((i) => {
-      const c = Math.max(0, Math.min(Number(cant[i.id]) || 0, Number(i.cantidad_entregada)));
+      const c = devuelve(i.id, Number(i.cantidad_entregada));
       const falta = c < Number(i.cantidad_entregada);
-      return { id: i.id, cantidad: c, motivo: falta ? (motivo[i.id] || (i.articulo?.categoria === 'material' ? 'consumido' : null)) : null, nota: nota[i.id] || '' };
+      return { id: i.id, cantidad: c, motivo: falta ? motivoDe(i) : null, nota: falta ? nota[i.id] || '' : '' };
     });
-    const sinMotivo = items.find((x) => x.motivo === null && x.cantidad < Number(entregados.find((e) => e.id === x.id)!.cantidad_entregada));
-    if (sinMotivo) throw new Error('Indica qué pasó con lo que no regresa');
     const paths: string[] = [];
-    for (let i = 0; i < fotos.length; i++) {
-      avance(10 + (62 * i) / fotos.length, fotos.length > 1 ? `Guardando fotos · ${i + 1} de ${fotos.length}` : 'Guardando la foto');
-      paths.push(await subirFotoDevolucion(vale.id, fotos[i]));
+    for (let k = 0; k < fotos.length; k++) {
+      avance(10 + (62 * k) / fotos.length, fotos.length > 1 ? `Guardando fotos · ${k + 1} de ${fotos.length}` : 'Guardando la foto');
+      paths.push(await subirFotoVale(vale.id, fotos[k]));
     }
-    avance(78, 'Registrando la devolución');
+    avance(78, 'Avisando al almacén');
     await devolverVale(vale, items, paths, notaGral);
   }
 
   return (
-    <div className="rounded-xl border border-teal/40 bg-teal/5 p-3 flex flex-col gap-3">
-      <p className="text-[13px] font-semibold">¿Qué regresas?</p>
-      {entregados.map((i) => {
-        const c = Number(cant[i.id]) || 0;
-        const falta = c < Number(i.cantidad_entregada);
-        return (
-          <div key={i.id} className="rounded-lg bg-surface border border-line p-2.5">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[13px] font-medium min-w-0 truncate">{i.articulo?.descripcion}</span>
-              <span className="flex items-center gap-1.5 shrink-0 text-[12px] text-muted">
-                <input type="number" inputMode="decimal" min={0} max={Number(i.cantidad_entregada)} value={cant[i.id] ?? ''}
-                  onChange={(e) => setCant({ ...cant, [i.id]: e.target.value })}
-                  className="w-16 px-2 py-1.5 rounded-lg bg-surface-2 border border-line text-[14px] text-center" />
-                de {n(i.cantidad_entregada)} {i.articulo?.unidad}
-              </span>
-            </div>
-            {falta && (
-              <div className="mt-2 flex flex-col gap-1.5">
-                <select className={inputCls} value={motivo[i.id] || (i.articulo?.categoria === 'material' ? 'consumido' : '')} onChange={(e) => setMotivo({ ...motivo, [i.id]: e.target.value })}>
-                  <option value="">¿Qué pasó con lo que no regresa?</option>
-                  {MOTIVOS_FALTANTE.map((m) => <option key={m.valor} value={m.valor}>{m.label}</option>)}
-                </select>
-                <input className={inputCls} placeholder="Detalle (opcional)" value={nota[i.id] || ''} onChange={(e) => setNota({ ...nota, [i.id]: e.target.value })} />
-              </div>
-            )}
-          </div>
-        );
-      })}
-      <div>
-        <p className={labelCls}>Foto de evidencia (obligatoria)</p>
-        <div className="flex gap-2">
-          <button type="button" onClick={() => camara.current?.click()} className="flex-1 min-h-[42px] rounded-xl bg-surface-2 border border-line text-[13px] font-semibold flex items-center justify-center gap-1.5"><Camera size={15} /> Tomar foto</button>
-          <button type="button" onClick={() => galeria.current?.click()} className="flex-1 min-h-[42px] rounded-xl bg-surface-2 border border-line text-[13px] font-semibold flex items-center justify-center gap-1.5"><Images size={15} /> Galería</button>
+    <div className="rounded-2xl border border-teal/40 bg-teal/5 p-3.5 flex flex-col gap-3">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="font-display font-semibold text-[16px]">Devolver al almacén</p>
+          <p className="text-[12px] text-muted leading-snug">Marca lo que regresa. El almacén revisa cada concepto y firma de recibido.</p>
         </div>
-        <input ref={camara} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { setFotos([...fotos, ...Array.from(e.target.files || [])]); e.target.value = ''; }} />
-        <input ref={galeria} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { setFotos([...fotos, ...Array.from(e.target.files || [])]); e.target.value = ''; }} />
-        {fotos.length > 0 && (
-          <div className="grid grid-cols-4 gap-2 mt-2">
-            {previews.map((p, k) => (
-              <div key={k} className="relative">
-                <img src={p} alt="" className="w-full h-16 object-cover rounded-lg border border-line" />
-                <button type="button" aria-label="Quitar foto" onClick={() => setFotos(fotos.filter((_, j) => j !== k))}
-                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red text-white flex items-center justify-center"><X size={12} /></button>
-              </div>
-            ))}
-          </div>
-        )}
+        <button type="button" onClick={() => setAbierto(false)} aria-label="Cerrar" className="w-9 h-9 -mr-1 flex items-center justify-center text-muted shrink-0"><X size={17} /></button>
       </div>
+
+      <div className="flex flex-col gap-2">
+        {entregados.map((i) => {
+          const entregado = Number(i.cantidad_entregada);
+          const esMenos = !!menos[i.id];
+          const c = devuelve(i.id, entregado);
+          return (
+            <div key={i.id} className={`rounded-xl border p-3 transition-colors ${esMenos ? 'bg-amber/5 border-amber/40' : 'bg-surface border-line'}`}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[13.5px] font-semibold leading-snug">{i.articulo?.descripcion}</p>
+                  <p className="text-[11.5px] text-muted">Te entregaron {n(entregado)} {i.articulo?.unidad}</p>
+                </div>
+                <span className={`text-[12px] font-bold tabular-nums shrink-0 px-2 py-0.5 rounded-full ${esMenos ? 'bg-amber/15 text-amber' : 'bg-teal/15 text-teal'}`}>
+                  {c} de {n(entregado)}
+                </span>
+              </div>
+              {/* Completo / menos: un toque para el caso normal. */}
+              <div className="grid grid-cols-2 gap-1.5 mt-2.5 p-0.5 rounded-xl bg-surface-2" role="radiogroup" aria-label={`¿Regresa completo ${i.articulo?.descripcion}?`}>
+                {([[false, 'Regresa completo'], [true, 'Regresa menos']] as const).map(([valor, texto]) => (
+                  <button key={texto} type="button" role="radio" aria-checked={esMenos === valor}
+                    onClick={() => { setMenos({ ...menos, [i.id]: valor }); if (valor && (cant[i.id] ?? entregado) >= entregado) setCant({ ...cant, [i.id]: Math.max(0, entregado - 1) }); }}
+                    className={`min-h-[38px] rounded-[10px] text-[12.5px] font-semibold flex items-center justify-center gap-1.5 transition-colors ${
+                      esMenos === valor ? (valor ? 'bg-amber text-inkOnAccent' : 'bg-teal text-inkOnAccent') : 'text-muted'
+                    }`}>
+                    {!valor && <Check size={14} strokeWidth={3} />}{texto}
+                  </button>
+                ))}
+              </div>
+              {esMenos && (
+                <div className="mt-2.5 flex flex-col gap-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[12.5px] text-ink/80">¿Cuánto regresa?</span>
+                    <Cantidad valor={cant[i.id] ?? 0} max={entregado} onChange={(v) => setCant({ ...cant, [i.id]: v })} unidad={i.articulo?.unidad} />
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {MOTIVOS_FALTANTE.map((m) => (
+                      <button key={m.valor} type="button" onClick={() => setMotivo({ ...motivo, [i.id]: m.valor })}
+                        className={`px-3 py-1.5 rounded-full text-[12px] font-medium border ${motivoDe(i) === m.valor ? 'bg-amber text-inkOnAccent border-amber' : 'bg-surface border-line text-ink/80'}`}>
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                  <input className={inputCls} placeholder="Detalle (opcional): dónde quedó, qué le pasó…" value={nota[i.id] || ''} onChange={(e) => setNota({ ...nota, [i.id]: e.target.value })} />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <SelectorFotos fotos={fotos} onChange={setFotos} titulo="Foto de lo que devuelves"
+        ayuda="Acomoda todo junto y toma la foto: es tu evidencia de que lo regresaste." />
       <input className={inputCls} placeholder="Nota para el almacén (opcional)" value={notaGral} onChange={(e) => setNotaGral(e.target.value)} />
-      <button type="button" disabled={guardando || fotos.length === 0} onClick={() => ejecutar(enviar, 'Devolución enviada al almacén', true)}
-        className="min-h-[46px] rounded-xl bg-teal text-inkOnAccent text-[14px] font-semibold disabled:opacity-50">
-        {guardando ? 'Enviando…' : 'Enviar devolución'}
+
+      <p className="text-[12px] text-muted">
+        {conDiferencia.length === 0 ? 'Regresas todo completo.' : `${conDiferencia.length} concepto${conDiferencia.length > 1 ? 's' : ''} con diferencia${faltanMotivos.length ? ' · falta decir qué pasó' : ''}.`}
+      </p>
+      <button type="button" disabled={guardando || fotos.length === 0 || faltanMotivos.length > 0} onClick={() => ejecutar(enviar, 'Devolución enviada; el almacén la va a revisar', true)}
+        className="min-h-[50px] rounded-2xl bg-teal text-inkOnAccent text-[15px] font-semibold disabled:opacity-50 flex items-center justify-center gap-2">
+        <Undo2 size={17} /> {guardando ? 'Enviando…' : 'Enviar devolución'}
       </button>
     </div>
   );
@@ -460,10 +480,14 @@ function MasDias({ vale, vencido, guardando, ejecutar }: { vale: Vale; vencido: 
   );
 }
 
+// El almacén entrega: cantidades por concepto (sin pasar de lo que hay) y la
+// foto de lo entregado. Al guardar se descuenta del inventario y la pantalla
+// pasa directo a la firma del técnico.
 function Entregar({ vale, guardando, ejecutar }: { vale: Vale; guardando: boolean; ejecutar: Ejecutar }) {
-  const [cant, setCant] = useState<Record<string, string>>(() => Object.fromEntries(vale.items.map((i) => [i.id, String(i.cantidad_solicitada)])));
-  const [hay, setHay] = useState<Record<string, number>>({});
+  const [cant, setCant] = useState<Record<string, number>>(() => Object.fromEntries(vale.items.map((i) => [i.id, Number(i.cantidad_solicitada)])));
+  const [hay, setHay] = useState<Record<string, number> | null>(null);
   const [nota, setNota] = useState('');
+  const [fotos, setFotos] = useState<File[]>([]);
   const [rechazando, setRechazando] = useState(false);
   const [motivo, setMotivo] = useState('');
   useEffect(() => {
@@ -474,32 +498,64 @@ function Entregar({ vale, guardando, ejecutar }: { vale: Vale; guardando: boolea
         grupo = data?.grupo_id || null;
       }
       setHay(await mapaDeExistencias(grupo));
-    })().catch(() => {});
+    })().catch(() => setHay({}));
   }, [vale.servicio_id]);
 
+  const disponible = (articuloId: string) => Math.max(0, hay?.[articuloId] ?? 0);
+  const total = vale.items.reduce((s, i) => s + (cant[i.id] || 0), 0);
+  const excedidos = vale.items.filter((i) => (cant[i.id] || 0) > disponible(i.articulo_id));
+
+  async function entregar(avance: Avance) {
+    if (fotos.length === 0) throw new Error('Toma al menos una foto de lo que entregas');
+    const paths: string[] = [];
+    for (let k = 0; k < fotos.length; k++) {
+      avance(10 + (55 * k) / fotos.length, fotos.length > 1 ? `Guardando fotos · ${k + 1} de ${fotos.length}` : 'Guardando la foto');
+      paths.push(await subirFotoVale(vale.id, fotos[k]));
+    }
+    avance(72, 'Descontando del inventario');
+    await entregarVale(vale, vale.items.map((i) => ({ id: i.id, cantidad: cant[i.id] || 0 })), nota, paths);
+  }
+
   return (
-    <div className="rounded-xl border border-teal/40 bg-teal/5 p-3 flex flex-col gap-2.5">
-      <p className="text-[13px] font-semibold">Entregar</p>
-      {vale.items.map((i) => {
-        const disp = Math.max(0, hay[i.articulo_id] ?? 0);
-        const c = Number(cant[i.id]) || 0;
-        return (
-          <div key={i.id} className="flex items-center justify-between gap-2 rounded-lg bg-surface border border-line p-2.5">
-            <span className="min-w-0">
-              <span className="block text-[13px] font-medium truncate">{i.articulo?.descripcion}</span>
-              <span className={`block text-[11.5px] ${c > disp ? 'text-red font-semibold' : 'text-muted'}`}>Hay {disp} {i.articulo?.unidad} · pidió {n(i.cantidad_solicitada)}</span>
-              {i.articulo?.almacen_ubicaciones?.nombre && <span className="block text-[11.5px] text-teal font-semibold">En: {i.articulo.almacen_ubicaciones.nombre}</span>}
-            </span>
-            <input type="number" inputMode="decimal" min={0} value={cant[i.id] ?? ''} onChange={(e) => setCant({ ...cant, [i.id]: e.target.value })}
-              className="w-16 px-2 py-1.5 rounded-lg bg-surface-2 border border-line text-[14px] text-center shrink-0" />
-          </div>
-        );
-      })}
-      <input className={inputCls} placeholder="Nota (opcional)" value={nota} onChange={(e) => setNota(e.target.value)} />
-      <button type="button" disabled={guardando}
-        onClick={() => ejecutar(() => entregarVale(vale, vale.items.map((i) => ({ id: i.id, cantidad: Number(cant[i.id]) || 0 })), nota), 'Entregado; falta la firma de quien recibe')}
-        className="min-h-[46px] rounded-xl bg-teal text-inkOnAccent text-[14px] font-semibold flex items-center justify-center gap-2 disabled:opacity-50">
-        <Check size={16} /> Entregar y descontar del inventario
+    <div className="rounded-2xl border border-teal/40 bg-teal/5 p-3.5 flex flex-col gap-3">
+      <div>
+        <p className="font-display font-semibold text-[16px] flex items-center gap-2"><PackageCheck size={18} className="text-teal" /> Entregar</p>
+        <p className="text-[12px] text-muted leading-snug">Ajusta lo que de verdad entregas, toma la foto y en seguida {vale.tecnico || 'quien lo pidió'} firma de recibido en este dispositivo.</p>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        {vale.items.map((i) => {
+          const disp = disponible(i.articulo_id);
+          const c = cant[i.id] || 0;
+          const pedido = Number(i.cantidad_solicitada);
+          return (
+            <div key={i.id} className={`rounded-xl border p-3 ${c > disp ? 'border-red/50 bg-red/5' : 'border-line bg-surface'}`}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[13.5px] font-semibold leading-snug">{i.articulo?.descripcion}</p>
+                  <p className="text-[11.5px] text-muted">
+                    Pidió {n(pedido)} {i.articulo?.unidad} · {hay === null ? 'revisando existencia…' : <span className={c > disp ? 'text-red font-semibold' : ''}>hay {disp}</span>}
+                  </p>
+                  {i.articulo?.almacen_ubicaciones?.nombre && <p className="text-[11.5px] text-teal font-semibold">Está en: {i.articulo.almacen_ubicaciones.nombre}</p>}
+                </div>
+                <Cantidad valor={c} max={Math.max(pedido, disp)} onChange={(v) => setCant({ ...cant, [i.id]: v })} />
+              </div>
+              {c > 0 && c < pedido && <p className="text-[11.5px] text-amber mt-1.5">Entregas {pedido - c} menos de lo que pidió.</p>}
+              {c === 0 && <p className="text-[11.5px] text-muted mt-1.5">No se entrega este concepto.</p>}
+            </div>
+          );
+        })}
+      </div>
+
+      <SelectorFotos fotos={fotos} onChange={setFotos} titulo="Foto de lo que entregas"
+        ayuda="Acomoda todo lo del vale y toma la foto antes de dárselo: es la evidencia de la entrega." />
+      <input className={inputCls} placeholder="Nota (opcional): p. ej. la broca de 3/8 va usada" value={nota} onChange={(e) => setNota(e.target.value)} />
+
+      {excedidos.length > 0 && <p className="text-[12px] text-red font-semibold">No alcanza la existencia de «{excedidos[0].articulo?.descripcion}». Baja la cantidad.</p>}
+      <button type="button" disabled={guardando || fotos.length === 0 || total <= 0 || excedidos.length > 0}
+        onClick={() => ejecutar(entregar, 'Entregado; ahora firma quien recibe', true)}
+        className="min-h-[50px] rounded-2xl bg-teal text-inkOnAccent text-[15px] font-semibold flex items-center justify-center gap-2 disabled:opacity-50">
+        <Check size={17} /> Entregar y pasar a la firma
       </button>
       {!rechazando ? (
         <button type="button" onClick={() => setRechazando(true)} className="text-[13px] font-semibold text-red self-start py-1">Rechazar vale</button>
@@ -514,29 +570,105 @@ function Entregar({ vale, guardando, ejecutar }: { vale: Vale; guardando: boolea
   );
 }
 
+// El almacén revisa la devolución: marca cada concepto como recibido (o
+// anota cuánto llegó y qué pasó) y firma de recibido. Esa firma es la prueba
+// para el técnico de que ya no tiene nada a su nombre.
 function Recibir({ vale, guardando, ejecutar }: { vale: Vale; guardando: boolean; ejecutar: Ejecutar }) {
   const devueltos = vale.items.filter((i) => (i.cantidad_entregada || 0) > 0);
-  const [cant, setCant] = useState<Record<string, string>>(() => Object.fromEntries(devueltos.map((i) => [i.id, String(i.cantidad_devuelta ?? 0)])));
+  // Por concepto: null = sin revisar, 'ok' = llegó lo que dijo, 'dif' = llegó distinto.
+  const [revision, setRevision] = useState<Record<string, 'ok' | 'dif' | null>>({});
+  const [cant, setCant] = useState<Record<string, number>>({});
+  const [notas, setNotas] = useState<Record<string, string>>({});
   const [nota, setNota] = useState('');
+  const [firma, setFirma] = useState<string | null>(null);
+  const ref = useRef<SignaturePadHandle>(null);
+
+  const revisados = devueltos.filter((i) => revision[i.id]).length;
+  const sinNota = devueltos.filter((i) => revision[i.id] === 'dif' && (cant[i.id] ?? 0) < Number(i.cantidad_devuelta || 0) && !notas[i.id]?.trim());
+  const listo = revisados === devueltos.length && sinNota.length === 0;
+
+  function marcarTodo() {
+    setRevision(Object.fromEntries(devueltos.map((i) => [i.id, revision[i.id] || 'ok'])));
+  }
+
+  const items = devueltos.map((i) => {
+    const declarado = Number(i.cantidad_devuelta || 0);
+    const dif = revision[i.id] === 'dif';
+    return { id: i.id, cantidad: dif ? Math.min(cant[i.id] ?? 0, declarado) : declarado, nota: dif ? notas[i.id]?.trim() || '' : '' };
+  });
+
   return (
-    <div className="rounded-xl border border-teal/40 bg-teal/5 p-3 flex flex-col gap-2.5">
-      <p className="text-[13px] font-semibold">Confirmar lo que recibiste</p>
-      <p className="text-[12px] text-muted">Revisa las fotos y cuenta lo que regresó. Lo recibido vuelve al inventario.</p>
-      {devueltos.map((i) => (
-        <div key={i.id} className="flex items-center justify-between gap-2 rounded-lg bg-surface border border-line p-2.5">
-          <span className="min-w-0">
-            <span className="block text-[13px] font-medium truncate">{i.articulo?.descripcion}</span>
-            <span className="block text-[11.5px] text-muted">Devolvió {n(i.cantidad_devuelta)} de {n(i.cantidad_entregada)} {i.articulo?.unidad}</span>
-          </span>
-          <input type="number" inputMode="decimal" min={0} max={Number(i.cantidad_devuelta) || 0} value={cant[i.id] ?? ''} onChange={(e) => setCant({ ...cant, [i.id]: e.target.value })}
-            className="w-16 px-2 py-1.5 rounded-lg bg-surface-2 border border-line text-[14px] text-center shrink-0" />
+    <div className="rounded-2xl border border-teal/40 bg-teal/5 p-3.5 flex flex-col gap-3">
+      <div>
+        <p className="font-display font-semibold text-[16px] flex items-center gap-2"><ShieldCheck size={18} className="text-teal" /> Revisar la devolución</p>
+        <p className="text-[12px] text-muted leading-snug">Compara con las fotos de arriba y cuenta lo que regresó. Lo que recibas vuelve al inventario.</p>
+      </div>
+
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[12.5px] font-semibold tabular-nums">{revisados} de {devueltos.length} revisados</span>
+        {revisados < devueltos.length && (
+          <button type="button" onClick={marcarTodo} className="text-[12.5px] font-semibold text-teal">Todo llegó como dice</button>
+        )}
+      </div>
+      <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden -mt-1.5">
+        <div className="h-full bg-teal rounded-full transition-[width] duration-300" style={{ width: `${devueltos.length ? (revisados / devueltos.length) * 100 : 0}%` }} />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        {devueltos.map((i) => {
+          const declarado = Number(i.cantidad_devuelta || 0);
+          const r = revision[i.id] || null;
+          return (
+            <div key={i.id} className={`rounded-xl border p-3 transition-colors ${r === 'ok' ? 'border-teal/50 bg-teal/5' : r === 'dif' ? 'border-amber/50 bg-amber/5' : 'border-line bg-surface'}`}>
+              <div className="flex items-start gap-3">
+                <button type="button" aria-label={r === 'ok' ? 'Quitar marca' : 'Marcar como recibido'} onClick={() => setRevision({ ...revision, [i.id]: r === 'ok' ? null : 'ok' })}
+                  className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center shrink-0 active:scale-90 transition ${
+                    r === 'ok' ? 'bg-teal border-teal text-inkOnAccent' : r === 'dif' ? 'bg-amber/15 border-amber text-amber' : 'border-line-strong text-transparent'
+                  }`}>
+                  {r === 'dif' ? <AlertTriangle size={15} strokeWidth={2.6} /> : <Check size={17} strokeWidth={3} />}
+                </button>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13.5px] font-semibold leading-snug">{i.articulo?.descripcion}</p>
+                  <p className="text-[11.5px] text-muted">
+                    Devuelve {n(declarado)} de {n(i.cantidad_entregada)} {i.articulo?.unidad}
+                    {i.motivo_faltante && <span className="text-red"> · {MOTIVOS_FALTANTE.find((m) => m.valor === i.motivo_faltante)?.label}{i.nota ? `: ${i.nota}` : ''}</span>}
+                  </p>
+                  {r !== 'dif' && declarado > 0 && (
+                    <button type="button" onClick={() => { setRevision({ ...revision, [i.id]: 'dif' }); setCant({ ...cant, [i.id]: Math.max(0, declarado - 1) }); }}
+                      className="text-[12px] font-semibold text-amber mt-1">Llegó diferente</button>
+                  )}
+                </div>
+              </div>
+              {r === 'dif' && (
+                <div className="mt-2.5 ml-11 flex flex-col gap-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[12.5px] text-ink/80">¿Cuánto llegó?</span>
+                    <Cantidad valor={cant[i.id] ?? 0} max={declarado} onChange={(v) => setCant({ ...cant, [i.id]: v })} unidad={i.articulo?.unidad} />
+                  </div>
+                  <input className={`${inputCls} ${sinNota.some((x) => x.id === i.id) ? 'border-amber' : ''}`} placeholder="¿Qué pasó? (obligatorio): llegó roto, faltó una pieza…"
+                    value={notas[i.id] || ''} onChange={(e) => setNotas({ ...notas, [i.id]: e.target.value })} />
+                  <button type="button" onClick={() => setRevision({ ...revision, [i.id]: null })} className="text-[12px] text-muted self-start">Cancelar diferencia</button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <input className={inputCls} placeholder="Nota general (opcional)" value={nota} onChange={(e) => setNota(e.target.value)} />
+
+      <div className={`rounded-xl border p-3 transition-opacity ${listo ? '' : 'opacity-60'}`}>
+        <p className="text-[13px] font-semibold mb-1">Tu firma de recibido</p>
+        <p className="text-[11.5px] text-muted mb-2">{listo ? 'Con tu firma se cierra el vale y le llega el acuse a quien devolvió.' : 'Revisa todos los conceptos para poder firmar.'}</p>
+        <div className={`rounded-xl overflow-hidden border border-line ${listo ? '' : 'pointer-events-none'}`}>
+          <SignaturePad ref={ref} titulo="Firma de quien recibe en almacén" onCambio={setFirma} />
         </div>
-      ))}
-      <input className={inputCls} placeholder="Nota (opcional): p. ej. llegó con la broca rota" value={nota} onChange={(e) => setNota(e.target.value)} />
-      <button type="button" disabled={guardando}
-        onClick={() => ejecutar(() => recibirDevolucion(vale, devueltos.map((i) => ({ id: i.id, cantidad: Number(cant[i.id]) || 0 })), nota), 'Devolución confirmada')}
-        className="min-h-[46px] rounded-xl bg-teal text-inkOnAccent text-[14px] font-semibold disabled:opacity-50">
-        Confirmar recepción y cerrar vale
+      </div>
+
+      <button type="button" disabled={guardando || !listo || !firma}
+        onClick={() => ejecutar(() => recibirDevolucion(vale, items, nota, firma!), 'Devolución recibida y vale cerrado')}
+        className="min-h-[50px] rounded-2xl bg-teal text-inkOnAccent text-[15px] font-semibold disabled:opacity-50 flex items-center justify-center gap-2">
+        <ShieldCheck size={17} /> Aceptar devolución y cerrar vale
       </button>
     </div>
   );

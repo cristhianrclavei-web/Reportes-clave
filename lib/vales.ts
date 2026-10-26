@@ -39,6 +39,8 @@ export type ValeItem = {
   cantidad_recibida: number | null;
   motivo_faltante: string | null;
   nota: string | null;
+  // Qué pasó cuando el almacén recibió menos de lo que el técnico devolvió.
+  nota_recepcion?: string | null;
   articulo: Pick<Articulo, 'id' | 'descripcion' | 'unidad' | 'categoria' | 'marca' | 'modelo' | 'retornable'> & { almacen_ubicaciones?: { nombre: string } | null };
 };
 
@@ -69,6 +71,11 @@ export type Vale = {
   nota_recepcion: string | null;
   motivo_rechazo: string | null;
   created_at: string;
+  // Evidencia de ida y vuelta (patch_vales_evidencia.sql): fotos que toma el
+  // almacén al entregar y firma de quien recibe la devolución.
+  fotos_entrega?: string[];
+  firma_almacen?: string | null;
+  firma_almacen_en?: string | null;
   items: ValeItem[];
 };
 
@@ -202,7 +209,8 @@ export async function firmarVale(vale: Vale, firma: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
-export async function subirFotoDevolucion(valeId: string, file: File | Blob): Promise<string> {
+// Fotos de evidencia del vale (entrega o devolución), en almacen/vales/<vale>/.
+export async function subirFotoVale(valeId: string, file: File | Blob): Promise<string> {
   file = await reducirFoto(file);
   const ext = (file as File).name?.split('.').pop() || 'jpg';
   const path = `vales/${valeId}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
@@ -287,8 +295,9 @@ export async function firmarValeEnAlmacen(vale: Vale, firma: string): Promise<vo
   });
 }
 
-export async function entregarVale(vale: Vale, items: { id: string; cantidad: number }[], nota: string): Promise<void> {
-  const { error } = await createClient().rpc('entregar_vale', { p_vale: vale.id, p_items: items, p_nota: nota });
+export async function entregarVale(vale: Vale, items: { id: string; cantidad: number }[], nota: string, fotos: string[]): Promise<void> {
+  if (fotos.length === 0) throw new Error('Toma al menos una foto de lo que entregas');
+  const { error } = await createClient().rpc('entregar_vale', { p_vale: vale.id, p_items: items, p_nota: nota, p_fotos: fotos });
   if (error) throw new Error(error.message);
   await notificar({
     usuarios: [vale.tecnico_id],
@@ -300,14 +309,29 @@ export async function entregarVale(vale: Vale, items: { id: string; cantidad: nu
   });
 }
 
-export async function recibirDevolucion(vale: Vale, items: { id: string; cantidad: number }[], nota: string): Promise<void> {
-  const { error } = await createClient().rpc('recibir_devolucion_vale', { p_vale: vale.id, p_items: items, p_nota: nota });
+// El almacén revisa concepto por concepto y firma de recibido. Al técnico le
+// llega el acuse; si algo no cuadró, con el detalle de cada diferencia.
+export async function recibirDevolucion(
+  vale: Vale,
+  items: { id: string; cantidad: number; nota: string }[],
+  nota: string,
+  firma: string
+): Promise<void> {
+  const { error } = await createClient().rpc('recibir_devolucion_vale', {
+    p_vale: vale.id, p_items: items, p_nota: nota, p_firma: firma,
+  });
   if (error) throw new Error(error.message);
+  const diferencias = items
+    .map((r) => ({ r, item: vale.items.find((i) => i.id === r.id) }))
+    .filter(({ r, item }) => item && r.cantidad < Number(item.cantidad_devuelta || 0))
+    .map(({ r, item }) => `${item!.articulo?.descripcion}: recibió ${r.cantidad} de ${Number(item!.cantidad_devuelta)} (${r.nota})`);
   await notificar({
     usuarios: [vale.tecnico_id],
     tipo: 'vale_almacen',
-    titulo: `Vale ${vale.folio} cerrado`,
-    mensaje: 'El almacén confirmó tu devolución.',
+    titulo: diferencias.length ? `Vale ${vale.folio}: devolución con diferencias` : `Vale ${vale.folio} cerrado`,
+    mensaje: diferencias.length
+      ? `El almacén firmó de recibido. ${diferencias.join('; ')}`
+      : 'El almacén revisó y firmó de recibido todo lo que devolviste. Ya no queda nada a tu nombre en este vale.',
     url: '/checklists',
     tag: `vale-${vale.id}`,
   });
