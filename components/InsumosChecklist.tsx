@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   InsumoConEstado, CategoriaInsumo, CATEGORIAS, UNIDADES, MOTIVOS_FALTANTE, MotivoFaltante,
   MOTIVOS_NO_ENTREGADO, MotivoNoEntregado, insumosADevolver, insumosNoEntregados,
-  Resguardo, obtenerInsumos, calcularProgresoInsumos, marcarInsumo, agregarInsumo, eliminarInsumo,
+  Resguardo, obtenerInsumos, calcularProgresoInsumos, marcarInsumo, agregarInsumo, eliminarInsumo, editarInsumo,
   obtenerResguardos, firmarResguardo, registrarFaltante, registrarNoEntregado, confirmarRecepcion,
   Insumo, listarSolicitudesInsumo, resolverSolicitudInsumo,
   marcarInsumosEnLote, registrarMotivoEnLote,
@@ -16,7 +16,7 @@ import ModalOverlay from '@/components/ModalOverlay';
 import SelectorArticulo from '@/components/SelectorArticulo';
 import { createClient } from '@/lib/supabaseClient';
 import { showToast } from '@/components/Toast';
-import { Plus, X, Check, Square, PackageCheck, PackageX, PackagePlus, AlertTriangle, Wrench, Package, HardHat, PenLine, Info, CheckCheck } from 'lucide-react';
+import { Plus, X, Check, Square, PackageCheck, PackageX, PackagePlus, AlertTriangle, Wrench, Package, HardHat, PenLine, Info, CheckCheck, Pencil, Minus, Trash2 } from 'lucide-react';
 
 function nombreDe(r: { profiles?: any }): string {
   const p = r.profiles;
@@ -78,6 +78,14 @@ export default function InsumosChecklist({
   const [notaFaltante, setNotaFaltante] = useState('');
 
   const [showAgregar, setShowAgregar] = useState(false);
+  // Edición de un renglón (solo supervisión): artículo y cantidad.
+  const [editando, setEditando] = useState<InsumoConEstado | null>(null);
+  const [editArticuloId, setEditArticuloId] = useState<string | null>(null);
+  const [editDescripcion, setEditDescripcion] = useState('');
+  const [editUnidad, setEditUnidad] = useState('pza');
+  const [editCategoria, setEditCategoria] = useState<CategoriaInsumo>('herramienta');
+  const [editCantidad, setEditCantidad] = useState('1');
+  const [errorEdicion, setErrorEdicion] = useState<string | null>(null);
   const [nuevaCategoria, setNuevaCategoria] = useState<CategoriaInsumo>('herramienta');
   const [nuevoArticuloId, setNuevoArticuloId] = useState<string | null>(null);
   const [nuevaDescripcion, setNuevaDescripcion] = useState('');
@@ -385,15 +393,73 @@ export default function InsumosChecklist({
     }
   }
 
-  async function handleEliminar(insumo: InsumoConEstado) {
-    if (!await confirmar(`¿Quitar «${insumo.descripcion}» de la lista?`)) return;
+  // Devuelve true si se quitó, para que la ventana de edición sepa cerrarse.
+  async function handleEliminar(insumo: InsumoConEstado): Promise<boolean> {
+    if (!await confirmar(`¿Quitar «${insumo.descripcion}» de la lista?`)) return false;
     try {
       await eliminarInsumo(insumo.id);
       await cargar();
       onCambio?.();
+      return true;
     } catch (e: any) {
       avisar('No se pudo quitar: ' + (e?.message || 'error'));
+      return false;
     }
+  }
+
+  function abrirEdicion(insumo: InsumoConEstado) {
+    setEditando(insumo);
+    setEditArticuloId(insumo.articulo_id);
+    setEditDescripcion(insumo.descripcion);
+    setEditUnidad(insumo.unidad);
+    setEditCategoria(insumo.categoria);
+    setEditCantidad(String(insumo.cantidad));
+    setErrorEdicion(null);
+  }
+
+  // Botones − y +: de uno en uno, sin bajar de 1.
+  function sumarCantidad(delta: number) {
+    const actual = parseFloat(editCantidad) || 0;
+    const nueva = Math.max(1, Math.round((actual + delta) * 100) / 100);
+    setEditCantidad(String(nueva));
+    setErrorEdicion(null);
+  }
+
+  async function handleGuardarEdicion() {
+    if (!editando) return;
+    const cantidad = parseFloat(editCantidad);
+    if (!(cantidad > 0)) {
+      setErrorEdicion('La cantidad debe ser mayor que cero.');
+      return;
+    }
+    if (!editDescripcion.trim()) {
+      setErrorEdicion('Elige el artículo del catálogo.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await editarInsumo(editando.id, {
+        articulo_id: editArticuloId,
+        descripcion: editDescripcion.trim(),
+        unidad: editUnidad,
+        categoria: editCategoria,
+        cantidad,
+      });
+      showToast('Cambios guardados', 'success');
+      setEditando(null);
+      await cargar();
+      onCambio?.();
+    } catch (e: any) {
+      setErrorEdicion('No se pudo guardar: ' + (e?.message || 'revisa tu conexión e intenta de nuevo.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleQuitarDesdeEdicion() {
+    if (!editando) return;
+    const quitado = await handleEliminar(editando);
+    if (quitado) setEditando(null);
   }
 
   if (loading) {
@@ -688,7 +754,18 @@ export default function InsumosChecklist({
                         {i.descripcion}
                       </span>
 
-                      {!soloLectura && puedeQuitar && (
+                      {!soloLectura && puedeEditarTodo && (
+                        <button
+                          onClick={() => abrirEdicion(i)}
+                          aria-label={`Editar ${i.descripcion}`}
+                          className="shrink-0 w-10 h-10 -mr-1.5 flex items-center justify-center rounded-xl text-muted hover:text-teal hover:bg-teal/10 active:scale-90 transition"
+                        >
+                          <Pencil size={17} strokeWidth={2.3} />
+                        </button>
+                      )}
+
+                      {/* Supervisión quita desde la ventana de edición; en campo, solo lo propio. */}
+                      {!soloLectura && !puedeEditarTodo && puedeQuitar && (
                         <button
                           onClick={() => handleEliminar(i)}
                           aria-label="Quitar de la lista"
@@ -871,6 +948,121 @@ export default function InsumosChecklist({
             >
               Cancelar
             </button>
+          </div>
+        </ModalOverlay>
+      )}
+
+      {/* Editar un renglón de la lista (supervisión) */}
+      {editando && (
+        <ModalOverlay onClose={() => !busy && setEditando(null)}>
+          <div className="glass-strong rounded-3xl max-w-md w-full flex flex-col max-h-[90vh]">
+            <div className="px-5 pt-5 pb-3 flex items-start justify-between gap-3 border-b border-line shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="w-10 h-10 rounded-xl bg-teal/15 text-teal flex items-center justify-center shrink-0">
+                  <Pencil size={18} strokeWidth={2.3} />
+                </span>
+                <div className="min-w-0">
+                  <p className="font-display font-semibold text-[16px] leading-tight">Editar de la lista</p>
+                  <p className="text-[12.5px] text-muted truncate">{editando.descripcion}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditando(null)}
+                disabled={busy}
+                aria-label="Cerrar"
+                className="w-10 h-10 -mr-1.5 -mt-1 flex items-center justify-center active:scale-90 transition-transform shrink-0"
+              >
+                <X size={20} strokeWidth={2.5} />
+              </button>
+            </div>
+
+            <div className="px-5 py-4 overflow-y-auto flex-1">
+              <label className="text-[13px] text-ink/75 block mb-1.5">Artículo</label>
+              <SelectorArticulo
+                valor={editArticuloId}
+                cantidadPedida={parseFloat(editCantidad) || 0}
+                grupoId={grupoId}
+                className="mb-4"
+                onChange={(a) => {
+                  setErrorEdicion(null);
+                  setEditArticuloId(a?.id || null);
+                  if (a) {
+                    setEditDescripcion(a.descripcion);
+                    setEditUnidad(a.unidad);
+                    setEditCategoria(a.categoria);
+                  }
+                }}
+              />
+
+              <label htmlFor="cantidad-edicion" className="text-[13px] text-ink/75 block mb-1.5">Cantidad</label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => sumarCantidad(-1)}
+                  disabled={(parseFloat(editCantidad) || 0) <= 1}
+                  aria-label="Una menos"
+                  className="w-12 h-12 rounded-xl bg-surface border border-line-strong flex items-center justify-center active:scale-90 transition-transform disabled:opacity-40"
+                >
+                  <Minus size={18} strokeWidth={2.6} />
+                </button>
+                <input
+                  id="cantidad-edicion"
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  value={editCantidad}
+                  onChange={(e) => { setEditCantidad(e.target.value); setErrorEdicion(null); }}
+                  className={`w-[96px] h-12 px-3 rounded-xl bg-surface border text-center text-[18px] font-semibold tabular-nums focus:outline-none ${
+                    errorEdicion ? 'border-red' : 'border-line focus:border-teal'
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => sumarCantidad(1)}
+                  aria-label="Una más"
+                  className="w-12 h-12 rounded-xl bg-surface border border-line-strong flex items-center justify-center active:scale-90 transition-transform"
+                >
+                  <Plus size={18} strokeWidth={2.6} />
+                </button>
+                <span className="text-[15px] text-muted ml-1">{editUnidad}</span>
+              </div>
+
+              {editando.estado?.salida && (
+                <p className="text-[12.5px] text-amber mt-3 leading-relaxed flex gap-1.5">
+                  <Info size={15} strokeWidth={2.3} className="shrink-0 mt-px" />
+                  Ya se marcó su salida. El técnico verá la cantidad nueva al revisar la lista.
+                </p>
+              )}
+
+              {errorEdicion && <p className="text-[12.5px] text-red mt-3" role="alert">{errorEdicion}</p>}
+            </div>
+
+            <div className="px-5 pt-3 pb-5 border-t border-line shrink-0">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setEditando(null)}
+                  disabled={busy}
+                  className="flex-1 min-h-[48px] rounded-xl border border-line-strong text-ink/80 text-[14.5px] font-medium active:scale-95 transition-transform"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleGuardarEdicion}
+                  disabled={busy}
+                  className="flex-1 min-h-[48px] rounded-xl bg-teal text-inkOnAccent text-[14.5px] font-semibold active:scale-95 transition-transform disabled:opacity-60"
+                >
+                  {busy ? 'Guardando...' : 'Guardar'}
+                </button>
+              </div>
+              <button
+                onClick={handleQuitarDesdeEdicion}
+                disabled={busy}
+                className="w-full min-h-[44px] mt-2 rounded-xl text-red text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-red/10 active:scale-95 transition"
+              >
+                <Trash2 size={16} strokeWidth={2.3} />
+                Quitar de la lista
+              </button>
+            </div>
           </div>
         </ModalOverlay>
       )}

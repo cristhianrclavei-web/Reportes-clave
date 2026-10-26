@@ -376,7 +376,7 @@ export async function resolverSolicitudInsumo(
 
 export async function editarInsumo(
   id: string,
-  cambios: { categoria?: CategoriaInsumo; descripcion?: string; cantidad?: number; unidad?: string }
+  cambios: { categoria?: CategoriaInsumo; descripcion?: string; cantidad?: number; unidad?: string; articulo_id?: string | null }
 ): Promise<void> {
   const supabase = createClient();
   const { error } = await supabase.from('servicio_insumos').update(cambios).eq('id', id);

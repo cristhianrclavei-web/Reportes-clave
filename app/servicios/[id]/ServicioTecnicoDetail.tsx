@@ -48,6 +48,7 @@ const ESTADO_CHIP: Record<Servicio['estado'], { label: string; cls: string }> = 
 // Cuánto dice el técnico que tardará en una salida por material.
 const ESTIMADOS_MATERIAL = [15, 30, 45, 60, 90];
 import ModalOverlay from '@/components/ModalOverlay';
+import InsumosChecklist from '@/components/InsumosChecklist';
 import { MOTIVOS_ESPERA_INICIO, esperaCompleta, esEsperaDeInicio } from '@/lib/esperaInicio';
 import { calcularResultadoServicio } from '@/lib/resultadoServicio';
 import { formatMinutos } from '@/lib/kpis';
@@ -115,6 +116,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
   const fotoInputRef = useRef<HTMLInputElement>(null);
 
   const [showRetraso, setShowRetraso] = useState(false);
+  const [verInsumos, setVerInsumos] = useState(false);
   // Ya en sitio, qué le impide empezar (lib/esperaInicio.ts).
   const [showEspera, setShowEspera] = useState(false);
   const [motivoEspera, setMotivoEspera] = useState<string | null>(null);
@@ -1061,11 +1063,12 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
               <span>Pausar</span>
             </button>
           )}
-          {/* La herramienta vive en su propia sección; aquí solo el acceso. */}
-          <Link href="/checklists" className={ACCESO}>
+          {/* La lista de este servicio se abre aquí mismo (antes llevaba a
+              Insumos, que no existe para supervisión que sale a servicios). */}
+          <button onClick={() => setVerInsumos(true)} className={ACCESO}>
             <PackageCheck size={20} strokeWidth={2.2} className="text-teal" />
             <span>Herramienta y material</span>
-          </Link>
+          </button>
           {(servicio.estado === 'en_sitio' || servicio.estado === 'en_curso') && (
             <button onClick={() => setSinTrabajo(true)} disabled={busy} className={ACCESO}>
               <Ban size={20} strokeWidth={2.2} className="text-red" />
@@ -1598,6 +1601,30 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
             <div className="flex gap-2 mt-4">
               <button onClick={() => setShowEspera(false)} disabled={busy} className="flex-1 min-h-[50px] rounded-2xl border border-line-strong text-ink/80 text-[14.5px] font-semibold active:scale-95 transition-transform disabled:opacity-60">Cancelar</button>
               <button onClick={handleGuardarEspera} disabled={busy || !esperaCompleta(motivoEspera, comentarioEspera)} className="flex-1 min-h-[50px] rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15px] active:scale-95 transition-transform disabled:opacity-50">{busy ? 'Guardando...' : 'Avisar'}</button>
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
+
+      {/* Modal: herramienta, material y equipo de este servicio */}
+      {verInsumos && (
+        <ModalOverlay onClose={() => setVerInsumos(false)}>
+          <div className="glass-strong rounded-3xl max-w-2xl w-full flex flex-col max-h-[92vh] sm:max-h-[85vh]">
+            <div className="px-5 pt-5 pb-3 shrink-0 border-b border-line flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-display font-semibold text-[17px] truncate">Herramienta, material y equipo</p>
+                <p className="text-[12.5px] text-muted truncate">{servicio.proyecto}</p>
+              </div>
+              <button
+                onClick={() => setVerInsumos(false)}
+                aria-label="Cerrar"
+                className="w-10 h-10 -mr-1.5 -mt-1 flex items-center justify-center active:scale-90 transition-transform shrink-0"
+              >
+                <X size={20} strokeWidth={2.5} />
+              </button>
+            </div>
+            <div className="px-5 py-4 overflow-y-auto flex-1">
+              <InsumosChecklist grupoId={servicio.grupo_id} servicioId={servicio.id} proyecto={servicio.proyecto} puedeMarcar />
             </div>
           </div>
         </ModalOverlay>
