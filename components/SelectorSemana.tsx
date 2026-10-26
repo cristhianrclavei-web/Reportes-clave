@@ -99,76 +99,89 @@ export default function SelectorSemana({
   const rotulo = `${diasSemana[0].getDate()} – ${diasSemana[6].getDate()} de ${diasSemana[6].toLocaleDateString('es-MX', { month: 'long' })}`;
 
   return (
-    <div className="mb-4 p-3.5 rounded-2xl bg-surface-2 border border-line">
-      <div className="flex items-center justify-between mb-2.5">
+    <div className="mb-4 p-3 lg:p-3.5 rounded-2xl bg-surface border border-line">
+      <div className="flex items-center gap-1 mb-3">
         <button
           onClick={() => moverSemana(-1)}
           aria-label="Semana anterior"
-          className="w-10 h-10 -ml-1 flex items-center justify-center rounded-lg text-ink/70 active:scale-90 transition-transform"
+          className="w-9 h-9 flex items-center justify-center rounded-lg text-ink/70 hover:bg-surface-2 active:scale-90 transition"
         >
-          <ChevronLeft size={20} strokeWidth={2.4} />
+          <ChevronLeft size={19} strokeWidth={2.4} />
         </button>
-        <span className="text-[14px] font-medium">{rotulo}</span>
+        <span className="text-[14.5px] font-display font-semibold min-w-0 truncate">{rotulo}</span>
         <button
           onClick={() => moverSemana(1)}
           aria-label="Semana siguiente"
-          className="w-10 h-10 -mr-1 flex items-center justify-center rounded-lg text-ink/70 active:scale-90 transition-transform"
+          className="w-9 h-9 flex items-center justify-center rounded-lg text-ink/70 hover:bg-surface-2 active:scale-90 transition"
         >
-          <ChevronRight size={20} strokeWidth={2.4} />
+          <ChevronRight size={19} strokeWidth={2.4} />
         </button>
+
+        <div className="ml-auto flex items-center gap-1.5 shrink-0">
+          {diaSel && (
+            <button
+              onClick={() => { setLunes(inicioDeSemana(new Date())); setDiaSel(null); }}
+              className="min-h-[36px] px-3 rounded-full text-[12.5px] font-semibold border border-line-strong text-ink/80 hover:bg-surface-2 transition-colors"
+            >
+              Hoy
+            </button>
+          )}
+          <button
+            onClick={() => setDiaSel(null)}
+            aria-pressed={!diaSel}
+            className={`min-h-[36px] px-3.5 rounded-full text-[12.5px] font-semibold border transition-colors flex items-center gap-1.5 ${
+              !diaSel ? 'bg-teal/15 text-teal border-teal/40' : 'border-line-strong text-ink/80 hover:bg-surface-2'
+            }`}
+          >
+            <span className="hidden sm:inline">Toda la semana</span>
+            <span className="sm:hidden">Semana</span>
+            <span className={`min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center ${!diaSel ? 'bg-teal text-inkOnAccent' : 'bg-surface-2'}`}>
+              {totalSemana}
+            </span>
+          </button>
+        </div>
       </div>
 
-      <div className="flex gap-1.5 mb-3">
+      <div className="grid grid-cols-7 gap-1.5">
         {diasSemana.map((d) => {
           const iso = aISO(d);
           const cuantos = conteos[iso] || 0;
           const activo = diaSel === iso;
           const esHoy = iso === hoy;
           const finDeSemana = d.getDay() === 0 || d.getDay() === 6;
+          // Puntos de carga: uno por elemento, hasta tres.
+          const puntos = Math.min(cuantos, 3);
           return (
             <button
               key={iso}
               onClick={() => setDiaSel(activo ? null : iso)}
               aria-pressed={activo}
-              className={`flex-1 min-h-[58px] rounded-xl border transition-colors ${
+              aria-label={`${d.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric' })}: ${cuantos} ${etiqueta}`}
+              className={`relative min-h-[64px] rounded-xl border flex flex-col items-center justify-center gap-0.5 transition-all duration-200 ${
                 activo
-                  ? 'bg-teal border-teal text-inkOnAccent'
-                  : `bg-surface border-line ${finDeSemana && cuantos === 0 ? 'opacity-50' : ''}`
+                  ? 'bg-teal border-teal text-inkOnAccent shadow-glow -translate-y-0.5'
+                  : `bg-surface-2/60 border-line hover:border-line-strong hover:-translate-y-0.5 ${finDeSemana && cuantos === 0 ? 'opacity-45' : ''} ${esHoy ? 'ring-1 ring-teal/60' : ''}`
               }`}
             >
-              <div className={`text-[11px] ${activo ? 'opacity-75' : 'text-muted'}`}>{DIAS[d.getDay()]}</div>
-              <div className={`text-[16px] font-display font-bold leading-tight ${esHoy && !activo ? 'text-teal' : ''}`}>
+              <span className={`text-[10.5px] font-semibold uppercase tracking-wider ${activo ? 'opacity-80' : esHoy ? 'text-teal' : 'text-muted'}`}>
+                {DIAS[d.getDay()]}
+              </span>
+              <span className={`text-[17px] font-display font-bold leading-none ${esHoy && !activo ? 'text-teal' : ''}`}>
                 {d.getDate()}
-              </div>
-              <div className={`text-[11px] ${activo ? '' : cuantos > 0 ? 'text-ink/70' : 'text-faint'}`}>
-                {cuantos > 0 ? cuantos : '·'}
-              </div>
+              </span>
+              <span className="h-2 flex items-center gap-[3px] mt-0.5" aria-hidden>
+                {Array.from({ length: puntos }, (_, k) => (
+                  <span key={k} className={`w-1.5 h-1.5 rounded-full ${activo ? 'bg-inkOnAccent/80' : 'bg-teal'}`} />
+                ))}
+                {cuantos > 3 && <span className={`text-[9.5px] font-bold leading-none ${activo ? '' : 'text-teal'}`}>+</span>}
+              </span>
             </button>
           );
         })}
       </div>
 
-      <div className="flex gap-2">
-        <button
-          onClick={() => setDiaSel(null)}
-          className={`flex-1 min-h-[42px] rounded-xl text-[13.5px] font-semibold border transition-colors ${
-            !diaSel ? 'bg-teal text-inkOnAccent border-teal' : 'bg-surface border-line-strong text-ink/80'
-          }`}
-        >
-          Toda la semana ({totalSemana})
-        </button>
-        {diaSel && (
-          <button
-            onClick={() => { setLunes(inicioDeSemana(new Date())); setDiaSel(null); }}
-            className="min-h-[42px] px-4 rounded-xl text-[13.5px] font-medium border border-line-strong text-ink/80"
-          >
-            Hoy
-          </button>
-        )}
-      </div>
-
       {diaSel && (
-        <p className="text-[12.5px] text-muted mt-2">
+        <p className="text-[12.5px] text-muted mt-2.5">
           Mostrando {conteos[diaSel] || 0} {etiqueta} del {desdeISO(diaSel).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}
         </p>
       )}

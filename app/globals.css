@@ -740,3 +740,13 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .marca-hora-etiqueta, .marca-hora-detalle, .marca-hora-punto { transition: none; }
 }
+
+/* Servicios → Agendados / Concluidos: las tarjetas entran en cascada y la
+   barra de avance se llena al aparecer. */
+@keyframes tarjeta-entra { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes barra-llena { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.tarjeta-proyecto { animation: tarjeta-entra 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.barra-avance { transform-origin: left; animation: barra-llena 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both; }
+@media (prefers-reduced-motion: reduce) {
+  .tarjeta-proyecto, .barra-avance { animation: none; }
+}

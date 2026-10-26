@@ -27,17 +27,14 @@ import EmptyIllustration from '@/components/EmptyIllustration';
 import SelectorSemana, { RangoSeleccionado } from '@/components/SelectorSemana';
 import { useTheme } from '@/lib/useTheme';
 import { listarFestivos, festivoDe, festivosEnCache, Festivo } from '@/lib/avisos';
-import { crearServicio, eliminarProyecto, eliminarDiaDeProyecto, listarServiciosSupervisor, listarTecnicos, Servicio, calcularEstadoTiempo, listarProgresoPorGrupo, ProgresoTareas, listarConfirmacionesPorServicio, ConfirmacionTecnico } from '@/lib/serviciosProgramados';
-import ConfirmacionTecnicos, { ResumenConfirmacion } from '@/components/ConfirmacionTecnicos';
-import ProgressBar from '@/components/ProgressBar';
+import { crearServicio, eliminarProyecto, eliminarDiaDeProyecto, listarServiciosSupervisor, listarTecnicos, Servicio, listarProgresoPorGrupo, ProgresoTareas, listarConfirmacionesPorServicio, ConfirmacionTecnico } from '@/lib/serviciosProgramados';
+import TarjetaProyecto, { ResumenProyectos, FiltroEstado, cumpleFiltro } from '@/components/servicios/TarjetaProyecto';
 import {
   InsumoNuevo, CategoriaInsumo, CATEGORIAS, UNIDADES, PlantillaInsumos,
   listarPlantillas, guardarPlantillaDeItems, actualizarPlantilla, eliminarPlantilla, listarChecklists, ResumenChecklist,
   eliminarChecklist, agregarInsumosIniciales,
 } from '@/lib/insumos';
-import { Plus, X, FileText, AlertTriangle, Timer, MapPin, Play, Check, Clock, FolderKanban, Bookmark, Pencil, Copy, Trash2, PackageCheck, TrendingUp, ChevronRight, ChevronDown, Search, CalendarDays, History } from 'lucide-react';
-import { calcularResultadoServicio } from '@/lib/resultadoServicio';
-import { ResultadoIconos } from '@/components/ResultadoServicioBadges';
+import { Plus, X, AlertTriangle, Check, FolderKanban, Bookmark, Pencil, Copy, Trash2, PackageCheck, Search, CalendarDays, History } from 'lucide-react';
 import { showToast } from '@/components/Toast';
 import SelectorArticulo from '@/components/SelectorArticulo';
 import { hoyLocal } from '@/lib/fechaHoy';
@@ -50,13 +47,6 @@ import ActividadSeccion from '@/components/ActividadSeccion';
 // Leaflet usa `window`: el mapa se carga solo en el navegador.
 const MapaTecnicos = dynamic(() => import('@/components/servicios/MapaTecnicos'), { ssr: false });
 
-const ESTADO_CFG: Record<Servicio['estado'], { label: string; cls: string; Icono: any }> = {
-  programado: { label: 'Programado', cls: 'bg-surface-2 text-muted', Icono: Clock },
-  en_sitio: { label: 'En sitio', cls: 'bg-amber/15 text-amber', Icono: MapPin },
-  en_curso: { label: 'En curso', cls: 'bg-teal/15 text-teal', Icono: Play },
-  concluido: { label: 'Concluido', cls: 'bg-teal/15 text-teal', Icono: Check },
-  cancelado: { label: 'Cancelado', cls: 'bg-surface-2 text-faint', Icono: X },
-};
 
 function formatFecha(fecha: string): string {
   const [y, m, d] = fecha.split('-');
@@ -371,6 +361,12 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   }, [gruposFiltrados, modoAgendados]);
   const gruposConcluidos = useMemo(() => gruposFiltrados.filter((g) => g.dias.every((d) => d.estado === 'concluido')), [gruposFiltrados]);
   const lista = seccion === 'concluidos' ? gruposConcluidos : grupos;
+  // Filtro de las tarjetas de resumen (En curso, Hoy, Sin confirmar…).
+  const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>(null);
+  // Solo en el navegador (la lista se carga ahí): no afecta la hidratación.
+  const hoy = hoyLocal();
+  const listaVisible = filtroEstado ? lista.filter((g) => cumpleFiltro(g, filtroEstado, confirmaciones, hoy)) : lista;
+  useEffect(() => { setFiltroEstado(null); }, [seccion]);
 
   // Con llegada y salida acordadas, la duración ya no hay que estimarla a
   // ojo: es la diferencia entre las dos. Solo se deriva cuando la salida fue
@@ -1205,6 +1201,17 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
           </>
         )}
 
+        {(seccion === 'agendados' || seccion === 'concluidos') && !loading && lista.length > 0 && (
+          <ResumenProyectos
+            grupos={lista}
+            confirmaciones={confirmaciones}
+            seccion={seccion}
+            hoy={hoy}
+            filtro={filtroEstado}
+            onFiltro={setFiltroEstado}
+          />
+        )}
+
         {(seccion === 'agendados' || seccion === 'concluidos') && loading && (
           <div className="flex flex-col lg:grid lg:grid-cols-2 gap-3" aria-busy="true">
             {[0, 1, 2].map((i) => (
@@ -1244,118 +1251,32 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
         )}
 
         {(seccion === 'agendados' || seccion === 'concluidos') && (
-        <div className="flex flex-col lg:grid lg:grid-cols-2 2xl:grid-cols-3 gap-3 lg:items-start">
-          {lista.map((g) => {
-            const diasConReporte = g.dias.filter((d) => d.report_id).length;
-            const abierto = grupoAbierto === g.grupoId;
-            const diasTotalesGrupo = g.dias[0]?.dias_totales || g.dias.length;
-            const pr = progresoPorGrupo[g.grupoId];
-            // Confirmación solo de los días que aún no se trabajan.
-            const confProgramados = g.dias.filter((d) => d.estado === 'programado').flatMap((d) => confirmaciones[d.id] || []);
-            return (
-              <div key={g.grupoId} className="rounded-2xl border-l-4 border-l-teal border-y border-r border-y-line border-r-line bg-surface overflow-hidden transition-shadow duration-150 hover:shadow-diffuse">
-                <button
-                  onClick={() => setGrupoAbierto(abierto ? null : g.grupoId)}
-                  className="w-full text-left p-4 transition-transform duration-150 active:scale-[0.99]"
-                >
-                  <div className="flex justify-between items-baseline gap-2.5">
-                    <strong className="font-display font-bold text-[16px] leading-snug min-w-0 truncate">{g.proyecto}</strong>
-                    <span className="text-[12.5px] text-muted shrink-0 whitespace-nowrap flex items-center gap-1.5">
-                      {diasConReporte}/{diasTotalesGrupo} con reporte
-                      <ChevronDown size={16} className={`self-center transition-transform ${abierto ? 'rotate-180' : ''}`} />
-                    </span>
-                  </div>
-                  {pr && pr.total > 0 && (
-                    <div className="flex items-center gap-2.5 mt-2">
-                      <ProgressBar pct={pr.pct} className="flex-1" />
-                      <span className={`text-[13px] font-display font-bold shrink-0 ${pr.pct >= 100 ? 'text-teal' : 'text-amber'}`}>{pr.pct}%</span>
-                    </div>
-                  )}
-                  {seccion !== 'concluidos' && confProgramados.length > 0 && (
-                    <div className="mt-2"><ResumenConfirmacion items={confProgramados} /></div>
-                  )}
-                  <p className="text-[13px] text-muted mt-2">
-                    {diasTotalesGrupo === 1
-                      ? formatFecha(g.dias[0].fecha)
-                      : `${diasTotalesGrupo} días · ${formatFecha(g.dias[0].fecha)} al ${formatFecha(g.dias[g.dias.length - 1].fecha)}`}
-                  </p>
-                </button>
-
-                {/* Solo tiene sentido para proyectos de varios días */}
-                {diasTotalesGrupo > 1 && (
-                  <Link
-                    href={`/dashboard/servicios/proyecto/${g.grupoId}`}
-                    className="group/avance flex items-center justify-between gap-2 mx-4 mb-3 px-3.5 min-h-[46px] rounded-xl bg-surface-2 border border-line text-[14px] font-medium transition-all duration-150 hover:border-teal/40 active:scale-[0.99]"
-                  >
-                    <span className="flex items-center gap-2">
-                      <TrendingUp size={16} strokeWidth={2.4} className="text-teal" />
-                      Ver el avance del proyecto
-                    </span>
-                    <ChevronRight size={16} strokeWidth={2.4} className="text-muted transition-transform group-hover/avance:translate-x-0.5" />
-                  </Link>
-                )}
-
-                {abierto && (
-                  <div className="border-t border-line px-3 pb-3 pt-1 flex flex-col gap-2">
-                    {g.dias.map((d) => {
-                      const et = calcularEstadoTiempo(d);
-                      return (
-                        <div key={d.id} className="flex items-stretch gap-1.5">
-                        <Link
-                          href={`/dashboard/servicios/${d.id}`}
-                          className="flex-1 min-w-0 flex justify-between items-center gap-2 rounded-xl bg-surface-2 px-3.5 py-2.5 transition-all duration-150 hover:bg-surface-2/70 active:scale-[0.98]"
-                        >
-                          <div className="min-w-0">
-                            <span className="text-[14.5px] font-semibold flex items-center gap-2">
-                              <ResultadoIconos resultado={calcularResultadoServicio(d, pr)} size={15} />
-                              Día {d.numero_dia} de {d.dias_totales} · {formatFecha(d.fecha)}
-                            </span>
-                            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                              <span className={`text-[12px] font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5 ${ESTADO_CFG[d.estado].cls}`}>
-                                {(() => { const I = ESTADO_CFG[d.estado].Icono; return <I size={12} strokeWidth={2.6} />; })()}
-                                {ESTADO_CFG[d.estado].label}
-                              </span>
-                              {d.report_id && <span className="text-[12px] font-semibold px-2.5 py-1 rounded-full bg-teal/15 text-teal flex items-center gap-1.5"><FileText size={12} strokeWidth={2.6} />Con reporte</span>}
-                              {d.cierre_tipo === 'automatico' && <span className="text-[12px] font-semibold px-2.5 py-1 rounded-full bg-amber/15 text-amber flex items-center gap-1.5"><AlertTriangle size={12} strokeWidth={2.6} />Cierre por confirmar</span>}
-                              {et.tipo === 'retraso' && <span className="text-[12px] font-semibold px-2.5 py-1 rounded-full bg-red/15 text-red flex items-center gap-1.5"><AlertTriangle size={12} strokeWidth={2.6} />{et.minutos} min</span>}
-                              {et.tipo === 'excedido' && <span className="text-[12px] font-semibold px-2.5 py-1 rounded-full bg-amber/15 text-amber flex items-center gap-1.5"><Timer size={12} strokeWidth={2.6} />Excedido</span>}
-                            </div>
-                            {d.estado === 'programado' && (confirmaciones[d.id] || []).length > 0 && (
-                              <ConfirmacionTecnicos items={confirmaciones[d.id]} className="mt-1.5" />
-                            )}
-                          </div>
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-muted shrink-0"><path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                        </Link>
-                        {/* Quitar un día suelto: solo en proyectos de varios días y si
-                            ese día no se ha trabajado (lo trabajado es respaldo). */}
-                        {g.dias.length > 1 && d.estado !== 'concluido' && d.estado !== 'en_curso' && !d.report_id && (
-                          <button
-                            type="button"
-                            onClick={() => { setMotivoEliminar(''); setPorEliminar({ tipo: 'dia', dia: d }); }}
-                            aria-label={`Eliminar el día ${d.numero_dia} de ${g.proyecto}`}
-                            title="Eliminar este día"
-                            className="shrink-0 w-11 rounded-xl bg-surface-2 text-muted flex items-center justify-center transition-colors hover:text-red active:scale-90"
-                          >
-                            <Trash2 size={16} strokeWidth={2.3} />
-                          </button>
-                        )}
-                        </div>
-                      );
-                    })}
-                    <button
-                      type="button"
-                      onClick={() => setPorEliminar({ tipo: 'proyecto', grupoId: g.grupoId, proyecto: g.proyecto, dias: g.dias.length, reportes: diasConReporte })}
-                      className="self-start mt-1 min-h-[40px] px-2 text-[13px] font-semibold text-red/90 flex items-center gap-1.5 active:scale-95 transition-transform"
-                    >
-                      <Trash2 size={14} strokeWidth={2.4} />
-                      {g.dias.length > 1 ? 'Eliminar el proyecto completo' : 'Eliminar este servicio'}
-                    </button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+        <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3.5 items-start">
+          {listaVisible.map((g, i) => (
+            <TarjetaProyecto
+              // La clave incluye la sección: al cambiar de pestaña las tarjetas vuelven a entrar animadas.
+              key={`${seccion}-${g.grupoId}`}
+              grupo={g}
+              progreso={progresoPorGrupo[g.grupoId]}
+              confirmaciones={confirmaciones}
+              seccion={seccion}
+              abierto={grupoAbierto === g.grupoId}
+              onAlternar={() => setGrupoAbierto(grupoAbierto === g.grupoId ? null : g.grupoId)}
+              onEliminarDia={(d) => { setMotivoEliminar(''); setPorEliminar({ tipo: 'dia', dia: d }); }}
+              onEliminarProyecto={() => setPorEliminar({ tipo: 'proyecto', grupoId: g.grupoId, proyecto: g.proyecto, dias: g.dias.length, reportes: g.dias.filter((d) => d.report_id).length })}
+              indice={i}
+              hoy={hoy}
+            />
+          ))}
         </div>
+        )}
+        {(seccion === 'agendados' || seccion === 'concluidos') && !loading && lista.length > 0 && listaVisible.length === 0 && (
+          <div className="flex flex-col items-center py-10 text-center">
+            <p className="text-[14.5px] font-medium mb-1">Nada con ese filtro</p>
+            <button type="button" onClick={() => setFiltroEstado(null)} className="text-[13.5px] font-semibold text-teal min-h-[40px]">
+              Ver todos los proyectos
+            </button>
+          </div>
         )}
 
       {/* Confirmar la eliminación de un día o de todo el proyecto */}
