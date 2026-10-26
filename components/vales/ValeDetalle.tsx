@@ -12,7 +12,7 @@ import { showToast } from '@/components/Toast';
 import { mapaDeExistencias } from '@/lib/almacen';
 import { createClient } from '@/lib/supabaseClient';
 import {
-  Vale, ETIQUETA_ESTADO, MOTIVOS_FALTANTE, valeVencido,
+  Vale, ValeItem, ETIQUETA_ESTADO, MOTIVOS_FALTANTE, valeVencido,
   firmarVale, firmarValeEnAlmacen, devolverVale, subirFotoVale, pedirMasDias, recordarMasDias, cancelarVale,
   entregarVale, recibirDevolucion, resolverMasDias, urlsFotos,
   Traspaso, traspasosDeVale, companerosParaPrestamo, proponerTraspaso, cancelarTraspaso, disponiblesParaPrestar, nombreCorto,
@@ -157,6 +157,14 @@ export default function ValeDetalle({
 
         {/* Acciones */}
         <div className="mt-4 flex flex-col gap-3">
+          {modo === 'tecnico' && vale.estado === 'devolucion_por_confirmar' && (
+            <div className="rounded-xl border border-teal/40 bg-teal/5 p-3 flex items-start gap-2.5">
+              <Undo2 size={17} className="text-teal shrink-0 mt-0.5" />
+              <p className="text-[13px] leading-snug">
+                <b>Devolución enviada.</b> No tienes que esperar: el almacén la revisa y firma de recibido desde su dispositivo, y te llega el acuse.
+              </p>
+            </div>
+          )}
           {modo === 'tecnico' && vale.estado === 'solicitado' && (
             <button type="button" disabled={guardando} onClick={() => ejecutar(() => cancelarVale(vale, ''), 'Vale cancelado')}
               className="min-h-[44px] rounded-xl border border-line text-[13.5px] font-semibold text-red">Cancelar vale</button>
@@ -386,7 +394,7 @@ function Devolver({ vale, guardando, ejecutar }: { vale: Vale; guardando: boolea
       <p className="text-[12px] text-muted">
         {conDiferencia.length === 0 ? 'Regresas todo completo.' : `${conDiferencia.length} concepto${conDiferencia.length > 1 ? 's' : ''} con diferencia${faltanMotivos.length ? ' · falta decir qué pasó' : ''}.`}
       </p>
-      <button type="button" disabled={guardando || fotos.length === 0 || faltanMotivos.length > 0} onClick={() => ejecutar(enviar, 'Devolución enviada; el almacén la va a revisar', true)}
+      <button type="button" disabled={guardando || fotos.length === 0 || faltanMotivos.length > 0} onClick={() => ejecutar(enviar, 'Devolución enviada; ya puedes irte', true)}
         className="min-h-[50px] rounded-2xl bg-teal text-inkOnAccent text-[15px] font-semibold disabled:opacity-50 flex items-center justify-center gap-2">
         <Undo2 size={17} /> {guardando ? 'Enviando…' : 'Enviar devolución'}
       </button>
@@ -570,84 +578,95 @@ function Entregar({ vale, guardando, ejecutar }: { vale: Vale; guardando: boolea
   );
 }
 
-// El almacén revisa la devolución: marca cada concepto como recibido (o
-// anota cuánto llegó y qué pasó) y firma de recibido. Esa firma es la prueba
-// para el técnico de que ya no tiene nada a su nombre.
+// El almacén revisa la devolución desde su dispositivo, cuando pueda (el
+// técnico ya la mandó y se fue): marca solo lo que sí llegó. Lo que no marque
+// cuenta como «no llegó» y se le avisa al técnico. Si llegó una parte, se
+// indica cuánto. Al final firma de recibido y se cierra el vale.
 function Recibir({ vale, guardando, ejecutar }: { vale: Vale; guardando: boolean; ejecutar: Ejecutar }) {
-  const devueltos = vale.items.filter((i) => (i.cantidad_entregada || 0) > 0);
-  // Por concepto: null = sin revisar, 'ok' = llegó lo que dijo, 'dif' = llegó distinto.
-  const [revision, setRevision] = useState<Record<string, 'ok' | 'dif' | null>>({});
-  const [cant, setCant] = useState<Record<string, number>>({});
+  // Solo cuenta lo que el técnico dijo que regresa.
+  const devueltos = vale.items.filter((i) => Number(i.cantidad_devuelta || 0) > 0);
+  const [marcado, setMarcado] = useState<Record<string, boolean>>({});
+  // Llegó una parte: cuánto (y, si quiere, qué pasó).
+  const [parcial, setParcial] = useState<Record<string, number | undefined>>({});
   const [notas, setNotas] = useState<Record<string, string>>({});
   const [nota, setNota] = useState('');
   const [firma, setFirma] = useState<string | null>(null);
   const ref = useRef<SignaturePadHandle>(null);
 
-  const revisados = devueltos.filter((i) => revision[i.id]).length;
-  const sinNota = devueltos.filter((i) => revision[i.id] === 'dif' && (cant[i.id] ?? 0) < Number(i.cantidad_devuelta || 0) && !notas[i.id]?.trim());
-  const listo = revisados === devueltos.length && sinNota.length === 0;
+  const declarado = (i: ValeItem) => Number(i.cantidad_devuelta || 0);
+  const recibido = (i: ValeItem) => {
+    if (parcial[i.id] !== undefined) return Math.min(parcial[i.id]!, declarado(i));
+    return marcado[i.id] ? declarado(i) : 0;
+  };
+  const noLlego = devueltos.filter((i) => recibido(i) === 0);
+  const incompletos = devueltos.filter((i) => recibido(i) > 0 && recibido(i) < declarado(i));
+  const completos = devueltos.length - noLlego.length - incompletos.length;
 
-  function marcarTodo() {
-    setRevision(Object.fromEntries(devueltos.map((i) => [i.id, revision[i.id] || 'ok'])));
-  }
-
+  // La base pide una razón cuando llega menos; si el almacén no la escribe,
+  // queda la que describe lo que vio.
   const items = devueltos.map((i) => {
-    const declarado = Number(i.cantidad_devuelta || 0);
-    const dif = revision[i.id] === 'dif';
-    return { id: i.id, cantidad: dif ? Math.min(cant[i.id] ?? 0, declarado) : declarado, nota: dif ? notas[i.id]?.trim() || '' : '' };
+    const c = recibido(i);
+    let razon = '';
+    if (c < declarado(i)) razon = notas[i.id]?.trim() || (c === 0 ? 'No llegó al almacén' : 'Llegó incompleto');
+    return { id: i.id, cantidad: c, nota: razon };
   });
+
+  function alternar(i: ValeItem) {
+    setParcial({ ...parcial, [i.id]: undefined });
+    setMarcado({ ...marcado, [i.id]: !marcado[i.id] });
+  }
 
   return (
     <div className="rounded-2xl border border-teal/40 bg-teal/5 p-3.5 flex flex-col gap-3">
       <div>
-        <p className="font-display font-semibold text-[16px] flex items-center gap-2"><ShieldCheck size={18} className="text-teal" /> Revisar la devolución</p>
-        <p className="text-[12px] text-muted leading-snug">Compara con las fotos de arriba y cuenta lo que regresó. Lo que recibas vuelve al inventario.</p>
+        <p className="font-display font-semibold text-[16px] flex items-center gap-2"><ShieldCheck size={18} className="text-teal" /> Recibir la devolución</p>
+        <p className="text-[12px] text-muted leading-snug">Compara con las fotos de arriba y <b className="text-ink">marca solo lo que sí llegó</b>. Lo que no marques queda como «no llegó» y se le avisa a {vale.tecnico || 'quien devolvió'}.</p>
       </div>
 
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[12.5px] font-semibold tabular-nums">{revisados} de {devueltos.length} revisados</span>
-        {revisados < devueltos.length && (
-          <button type="button" onClick={marcarTodo} className="text-[12.5px] font-semibold text-teal">Todo llegó como dice</button>
+        <span className="text-[12.5px] font-semibold tabular-nums">{devueltos.length - noLlego.length} de {devueltos.length} recibidos</span>
+        {noLlego.length > 0 && (
+          <button type="button" onClick={() => { setMarcado(Object.fromEntries(devueltos.map((i) => [i.id, true]))); setParcial({}); }}
+            className="text-[12.5px] font-semibold text-teal">Llegó todo</button>
         )}
-      </div>
-      <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden -mt-1.5">
-        <div className="h-full bg-teal rounded-full transition-[width] duration-300" style={{ width: `${devueltos.length ? (revisados / devueltos.length) * 100 : 0}%` }} />
       </div>
 
       <div className="flex flex-col gap-2">
         {devueltos.map((i) => {
-          const declarado = Number(i.cantidad_devuelta || 0);
-          const r = revision[i.id] || null;
+          const c = recibido(i);
+          const esParcial = parcial[i.id] !== undefined;
+          const ok = c >= declarado(i);
           return (
-            <div key={i.id} className={`rounded-xl border p-3 transition-colors ${r === 'ok' ? 'border-teal/50 bg-teal/5' : r === 'dif' ? 'border-amber/50 bg-amber/5' : 'border-line bg-surface'}`}>
+            <div key={i.id} className={`rounded-xl border p-3 transition-colors ${ok ? 'border-teal/50 bg-teal/5' : c > 0 ? 'border-amber/50 bg-amber/5' : 'border-line bg-surface'}`}>
               <div className="flex items-start gap-3">
-                <button type="button" aria-label={r === 'ok' ? 'Quitar marca' : 'Marcar como recibido'} onClick={() => setRevision({ ...revision, [i.id]: r === 'ok' ? null : 'ok' })}
+                <button type="button" role="checkbox" aria-checked={ok} aria-label={`Recibí ${i.articulo?.descripcion}`} onClick={() => alternar(i)}
                   className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center shrink-0 active:scale-90 transition ${
-                    r === 'ok' ? 'bg-teal border-teal text-inkOnAccent' : r === 'dif' ? 'bg-amber/15 border-amber text-amber' : 'border-line-strong text-transparent'
+                    ok ? 'bg-teal border-teal text-inkOnAccent' : c > 0 ? 'bg-amber/15 border-amber text-amber' : 'border-line-strong text-transparent'
                   }`}>
-                  {r === 'dif' ? <AlertTriangle size={15} strokeWidth={2.6} /> : <Check size={17} strokeWidth={3} />}
+                  {c > 0 && !ok ? <AlertTriangle size={15} strokeWidth={2.6} /> : <Check size={17} strokeWidth={3} />}
                 </button>
-                <div className="min-w-0 flex-1">
+                <button type="button" onClick={() => alternar(i)} className="min-w-0 flex-1 text-left">
                   <p className="text-[13.5px] font-semibold leading-snug">{i.articulo?.descripcion}</p>
                   <p className="text-[11.5px] text-muted">
-                    Devuelve {n(declarado)} de {n(i.cantidad_entregada)} {i.articulo?.unidad}
-                    {i.motivo_faltante && <span className="text-red"> · {MOTIVOS_FALTANTE.find((m) => m.valor === i.motivo_faltante)?.label}{i.nota ? `: ${i.nota}` : ''}</span>}
+                    Dice que regresa {n(declarado(i))} {i.articulo?.unidad}
+                    {i.motivo_faltante && <span className="text-red"> · de {n(i.cantidad_entregada)}: {MOTIVOS_FALTANTE.find((m) => m.valor === i.motivo_faltante)?.label}</span>}
                   </p>
-                  {r !== 'dif' && declarado > 0 && (
-                    <button type="button" onClick={() => { setRevision({ ...revision, [i.id]: 'dif' }); setCant({ ...cant, [i.id]: Math.max(0, declarado - 1) }); }}
-                      className="text-[12px] font-semibold text-amber mt-1">Llegó diferente</button>
-                  )}
-                </div>
+                  <p className={`text-[11.5px] font-semibold mt-0.5 ${ok ? 'text-teal' : c > 0 ? 'text-amber' : 'text-muted'}`}>
+                    {ok ? 'Recibido' : c > 0 ? `Llegaron ${c} de ${n(declarado(i))}` : 'Sin marcar: no llegó'}
+                  </p>
+                </button>
               </div>
-              {r === 'dif' && (
+              {declarado(i) > 1 && !esParcial && (
+                <button type="button" onClick={() => setParcial({ ...parcial, [i.id]: Math.max(1, declarado(i) - 1) })}
+                  className="text-[12px] font-semibold text-amber mt-1.5 ml-11">Llegó solo una parte</button>
+              )}
+              {esParcial && (
                 <div className="mt-2.5 ml-11 flex flex-col gap-2">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[12.5px] text-ink/80">¿Cuánto llegó?</span>
-                    <Cantidad valor={cant[i.id] ?? 0} max={declarado} onChange={(v) => setCant({ ...cant, [i.id]: v })} unidad={i.articulo?.unidad} />
+                    <Cantidad valor={parcial[i.id] ?? 0} max={declarado(i)} onChange={(v) => setParcial({ ...parcial, [i.id]: v })} unidad={i.articulo?.unidad} />
                   </div>
-                  <input className={`${inputCls} ${sinNota.some((x) => x.id === i.id) ? 'border-amber' : ''}`} placeholder="¿Qué pasó? (obligatorio): llegó roto, faltó una pieza…"
-                    value={notas[i.id] || ''} onChange={(e) => setNotas({ ...notas, [i.id]: e.target.value })} />
-                  <button type="button" onClick={() => setRevision({ ...revision, [i.id]: null })} className="text-[12px] text-muted self-start">Cancelar diferencia</button>
+                  <input className={inputCls} placeholder="¿Qué pasó? (opcional)" value={notas[i.id] || ''} onChange={(e) => setNotas({ ...notas, [i.id]: e.target.value })} />
                 </div>
               )}
             </div>
@@ -655,20 +674,33 @@ function Recibir({ vale, guardando, ejecutar }: { vale: Vale; guardando: boolean
         })}
       </div>
 
+      {/* Lo que se va a registrar, antes de firmar: sin sorpresas. */}
+      <div className={`rounded-xl px-3 py-2.5 text-[12.5px] leading-relaxed ${noLlego.length || incompletos.length ? 'bg-amber/10 border border-amber/30' : 'bg-teal/10 border border-teal/30'}`}>
+        {noLlego.length === 0 && incompletos.length === 0 ? (
+          <p className="text-teal font-semibold">Recibes todo lo que dice la devolución.</p>
+        ) : (
+          <>
+            <p className="font-semibold text-amber">{completos} completo{completos === 1 ? '' : 's'}{incompletos.length ? ` · ${incompletos.length} incompleto${incompletos.length > 1 ? 's' : ''}` : ''}{noLlego.length ? ` · ${noLlego.length} no llegó` : ''}</p>
+            {noLlego.length > 0 && <p className="text-ink/80">No llegó: {noLlego.map((i) => `${n(declarado(i))} ${i.articulo?.unidad} de ${i.articulo?.descripcion}`).join(', ')}.</p>}
+            <p className="text-muted text-[11.5px]">Queda registrado como faltante a nombre de {vale.tecnico || 'quien devolvió'} y se le avisa.</p>
+          </>
+        )}
+      </div>
+
       <input className={inputCls} placeholder="Nota general (opcional)" value={nota} onChange={(e) => setNota(e.target.value)} />
 
-      <div className={`rounded-xl border p-3 transition-opacity ${listo ? '' : 'opacity-60'}`}>
+      <div className="rounded-xl border border-line p-3">
         <p className="text-[13px] font-semibold mb-1">Tu firma de recibido</p>
-        <p className="text-[11.5px] text-muted mb-2">{listo ? 'Con tu firma se cierra el vale y le llega el acuse a quien devolvió.' : 'Revisa todos los conceptos para poder firmar.'}</p>
-        <div className={`rounded-xl overflow-hidden border border-line ${listo ? '' : 'pointer-events-none'}`}>
+        <p className="text-[11.5px] text-muted mb-2">Firmas tú, desde tu dispositivo. Con tu firma se cierra el vale y le llega el acuse a quien devolvió.</p>
+        <div className="rounded-xl overflow-hidden border border-line">
           <SignaturePad ref={ref} titulo="Firma de quien recibe en almacén" onCambio={setFirma} />
         </div>
       </div>
 
-      <button type="button" disabled={guardando || !listo || !firma}
+      <button type="button" disabled={guardando || !firma}
         onClick={() => ejecutar(() => recibirDevolucion(vale, items, nota, firma!), 'Devolución recibida y vale cerrado')}
         className="min-h-[50px] rounded-2xl bg-teal text-inkOnAccent text-[15px] font-semibold disabled:opacity-50 flex items-center justify-center gap-2">
-        <ShieldCheck size={17} /> Aceptar devolución y cerrar vale
+        <ShieldCheck size={17} /> Firmar y cerrar vale
       </button>
     </div>
   );

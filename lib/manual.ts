@@ -138,7 +138,7 @@ export const MANUAL_TECNICO: SeccionManual[] = [
           'Si se te vence el plazo para devolver, abre el vale y toca «Renovar plazo: pedir más días»: eliges cuántos y para qué. Mientras el almacén no responde, el vale dice «Ya pediste N día(s) más» y puedes tocar «Recordar al almacén».',
           'Cuando el almacén lo surte, toma una foto de lo que te entrega y firmas de recibido: ahí mismo en su dispositivo si estás con él, o desde tu celular.',
           'Para devolver, abre el vale y toca «Devolver al almacén». En cada concepto elige «Regresa completo» o «Regresa menos» (cuánto y qué pasó: se consumió, se quedó en obra, se dañó…) y toma la foto de lo que entregas.',
-          'El almacén revisa cada concepto y firma de recibido. Te llega el acuse; si algo no cuadró, con el detalle. El vale y su PDF quedan con las dos firmas y las fotos de ida y vuelta: es tu comprobante de que lo regresaste.',
+          'Al enviarla ya te puedes ir: el almacén la revisa y firma de recibido desde su dispositivo. Te llega el acuse; si algo no llegó, con el detalle. El vale y su PDF quedan con las dos firmas y las fotos de ida y vuelta: es tu comprobante de que lo regresaste.',
         ],
       },
       {
@@ -410,7 +410,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
         pasos: [
           '«Vales»: lo que pide el personal para sus servicios; se surte y se firma de recibido.',
           'Para surtir un vale: ajusta lo que de verdad entregas con − y +, toma la foto de lo que entregas (obligatoria) y toca «Entregar y pasar a la firma»: la pantalla se queda lista para que quien lo pidió firme de recibido ahí mismo. Si no está, el vale se queda «Por firmar» hasta que firme desde su celular.',
-          'Cuando te devuelven, abre el vale: arriba están las fotos de la devolución. Marca cada concepto que llegó como dice, o toca «Llegó diferente» para anotar cuánto llegó y qué pasó. Al terminar firmas de recibido y se cierra el vale; lo recibido vuelve al inventario y a quien devolvió le llega el acuse.',
+          'Cuando te devuelven, el técnico no tiene que esperarte: te llega el aviso y lo revisas cuando puedas. Abre el vale (arriba están las fotos de la devolución) y marca solo lo que sí llegó; lo que no marques queda como «no llegó» y se le avisa. Si llegó una parte, toca «Llegó solo una parte» e indica cuánto. Firmas de recibido desde tu dispositivo y se cierra el vale; lo recibido vuelve al inventario.',
           'Cuando alguien pide más días para devolver, el vale sale en «Piden más días»: ábrelo y aprueba o rechaza. Al aprobar, los días cuentan desde hoy si el plazo ya estaba vencido.',
           '«Existencias» y «Movimientos»: lo que hay y lo que entró o salió. «Entrada» da de alta material nuevo.',
           '«Ubicaciones» y «Conteo» sirven para ordenar el almacén y hacer inventario con etiquetas QR.',
