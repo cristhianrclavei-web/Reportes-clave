@@ -177,6 +177,8 @@ export async function registrarCambioDia(input: {
   //   'nada'        → se deja como está (el técnico cierra o reporta).
   accion: 'reprogramar' | 'continuar' | 'cancelar' | 'nada';
   nuevaFecha?: string;
+  // Al continuar otro día: por qué hace falta (clave de lib/motivosServicio.ts).
+  motivoAmpliacion?: string;
   // A dónde van los técnicos (opcional):
   destino?:
     | { tipo: 'existente'; servicioId: string }
@@ -203,7 +205,8 @@ export async function registrarCambioDia(input: {
     partes.push('se canceló');
   } else if (input.accion === 'continuar') {
     if (!input.nuevaFecha) throw new Error('Elige la fecha para continuar.');
-    await agregarDiasAGrupo(s.grupo_id, [input.nuevaFecha]);
+    if (!input.motivoAmpliacion) throw new Error('Elige por qué se necesita otro día.');
+    await agregarDiasAGrupo(s.grupo_id, [input.nuevaFecha], { clave: input.motivoAmpliacion, comentario: motivo });
     partes.push(`continúa el ${fechaDMA(input.nuevaFecha)}`);
   }
 

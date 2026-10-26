@@ -1,5 +1,7 @@
 'use client';
 
+import PlazoProyecto from '@/components/PlazoProyecto';
+import MotivoAmpliacion from '@/components/MotivoAmpliacion';
 import { avisar, confirmar, pedirTexto } from '@/lib/dialogos';
 import VisorVideo, { MarcaVideo } from '@/components/VisorVideo';
 import { fechaDMA } from '@/lib/etiquetaMantenimiento';
@@ -105,6 +107,9 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
   const [showAgregarDias, setShowAgregarDias] = useState(false);
   const [diasNuevos, setDiasNuevos] = useState(1);
   const [fechasNuevas, setFechasNuevas] = useState<string[]>([]);
+  const [motivoAmpliacion, setMotivoAmpliacion] = useState('');
+  const [comentarioAmpliacion, setComentarioAmpliacion] = useState('');
+  const [versionPlazo, setVersionPlazo] = useState(0);
   const [showReprogramar, setShowReprogramar] = useState(false);
   const [showEliminarDia, setShowEliminarDia] = useState(false);
   const [motivoEliminar, setMotivoEliminar] = useState('');
@@ -444,11 +449,24 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
         setAgregandoDias(false);
         return;
       }
-      await agregarDiasAGrupo(servicio.grupo_id, fechas);
+      if (!motivoAmpliacion) {
+        avisar('Elige por qué se necesitan más días.');
+        setAgregandoDias(false);
+        return;
+      }
+      if (motivoAmpliacion === 'otro' && !comentarioAmpliacion.trim()) {
+        avisar('Cuando el motivo es «Otro», escribe cuál.');
+        setAgregandoDias(false);
+        return;
+      }
+      await agregarDiasAGrupo(servicio.grupo_id, fechas, { clave: motivoAmpliacion, comentario: comentarioAmpliacion });
       showToast(`Se agregaron ${fechas.length} día(s) más al proyecto`, 'success');
       setShowAgregarDias(false);
       setDiasNuevos(1);
       setFechasNuevas([]);
+      setMotivoAmpliacion('');
+      setComentarioAmpliacion('');
+      setVersionPlazo((v) => v + 1);
       await cargar();
     } catch (e: any) {
       avisar('No se pudo ampliar el proyecto: ' + (e?.message || 'error desconocido'));
@@ -857,6 +875,13 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
             </button>
           )}
 
+          <PlazoProyecto
+            grupoId={servicio.grupo_id}
+            avancePct={progreso.total > 0 ? progreso.pct : null}
+            version={versionPlazo}
+            onAmpliar={(sugerido) => { setMotivoAmpliacion(sugerido || ''); setShowAgregarDias(true); }}
+          />
+
           {!showAgregarDias ? (
             <button onClick={() => setShowAgregarDias(true)} className="inline-flex items-center gap-1.5 mt-3 mr-2 px-3.5 min-h-[40px] rounded-full border text-[13.5px] font-semibold transition-colors border-teal/40 bg-teal/10 text-teal hover:bg-teal/15">
               <Plus size={16} strokeWidth={2.6} />
@@ -884,9 +909,17 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
                   />
                 </div>
               ))}
+              <label className="text-[13px] text-ink/75 block mt-2 mb-1.5">¿Por qué se necesitan más días?</label>
+              <MotivoAmpliacion valor={motivoAmpliacion} onChange={setMotivoAmpliacion} />
+              <input
+                value={comentarioAmpliacion}
+                onChange={(e) => setComentarioAmpliacion(e.target.value)}
+                placeholder={motivoAmpliacion === 'otro' ? 'Escribe el motivo' : 'Detalle (opcional)'}
+                className="w-full px-3 min-h-[44px] mt-1 rounded-lg bg-surface border border-line text-[14px]"
+              />
               <div className="flex gap-2 mt-2">
                 <button onClick={() => setShowAgregarDias(false)} className="flex-1 min-h-[46px] border border-line-strong text-ink/80 rounded-xl text-[14px]">Cancelar</button>
-                <button onClick={handleAgregarDias} disabled={agregandoDias || diasNuevos < 1} className="flex-1 min-h-[46px] bg-teal text-inkOnAccent rounded-xl text-[14px] font-semibold disabled:opacity-60">
+                <button onClick={handleAgregarDias} disabled={agregandoDias || diasNuevos < 1 || !motivoAmpliacion} className="flex-1 min-h-[46px] bg-teal text-inkOnAccent rounded-xl text-[14px] font-semibold disabled:opacity-60">
                   {agregandoDias ? 'Agregando...' : 'Agregar días'}
                 </button>
               </div>

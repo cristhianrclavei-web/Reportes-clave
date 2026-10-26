@@ -79,6 +79,11 @@ export type Servicio = {
   visita_nota?: string | null;
   visita_firma?: string | null;
   visita_firma_nombre?: string | null;
+  // Plazo del proyecto (patch_plazo_proyectos.sql, lib/plazosProyecto.ts):
+  // días cotizados al programar y, en los días agregados al ampliar, por qué.
+  dias_planeados?: number | null;
+  ampliacion_motivo?: string | null;
+  ampliacion_comentario?: string | null;
 };
 
 // Lo que responde el técnico al cerrar el día: siempre el resultado; los
@@ -228,6 +233,8 @@ export async function crearServicio(input: {
         grupo_id: grupoId,
         numero_dia: dia,
         dias_totales: diasTotales,
+        // Los días cotizados: ampliar después no los cambia.
+        dias_planeados: diasTotales,
       })
       .select()
       .single();
@@ -430,8 +437,16 @@ function fechaDMA(f: string): string {
 // (dias_totales) en TODAS las filas del grupo. El checklist NO se copia:
 // es compartido por proyecto, así que los días nuevos ven la misma lista
 // (con lo pendiente que haya quedado).
-export async function agregarDiasAGrupo(grupoId: string, fechasNuevas: string[]): Promise<Servicio[]> {
+// Cada día nuevo guarda por qué hizo falta: es lo que mide el plazo del
+// proyecto (lib/plazosProyecto.ts) y separa lo propio de lo ajeno.
+export async function agregarDiasAGrupo(
+  grupoId: string,
+  fechasNuevas: string[],
+  motivo: { clave: string; comentario: string }
+): Promise<Servicio[]> {
   const supabase = createClient();
+  if (!motivo.clave) throw new Error('Indica por qué se necesitan más días.');
+  if (motivo.clave === 'otro' && !motivo.comentario.trim()) throw new Error('Cuando el motivo es «Otro», escribe cuál.');
 
   const { data: diasExistentes, error: eFetch } = await supabase
     .from('servicios_programados')
@@ -469,6 +484,9 @@ export async function agregarDiasAGrupo(grupoId: string, fechasNuevas: string[])
         grupo_id: grupoId,
         numero_dia: numeroDia,
         dias_totales: nuevoTotal,
+        dias_planeados: ultimoDia.dias_planeados ?? null,
+        ampliacion_motivo: motivo.clave,
+        ampliacion_comentario: motivo.comentario.trim() || null,
       })
       .select()
       .single();
@@ -484,7 +502,7 @@ export async function agregarDiasAGrupo(grupoId: string, fechasNuevas: string[])
     'amplio_proyecto',
     'servicio',
     ultimoDia.id,
-    `Amplió «${ultimoDia.proyecto}» de ${ultimoDia.dias_totales} a ${nuevoTotal} día(s). Fechas nuevas: ${fechas.join(', ')}`
+    `Amplió «${ultimoDia.proyecto}» de ${ultimoDia.dias_totales} a ${nuevoTotal} día(s) por «${textoMotivo(motivo.clave)}»${motivo.comentario.trim() ? ` (${motivo.comentario.trim()})` : ''}. Fechas nuevas: ${fechas.join(', ')}`
   );
 
   return diasCreados;
@@ -926,7 +944,7 @@ export async function eliminarDiaDeProyecto(servicioId: string, motivo: string):
 
   const { data: dia, error: eGet } = await supabase
     .from('servicios_programados')
-    .select('id, proyecto, fecha, numero_dia, dias_totales, grupo_id, estado, report_id')
+    .select('*')
     .eq('id', servicioId)
     .single();
   if (eGet) throw eGet;
@@ -970,12 +988,18 @@ export async function eliminarDiaDeProyecto(servicioId: string, motivo: string):
 
   // Renumerar por fecha: los días siguientes recorren su número sin cambiar
   // de fecha, y el total baja en uno.
+  // Si el día quitado era de los cotizados (no uno agregado al ampliar), el
+  // plan cambió: los días cotizados también bajan, para no contarlo después
+  // como «terminó antes».
   const nuevoTotal = restantes.length;
+  const eraCotizado = dia.dias_planeados && !dia.ampliacion_motivo;
+  const cambios: Record<string, number> = { dias_totales: nuevoTotal };
+  if (eraCotizado) cambios.dias_planeados = Math.max(1, dia.dias_planeados - 1);
   for (let i = 0; i < restantes.length; i++) {
     const d: any = restantes[i];
     await supabase
       .from('servicios_programados')
-      .update({ numero_dia: i + 1, dias_totales: nuevoTotal })
+      .update({ ...cambios, numero_dia: i + 1 })
       .eq('id', d.id);
   }
 
@@ -1651,7 +1675,7 @@ export async function concluirServicio(servicioId: string, cierre: CierreServici
   // uno con retraso es lo que el supervisor necesita saber en el momento.
   const { data: sv } = await supabase
     .from('servicios_programados')
-    .select('proyecto, duracion_estimada_min, hora_llegada, hora_inicio, hora_fin, pausado_desde, minutos_pausados')
+    .select('proyecto, duracion_estimada_min, hora_llegada, hora_inicio, hora_fin, pausado_desde, minutos_pausados, numero_dia, dias_totales')
     .eq('id', servicioId)
     .single();
 
@@ -1664,6 +1688,10 @@ export async function concluirServicio(servicioId: string, cierre: CierreServici
   if (cierre.resultado !== 'terminado') {
     extra += ` · ${cierre.resultado === 'pendiente' ? 'quedó trabajo pendiente' : 'no se pudo realizar'}${cierre.resultadoMotivo ? ` (${textoMotivo(cierre.resultadoMotivo).toLowerCase()})` : ''}`;
   }
+  // Era el último día y no se terminó: se acabaron los días programados.
+  // Es el momento de decidir si se amplía, no días después.
+  const ultimoDiaSinTerminar = cierre.resultado === 'pendiente' && sv && sv.numero_dia >= sv.dias_totales;
+  if (ultimoDiaSinTerminar) extra += '. Era el último día programado: amplía el proyecto o ciérralo';
 
   const quien = await nombreDelUsuario();
   if (cierre.resultado === 'no_realizado') {
@@ -2407,4 +2435,16 @@ export function calcularEstadoTiempo(s: Servicio): EstadoTiempo {
   }
 
   return { tipo: null };
+}
+
+// Todos los días de un proyecto con lo que necesita su plazo
+// (lib/plazosProyecto.ts).
+export async function diasDelProyecto(grupoId: string) {
+  const { data, error } = await createClient()
+    .from('servicios_programados')
+    .select('*')
+    .eq('grupo_id', grupoId)
+    .order('fecha', { ascending: true });
+  if (error) throw error;
+  return (data as Servicio[]) || [];
 }

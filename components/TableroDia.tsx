@@ -1,5 +1,6 @@
 'use client';
 
+import MotivoAmpliacion from '@/components/MotivoAmpliacion';
 import { debeReporte } from '@/lib/visitaSinTrabajo';
 import { useEnVivo } from '@/lib/useEnVivo';
 import { coincideBusqueda } from '@/lib/busqueda';
@@ -104,6 +105,14 @@ function llegadaAtrasada(s: ServicioDia, hoy: string, minutos: number, fecha: st
   const diff = minutos - (h * 60 + m);
   return diff > 15 ? diff : 0;
 }
+
+// Causa del aviso del técnico (lib/avisos.ts) → motivo de ampliación.
+const MOTIVO_POR_CAUSA: Record<string, string> = {
+  cliente_no_disponible: 'cliente_ausente',
+  falta_material: 'falta_material',
+  acceso_restringido: 'permiso',
+  clima: 'clima',
+};
 
 export default function TableroDia({ onAgendar }: {
   // Abre el formulario completo de agendar (ubicación, tareas, lista de
@@ -802,6 +811,8 @@ export function CambioDia({
   );
   const [accion, setAccion] = useState<'reprogramar' | 'continuar' | 'cancelar' | 'nada'>(empezado ? 'continuar' : 'reprogramar');
   const [nuevaFecha, setNuevaFecha] = useState(manana);
+  // Si el técnico ya avisó del problema, su causa sugiere el motivo.
+  const [motivoAmpliacion, setMotivoAmpliacion] = useState(avisoInicial ? MOTIVO_POR_CAUSA[avisoInicial.causa] || '' : '');
   const [destino, setDestino] = useState<'ninguno' | 'existente' | 'nuevo'>('ninguno');
   const [destinoId, setDestinoId] = useState(otros[0]?.id || '');
   const [proyecto, setProyecto] = useState('');
@@ -821,6 +832,7 @@ export function CambioDia({
         motivo,
         accion,
         nuevaFecha: accion === 'reprogramar' || accion === 'continuar' ? nuevaFecha : undefined,
+        motivoAmpliacion: accion === 'continuar' ? motivoAmpliacion : undefined,
         destino:
           destino === 'existente' && destinoId ? { tipo: 'existente', servicioId: destinoId }
           : destino === 'nuevo' ? { tipo: 'nuevo', proyecto, clienteId, descripcion, hora: horaP || null }
@@ -863,6 +875,13 @@ export function CambioDia({
         {(accion === 'reprogramar' || accion === 'continuar') && (
           <input type="date" className={`${inputCls} mt-1`} value={nuevaFecha} min={hoy} onChange={(e) => setNuevaFecha(e.target.value)} />
         )}
+        {accion === 'continuar' && (
+          <div className="mt-3">
+            <label className={labelCls}>¿Por qué se necesita otro día?</label>
+            <MotivoAmpliacion valor={motivoAmpliacion} onChange={setMotivoAmpliacion} />
+            <p className="text-[12px] text-muted">Cuenta para el plazo del proyecto: lo del equipo en campo cuenta en contra.</p>
+          </div>
+        )}
         {empezado && (
           <p className="text-[12px] text-muted mt-1.5">Ya se empezó: el personal debe hacer hoy su reporte de avance (servicio no concluido).</p>
         )}
@@ -897,7 +916,7 @@ export function CambioDia({
         )}
 
         {error && <p className="text-[13px] text-red font-semibold mt-3">{error}</p>}
-        <button type="button" onClick={guardar} disabled={guardando || !motivo.trim()}
+        <button type="button" onClick={guardar} disabled={guardando || !motivo.trim() || (accion === 'continuar' && !motivoAmpliacion)}
           className="w-full mt-4 min-h-[48px] rounded-2xl bg-teal text-inkOnAccent font-semibold text-[15px] disabled:opacity-50 active:scale-[0.98]">
           {guardando ? 'Guardando…' : 'Registrar cambio'}
         </button>
