@@ -9,7 +9,8 @@ import {
 } from './pausas';
 import { registrarAccionGlobal } from './auditoriaGlobal';
 import { generarUUID } from './uuid';
-import { evaluarVentanaServicio } from './ventanaServicio';
+import { evaluarVentanaServicio, motivoAntesDeLaJornada } from './ventanaServicio';
+import { HORARIO_POR_DEFECTO } from './jornadaDatos';
 import { notificar } from './push';
 import { textoMotivo } from './motivosServicio';
 import { VideoGrabado, subirVideo } from './videoEvidencia';
@@ -1071,8 +1072,25 @@ async function exigirVentanaValida(servicioId: string) {
   if (!ventana.permitido) throw new Error(ventana.motivo || 'Este servicio está fuera de su fecha programada.');
 }
 
+// Hora de inicio de la jornada ('HH:MM'). '*': si la base todavía no tiene
+// la columna, no falla y se usa la de por defecto.
+export async function leerInicioJornada(): Promise<string> {
+  const supabase = createClient();
+  const { data, error } = await supabase.from('ajustes_operacion').select('*').maybeSingle();
+  if (error) throw error;
+  const inicio = (data as { jornada_inicio?: string } | null)?.jornada_inicio;
+  return (inicio || HORARIO_POR_DEFECTO.inicio).slice(0, 5);
+}
+
+// Igual que la fecha: la pantalla ya lo bloquea, esto cubre una pantalla vieja.
+async function exigirJornadaIniciada() {
+  const motivo = motivoAntesDeLaJornada(await leerInicioJornada());
+  if (motivo) throw new Error(motivo);
+}
+
 export async function marcarLlegada(servicioId: string) {
   await exigirVentanaValida(servicioId);
+  await exigirJornadaIniciada();
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const ubicacion = await getCurrentLocation();
@@ -1126,6 +1144,7 @@ async function nombreDelUsuario(): Promise<string> {
 
 export async function iniciarServicio(servicioId: string) {
   await exigirVentanaValida(servicioId);
+  await exigirJornadaIniciada();
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const ubicacion = await getCurrentLocation();

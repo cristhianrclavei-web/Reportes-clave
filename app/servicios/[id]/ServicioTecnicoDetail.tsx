@@ -14,7 +14,7 @@ import LogoutButton from '@/components/LogoutButton';
 import Logo from '@/components/Logo';
 import {
   Servicio, Tarea, Evento,
-  obtenerServicioCompleto, marcarLlegada, iniciarServicio, sigoAsignadoAServicio,
+  obtenerServicioCompleto, marcarLlegada, iniciarServicio, sigoAsignadoAServicio, leerInicioJornada,
   listarMisConfirmaciones, marcarServiciosVistos,
   registrarAvanceTarea, ligarEvidenciaATarea, quitarEvidenciaDeServicio, quitarFotoDeTarea, registrarRetraso, registrarEsperaDeInicio, concluirServicio, concluirServicioAnticipado, agregarEvidenciaExtra,
   registrarMotivoLlegada, CierreServicio, actualizarNotaEvidencia, registrarVisitaSinTrabajo, agregarVideoEvidencia,
@@ -52,7 +52,8 @@ import InsumosChecklist from '@/components/InsumosChecklist';
 import { MOTIVOS_ESPERA_INICIO, esperaCompleta, esEsperaDeInicio } from '@/lib/esperaInicio';
 import { calcularResultadoServicio } from '@/lib/resultadoServicio';
 import { formatMinutos } from '@/lib/kpis';
-import { evaluarVentanaServicio } from '@/lib/ventanaServicio';
+import { evaluarVentanaServicio, motivoAntesDeLaJornada } from '@/lib/ventanaServicio';
+import { HORARIO_POR_DEFECTO } from '@/lib/jornadaDatos';
 import { ResultadoBadges } from '@/components/ResultadoServicioBadges';
 import { createClient } from '@/lib/supabaseClient';
 import { showToast } from '@/components/Toast';
@@ -142,6 +143,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
   const salidaAvisadaRef = useRef(false);
 
   const [ahora, setAhora] = useState(Date.now());
+  const [inicioJornada, setInicioJornada] = useState(HORARIO_POR_DEFECTO.inicio);
 
   // Geocerca: mientras el servicio no llega a "en sitio" y el supervisor
   // capturó dónde debe ocurrir, se compara la posición del técnico contra
@@ -149,6 +151,8 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
   const [distanciaSitio, setDistanciaSitio] = useState<number | null>(null);
   const [geoError, setGeoError] = useState<string | null>(null);
   const geocercaDisparadaRef = useRef(false);
+  // El watch de la geocerca vive fuera del render; lee la hora por aquí.
+  const inicioJornadaRef = useRef(HORARIO_POR_DEFECTO.inicio);
 
   const [showEvidenciaExtra, setShowEvidenciaExtra] = useState(false);
   const [notaEvidenciaExtra, setNotaEvidenciaExtra] = useState('');
@@ -253,6 +257,8 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
 
   useEffect(() => {
     leerAjustesOperacion().then(setAjustes).catch(() => {});
+    // Si falla se queda la de por defecto; el servidor vuelve a revisar al marcar.
+    leerInicioJornada().then((hora) => { inicioJornadaRef.current = hora; setInicioJornada(hora); }).catch(() => {});
   }, []);
 
   // ¿Supervisión pidió confirmar presencia? Se revisa al abrir (es a donde
@@ -359,6 +365,8 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
         if (d > radio) return;
         // Solo la llegada se marca sola. El inicio lo toca el técnico: entre
         // llegar y empezar puede haber espera en el ingreso, y eso no es trabajo.
+        // Antes de la jornada no se marca: se vuelve a medir y se marca ya en horario.
+        if (motivoAntesDeLaJornada(inicioJornadaRef.current)) return;
         if (estadoAlIniciar === 'programado' && !geocercaDisparadaRef.current) {
           geocercaDisparadaRef.current = true;
           handleMarcarLlegada();
@@ -742,6 +750,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
   const progreso = calcularProgresoTareas(tareas);
   const resultado = calcularResultadoServicio(servicio, progreso);
   const ventana = evaluarVentanaServicio(servicio);
+  const esperaJornada = motivoAntesDeLaJornada(inicioJornada, new Date(ahora));
   const inicioReferencia = servicio.hora_inicio || servicio.hora_llegada;
   const minutosTranscurridos = inicioReferencia
     ? Math.floor((ahora - new Date(inicioReferencia).getTime()) / 60000) - minutosPausadosTotales(servicio, ahora)
@@ -948,7 +957,18 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
           </div>
         )}
 
-        {servicio.estado === 'programado' && ventana.permitido && (
+        {/* Antes de la hora de entrada todavía no se marca llegada ni se inicia */}
+        {ventana.permitido && esperaJornada && (servicio.estado === 'programado' || servicio.estado === 'en_sitio') && (
+          <div className="mb-4 p-4 rounded-2xl bg-amber/10 border border-amber/30 flex items-start gap-3">
+            <Clock size={20} strokeWidth={2.3} className="text-amber shrink-0 mt-0.5" />
+            <div>
+              <p className="text-[14px] font-semibold text-amber mb-1">Todavía no empieza la jornada</p>
+              <p className="text-[13.5px] text-ink/80 leading-relaxed">{esperaJornada}</p>
+            </div>
+          </div>
+        )}
+
+        {servicio.estado === 'programado' && ventana.permitido && !esperaJornada && (
           <>
             {servicio.ubicacion_programada && !geoError && (
               <p className="text-[12.5px] text-muted mb-2 flex items-center gap-1.5">
@@ -971,7 +991,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
             </button>
           </>
         )}
-        {servicio.estado === 'en_sitio' && !tiempoExcedido && ventana.permitido && (
+        {servicio.estado === 'en_sitio' && !tiempoExcedido && ventana.permitido && !esperaJornada && (
           <>
             {servicio.ubicacion_programada && !geoError && (
               <p className="text-[12.5px] text-muted mb-2 flex items-center gap-1.5">

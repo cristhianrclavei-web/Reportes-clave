@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { evaluarVentanaServicio } from './ventanaServicio';
+import { evaluarVentanaServicio, motivoAntesDeLaJornada } from './ventanaServicio';
 
 // La regla que se protege aqui: un servicio solo se opera el dia exacto para
 // el que esta programado. Es la barrera contra el error mas caro en campo —
@@ -78,5 +78,20 @@ describe('evaluarVentanaServicio', () => {
     const r = evaluarVentanaServicio({ fecha: '2026-09-10' }, DIA_10);
     expect(r.fechaTexto).toContain('septiembre');
     expect(r.fechaTexto).toContain('2026');
+  });
+});
+
+describe('motivoAntesDeLaJornada', () => {
+  it('bloquea antes de la hora de inicio y explica desde cuándo se puede', () => {
+    const r = motivoAntesDeLaJornada('08:00', new Date(2026, 8, 10, 7, 59));
+    expect(r).toContain('08:00');
+  });
+  it('permite justo a la hora y después', () => {
+    expect(motivoAntesDeLaJornada('08:00', new Date(2026, 8, 10, 8, 0))).toBeNull();
+    expect(motivoAntesDeLaJornada('08:00:00', new Date(2026, 8, 10, 15, 30))).toBeNull();
+  });
+  it('respeta un horario distinto', () => {
+    expect(motivoAntesDeLaJornada('07:30', new Date(2026, 8, 10, 7, 45))).toBeNull();
+    expect(motivoAntesDeLaJornada('07:30', new Date(2026, 8, 10, 7, 15))).not.toBeNull();
   });
 });

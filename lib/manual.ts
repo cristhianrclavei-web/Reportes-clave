@@ -23,7 +23,7 @@ export const MANUAL_TECNICO: SeccionManual[] = [
         resumen: 'Así queda registrado a qué hora llegaste y cuánto duró el trabajo.',
         pasos: [
           'En Servicios, la pestaña «Calendario» muestra tu mes: toca un día para ver lo que hiciste y lo que tienes programado.',
-          'Al llegar al sitio toca «Marcar llegada». Si el servicio tiene ubicación y tienes esta pantalla abierta, la llegada se marca sola al entrar al sitio.',
+          'Al llegar al sitio toca «Marcar llegada». Si el servicio tiene ubicación y tienes esta pantalla abierta, la llegada se marca sola al entrar al sitio. Antes de la hora de entrada de la jornada (8:00, o la que tenga configurada la empresa) no se puede marcar llegada ni iniciar: el botón aparece solo a esa hora.',
           'Cuando empieces a trabajar toca «Iniciar servicio»: el inicio siempre es manual, para que la espera en el ingreso no cuente como trabajo. Mientras no inicies te llega un recordatorio cada 10 minutos.',
           'Si algo te detiene (el ingreso no está listo, falta el permiso de trabajo, no está el contacto…) toca «Algo me impide iniciar» y elige el motivo: se avisa a supervisión y queda registrado.',
           'Para salir a comer o por material usa «Pausar» y elige el motivo. Cada pausa tiene su tiempo (la comida, el que fije supervisión): la pantalla te muestra cuánto te queda y te llega un recordatorio 10 minutos antes y otro al terminar. Si te pasas, se avisa a supervisión.',

@@ -71,3 +71,17 @@ export function evaluarVentanaServicio(
 
   return { permitido: true, motivo: null, fechaTexto };
 }
+
+// Antes de que empiece la jornada (por defecto 08:00, se ajusta en
+// ajustes_operacion.jornada_inicio) no se marca llegada ni se inicia: así el
+// tiempo de un servicio no arranca de madrugada por un toque adelantado o
+// porque el técnico pasó cerca del sitio camino a casa. Devuelve el aviso
+// para el técnico, o null si ya se puede.
+export function motivoAntesDeLaJornada(jornadaInicio: string, ahora: Date = new Date()): string | null {
+  const [horas, minutos] = jornadaInicio.split(':').map(Number);
+  const minutoActual = ahora.getHours() * 60 + ahora.getMinutes();
+  const minutoInicio = (horas || 0) * 60 + (minutos || 0);
+  if (minutoActual >= minutoInicio) return null;
+  const hora = jornadaInicio.slice(0, 5);
+  return `La jornada empieza a las ${hora}. Podrás marcar tu llegada e iniciar el servicio a partir de esa hora.`;
+}
