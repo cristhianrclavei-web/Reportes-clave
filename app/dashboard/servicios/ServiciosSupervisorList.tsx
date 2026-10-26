@@ -361,6 +361,18 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   }, [gruposFiltrados, modoAgendados]);
   const gruposConcluidos = useMemo(() => gruposFiltrados.filter((g) => g.dias.every((d) => d.estado === 'concluido')), [gruposFiltrados]);
   const lista = seccion === 'concluidos' ? gruposConcluidos : grupos;
+  const inputFechaRef = useRef<HTMLInputElement | null>(null);
+  function abrirCalendarioFecha() {
+    const input = inputFechaRef.current;
+    if (!input) return;
+    try {
+      input.showPicker();
+    } catch {
+      // Navegadores sin showPicker: enfocar el campo abre su calendario.
+      input.focus();
+      input.click();
+    }
+  }
   // Filtro de las tarjetas de resumen (En curso, Hoy, Sin confirmar…).
   const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>(null);
   // Solo en el navegador (la lista se carga ahí): no afecta la hidratación.
@@ -1174,23 +1186,30 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
                   className="w-full pl-10 pr-3.5 min-h-[48px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[14.5px]"
                 />
               </div>
-              {/* Ir a un día concreto: muestra los proyectos que trabajan esa fecha */}
-              <label
-                className={`relative shrink-0 min-h-[48px] px-3.5 rounded-xl border flex items-center gap-1.5 text-[13.5px] font-semibold cursor-pointer ${
-                  fechaFiltro ? 'bg-teal/12 border-teal/40 text-teal' : 'bg-surface-2 border-line text-ink/70'
+              {/* Ir a un día concreto: muestra los proyectos que trabajan esa fecha.
+                  El calendario se abre con showPicker(): un <input type="date">
+                  invisible encima del botón no siempre lo abría al tocarlo. */}
+              <button
+                type="button"
+                onClick={abrirCalendarioFecha}
+                className={`relative shrink-0 min-h-[48px] px-3.5 rounded-xl border flex items-center gap-1.5 text-[13.5px] font-semibold transition-colors ${
+                  fechaFiltro ? 'bg-teal/12 border-teal/40 text-teal' : 'bg-surface-2 border-line text-ink/70 hover:border-line-strong'
                 }`}
                 title="Buscar por fecha"
+                aria-label={fechaFiltro ? `Fecha elegida: ${fechaFiltro.split('-').reverse().join('/')}. Cambiar` : 'Buscar por fecha'}
               >
                 <CalendarDays size={17} strokeWidth={2.3} />
                 {fechaFiltro && <span>{fechaFiltro.split('-').reverse().slice(0, 2).join('/')}</span>}
                 <input
+                  ref={inputFechaRef}
                   type="date"
                   value={fechaFiltro}
                   onChange={(e) => setFechaFiltro(e.target.value)}
-                  aria-label="Buscar por fecha"
-                  className="absolute inset-0 opacity-0 cursor-pointer"
+                  tabIndex={-1}
+                  aria-hidden
+                  className="absolute inset-0 w-full h-full opacity-0 pointer-events-none"
                 />
-              </label>
+              </button>
               {fechaFiltro && (
                 <button type="button" onClick={() => setFechaFiltro('')} aria-label="Quitar fecha" className="shrink-0 w-10 h-10 -ml-1.5 rounded-full flex items-center justify-center text-muted hover:text-ink">
                   <X size={17} strokeWidth={2.4} />

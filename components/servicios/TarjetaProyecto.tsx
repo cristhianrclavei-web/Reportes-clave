@@ -210,37 +210,43 @@ export default function TarjetaProyecto({
               </span>
             </div>
 
-            <p className="text-[12.5px] text-muted mt-1 flex items-center gap-1.5 flex-wrap">
+            {/* Renglones de una línea y siempre presentes: así todas las
+                tarjetas miden lo mismo aunque a alguna le falten datos. */}
+            <p className="text-[12.5px] text-muted mt-1 flex items-center gap-1.5 min-w-0">
               <CalendarClock size={13} strokeWidth={2.3} className="shrink-0" />
-              <span>{diasTotales > 1 ? `${diasTotales} días · ${rango}` : rango}</span>
-              {llegada && seccion === 'agendados' && (
-                <span className="text-ink/70">· {llegada}{salida ? ` – ${salida}` : ''}</span>
-              )}
+              <span className="truncate">
+                {diasTotales > 1 ? `${diasTotales} días · ${rango}` : rango}
+                {llegada && seccion === 'agendados' && (
+                  <span className="text-ink/70"> · {llegada}{salida ? ` – ${salida}` : ''}</span>
+                )}
+              </span>
             </p>
-            {direccion && (
-              <p className="text-[12.5px] text-muted mt-0.5 flex items-center gap-1.5 min-w-0">
-                <MapPin size={13} strokeWidth={2.3} className="shrink-0" />
-                <span className="truncate">{direccion}</span>
-              </p>
-            )}
+            <p className={`text-[12.5px] mt-0.5 flex items-center gap-1.5 min-w-0 ${direccion ? 'text-muted' : 'text-faint'}`}>
+              <MapPin size={13} strokeWidth={2.3} className="shrink-0" />
+              <span className="truncate">{direccion || 'Sin dirección registrada'}</span>
+            </p>
           </div>
         </div>
 
         {/* Avance: días trabajados y tareas del proyecto */}
         <div className="mt-3.5">
-          {diasTotales > 1 && <TiraDeDias dias={dias} hoy={hoy} />}
-          {pct !== null && (
-            <div className={`flex items-center gap-2.5 ${diasTotales > 1 ? 'mt-2.5' : ''}`}>
-              <div className="flex-1 h-1.5 rounded-full bg-surface-2 overflow-hidden" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Tareas completadas">
+          <TiraDeDias dias={dias} hoy={hoy} />
+          <div className="flex items-center gap-2.5 mt-2.5 h-[18px]">
+            <div className="flex-1 h-1.5 rounded-full bg-surface-2 overflow-hidden" role="progressbar" aria-valuenow={pct ?? 0} aria-valuemin={0} aria-valuemax={100} aria-label="Tareas completadas">
+              {pct !== null && (
                 <div className={`barra-avance h-full rounded-full ${pct >= 100 ? 'bg-teal' : 'bg-gradient-to-r from-amber to-amber/70'}`} style={{ width: `${pct}%` }} />
-              </div>
-              <span className={`text-[12.5px] font-display font-bold tabular-nums shrink-0 ${pct >= 100 ? 'text-teal' : 'text-amber'}`}>{pct}%</span>
+              )}
             </div>
-          )}
+            {pct !== null ? (
+              <span className={`text-[12.5px] font-display font-bold tabular-nums shrink-0 ${pct >= 100 ? 'text-teal' : 'text-amber'}`}>{pct}%</span>
+            ) : (
+              <span className="text-[11.5px] text-faint shrink-0">Sin tareas</span>
+            )}
+          </div>
         </div>
 
         {/* Pie: quién va, confirmaciones y reportes */}
-        <div className="mt-3.5 pt-3 border-t border-line flex items-center gap-2.5">
+        <div className="mt-3.5 pt-3 border-t border-line flex items-center gap-2.5 h-[44px] min-w-0 whitespace-nowrap">
           <CarasPersonal personal={personal} />
           {seccion === 'agendados' && confirmacionesPendientes.length > 0 && (
             <ResumenConfirmacion items={confirmacionesPendientes} />
