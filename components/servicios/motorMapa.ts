@@ -148,12 +148,22 @@ function cargarGoogle(): Promise<void> {
   return cargaGoogle;
 }
 
-// `siFalla` se llama si Google rechaza la llave después de dibujar el mapa.
-export async function crearMotorGoogle(div: HTMLDivElement, zoomControl: boolean, siFalla: () => void): Promise<MotorMapa> {
+// Carga Google y devuelve su espacio de nombres (sin los tipos de Google
+// instalados: `any`). `siFalla` se llama si Google rechaza la llave después
+// de dibujar el mapa. Lo usan este mapa y el de elegir el punto del sitio.
+export async function prepararGoogle(siFalla: () => void): Promise<any> {
   await cargarGoogle();
   alFallarGoogle = siFalla;
-  // Sin los tipos de Google instalados: se usa `any` para su espacio de nombres.
-  const google = (window as any).google;
+  return (window as any).google;
+}
+
+// Al quitar un mapa de Google ya no hay que avisarle si la llave falla.
+export function soltarAvisoGoogle(siFalla: () => void) {
+  if (alFallarGoogle === siFalla) alFallarGoogle = null;
+}
+
+export async function crearMotorGoogle(div: HTMLDivElement, zoomControl: boolean, siFalla: () => void): Promise<MotorMapa> {
+  const google = await prepararGoogle(siFalla);
   const { Map, OverlayView, Polyline } = await google.maps.importLibrary('maps');
   // LatLngBounds no viene en la librería «maps» sino en la base (google.maps),
   // que ya está cargada: tomarlo de «maps» daba «is not a constructor».
@@ -282,7 +292,7 @@ export async function crearMotorGoogle(div: HTMLDivElement, zoomControl: boolean
     // Google Maps se acomoda solo cuando cambia el tamaño de su caja.
     ajustarTamano() {},
     destruir() {
-      if (alFallarGoogle === siFalla) alFallarGoogle = null;
+      soltarAvisoGoogle(siFalla);
       for (const pin of pines) pin.setMap(null);
       for (const m of marcas) m.setMap(null);
       for (const r of rutas) r.setMap(null);
