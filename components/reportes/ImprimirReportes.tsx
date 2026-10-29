@@ -166,6 +166,9 @@ export default function ImprimirReportes({ reportes, onClose }: { reportes: Repo
   const [marcados, setMarcados] = useState(false);
   // Los PDF ya descargados se guardan aquí para no volver a pedirlos al reintentar.
   const pdfsRef = useRef<Map<string, ArrayBuffer>>(new Map());
+  // La hoja de entrega sola, para bajarla como archivo aparte.
+  const hojaRef = useRef<ArrayBuffer | null>(null);
+  const [descargando, setDescargando] = useState<string | null>(null);
   const cancelarRef = useRef<AbortController | null>(null);
   const ordenGeneradoRef = useRef<ReporteImprimible[]>([]);
 
@@ -234,6 +237,7 @@ export default function ImprimirReportes({ reportes, onClose }: { reportes: Repo
         for (let i = 0; i < paginasEnBlancoDespues(paginas.length, dobleCara); i++) archivo.addPage();
       }
 
+      hojaRef.current = null;
       if (hojaEntrega && hojasPorReporte.length > 0) {
         const respuesta = await fetch('/api/reports/hoja-entrega', {
           method: 'POST',
@@ -244,7 +248,8 @@ export default function ImprimirReportes({ reportes, onClose }: { reportes: Repo
           const cuerpo = await respuesta.json().catch(() => null);
           throw new Error(cuerpo?.error || 'No se pudo generar la hoja de entrega.');
         }
-        const hoja = await PDFDocument.load(await respuesta.arrayBuffer());
+        hojaRef.current = await respuesta.arrayBuffer();
+        const hoja = await PDFDocument.load(hojaRef.current);
         const paginasHoja = await archivo.copyPages(hoja, hoja.getPageIndices());
         // Va al frente; a doble cara, el primer reporte empieza en hoja nueva.
         let posicion = 0;
@@ -320,14 +325,44 @@ export default function ImprimirReportes({ reportes, onClose }: { reportes: Repo
     cargarImpresos();
   }
 
-  function descargar() {
-    if (!resultado) return;
+  function bajarArchivo(url: string, nombre: string) {
     const enlace = document.createElement('a');
-    enlace.href = resultado.url;
-    enlace.download = resultado.nombre;
+    enlace.href = url;
+    enlace.download = nombre;
     document.body.appendChild(enlace);
     enlace.click();
     enlace.remove();
+  }
+
+  // Todo junto, en el mismo orden que se imprime.
+  function descargarJunto() {
+    if (!resultado) return;
+    bajarArchivo(resultado.url, resultado.nombre);
+    marcarImpresos();
+  }
+
+  // Un PDF por reporte (y la hoja de entrega aparte, si se pidió). La
+  // primera vez el navegador pregunta si permite descargar varios archivos.
+  async function descargarPorReporte() {
+    if (!resultado || descargando) return;
+    const lista = ordenGeneradoRef.current.filter((r) => pdfsRef.current.has(r.id));
+    const archivos: { bytes: ArrayBuffer; nombre: string }[] = [];
+    if (hojaRef.current) archivos.push({ bytes: hojaRef.current, nombre: `hoja-de-entrega-${hoyLocal()}.pdf` });
+    for (const r of lista) {
+      // Sin acentos: «Lucía» queda «Lucia» y no «Luc-a».
+      const cliente = r.empresa_cliente.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '');
+      archivos.push({ bytes: pdfsRef.current.get(r.id)!, nombre: `reporte-${r.fecha}-${cliente}-${folioDe(r)}.pdf` });
+    }
+    for (let i = 0; i < archivos.length; i++) {
+      setDescargando(`Descargando ${i + 1} de ${archivos.length}…`);
+      const url = URL.createObjectURL(new Blob([archivos[i].bytes], { type: 'application/pdf' }));
+      bajarArchivo(url, archivos[i].nombre);
+      // Una pausa entre archivos: si van todos de golpe el navegador descarta algunos.
+      await new Promise((listo) => setTimeout(listo, 450));
+      URL.revokeObjectURL(url);
+    }
+    setDescargando(null);
+    showToast(`Se descargaron ${archivos.length} archivos. Si faltan, permite «descargar varios archivos» en el aviso del navegador.`);
     marcarImpresos();
   }
 
@@ -743,9 +778,13 @@ export default function ImprimirReportes({ reportes, onClose }: { reportes: Repo
                 <BotonPrincipal onClick={imprimir} ancho>
                   <Printer size={18} strokeWidth={2.4} /> Imprimir
                 </BotonPrincipal>
-                <BotonSecundario onClick={descargar} ancho>
-                  <Download size={16} /> Descargar PDF
+                <BotonSecundario onClick={descargarPorReporte} ancho>
+                  {descargando ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                  {descargando || (resultado.reportes === 1 ? 'Descargar el PDF' : `Descargar ${resultado.reportes} PDF (uno por reporte)`)}
                 </BotonSecundario>
+                <button type="button" onClick={descargarJunto} className="text-[12.5px] font-semibold text-teal hover:underline min-h-[32px]">
+                  Descargar todo en un solo PDF
+                </button>
                 <button type="button" onClick={() => setPaso('elegir')} className="text-[12.5px] text-muted hover:text-ink min-h-[36px]">
                   Imprimir otros reportes
                 </button>
