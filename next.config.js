@@ -39,6 +39,8 @@ const csp = [
   // Supabase: los videos de evidencia se reproducen desde su enlace firmado.
   `media-src 'self' blob: ${SUPABASE_ORIGIN}`,
   "worker-src 'self' blob:",
+  // blob: vista previa del PDF que arma «Imprimir varios» en Reportes.
+  "frame-src 'self' blob:",
   "manifest-src 'self'",
   "object-src 'none'",
   "frame-ancestors 'none'",

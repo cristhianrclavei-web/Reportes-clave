@@ -172,6 +172,10 @@ input::placeholder, textarea::placeholder {
 /* Ventanas emergentes: el panel va opaco. Con el fondo translúcido de
    .glass-strong se leía el texto de la pantalla de atrás a través del
    formulario (sobre todo en tema oscuro y donde el desenfoque no aplica). */
+/* Con un modal abierto, el botón flotante del asistente se esconde: si no,
+   tapa los botones de la barra de abajo del modal en el celular. */
+body:has(.modal-fondo) .boton-asistente { display: none; }
+
 .modal-fondo > .glass-strong,
 .modal-fondo > .glass {
   background: rgb(var(--c-surface));

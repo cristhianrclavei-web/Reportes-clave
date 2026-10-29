@@ -690,7 +690,7 @@ export default function Asistente() {
           onClick={() => { setBienvenida('no'); setAbierto(true); }}
           aria-label="Abrir el asistente"
           title={NOMBRE}
-          className="fixed right-4 z-[90] w-14 h-14 rounded-full bg-teal text-inkOnAccent flex items-center justify-center shadow-glow-teal transition hover:brightness-110 active:scale-90 print:hidden"
+          className="boton-asistente fixed right-4 z-[90] w-14 h-14 rounded-full bg-teal text-inkOnAccent flex items-center justify-center shadow-glow-teal transition hover:brightness-110 active:scale-90 print:hidden"
           style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
         >
           <Sparkles size={24} strokeWidth={2.2} />
