@@ -7,7 +7,7 @@ import DiagramaLazo, { EstadoEnFalla } from '@/components/lazos/DiagramaLazo';
 import { confirmar } from '@/lib/dialogos';
 import { generarUUID } from '@/lib/uuid';
 import {
-  Corte, Elemento, Falla, Lazo, corteSugerido, cortesRestantes, lineaPrincipal, posiciones, tramoConFalla,
+  Corte, Elemento, Falla, Lazo, corteSugerido, cortesRestantes, direccionVisible, lineaPrincipal, posiciones, tramoConFalla,
 } from '@/lib/lazos';
 import { ResultadoGuardar, borrarCorte, guardarCorte, guardarFalla } from '@/lib/lazosDatos';
 
@@ -16,6 +16,12 @@ import { ResultadoGuardar, borrarCorte, guardarCorte, guardarFalla } from '@/lib
 // eso se pinta el tramo donde está y se sugiere el siguiente corte a la mitad.
 
 const CAMPO = 'w-full px-3 min-h-[46px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]';
+
+// «LZ1_SH_4 · L01D004», para reconocer el equipo por su dirección.
+function conDireccion(e: Elemento, lazo: Lazo): string {
+  const direccion = direccionVisible(e.direccion, lazo.numero);
+  return direccion ? `${e.nombre} · ${direccion}` : e.nombre;
+}
 
 function hora(iso: string): string {
   return new Date(iso).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
@@ -172,7 +178,8 @@ export default function BusquedaFalla({ lazo, elementos, falla, cortes, onCambio
               <li key={c.id} className="flex items-start gap-2.5 rounded-xl bg-surface border border-line p-2.5">
                 <span className="font-mono text-[11px] bg-ink text-bg rounded px-1.5 py-0.5 shrink-0">{c.numero}</span>
                 <div className="flex-1 min-w-0 text-[13px]">
-                  <p>Abrí a la salida de <span className="font-mono">{elemento?.nombre || 'un dispositivo borrado'}</span>{c.posicion ? ` (pos. ${c.posicion})` : ''}</p>
+                  <p>Abrí a la salida de <span className="font-mono">{elemento ? conDireccion(elemento, lazo) : 'un dispositivo borrado'}</span>{c.posicion ? ` (pos. ${c.posicion})` : ''}</p>
+                  {elemento?.ubicacion && <p className="text-muted text-[12.5px]">{elemento.ubicacion}</p>}
                   <p className="text-muted text-[12.5px]">
                     La falla quedó del lado {c.lado}{c.medicion ? ` · ${c.medicion}` : ''}{c.notas ? ` · ${c.notas}` : ''}
                   </p>
@@ -210,7 +217,7 @@ export default function BusquedaFalla({ lazo, elementos, falla, cortes, onCambio
       )}
       {resolviendo && (
         <ResolverFalla
-          elementos={elementos} falla={falla} sugeridoId={unoSolo?.id || null}
+          lazo={lazo} elementos={elementos} falla={falla} sugeridoId={unoSolo?.id || null}
           onCerrar={() => setResolviendo(false)}
           onGuardado={(resuelta, resultado) => { onCambio({ falla: resuelta }, resultado); setResolviendo(false); }}
         />
@@ -234,6 +241,7 @@ function RegistrarCorte({ lazo, principal, falla, sugeridoId, onCerrar, onGuarda
   const [medicion, setMedicion] = useState('');
   const [notas, setNotas] = useState('');
   const [errores, setErrores] = useState<Partial<Record<'elemento' | 'lado' | 'general', string>>>({});
+  const elegido = opciones.find((e) => e.id === elementoId) || null;
   const [guardando, setGuardando] = useState(false);
 
   async function guardar() {
@@ -273,9 +281,15 @@ function RegistrarCorte({ lazo, principal, falla, sugeridoId, onCerrar, onGuarda
         <label htmlFor="corte-donde" className="block text-[12.5px] text-muted mb-1">Abrí el lazo a la salida de</label>
         <select id="corte-donde" value={elementoId} onChange={(ev) => setElementoId(ev.target.value)} className={`${CAMPO} font-mono`}>
           {opciones.map((e, i) => (
-            <option key={e.id} value={e.id}>{i + 1} · {e.nombre}{e.id === sugeridoId ? ' (sugerido)' : ''}</option>
+            <option key={e.id} value={e.id}>{i + 1} · {conDireccion(e, lazo)}{e.id === sugeridoId ? ' (sugerido)' : ''}</option>
           ))}
         </select>
+        {elegido && (
+          <div className="mt-2 rounded-xl bg-surface border border-line px-3 py-2 text-[13px]">
+            <p className="flex justify-between gap-3"><span className="text-muted">Dirección</span><span className="font-mono">{direccionVisible(elegido.direccion, lazo.numero) || '—'}</span></p>
+            <p className="flex justify-between gap-3 mt-1"><span className="text-muted">Ubicación</span><span className="text-right">{elegido.ubicacion || '—'}</span></p>
+          </div>
+        )}
         {errores.elemento && <p className="text-red font-semibold text-[13px] mt-1">{errores.elemento}</p>}
 
         <span className="block text-[12.5px] text-muted mt-3 mb-1" id="corte-lado">¿De qué lado quedó la falla?</span>
@@ -309,7 +323,8 @@ function RegistrarCorte({ lazo, principal, falla, sugeridoId, onCerrar, onGuarda
   );
 }
 
-function ResolverFalla({ elementos, falla, sugeridoId, onCerrar, onGuardado }: {
+function ResolverFalla({ lazo, elementos, falla, sugeridoId, onCerrar, onGuardado }: {
+  lazo: Lazo;
   elementos: Elemento[];
   falla: Falla;
   sugeridoId: string | null;
@@ -351,7 +366,7 @@ function ResolverFalla({ elementos, falla, sugeridoId, onCerrar, onGuardado }: {
         <label htmlFor="falla-donde" className="block text-[12.5px] text-muted mb-1">¿En qué dispositivo o caja?</label>
         <select id="falla-donde" value={elementoId} onChange={(ev) => setElementoId(ev.target.value)} className={`${CAMPO} font-mono`}>
           <option value="">En el cable, entre dispositivos</option>
-          {ordenados.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+          {ordenados.map((e) => <option key={e.id} value={e.id}>{conDireccion(e, lazo)}{e.ubicacion ? ` · ${e.ubicacion}` : ''}</option>)}
         </select>
 
         <label htmlFor="falla-causa" className="block text-[12.5px] text-muted mt-3 mb-1">Causa</label>
