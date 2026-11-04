@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
 import { Scissors } from 'lucide-react';
 import { Elemento, Lazo, direccionVisible, hijosDe, lineaPrincipal, tipoDispositivo } from '@/lib/lazos';
 
@@ -12,6 +11,9 @@ import { Elemento, Lazo, direccionVisible, hijosDe, lineaPrincipal, tipoDisposit
 export type EstadoEnFalla = 'sospechoso' | 'descartado';
 
 const ANCHO_COLUMNA = 84;
+// Dispositivos por renglón. El diagrama se recorre deslizando a la derecha;
+// al pasar de 10 sigue en el renglón de abajo.
+const POR_RENGLON = 10;
 
 export function Simbolo({ tipo, chico = false }: { tipo: string; chico?: boolean }) {
   const t = tipoDispositivo(tipo);
@@ -76,27 +78,10 @@ export default function DiagramaLazo({
   estados?: Map<string, EstadoEnFalla>;
   cortes?: Map<string, number>;
 }) {
-  const caja = useRef<HTMLDivElement | null>(null);
-  const [columnas, setColumnas] = useState(4);
-
-  // Cuántos dispositivos caben por renglón según el ancho disponible.
-  useEffect(() => {
-    const nodo = caja.current;
-    if (!nodo) return;
-    const medir = () => {
-      const disponibles = Math.floor((nodo.clientWidth - 28) / ANCHO_COLUMNA);
-      setColumnas(Math.max(2, disponibles));
-    };
-    medir();
-    const observador = new ResizeObserver(medir);
-    observador.observe(nodo);
-    return () => observador.disconnect();
-  }, []);
-
   const principal = lineaPrincipal(elementos);
   const renglones: Elemento[][] = [];
-  for (let i = 0; i < principal.length; i += columnas) {
-    renglones.push(principal.slice(i, i + columnas));
+  for (let i = 0; i < principal.length; i += POR_RENGLON) {
+    renglones.push(principal.slice(i, i + POR_RENGLON));
   }
 
   function boton(e: Elemento, chico: boolean) {
@@ -117,7 +102,7 @@ export default function DiagramaLazo({
   }
 
   return (
-    <div ref={caja} className="w-full">
+    <div className="w-max min-w-full">
       <div className="flex items-center gap-2">
         <span className="font-mono text-[13px] border-[1.5px] border-teal text-teal rounded-md px-2 py-1">PCI</span>
         <span className="text-[11.5px] text-faint truncate">{lazo.panel || 'Panel'} · salida</span>
@@ -129,11 +114,18 @@ export default function DiagramaLazo({
 
       {renglones.map((renglon, i) => (
         <div key={i} className="relative pl-5">
-          <div
-            className="absolute left-[9px] top-0 w-0.5 bg-muted/70"
-            style={{ height: i === renglones.length - 1 ? '16px' : '100%' }}
-            aria-hidden="true"
-          />
+          {/* Entrada del renglón: del PCI (el primero) o del regreso del
+              renglón de arriba, baja hasta la línea. */}
+          <div className="absolute left-[9px] top-0 h-4 w-0.5 bg-muted/70" aria-hidden="true" />
+          {/* Si sigue otro renglón: la línea baja por la derecha y regresa
+              por abajo a la izquierda, como un salto de línea. Así se lee que
+              el siguiente renglón va en serie, no que sale del panel. */}
+          {i < renglones.length - 1 && (
+            <>
+              <div className="absolute right-2 top-[14px] bottom-0 w-0.5 bg-muted/70" aria-hidden="true" />
+              <div className="absolute left-[9px] right-2 bottom-0 h-0.5 bg-muted/70" aria-hidden="true" />
+            </>
+          )}
           <div className="h-3.5" />
           <div className="relative">
             <div className="absolute -left-[11px] right-2 top-0 h-0.5 bg-muted/70" aria-hidden="true" />
@@ -156,7 +148,7 @@ export default function DiagramaLazo({
                         {boton(hijo, true)}
                       </div>
                     ))}
-                    <div className="h-2" />
+                    <div className="h-3" />
                   </div>
                 );
               })}
