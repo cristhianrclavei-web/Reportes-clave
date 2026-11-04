@@ -5,7 +5,7 @@ import { ArrowDownToLine, ArrowUpToLine, CornerDownRight, Pencil, Trash2, X } fr
 import ModalOverlay from '@/components/ModalOverlay';
 import { Simbolo } from '@/components/lazos/DiagramaLazo';
 import { confirmar } from '@/lib/dialogos';
-import { Elemento, Falla, Lazo, direccionVisible, hijosDe, lineaPrincipal, posiciones, tipoDispositivo } from '@/lib/lazos';
+import { Cambio, Elemento, Falla, Lazo, describirCambio, direccionVisible, hijosDe, lineaPrincipal, posiciones, tipoDispositivo } from '@/lib/lazos';
 import { urlFotoElemento } from '@/lib/lazosDatos';
 
 // Ficha de un dispositivo: dónde está, de cuál viene y a cuál sigue, su foto
@@ -17,11 +17,18 @@ function fecha(iso: string | null | undefined): string {
   return new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-export default function FichaElemento({ lazo, elementos, elemento, fallas, onEditar, onInsertarAntes, onInsertarDespues, onColgar, onBorrar, onCerrar }: {
+export function fechaHora(iso: string): string {
+  return new Date(iso).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+export default function FichaElemento({ lazo, elementos, elemento, fallas, cambios, avisoHistorial, onEditar, onInsertarAntes, onInsertarDespues, onColgar, onBorrar, onCerrar }: {
   lazo: Lazo;
   elementos: Elemento[];
   elemento: Elemento;
   fallas: Falla[];
+  // Historial del lazo; aquí se muestra lo de este dispositivo.
+  cambios: Cambio[];
+  avisoHistorial: string | null;
   onEditar: () => void;
   onInsertarAntes: () => void;
   onInsertarDespues: () => void;
@@ -48,6 +55,8 @@ export default function FichaElemento({ lazo, elementos, elemento, fallas, onEdi
   const sigueA = hermanos[i + 1]?.nombre || 'Fin de la línea';
   const cuelgan = hijosDe(elementos, elemento.id);
   const fallasAqui = fallas.filter((f) => f.elemento_id === elemento.id);
+  const cambiosAqui = cambios.filter((c) => c.elemento_id === elemento.id && c.tabla !== 'lazo_fallas');
+  const nombreDe = (id: string | null) => elementos.find((e) => e.id === id)?.nombre || null;
 
   async function borrar() {
     const extra = cuelgan.length > 0 ? ` También se borra lo que cuelga de él (${cuelgan.length}).` : '';
@@ -119,11 +128,23 @@ export default function FichaElemento({ lazo, elementos, elemento, fallas, onEdi
               <span><b className="font-semibold">{fecha(f.resuelta_en)} · Falla a tierra aquí</b>{f.causa ? ` · ${f.causa}` : ''}</span>
             </li>
           ))}
-          <li className="flex gap-2.5">
-            <span className="w-2 h-2 rounded-full bg-teal mt-1.5 shrink-0" />
-            <span><b className="font-semibold">{elemento.creado_en ? fecha(elemento.creado_en) : 'Sin subir todavía'}</b> · capturado</span>
-          </li>
+          {cambiosAqui.map((c) => (
+            <li key={c.id} className="flex gap-2.5">
+              <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${c.accion === 'alta' ? 'bg-teal' : c.tabla === 'lazo_cortes' ? 'bg-amber' : 'bg-muted'}`} />
+              <span>
+                {describirCambio(c, lazo.numero, nombreDe)}
+                <span className="block text-[12px] text-faint">{c.usuario_nombre || 'Alguien'} · {fechaHora(c.creado_en)}</span>
+              </span>
+            </li>
+          ))}
+          {cambiosAqui.length === 0 && (
+            <li className="flex gap-2.5">
+              <span className="w-2 h-2 rounded-full bg-teal mt-1.5 shrink-0" />
+              <span><b className="font-semibold">{elemento.creado_en ? fecha(elemento.creado_en) : 'Sin subir todavía'}</b> · capturado</span>
+            </li>
+          )}
         </ul>
+        {avisoHistorial && <p className="text-[12px] text-faint mt-1.5">{avisoHistorial}</p>}
 
         <div className="grid grid-cols-2 gap-2 mt-4">
           <button type="button" onClick={onEditar} className={accion}><Pencil size={16} strokeWidth={2.2} /> Corregir</button>

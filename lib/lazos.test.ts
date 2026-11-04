@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  Elemento, corteSugerido, cortesRestantes, direccionOcupada, direccionVisible, lineaPrincipal,
+  Cambio, Elemento, corteSugerido, describirCambio, cortesRestantes, direccionOcupada, direccionVisible, lineaPrincipal,
   nombreSugerido, normalizarDireccion, ordenEntre, posiciones, siguienteDireccion, tramoConFalla,
 } from './lazos';
 
@@ -47,7 +47,9 @@ describe('nombres y direcciones', () => {
     expect(normalizarDireccion('X', '1')).toBeNull();
     expect(normalizarDireccion('D', '0')).toBeNull();
     expect(normalizarDireccion('D', '1000')).toBeNull();
-    expect(direccionVisible('D8', 1)).toBe('1D008');
+    expect(direccionVisible('D8', 1)).toBe('L01D008');
+    expect(direccionVisible('M21', 12)).toBe('L12M021');
+    expect(direccionVisible('D8', null)).toBe('D008');
     expect(direccionVisible(null, 1)).toBe('');
   });
 
@@ -89,5 +91,32 @@ describe('búsqueda de falla a tierra', () => {
     const tramo = tramoConFalla(10, [{ posicion: 6, lado: 'campo' }, { posicion: 3, lado: 'panel' }]);
     expect(tramo.contradictorio).toBe(true);
     expect(corteSugerido(tramo)).toBeNull();
+  });
+});
+
+describe('historial de cambios', () => {
+  const base = { id: 'h', registro_id: 'e1', usuario_nombre: 'Juan', creado_en: '2026-11-04T20:00:00Z' };
+  const nombreDe = (id: string | null) => (id === 'e1' ? 'LZ1_SH_4' : null);
+
+  it('describe altas, correcciones y borrados de dispositivos', () => {
+    const alta: Cambio = { ...base, tabla: 'lazo_elementos', elemento_id: 'e1', accion: 'alta', antes: null, despues: { nombre: 'LZ1_SH_4', direccion: 'D4' } };
+    expect(describirCambio(alta, 1, nombreDe)).toBe('Agregó LZ1_SH_4 (L01D004)');
+
+    const cambio: Cambio = { ...base, tabla: 'lazo_elementos', elemento_id: 'e1', accion: 'cambio', antes: { direccion: 'D4', ubicacion: null }, despues: { direccion: 'D5', ubicacion: 'Pasillo B' } };
+    expect(describirCambio(cambio, 1, nombreDe)).toBe('Corrigió LZ1_SH_4: dirección L01D004 → L01D005; ubicación vacío → «Pasillo B»');
+
+    const movido: Cambio = { ...base, tabla: 'lazo_elementos', elemento_id: 'e1', accion: 'cambio', antes: { orden: 1 }, despues: { orden: 2 } };
+    expect(describirCambio(movido, 1, nombreDe)).toBe('Corrigió LZ1_SH_4: lo cambió de lugar en el lazo');
+
+    const baja: Cambio = { ...base, tabla: 'lazo_elementos', elemento_id: 'e9', accion: 'baja', antes: { nombre: 'LZ1_MC_2', direccion: 'M2' }, despues: null };
+    expect(describirCambio(baja, 1, nombreDe)).toBe('Borró LZ1_MC_2 (L01M002)');
+  });
+
+  it('describe cortes y cierre de la búsqueda', () => {
+    const corte: Cambio = { ...base, tabla: 'lazo_cortes', elemento_id: 'e1', accion: 'alta', antes: null, despues: { lado: 'campo', medicion: '40 kΩ' } };
+    expect(describirCambio(corte, 1, nombreDe)).toBe('Registró un corte a la salida de LZ1_SH_4: la falla quedó del lado campo · 40 kΩ');
+
+    const cierre: Cambio = { ...base, tabla: 'lazo_fallas', elemento_id: 'e1', accion: 'cambio', antes: { estado: 'abierta' }, despues: { estado: 'resuelta', causa: 'Agua en la caja' } };
+    expect(describirCambio(cierre, 1, nombreDe)).toBe('Cerró la búsqueda de falla en LZ1_SH_4: Agua en la caja');
   });
 });

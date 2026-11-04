@@ -7,7 +7,7 @@ import { Simbolo } from '@/components/lazos/DiagramaLazo';
 import { generarUUID } from '@/lib/uuid';
 import {
   Elemento, Lazo, TIPOS_POR_CIRCUITO, direccionOcupada, direccionVisible, hijosDe, lineaPrincipal,
-  nombreSugerido, normalizarDireccion, ordenEntre, siguienteDireccion, tipoDispositivo,
+  nombreSugerido, normalizarDireccion, ordenEntre, prefijoLazo, siguienteDireccion, tipoDispositivo,
 } from '@/lib/lazos';
 import { guardarElemento, subirFotoElemento } from '@/lib/lazosDatos';
 
@@ -98,7 +98,7 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
   useEffect(() => {
     if (editando?.direccion) {
       setLetra(editando.direccion[0] as 'D' | 'M');
-      setNumero(editando.direccion.slice(1));
+      setNumero(editando.direccion.slice(1).padStart(3, '0'));
     }
     // Solo al abrir.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -110,14 +110,14 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
     if (editando) return;
     const nuevaLetra = infoTipo.forma === 'detector' ? 'D' : 'M';
     setLetra(nuevaLetra);
-    setNumero(infoTipo.conDireccion ? String(siguienteDireccion(nuevaLetra, elementos)) : '');
+    setNumero(infoTipo.conDireccion ? String(siguienteDireccion(nuevaLetra, elementos)).padStart(3, '0') : '');
     if (!nombreAMano) setNombre(nombreSugerido(lazo.codigo, tipo, elementos));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tipo, elementos.length]);
 
   function cambiarLetra(nueva: 'D' | 'M') {
     setLetra(nueva);
-    if (!editando) setNumero(String(siguienteDireccion(nueva, elementos)));
+    if (!editando) setNumero(String(siguienteDireccion(nueva, elementos)).padStart(3, '0'));
   }
 
   function validar(): { errores: Errores; direccion: string | null } {
@@ -158,6 +158,7 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
       ubicacion: ubicacion.trim() || null,
       foto_path: editando?.foto_path || null,
       creado_por: editando?.creado_por,
+      creado_en: editando?.creado_en,
     };
 
     // La foto sube primero (necesita señal). Si no sube, el dispositivo se
@@ -187,7 +188,7 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
       setFoto(null);
       setNombreAMano(false);
       setNombre(nombreSugerido(lazo.codigo, tipo, [...elementos, elemento]));
-      if (infoTipo.conDireccion && direccion) setNumero(String(siguienteDireccion(letra, [...elementos, elemento])));
+      if (infoTipo.conDireccion && direccion) setNumero(String(siguienteDireccion(letra, [...elementos, elemento])).padStart(3, '0'));
       setErrores(avisoFoto ? { general: avisoFoto } : {});
     } catch (err: any) {
       setErrores({ general: err?.message || 'No se pudo guardar el dispositivo.' });
@@ -235,28 +236,37 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
           <span className="text-ink scale-75 origin-left"><Simbolo tipo={tipo} chico /></span>{infoTipo.nombre}
         </p>
 
-        <div className="flex gap-2 mt-3">
-          {infoTipo.conDireccion && (
-            <div className="w-[136px] shrink-0">
-              <label htmlFor="disp-direccion" className="block text-[12.5px] text-muted mb-1">Dirección</label>
-              <div className="flex min-h-[46px] rounded-xl border border-line bg-surface-2 overflow-hidden">
+        {/* Dirección del equipo en su propio renglón, como la nombran ellos:
+            L01 (lazo) + D detector o M módulo + número (L01D001, L01M002). */}
+        {infoTipo.conDireccion && (
+          <div className="mt-3">
+            <label htmlFor="disp-direccion" className="block text-[12.5px] text-muted mb-1">Dirección del equipo</label>
+            <div className="flex items-stretch gap-2">
+              <div className="flex flex-1 min-h-[48px] rounded-xl border border-line bg-surface-2 overflow-hidden">
+                {prefijoLazo(lazo.numero) && (
+                  <span className="px-2.5 flex items-center font-mono text-[16px] text-muted border-r border-line">{prefijoLazo(lazo.numero)}</span>
+                )}
                 {(['D', 'M'] as const).map((l) => (
                   <button key={l} type="button" onClick={() => cambiarLetra(l)} aria-pressed={letra === l}
-                    className={`w-9 font-mono text-[14px] ${letra === l ? 'bg-teal text-inkOnAccent' : 'text-faint'}`}>{l}</button>
+                    aria-label={l === 'D' ? 'Detector' : 'Módulo'}
+                    className={`w-10 font-mono text-[16px] ${letra === l ? 'bg-teal text-inkOnAccent' : 'text-faint'}`}>{l}</button>
                 ))}
-                <input id="disp-direccion" inputMode="numeric" value={numero}
+                <input id="disp-direccion" inputMode="numeric" value={numero} placeholder="001"
                   onChange={(ev) => setNumero(ev.target.value.replace(/\D/g, '').slice(0, 3))}
-                  className="w-full min-w-0 bg-transparent px-2 font-mono text-[16px] focus:outline-none" />
+                  onBlur={() => { if (numero) setNumero(numero.padStart(3, '0')); }}
+                  className="w-full min-w-0 bg-transparent px-2.5 font-mono text-[17px] focus:outline-none" />
               </div>
+              <span className="shrink-0 min-w-[96px] rounded-xl bg-teal/10 text-teal font-mono text-[16px] font-semibold flex items-center justify-center px-2" aria-live="polite">
+                {numero ? direccionVisible(normalizarDireccion(letra, numero), lazo.numero) || '—' : '—'}
+              </span>
             </div>
-          )}
-          <div className="flex-1 min-w-0">
-            <label htmlFor="disp-ubicacion" className="block text-[12.5px] text-muted mb-1">Ubicación</label>
-            <input id="disp-ubicacion" value={ubicacion} onChange={(ev) => setUbicacion(ev.target.value)} maxLength={160}
-              placeholder="Pasillo B, sobre plafón" className={CAMPO} />
+            {errores.direccion && <p className="text-red font-semibold text-[13px] mt-1">{errores.direccion}</p>}
           </div>
-        </div>
-        {errores.direccion && <p className="text-red font-semibold text-[13px] mt-1">{errores.direccion}</p>}
+        )}
+
+        <label htmlFor="disp-ubicacion" className="block text-[12.5px] text-muted mt-3 mb-1">Ubicación</label>
+        <input id="disp-ubicacion" value={ubicacion} onChange={(ev) => setUbicacion(ev.target.value)} maxLength={160}
+          placeholder="Pasillo B, sobre plafón" className={CAMPO} />
         {errores.ubicacion && <p className="text-red font-semibold text-[13px] mt-1">{errores.ubicacion}</p>}
 
         <label htmlFor="disp-nombre" className="block text-[12.5px] text-muted mt-3 mb-1">Nombre</label>

@@ -197,13 +197,19 @@ export function normalizarDireccion(letra: string, numero: string): string | nul
   return `${l}${valor}`;
 }
 
-// Cómo se muestra: con el número de lazo y tres dígitos, como en el panel
-// (D8 en el lazo 1 → 1D008).
+// Cómo se muestra: como la nombran ellos, L + número de lazo a dos dígitos,
+// D o M y tres dígitos (D8 en el lazo 1 → L01D008). Sin número de lazo,
+// solo D008.
+export function prefijoLazo(numeroLazo: number | null): string {
+  if (!numeroLazo) return '';
+  return `L${String(numeroLazo).padStart(2, '0')}`;
+}
+
 export function direccionVisible(direccion: string | null, numeroLazo: number | null): string {
   if (!direccion) return '';
   const letra = direccion[0];
   const numero = direccion.slice(1).padStart(3, '0');
-  return `${numeroLazo ?? ''}${letra}${numero}`;
+  return `${prefijoLazo(numeroLazo)}${letra}${numero}`;
 }
 
 // ¿Otro dispositivo del lazo ya tiene esa dirección?
@@ -255,4 +261,85 @@ export function cortesRestantes(tramo: Tramo): number {
   const cuantos = tramo.hasta - tramo.desde + 1;
   if (cuantos <= 1) return 0;
   return Math.ceil(Math.log2(cuantos));
+}
+
+// ---------- Historial de cambios ----------
+
+// Un renglón de lazo_historial (supabase/patch_lazos_historial.sql): solo
+// trae los campos que cambiaron.
+export type Cambio = {
+  id: string;
+  tabla: 'lazos' | 'lazo_elementos' | 'lazo_fallas' | 'lazo_cortes';
+  registro_id: string | null;
+  elemento_id: string | null;
+  accion: 'alta' | 'cambio' | 'baja';
+  antes: Record<string, any> | null;
+  despues: Record<string, any> | null;
+  usuario_nombre: string | null;
+  creado_en: string;
+};
+
+function texto(valor: unknown): string {
+  if (valor === null || valor === undefined || valor === '') return 'vacío';
+  return `«${valor}»`;
+}
+
+// «dirección L01D004 → L01D005; ubicación «A» → «B»»
+function diferencias(antes: Record<string, any>, despues: Record<string, any>, numeroLazo: number | null): string[] {
+  const partes: string[] = [];
+  const claves = new Set([...Object.keys(antes), ...Object.keys(despues)]);
+  let movido = false;
+  for (const clave of claves) {
+    const a = antes[clave];
+    const d = despues[clave];
+    if (clave === 'orden' || clave === 'padre_id') { movido = true; continue; }
+    if (clave === 'direccion') partes.push(`dirección ${direccionVisible(a, numeroLazo) || 'sin dirección'} → ${direccionVisible(d, numeroLazo) || 'sin dirección'}`);
+    else if (clave === 'foto_path') partes.push(a ? 'cambió la foto' : 'agregó la foto');
+    else if (clave === 'nombre') partes.push(`nombre ${texto(a)} → ${texto(d)}`);
+    else if (clave === 'ubicacion') partes.push(`ubicación ${texto(a)} → ${texto(d)}`);
+    else if (clave === 'tipo') partes.push(`tipo ${a} → ${d}`);
+    else if (clave === 'panel') partes.push(`panel ${texto(a)} → ${texto(d)}`);
+    else if (clave === 'clase') partes.push(`clase ${a || '—'} → ${d || '—'}`);
+  }
+  if (movido) partes.push('lo cambió de lugar en el lazo');
+  return partes;
+}
+
+// Frase de un cambio para leerla en el historial. `nombreDe` da el nombre
+// actual de un dispositivo (si ya se borró, se usa el que traía el cambio).
+export function describirCambio(c: Cambio, numeroLazo: number | null, nombreDe: (id: string | null) => string | null): string {
+  const antes = c.antes || {};
+  const despues = c.despues || {};
+  const fila = { ...antes, ...despues };
+
+  if (c.tabla === 'lazo_elementos') {
+    const nombre = nombreDe(c.elemento_id) || fila.nombre || 'un dispositivo';
+    const direccion = direccionVisible(fila.direccion ?? null, numeroLazo);
+    const conDireccion = direccion ? ` (${direccion})` : '';
+    if (c.accion === 'alta') return `Agregó ${nombre}${conDireccion}`;
+    if (c.accion === 'baja') return `Borró ${antes.nombre || nombre}${conDireccion}`;
+    const partes = diferencias(antes, despues, numeroLazo);
+    return `Corrigió ${nombre}${partes.length ? ': ' + partes.join('; ') : ''}`;
+  }
+
+  if (c.tabla === 'lazo_cortes') {
+    const nombre = nombreDe(c.elemento_id) || 'un dispositivo';
+    if (c.accion === 'baja') return `Quitó el corte a la salida de ${nombre}`;
+    const medicion = fila.medicion ? ` · ${fila.medicion}` : '';
+    return `Registró un corte a la salida de ${nombre}: la falla quedó del lado ${fila.lado}${medicion}`;
+  }
+
+  if (c.tabla === 'lazo_fallas') {
+    if (c.accion === 'alta') return 'Inició una búsqueda de falla a tierra';
+    if (c.accion === 'baja') return 'Borró una búsqueda de falla a tierra';
+    if (despues.estado === 'resuelta') {
+      const donde = nombreDe(c.elemento_id);
+      return `Cerró la búsqueda de falla${donde ? ` en ${donde}` : ''}${fila.causa ? `: ${fila.causa}` : ''}`;
+    }
+    return 'Actualizó la búsqueda de falla a tierra';
+  }
+
+  if (c.accion === 'alta') return `Creó el lazo ${fila.codigo || ''}`.trim();
+  const partes = diferencias(antes, despues, numeroLazo);
+  return `Cambió los datos del lazo${partes.length ? ': ' + partes.join('; ') : ''}`;
 }

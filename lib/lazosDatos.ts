@@ -2,7 +2,7 @@
 
 import { createClient } from './supabaseClient';
 import { reducirFoto } from './reducirFoto';
-import type { Corte, Elemento, Falla, Lazo, TipoCircuito } from './lazos';
+import type { Cambio, Corte, Elemento, Falla, Lazo, TipoCircuito } from './lazos';
 
 // Datos de lazos y circuitos (supabase/patch_lazos.sql).
 //
@@ -226,6 +226,29 @@ export async function fallasResueltas(lazoId: string): Promise<Falla[]> {
     throw new Error(mensajeError(error, 'cargar el historial de fallas'));
   }
   return (data as Falla[]) || [];
+}
+
+// Historial de cambios del lazo (supabase/patch_lazos_historial.sql), lo
+// más reciente primero. Sin señal se devuelve vacío y se avisa.
+export async function historialDeLazo(lazoId: string): Promise<{ cambios: Cambio[]; aviso: string | null }> {
+  const { data, error } = await createClient()
+    .from('lazo_historial')
+    .select('*, profiles(full_name)')
+    .eq('lazo_id', lazoId)
+    .order('creado_en', { ascending: false })
+    .limit(300);
+  if (error) {
+    if (esErrorDeRed(error)) return { cambios: [], aviso: 'Sin señal: el historial se ve al tener conexión.' };
+    if (/does not exist|could not find the table|schema cache/i.test(error.message || '')) {
+      return { cambios: [], aviso: 'El historial todavía no está activado: falta correr supabase/patch_lazos_historial.sql.' };
+    }
+    return { cambios: [], aviso: mensajeError(error, 'cargar el historial') };
+  }
+  const cambios = (data || []).map((fila: any) => {
+    const { profiles, ...resto } = fila;
+    return { ...resto, usuario_nombre: profiles?.full_name || null } as Cambio;
+  });
+  return { cambios, aviso: null };
 }
 
 // ---------- Guardar (con cola sin conexión) ----------

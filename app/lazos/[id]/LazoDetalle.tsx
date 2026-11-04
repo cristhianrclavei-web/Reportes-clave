@@ -2,18 +2,18 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, ChevronLeft, CloudUpload, Plus, Settings2, WifiOff } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, CloudUpload, History, Plus, Settings2, WifiOff } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
 import DiagramaLazo, { Simbolo } from '@/components/lazos/DiagramaLazo';
 import HojaCaptura, { Lugar, lugarAlFinal, lugarAntesDe, lugarColgandoDe, lugarDespuesDe } from '@/components/lazos/HojaCaptura';
-import FichaElemento from '@/components/lazos/FichaElemento';
+import FichaElemento, { fechaHora } from '@/components/lazos/FichaElemento';
 import BusquedaFalla from '@/components/lazos/BusquedaFalla';
 import { confirmar } from '@/lib/dialogos';
-import { Corte, Elemento, Falla, NOMBRE_CIRCUITO, direccionVisible, hijosDe, lineaPrincipal } from '@/lib/lazos';
+import { Cambio, Corte, Elemento, Falla, NOMBRE_CIRCUITO, describirCambio, direccionVisible, hijosDe, lineaPrincipal } from '@/lib/lazos';
 import {
   DatosLazo, ResultadoGuardar, actualizarLazo, borrarElemento, borrarLazo, descartarPrimerPendiente,
-  fallasResueltas, guardarCopiaLazo, obtenerLazo, pendientesDeLazo, subirPendientes,
+  fallasResueltas, guardarCopiaLazo, historialDeLazo, obtenerLazo, pendientesDeLazo, subirPendientes,
 } from '@/lib/lazosDatos';
 
 type Vista = 'lista' | 'diagrama' | 'falla';
@@ -40,6 +40,22 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
   const [ficha, setFicha] = useState<Elemento | null>(null);
   const [historial, setHistorial] = useState<Falla[]>([]);
   const [editandoLazo, setEditandoLazo] = useState(false);
+  const [cambios, setCambios] = useState<Cambio[]>([]);
+  const [avisoHistorial, setAvisoHistorial] = useState<string | null>(null);
+  const [verHistorial, setVerHistorial] = useState(false);
+
+  // El historial lo anota la base; se vuelve a pedir al abrir una ficha o
+  // el historial, para ver lo más reciente.
+  const cargarHistorial = useCallback(async () => {
+    const resultado = await historialDeLazo(lazoId);
+    setCambios(resultado.cambios);
+    setAvisoHistorial(resultado.aviso);
+  }, [lazoId]);
+
+  function abrirFicha(elemento: Elemento) {
+    setFicha(elemento);
+    cargarHistorial();
+  }
 
   const cargar = useCallback(async () => {
     setErrorCarga(null);
@@ -85,6 +101,8 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
   function despuesDeGuardar(resultado: ResultadoGuardar) {
     setPendientes(pendientesDeLazo(lazoId));
     if (resultado.pendiente && navigator.onLine) sincronizar();
+    // Lo que ya subió ya está en el historial.
+    if (!resultado.pendiente) cargarHistorial();
   }
 
   function alGuardarElemento(elemento: Elemento, pendiente: boolean) {
@@ -165,7 +183,7 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
       const direccion = direccionVisible(e.direccion, lazo.numero);
       resultado.push(
         <li key={e.id}>
-          <button type="button" onClick={() => setFicha(e)} className="w-full flex items-center gap-3 py-2 text-left hover:bg-surface-2/60 rounded-lg"
+          <button type="button" onClick={() => abrirFicha(e)} className="w-full flex items-center gap-3 py-2 text-left hover:bg-surface-2/60 rounded-lg"
             style={{ paddingLeft: nivel * 26 }}>
             <span className={`w-7 h-7 shrink-0 rounded-lg font-mono text-[11px] flex items-center justify-center ${numerar ? 'bg-surface-2 text-muted' : 'text-faint'}`}>
               {numerar ? i + 1 : '↳'}
@@ -205,6 +223,9 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
               <span className="font-mono text-[16px] text-teal mr-1.5">{lazo.codigo}</span>{lazo.nombre}
             </h1>
           </div>
+          <button type="button" onClick={() => { setVerHistorial(true); cargarHistorial(); }} aria-label="Historial de cambios" className="w-10 h-10 rounded-full flex items-center justify-center text-muted hover:bg-surface-2">
+            <History size={20} strokeWidth={2.2} />
+          </button>
           <button type="button" onClick={() => setEditandoLazo(true)} aria-label="Datos del lazo" className="w-10 h-10 rounded-full flex items-center justify-center text-muted hover:bg-surface-2">
             <Settings2 size={20} strokeWidth={2.2} />
           </button>
@@ -256,12 +277,12 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
 
         {vista === 'diagrama' && (
           <div className="rounded-2xl bg-surface border border-line p-3 overflow-x-auto">
-            <DiagramaLazo lazo={lazo} elementos={elementos} onTocar={setFicha} />
+            <DiagramaLazo lazo={lazo} elementos={elementos} onTocar={abrirFicha} />
           </div>
         )}
 
         {vista === 'falla' && (
-          <BusquedaFalla lazo={lazo} elementos={elementos} falla={datos.falla} cortes={datos.cortes} onCambio={alCambiarFalla} onTocar={setFicha} />
+          <BusquedaFalla lazo={lazo} elementos={elementos} falla={datos.falla} cortes={datos.cortes} onCambio={alCambiarFalla} onTocar={abrirFicha} />
         )}
       </div>
 
@@ -292,6 +313,8 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
           elementos={elementos}
           elemento={ficha}
           fallas={historial}
+          cambios={cambios}
+          avisoHistorial={avisoHistorial}
           onCerrar={() => setFicha(null)}
           onEditar={() => setHoja({ lugar: lugarDespuesDe(elementos, ficha), editando: ficha })}
           onInsertarAntes={() => { setHoja({ lugar: lugarAntesDe(elementos, ficha), editando: null }); setFicha(null); }}
@@ -299,6 +322,29 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
           onColgar={() => { setHoja({ lugar: lugarColgandoDe(elementos, ficha), editando: null }); setFicha(null); }}
           onBorrar={() => alBorrarElemento(ficha)}
         />
+      )}
+
+      {verHistorial && (
+        <ModalOverlay onClose={() => setVerHistorial(false)}>
+          <div className="glass-strong rounded-3xl max-w-md w-full p-4 max-h-[85vh] flex flex-col">
+            <h2 className="font-display font-bold text-[21px] mb-1">Historial de cambios</h2>
+            <p className="text-[12.5px] text-muted mb-3">Quién agregó, corrigió o borró algo en este lazo, y cuándo.</p>
+            {avisoHistorial && <p className="text-[13px] text-amber mb-2">{avisoHistorial}</p>}
+            {!avisoHistorial && cambios.length === 0 && <p className="text-[13px] text-muted">Todavía no hay cambios anotados.</p>}
+            <ul className="flex flex-col gap-2.5 overflow-y-auto text-[13.5px] -mx-1 px-1">
+              {cambios.map((c) => (
+                <li key={c.id} className="flex gap-2.5">
+                  <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${c.accion === 'baja' ? 'bg-red' : c.tabla === 'lazo_cortes' || c.tabla === 'lazo_fallas' ? 'bg-amber' : c.accion === 'alta' ? 'bg-teal' : 'bg-muted'}`} />
+                  <span>
+                    {describirCambio(c, lazo.numero, (id) => elementos.find((e) => e.id === id)?.nombre || null)}
+                    <span className="block text-[12px] text-faint">{c.usuario_nombre || 'Alguien'} · {fechaHora(c.creado_en)}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <button type="button" onClick={() => setVerHistorial(false)} className="mt-4 min-h-[46px] rounded-xl bg-surface-2 border border-line font-semibold text-[14.5px]">Cerrar</button>
+          </div>
+        </ModalOverlay>
       )}
 
       {editandoLazo && (
