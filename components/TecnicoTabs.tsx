@@ -3,7 +3,7 @@
 import { motion } from 'motion/react';
 import Link from '@/components/TransitionLink';
 import NavPestanas from '@/components/NavPestanas';
-import { FileText, ClipboardList, NotebookPen, PackageCheck, Plus, CalendarClock } from 'lucide-react';
+import { FileText, ClipboardList, NotebookPen, PackageCheck, Plus, CalendarClock, Cable } from 'lucide-react';
 
 // Navegación del técnico.
 //   · Celular: la fila de pestañas de siempre (NavPestanas).
@@ -16,6 +16,7 @@ const TABS = [
   { key: 'checklists', label: 'Insumos', href: '/checklists', Icono: PackageCheck },
   { key: 'bitacora', label: 'Bitácora', href: '/bitacora', Icono: NotebookPen },
   { key: 'solicitudes', label: 'Solicitudes', href: '/solicitudes', Icono: CalendarClock },
+  { key: 'lazos', label: 'Lazos', href: '/lazos', Icono: Cable },
 ] as const;
 
 export type TecnicoTabKey = (typeof TABS)[number]['key'];

@@ -11,7 +11,7 @@ const SECCION_LAZOS: SeccionManual = {
   temas: [
     {
       titulo: 'Capturar un lazo mientras cableas',
-      resumen: 'Se abre desde tu foto → «Lazos y circuitos». Anota los dispositivos en el orden en que corre el cable y la app dibuja el diagrama unifilar.',
+      resumen: 'Técnicos: pestaña «Lazos». Supervisión: en la ficha del cliente → «Lazos y circuitos». Anota los dispositivos en el orden en que corre el cable y la app dibuja el diagrama unifilar.',
       pasos: [
         'Toca «Nuevo lazo o circuito», elige el cliente y el tipo (detección, voceo o estrobos). En detección pon el número de lazo del panel y la clase.',
         'Toca «Agregar dispositivo», elige el tipo (SH, MC, MM…, o RG para una caja de registro), revisa la dirección y la ubicación y toca «Guardar y siguiente». La hoja se queda abierta para el siguiente, con la siguiente dirección libre.',

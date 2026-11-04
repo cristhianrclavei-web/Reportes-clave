@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, Cable, ChevronLeft, ChevronRight, Plus, WifiOff, X } from 'lucide-react';
 import MenuCuenta from '@/components/MenuCuenta';
+import TecnicoTabs from '@/components/TecnicoTabs';
+import Logo from '@/components/Logo';
 import ModalOverlay from '@/components/ModalOverlay';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
 import EstadoVacio from '@/components/EstadoVacio';
@@ -64,16 +66,28 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
   const grupos = [...porCliente.entries()].sort((a, b) => nombreCliente(a[0]).localeCompare(nombreCliente(b[0]), 'es'));
 
   return (
-    <div className="max-w-2xl mx-auto pb-16">
-      <div className="sticky top-0 z-20 glass-strong px-4 py-3 flex items-center justify-between gap-3" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}>
-        <div className="flex items-center gap-2 min-w-0">
-          <Link href={esSupervisor ? '/dashboard' : '/servicios'} aria-label="Volver" className="shrink-0 w-11 h-11 -ml-1.5 rounded-full flex items-center justify-center active:scale-90 transition-transform">
-            <ChevronLeft size={24} strokeWidth={2.4} />
-          </Link>
-          <span className="font-display font-semibold text-[17px] tracking-wide truncate">Lazos y circuitos</span>
+    <div className={`max-w-2xl mx-auto pb-16 ${esSupervisor ? "" : "lg:max-w-none lg:px-6"}`}>
+      {/* Técnicos: una sección más, con sus pestañas. Supervisión llega desde
+          la ficha del cliente y regresa a ella. */}
+      {esSupervisor ? (
+        <div className="sticky top-0 z-20 glass-strong px-4 py-3 flex items-center justify-between gap-3" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}>
+          <div className="flex items-center gap-2 min-w-0">
+            <Link href={filtroCliente ? `/dashboard/proyectos/${filtroCliente}` : '/dashboard/proyectos'} aria-label="Volver al cliente" className="shrink-0 w-11 h-11 -ml-1.5 rounded-full flex items-center justify-center active:scale-90 transition-transform">
+              <ChevronLeft size={24} strokeWidth={2.4} />
+            </Link>
+            <span className="font-display font-semibold text-[17px] tracking-wide truncate">Lazos y circuitos</span>
+          </div>
+          <MenuCuenta nombre={userName} respaldo="Supervisión" />
         </div>
-        <MenuCuenta nombre={userName} respaldo={esSupervisor ? 'Supervisión' : 'Personal técnico'} />
-      </div>
+      ) : (
+        <div className="sticky top-0 z-20 bg-bg pb-2">
+          <div className="barra-fija px-5 pb-3 flex items-center justify-between gap-3" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}>
+            <Logo variante="completo" size={34} className="min-w-0" />
+            <MenuCuenta nombre={userName} respaldo="Personal técnico" />
+          </div>
+          <TecnicoTabs active="lazos" />
+        </div>
+      )}
 
       <div className="px-5 pt-4">
         <EncabezadoSeccion
