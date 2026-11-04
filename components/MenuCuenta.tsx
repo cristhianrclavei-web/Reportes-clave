@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { BookOpen, ChevronRight, UserRound, LayoutGrid, Rows3 } from 'lucide-react';
+import { BookOpen, Cable, ChevronRight, UserRound, LayoutGrid, Rows3 } from 'lucide-react';
 import { useVistaSupervisor } from '@/lib/vistaSupervisor';
 import ThemeToggle from '@/components/ThemeToggle';
 import LogoutButton from '@/components/LogoutButton';
@@ -85,6 +85,11 @@ export default function MenuCuenta({ nombre, respaldo = 'Mi cuenta' }: { nombre?
 
         <div className="h-px bg-line my-1.5" />
 
+        {/* Lazos y circuitos: técnicos y supervisión (app/lazos). */}
+        <Link href="/lazos" role="menuitem" onClick={() => setAbierto(false)} className={fila}>
+          <Cable size={18} strokeWidth={2.1} className="text-muted shrink-0" />
+          Lazos y circuitos
+        </Link>
         <Link href="/ayuda" role="menuitem" onClick={() => setAbierto(false)} className={fila}>
           <BookOpen size={18} strokeWidth={2.1} className="text-muted shrink-0" />
           Manual de uso

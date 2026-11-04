@@ -20,7 +20,7 @@ import CamposCliente from '@/components/CamposCliente';
 import ClienteAvatar, { fondoAvatar } from '@/components/ClienteAvatar';
 import {
   ChevronLeft, Camera, MapPin, Phone, Mail, User, Plus, X, Trash2,
-  Pencil, Check, FileText, Receipt, ChevronRight, FolderOpen, ImagePlus,
+  Pencil, Check, FileText, Receipt, ChevronRight, FolderOpen, ImagePlus, Cable,
 } from 'lucide-react';
 
 const ESTADO_CLS: Record<EstadoProyecto, string> = {
@@ -395,6 +395,16 @@ export default function ClienteDetalle({ clienteId, userName }: { clienteId: str
       {/* Reportes de servicio del cliente */}
       <ReportesDelCliente clienteId={cliente.id} clienteNombre={cliente.nombre} />
       <FacturasDelCliente clienteId={cliente.id} />
+
+      {/* Lazos y circuitos de detección, voceo y estrobos (app/lazos) */}
+      <Link href={`/lazos?cliente=${cliente.id}`} className={`${cardCls} flex items-center gap-3 mb-6 hover:border-teal/60 transition-colors`}>
+        <Cable size={22} strokeWidth={2.1} className="text-teal shrink-0" />
+        <span className="flex-1 min-w-0">
+          <span className="block font-display font-semibold text-[15px]">Lazos y circuitos</span>
+          <span className="block text-[12.5px] text-muted">Cableado en orden, diagrama unifilar y búsqueda de fallas a tierra</span>
+        </span>
+        <ChevronRight size={18} className="text-muted shrink-0" />
+      </Link>
 
       {/* Sistemas y proyectos */}
       <div className="flex items-center justify-between mb-3">

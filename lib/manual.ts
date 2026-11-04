@@ -5,6 +5,36 @@
 export type TemaManual = { titulo: string; resumen: string; pasos: string[]; nota?: string };
 export type SeccionManual = { titulo: string; temas: TemaManual[] };
 
+// Igual para técnicos y supervisión (app/lazos).
+const SECCION_LAZOS: SeccionManual = {
+  titulo: 'Lazos y fallas a tierra',
+  temas: [
+    {
+      titulo: 'Capturar un lazo mientras cableas',
+      resumen: 'Se abre desde tu foto → «Lazos y circuitos». Anota los dispositivos en el orden en que corre el cable y la app dibuja el diagrama unifilar.',
+      pasos: [
+        'Toca «Nuevo lazo o circuito», elige el cliente y el tipo (detección, voceo o estrobos). En detección pon el número de lazo del panel y la clase.',
+        'Toca «Agregar dispositivo», elige el tipo (SH, MC, MM…, o RG para una caja de registro), revisa la dirección y la ubicación y toca «Guardar y siguiente». La hoja se queda abierta para el siguiente, con la siguiente dirección libre.',
+        'Si algo cuelga del dispositivo anterior (la corneta de un módulo, una derivación), toca «Colgar de…»; para seguir con la línea principal, «Volver a la línea».',
+        'Si la dirección ya la tiene otro dispositivo del lazo, la app te avisa antes de guardar.',
+        'Toca cualquier dispositivo (en la lista o en el diagrama) para ver su ficha: dónde está, de cuál viene y a cuál sigue. Desde ahí lo corriges, insertas otro antes o después, cuelgas otro o lo borras.',
+      ],
+      nota: 'Sin señal se guarda en el teléfono y sube solo al volver la conexión (la foto sí necesita señal).',
+    },
+    {
+      titulo: 'Buscar una falla a tierra',
+      resumen: 'En el lazo, pestaña «Falla a tierra». La app marca el tramo donde está la falla y te dice dónde cortar.',
+      pasos: [
+        'Toca «Iniciar búsqueda de falla a tierra».',
+        'Cada vez que abras el lazo, toca «Registrar corte»: a la salida de qué dispositivo abriste y de qué lado quedó la falla (lado panel o lado campo), y si quieres lo que mediste.',
+        'La barra y el diagrama pintan en ámbar el tramo con la falla y se sugiere el siguiente corte a la mitad del tramo.',
+        'Si te equivocaste en un corte, quítalo con el bote de basura y el tramo se vuelve a calcular.',
+        'Al encontrarla, toca «Encontré la falla», elige dónde estaba y escribe la causa. Queda en la ficha de ese dispositivo.',
+      ],
+    },
+  ],
+};
+
 export const MANUAL_TECNICO: SeccionManual[] = [
   {
     titulo: 'Tu día',
@@ -166,6 +196,7 @@ export const MANUAL_TECNICO: SeccionManual[] = [
       },
     ],
   },
+  SECCION_LAZOS,
   {
     titulo: 'Tu cuenta',
     temas: [
@@ -441,6 +472,7 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
       },
     ],
   },
+  SECCION_LAZOS,
   {
     titulo: 'Tu cuenta',
     temas: [

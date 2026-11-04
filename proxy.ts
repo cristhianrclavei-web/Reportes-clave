@@ -36,7 +36,7 @@ export async function proxy(request: NextRequest) {
     return redirect;
   };
 
-  const protectedPaths = ['/nuevo', '/dashboard', '/mis-reportes', '/bitacora', '/servicios', '/checklists'];
+  const protectedPaths = ['/nuevo', '/dashboard', '/mis-reportes', '/bitacora', '/servicios', '/checklists', '/lazos'];
   const isProtected = protectedPaths.some((p) => request.nextUrl.pathname.startsWith(p));
 
   if (isProtected && !user) {
@@ -64,6 +64,7 @@ export const config = {
     // habia exposicion, pero la redireccion a /login no ocurria en el
     // borde como en las demas rutas.
     '/checklists/:path*',
+    '/lazos/:path*',
     '/ayuda',
     '/login',
   ],
