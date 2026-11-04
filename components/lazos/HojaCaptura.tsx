@@ -206,6 +206,12 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
     setLugar(lugarDespuesDe(elementos, raizDe(elementos, padre)));
   }
 
+  // Nombre y, si tiene, dirección: «LZ1_SH_1 · L01D001».
+  function etiqueta(e: Elemento): string {
+    const direccion = direccionVisible(e.direccion, lazo.numero);
+    return direccion ? `${e.nombre} · ${direccion}` : e.nombre;
+  }
+
   const titulo = editando ? `Corregir ${editando.nombre}` : `Agregar dispositivo${capturados ? ` · ${capturados} capturados` : ''}`;
   const anterior = editando ? null : elementos.find((x) => x.orden === lugar.ordenAntes && x.padre_id === lugar.padreId) || null;
 
@@ -217,8 +223,8 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
         </div>
         {!editando && (
           <p className="text-[12.5px] text-muted mb-3">
-            {padre ? <>Cuelga de <span className="font-mono">{padre.nombre}</span></> : 'Línea principal'}
-            {anterior ? <> · después de <span className="font-mono">{anterior.nombre}</span></> : padre ? '' : ' · al inicio'}
+            {padre ? <>Cuelga de <span className="font-mono">{etiqueta(padre)}</span></> : 'Línea principal'}
+            {anterior ? <> · después de <span className="font-mono">{etiqueta(anterior)}</span></> : padre ? '' : ' · al inicio'}
           </p>
         )}
 
@@ -284,7 +290,8 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
           {!editando && ultimo && lugar.padreId !== ultimo.id && (
             <button type="button" onClick={colgarDelAnterior}
               className="flex-1 min-h-[42px] rounded-xl border border-line bg-surface-2 text-[13px] flex items-center justify-center gap-1.5 px-2">
-              <CornerDownRight size={16} strokeWidth={2.2} /> Colgar de {ultimo.nombre}
+              <CornerDownRight size={16} strokeWidth={2.2} className="shrink-0" />
+              <span className="leading-tight text-left">Colgar de<span className="block font-mono text-[12px]">{etiqueta(ultimo)}</span></span>
             </button>
           )}
           {!editando && padre && (
