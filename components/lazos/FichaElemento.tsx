@@ -51,15 +51,26 @@ export default function FichaElemento({ lazo, elementos, elemento, fallas, cambi
   const hermanos = elemento.padre_id ? hijosDe(elementos, elemento.padre_id) : lineaPrincipal(elementos);
   const i = hermanos.findIndex((h) => h.id === elemento.id);
   const padre = elemento.padre_id ? elementos.find((e) => e.id === elemento.padre_id) : null;
-  const vieneDe = i > 0 ? hermanos[i - 1].nombre : padre ? padre.nombre : 'Panel (PCI)';
-  const sigueA = hermanos[i + 1]?.nombre || 'Fin de la línea';
   const cuelgan = hijosDe(elementos, elemento.id);
+  // En una rama se viene del que cuelga y se sigue a lo que cuelga de él.
+  let vieneDe: string;
+  let sigueA: string;
+  if (padre) {
+    vieneDe = padre.nombre;
+    sigueA = cuelgan.length === 0 ? 'Fin de la rama' : cuelgan.length === 1 ? cuelgan[0].nombre : `${cuelgan.length} ramas`;
+  } else {
+    vieneDe = i > 0 ? hermanos[i - 1].nombre : 'Panel (PCI)';
+    sigueA = hermanos[i + 1]?.nombre || 'Fin de la línea';
+  }
   const fallasAqui = fallas.filter((f) => f.elemento_id === elemento.id);
   const cambiosAqui = cambios.filter((c) => c.elemento_id === elemento.id && c.tabla !== 'lazo_fallas');
   const nombreDe = (id: string | null) => elementos.find((e) => e.id === id)?.nombre || null;
 
   async function borrar() {
-    const extra = cuelgan.length > 0 ? ` También se borra lo que cuelga de él (${cuelgan.length}).` : '';
+    // En una rama, lo que seguía se recorre; en la línea principal, sus ramas se van con él.
+    let extra = '';
+    if (cuelgan.length > 0 && padre) extra = ' Lo que sigue en la rama queda colgando del anterior.';
+    if (cuelgan.length > 0 && !padre) extra = ` También se borran sus ramas (${cuelgan.length}).`;
     const ok = await confirmar(`¿Borrar ${elemento.nombre}?`, {
       detalle: `Se quita del lazo y del diagrama.${extra}`,
       textoAceptar: 'Borrar',
@@ -148,7 +159,7 @@ export default function FichaElemento({ lazo, elementos, elemento, fallas, cambi
 
         <div className="grid grid-cols-2 gap-2 mt-4">
           <button type="button" onClick={onEditar} className={accion}><Pencil size={16} strokeWidth={2.2} /> Corregir</button>
-          <button type="button" onClick={onColgar} className={accion}><CornerDownRight size={16} strokeWidth={2.2} /> Colgar otro aquí</button>
+          <button type="button" onClick={onColgar} className={accion}><CornerDownRight size={16} strokeWidth={2.2} /> Nueva rama aquí</button>
           <button type="button" onClick={onInsertarAntes} className={accion}><ArrowUpToLine size={16} strokeWidth={2.2} /> Insertar antes</button>
           <button type="button" onClick={onInsertarDespues} className={accion}><ArrowDownToLine size={16} strokeWidth={2.2} /> Insertar después</button>
         </div>

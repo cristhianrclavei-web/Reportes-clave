@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Camera, CornerDownRight, Undo2, Check } from 'lucide-react';
+import { ArrowRight, Camera, CornerDownRight, GitFork, Undo2, Check } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
 import { Simbolo } from '@/components/lazos/DiagramaLazo';
 import { generarUUID } from '@/lib/uuid';
@@ -18,7 +18,13 @@ import { guardarElemento, subirFotoElemento } from '@/lib/lazosDatos';
 
 // Dónde va el dispositivo: colgando de quién (o en la línea principal) y
 // entre qué números de orden.
-export type Lugar = { padreId: string | null; ordenAntes: number | null; ordenDespues: number | null };
+//
+// En la línea principal los dispositivos van uno tras otro con `orden`.
+// Lo que cuelga directo de un dispositivo es una RAMA aparte (varias = una
+// estrella); dentro de una rama, lo que sigue en serie cuelga del anterior.
+// `adoptar`: dispositivos que pasan a colgar del nuevo (al insertar en medio
+// de una rama, lo que seguía queda después del nuevo).
+export type Lugar = { padreId: string | null; ordenAntes: number | null; ordenDespues: number | null; adoptar?: string[] };
 
 const CAMPO = 'w-full px-3 min-h-[46px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]';
 
@@ -29,22 +35,29 @@ export function lugarAlFinal(elementos: Elemento[]): Lugar {
   return { padreId: null, ordenAntes: ultimo ? ultimo.orden : null, ordenDespues: null };
 }
 
-// Lugar justo después de un dispositivo, en su misma línea.
+// Lugar justo después de un dispositivo. En una rama: en serie después de
+// él, y lo que seguía pasa a seguir al nuevo.
 export function lugarDespuesDe(elementos: Elemento[], elemento: Elemento): Lugar {
+  if (elemento.padre_id) {
+    return { padreId: elemento.id, ordenAntes: null, ordenDespues: null, adoptar: hijosDe(elementos, elemento.id).map((h) => h.id) };
+  }
   const hermanos = elemento.padre_id ? hijosDe(elementos, elemento.padre_id) : lineaPrincipal(elementos);
   const i = hermanos.findIndex((h) => h.id === elemento.id);
   const siguiente = hermanos[i + 1];
   return { padreId: elemento.padre_id, ordenAntes: elemento.orden, ordenDespues: siguiente ? siguiente.orden : null };
 }
 
+// Lugar justo antes de un dispositivo. En una rama, el nuevo toma su lugar
+// y él pasa a colgar del nuevo.
 export function lugarAntesDe(elementos: Elemento[], elemento: Elemento): Lugar {
   const hermanos = elemento.padre_id ? hijosDe(elementos, elemento.padre_id) : lineaPrincipal(elementos);
   const i = hermanos.findIndex((h) => h.id === elemento.id);
   const anterior = hermanos[i - 1];
-  return { padreId: elemento.padre_id, ordenAntes: anterior ? anterior.orden : null, ordenDespues: elemento.orden };
+  const adoptar = elemento.padre_id ? [elemento.id] : undefined;
+  return { padreId: elemento.padre_id, ordenAntes: anterior ? anterior.orden : null, ordenDespues: elemento.orden, adoptar };
 }
 
-// Lugar colgando de un dispositivo, después de lo que ya cuelga de él.
+// Una rama nueva desde un dispositivo, a la derecha de las que ya tiene.
 export function lugarColgandoDe(elementos: Elemento[], padre: Elemento): Lugar {
   const hijos = hijosDe(elementos, padre.id);
   const ultimo = hijos[hijos.length - 1];
@@ -89,6 +102,11 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
   // El último que se guardó en esta hoja: de él se puede colgar el siguiente.
   const [ultimo, setUltimo] = useState<Elemento | null>(null);
   const [capturados, setCapturados] = useState(0);
+  // De qué dispositivo salen las ramas que se están capturando: con él se
+  // puede abrir otra rama (estrella).
+  const [origenRama, setOrigenRama] = useState<Elemento | null>(
+    !editando && lugarInicial.padreId && !lugarInicial.adoptar ? elementos.find((e) => e.id === lugarInicial.padreId) || null : null,
+  );
   const entradaFoto = useRef<HTMLInputElement | null>(null);
 
   const infoTipo = tipoDispositivo(tipo);
@@ -175,14 +193,27 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
     try {
       const { pendiente } = await guardarElemento(elemento);
       onGuardado(elemento, pendiente);
+      // Insertado en medio de una rama: lo que seguía ahora cuelga del nuevo.
+      for (const id of (editando ? [] : lugar.adoptar || [])) {
+        const hijo = elementos.find((x) => x.id === id);
+        if (!hijo) continue;
+        const movido = { ...hijo, padre_id: elemento.id };
+        const resultado = await guardarElemento(movido);
+        onGuardado(movido, resultado.pendiente);
+      }
       if (!seguir || editando) {
         if (avisoFoto) setErrores({ general: avisoFoto });
         else onCerrar();
         setGuardando(false);
         return;
       }
-      // Siguiente: después del que se acaba de guardar, en la misma línea.
-      setLugar({ padreId: elemento.padre_id, ordenAntes: elemento.orden, ordenDespues: lugar.ordenDespues });
+      // Siguiente: en la línea principal, después del que se guardó; en una
+      // rama, en serie colgando de él (y lo que seguía, después del siguiente).
+      if (elemento.padre_id) {
+        setLugar({ padreId: elemento.id, ordenAntes: null, ordenDespues: null, adoptar: lugar.adoptar });
+      } else {
+        setLugar({ padreId: null, ordenAntes: elemento.orden, ordenDespues: lugar.ordenDespues });
+      }
       setUltimo(elemento);
       setCapturados((n) => n + 1);
       setFoto(null);
@@ -199,11 +230,18 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
   function colgarDelAnterior() {
     if (!ultimo) return;
     setLugar(lugarColgandoDe(elementos, ultimo));
+    setOrigenRama(ultimo);
+  }
+
+  function otraRama() {
+    if (!origenRama) return;
+    setLugar(lugarColgandoDe(elementos, origenRama));
   }
 
   function volverALaLinea() {
     if (!padre) return;
     setLugar(lugarDespuesDe(elementos, raizDe(elementos, padre)));
+    setOrigenRama(null);
   }
 
   // Nombre y, si tiene, dirección: «LZ1_SH_1 · L01D001».
@@ -213,7 +251,9 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
   }
 
   const titulo = editando ? `Corregir ${editando.nombre}` : `Agregar dispositivo${capturados ? ` · ${capturados} capturados` : ''}`;
-  const anterior = editando ? null : elementos.find((x) => x.orden === lugar.ordenAntes && x.padre_id === lugar.padreId) || null;
+  const anterior = editando || lugar.padreId ? null : elementos.find((x) => x.orden === lugar.ordenAntes && !x.padre_id) || null;
+  const siguienteEnRama = lugar.adoptar?.length ? elementos.find((x) => x.id === lugar.adoptar?.[0]) || null : null;
+  const ramaNueva = Boolean(padre && !siguienteEnRama && hijosDe(elementos, padre.id).length > 0);
 
   return (
     <ModalOverlay onClose={() => !guardando && onCerrar()}>
@@ -224,6 +264,8 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
         {!editando && (
           <p className="text-[12.5px] text-muted mb-3">
             {padre ? <>Cuelga de <span className="font-mono">{etiqueta(padre)}</span></> : 'Línea principal'}
+            {ramaNueva && ' · rama nueva'}
+            {siguienteEnRama && <> · antes de <span className="font-mono">{etiqueta(siguienteEnRama)}</span></>}
             {anterior ? <> · después de <span className="font-mono">{etiqueta(anterior)}</span></> : padre ? '' : ' · al inicio'}
           </p>
         )}
@@ -292,6 +334,13 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
               className="flex-1 min-h-[42px] rounded-xl border border-line bg-surface-2 text-[13px] flex items-center justify-center gap-1.5 px-2">
               <CornerDownRight size={16} strokeWidth={2.2} className="shrink-0" />
               <span className="leading-tight text-left">Colgar de<span className="block font-mono text-[12px]">{etiqueta(ultimo)}</span></span>
+            </button>
+          )}
+          {!editando && origenRama && lugar.padreId !== origenRama.id && (
+            <button type="button" onClick={otraRama}
+              className="flex-1 min-h-[42px] rounded-xl border border-line bg-surface-2 text-[13px] flex items-center justify-center gap-1.5 px-2">
+              <GitFork size={16} strokeWidth={2.2} className="shrink-0" />
+              <span className="leading-tight text-left">Otra rama desde<span className="block font-mono text-[12px]">{etiqueta(origenRama)}</span></span>
             </button>
           )}
           {!editando && padre && (

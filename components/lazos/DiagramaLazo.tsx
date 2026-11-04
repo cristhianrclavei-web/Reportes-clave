@@ -48,16 +48,6 @@ export function Simbolo({ tipo, chico = false }: { tipo: string; chico?: boolean
   );
 }
 
-// Lo que cuelga de un dispositivo, y lo que cuelga de eso, en orden.
-function cadenaDe(elementos: Elemento[], padreId: string): Elemento[] {
-  const resultado: Elemento[] = [];
-  for (const hijo of hijosDe(elementos, padreId)) {
-    resultado.push(hijo);
-    resultado.push(...cadenaDe(elementos, hijo.id));
-  }
-  return resultado;
-}
-
 function claseEstado(estado: EstadoEnFalla | undefined): string {
   if (estado === 'sospechoso') return 'text-amber';
   if (estado === 'descartado') return 'text-ink opacity-35';
@@ -101,6 +91,39 @@ export default function DiagramaLazo({
     );
   }
 
+  // Lo que cuelga de un dispositivo. Cada cosa que cuelga directo de él es
+  // una rama aparte (una estrella con varias ramas se dibuja lado a lado);
+  // dentro de una rama, lo que sigue en serie cuelga del anterior.
+  function ramasDe(padreId: string): React.ReactNode {
+    const hijos = hijosDe(elementos, padreId);
+    if (hijos.length === 0) return null;
+    if (hijos.length === 1) return nodoDeRama(hijos[0]);
+    return (
+      <div className="flex flex-col items-center">
+        <div className="w-0.5 h-2 bg-muted/70" aria-hidden="true" />
+        <div className="flex">
+          {hijos.map((hijo, i) => (
+            <div key={hijo.id} className="relative flex flex-col items-center px-1" style={{ minWidth: ANCHO_COLUMNA }}>
+              {i > 0 && <div className="absolute left-0 top-0 w-1/2 h-0.5 bg-muted/70" aria-hidden="true" />}
+              {i < hijos.length - 1 && <div className="absolute right-0 top-0 w-1/2 h-0.5 bg-muted/70" aria-hidden="true" />}
+              {nodoDeRama(hijo)}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  function nodoDeRama(e: Elemento): React.ReactNode {
+    return (
+      <div className="flex flex-col items-center">
+        <div className="w-0.5 h-2 bg-muted/70" aria-hidden="true" />
+        {boton(e, true)}
+        {ramasDe(e.id)}
+      </div>
+    );
+  }
+
   return (
     <div className="w-max min-w-full">
       <div className="flex items-center gap-2">
@@ -131,10 +154,9 @@ export default function DiagramaLazo({
             <div className="absolute -left-[11px] right-2 top-0 h-0.5 bg-muted/70" aria-hidden="true" />
             <div className="flex">
               {renglon.map((e) => {
-                const cadena = cadenaDe(elementos, e.id);
                 const corte = cortes?.get(e.id);
                 return (
-                  <div key={e.id} className="relative flex flex-col items-center shrink-0" style={{ width: ANCHO_COLUMNA }}>
+                  <div key={e.id} className="relative flex flex-col items-center shrink-0" style={{ minWidth: ANCHO_COLUMNA }}>
                     {corte !== undefined && (
                       <span className="absolute -right-2 -top-[11px] z-10 flex items-center gap-0.5 rounded bg-ink text-bg font-mono text-[10px] px-1 py-px">
                         <Scissors size={10} strokeWidth={2.6} aria-hidden="true" />{corte}
@@ -142,12 +164,7 @@ export default function DiagramaLazo({
                     )}
                     <div className="w-0.5 h-3 bg-muted/70" aria-hidden="true" />
                     {boton(e, false)}
-                    {cadena.map((hijo) => (
-                      <div key={hijo.id} className="flex flex-col items-center">
-                        <div className="w-0.5 h-2 bg-muted/70" aria-hidden="true" />
-                        {boton(hijo, true)}
-                      </div>
-                    ))}
+                    {ramasDe(e.id)}
                     <div className="h-3" />
                   </div>
                 );

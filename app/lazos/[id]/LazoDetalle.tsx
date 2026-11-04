@@ -13,7 +13,7 @@ import { confirmar } from '@/lib/dialogos';
 import { Cambio, Corte, Elemento, Falla, NOMBRE_CIRCUITO, describirCambio, direccionVisible, hijosDe, lineaPrincipal } from '@/lib/lazos';
 import {
   DatosLazo, ResultadoGuardar, actualizarLazo, borrarElemento, borrarLazo, descartarPrimerPendiente,
-  fallasResueltas, guardarCopiaLazo, historialDeLazo, obtenerLazo, pendientesDeLazo, subirPendientes,
+  fallasResueltas, guardarCopiaLazo, guardarElemento, historialDeLazo, obtenerLazo, pendientesDeLazo, subirPendientes,
 } from '@/lib/lazosDatos';
 
 type Vista = 'lista' | 'diagrama' | 'falla';
@@ -116,9 +116,19 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
   async function alBorrarElemento(elemento: Elemento) {
     if (!datos) return;
     try {
+      // En una rama, lo que seguía sube a colgar del anterior antes de
+      // borrar; si no, la base lo borraría en cascada con él.
+      let elementos = datos.elementos;
+      if (elemento.padre_id) {
+        for (const hijo of hijosDe(elementos, elemento.id)) {
+          const movido = { ...hijo, padre_id: elemento.padre_id };
+          await guardarElemento(movido);
+          elementos = elementos.map((e) => (e.id === hijo.id ? movido : e));
+        }
+      }
       const resultado = await borrarElemento(lazoId, elemento.id);
-      const quitar = new Set([elemento.id, ...descendientes(datos.elementos, elemento.id)]);
-      actualizar({ ...datos, elementos: datos.elementos.filter((e) => !quitar.has(e.id)) });
+      const quitar = new Set([elemento.id, ...descendientes(elementos, elemento.id)]);
+      actualizar({ ...datos, elementos: elementos.filter((e) => !quitar.has(e.id)) });
       setFicha(null);
       showToast(resultado.pendiente ? 'Borrado en el teléfono; se sube al tener señal' : 'Dispositivo borrado');
       despuesDeGuardar(resultado);
@@ -177,7 +187,9 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
   const principal = lineaPrincipal(elementos);
 
   // Lista en orden: cada dispositivo de la línea y, sangrado, lo que cuelga.
-  function filas(lista: Elemento[], nivel: number, numerar: boolean): React.ReactNode[] {
+  // marca: número en la línea principal, ↳ al empezar una rama, ↓ en serie.
+  function filas(lista: Elemento[], nivel: number, marca: 'numero' | 'rama' | 'serie'): React.ReactNode[] {
+    const numerar = marca === 'numero';
     const resultado: React.ReactNode[] = [];
     lista.forEach((e, i) => {
       const direccion = direccionVisible(e.direccion, lazo.numero);
@@ -186,7 +198,7 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
           <button type="button" onClick={() => abrirFicha(e)} className="w-full flex items-center gap-3 py-2 text-left hover:bg-surface-2/60 rounded-lg"
             style={{ paddingLeft: nivel * 26 }}>
             <span className={`w-7 h-7 shrink-0 rounded-lg font-mono text-[11px] flex items-center justify-center ${numerar ? 'bg-surface-2 text-muted' : 'text-faint'}`}>
-              {numerar ? i + 1 : '↳'}
+              {numerar ? i + 1 : marca === 'serie' ? '↓' : '↳'}
             </span>
             <span className="w-11 shrink-0 flex justify-center text-ink scale-[0.8]"><Simbolo tipo={e.tipo} chico /></span>
             <span className="flex-1 min-w-0">
@@ -197,7 +209,11 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
           </button>
         </li>,
       );
-      resultado.push(...filas(hijosDe(elementos, e.id), nivel + 1, false));
+      // Lo que sigue en serie dentro de una rama va a la misma sangría; las
+      // ramas de un dispositivo, un nivel más adentro.
+      const hijos = hijosDe(elementos, e.id);
+      const enSerie = nivel > 0 && hijos.length === 1;
+      resultado.push(...filas(hijos, enSerie ? nivel : nivel + 1, enSerie ? 'serie' : 'rama'));
     });
     return resultado;
   }
@@ -271,7 +287,7 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
             </div>
             {principal.length === 0
               ? <p className="text-[14px] text-muted py-6">Todavía no hay dispositivos. Toca «Agregar dispositivo» y captura en el orden en que corre el cable.</p>
-              : <ol className="divide-y divide-line">{filas(principal, 0, true)}</ol>}
+              : <ol className="divide-y divide-line">{filas(principal, 0, 'numero')}</ol>}
           </>
         )}
 
