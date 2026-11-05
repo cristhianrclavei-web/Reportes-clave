@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { AlertTriangle, Camera, CheckCircle2, Plus, Scissors, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Camera, CheckCircle2, Image as IconoGaleria, Plus, Scissors, Trash2, X } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
 import DiagramaLazo, { EstadoEnFalla } from '@/components/lazos/DiagramaLazo';
 import { confirmar } from '@/lib/dialogos';
@@ -345,7 +345,10 @@ function ResolverFalla({ lazo, elementos, falla, sugeridoId, zona, onCerrar, onG
   const [causa, setCausa] = useState('');
   const [foto, setFoto] = useState<File | null>(null);
   const [vistaFoto, setVistaFoto] = useState<string | null>(null);
-  const entradaFoto = useRef<HTMLInputElement | null>(null);
+  // Dos entradas: con `capture` el teléfono abre directo la cámara y no deja
+  // elegir de la galería, así que la galería va en su propio botón.
+  const entradaCamara = useRef<HTMLInputElement | null>(null);
+  const entradaGaleria = useRef<HTMLInputElement | null>(null);
   const [errores, setErrores] = useState<Partial<Record<'causa' | 'foto' | 'general', string>>>({});
   const [guardando, setGuardando] = useState(false);
 
@@ -419,18 +422,22 @@ function ResolverFalla({ lazo, elementos, falla, sugeridoId, zona, onCerrar, onG
               className="absolute top-2 right-2 w-9 h-9 rounded-full bg-bg/80 flex items-center justify-center">
               <X size={18} strokeWidth={2.4} />
             </button>
-            <button type="button" onClick={() => entradaFoto.current?.click()}
-              className="absolute bottom-2 right-2 rounded-lg bg-bg/80 px-2.5 py-1.5 text-[12.5px] font-semibold flex items-center gap-1">
-              <Camera size={14} strokeWidth={2.4} /> Cambiar
-            </button>
           </div>
         ) : (
-          <button type="button" onClick={() => entradaFoto.current?.click()}
-            className="w-full min-h-[50px] rounded-xl border border-dashed border-line-strong bg-surface-2 text-[14px] font-medium flex items-center justify-center gap-2">
-            <Camera size={18} strokeWidth={2.2} /> Tomar o elegir foto
-          </button>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => entradaCamara.current?.click()}
+              className="flex-1 min-h-[50px] rounded-xl border border-dashed border-line-strong bg-surface-2 text-[14px] font-medium flex items-center justify-center gap-2">
+              <Camera size={18} strokeWidth={2.2} /> Cámara
+            </button>
+            <button type="button" onClick={() => entradaGaleria.current?.click()}
+              className="flex-1 min-h-[50px] rounded-xl border border-dashed border-line-strong bg-surface-2 text-[14px] font-medium flex items-center justify-center gap-2">
+              <IconoGaleria size={18} strokeWidth={2.2} /> Galería
+            </button>
+          </div>
         )}
-        <input ref={entradaFoto} type="file" accept="image/*" capture="environment" className="hidden"
+        <input ref={entradaCamara} type="file" accept="image/*" capture="environment" className="hidden"
+          onChange={(ev) => { elegirFoto(ev.target.files?.[0] || null); ev.target.value = ''; }} />
+        <input ref={entradaGaleria} type="file" accept="image/*" className="hidden"
           onChange={(ev) => { elegirFoto(ev.target.files?.[0] || null); ev.target.value = ''; }} />
         {errores.foto && <p className="text-red font-semibold text-[13px] mt-1">{errores.foto}</p>}
 

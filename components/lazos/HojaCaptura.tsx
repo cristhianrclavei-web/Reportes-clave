@@ -327,7 +327,8 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
             className={`flex-1 min-h-[42px] rounded-xl border text-[13px] flex items-center justify-center gap-1.5 px-2 ${foto ? 'border-teal text-teal bg-teal/10' : 'border-line bg-surface-2'}`}>
             {foto ? <Check size={16} strokeWidth={2.4} /> : <Camera size={16} strokeWidth={2.2} />}{foto ? 'Foto lista' : 'Foto'}
           </button>
-          <input ref={entradaFoto} type="file" accept="image/*" capture="environment" className="hidden"
+          {/* Sin `capture`: así el teléfono ofrece cámara o galería. */}
+          <input ref={entradaFoto} type="file" accept="image/*" className="hidden"
             onChange={(ev) => setFoto(ev.target.files?.[0] || null)} />
           {!editando && ultimo && lugar.padreId !== ultimo.id && (
             <button type="button" onClick={colgarDelAnterior}
