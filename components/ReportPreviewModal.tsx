@@ -1,4 +1,6 @@
 'use client';
+import ResumenFallaTierra from '@/components/lazos/ResumenFallaTierra';
+import { anexosDeReporte } from '@/lib/anexoFallaTierra';
 import { EyeOff } from 'lucide-react';
 import TablaEquiposInstalados from '@/components/reporte/TablaEquiposInstalados';
 import type { MetaFoto } from '@/lib/evidencias';
@@ -96,6 +98,19 @@ export default function ReportPreviewModal({ preview, onClose }: { preview: Prev
           <div className="mt-4">
             <div className="text-[11px] uppercase tracking-wider font-bold text-teal mb-2">Formato de mantenimiento preventivo</div>
             <ResumenFormatos formatos={data.formatosMtto} />
+          </div>
+        )}
+
+        {anexosDeReporte(data.fallasTierra).length > 0 && (
+          <div className="mt-4">
+            <div className="text-[11px] uppercase tracking-wider font-bold text-teal mb-2">Búsqueda de falla a tierra</div>
+            <div className="flex flex-col gap-3">
+              {anexosDeReporte(data.fallasTierra).map((anexo) => (
+                <div key={anexo.falla_id} className="rounded-2xl border border-line p-3">
+                  <ResumenFallaTierra anexo={anexo} />
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

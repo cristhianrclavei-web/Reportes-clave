@@ -1,5 +1,7 @@
 'use client';
 
+import AnexarFallaTierra from '@/components/lazos/AnexarFallaTierra';
+import { AnexoFallaTierra, anexosDeReporte } from '@/lib/anexoFallaTierra';
 import GrabadorVideo from '@/components/GrabadorVideo';
 import { MiniaturaEvidencia, HojaEvidencia } from '@/components/EvidenciaEditor';
 import { EvidenciaGuardada, MetaFoto, metaLimpia, evidenciasDe, areasUsadas } from '@/lib/evidencias';
@@ -361,6 +363,8 @@ export default function NuevoReportePage() {
   // Formato de mantenimiento preventivo (se anexa al PDF).
   const [usaFormato, setUsaFormato] = useState(false);
   const [formatos, setFormatos] = useState<FormatoLlenado[]>([]);
+  // Búsquedas de falla a tierra anexadas (copia; ver lib/anexoFallaTierra).
+  const [fallasTierra, setFallasTierra] = useState<AnexoFallaTierra[]>([]);
   // Los formatos de mantenimiento son parte de los planes Profesional y
   // Empresa (lib/planes.ts).
   const plan = usePlan();
@@ -438,12 +442,12 @@ export default function NuevoReportePage() {
     manejadoPor, ingACargo, personalAdicional, tipoServicio, subTipo, tipoServicioOtroTexto, seguridad,
     seguridadOtraTexto, tuberias, cables, soporteria, observaciones, actividades, showCaso, casoPuntos, equipos,
     firmaIngNombre, firmaClienteNombre, servicioConcluido, paso, usaFormato, formatos, fotosServicio,
-    firmaIngData, firmaClienteData,
+    firmaIngData, firmaClienteData, fallasTierra,
     clienteAusente, motivoAusente, recibioNombre, recibioPuesto, recibioFirma,
   };
   const hayDatos = Boolean(
     empresaCliente.trim() || tipoServicio || ordCompra.trim() || observaciones.trim() || horaLlegada ||
-    actividades.some((a) => a.trim()) || fotos.length || formatos.length || firmaIngData || firmaClienteData || recibioFirma
+    actividades.some((a) => a.trim()) || fotos.length || formatos.length || fallasTierra.length || firmaIngData || firmaClienteData || recibioFirma
   );
 
   // Llena el formulario desde campos guardados (borrador o reporte a corregir).
@@ -467,6 +471,7 @@ export default function NuevoReportePage() {
     set(setClienteAusente, c.clienteAusente); set(setMotivoAusente, c.motivoAusente);
     set(setRecibioNombre, c.recibioNombre); set(setRecibioPuesto, c.recibioPuesto); set(setRecibioFirma, c.recibioFirma);
     set(setUsaFormato, c.usaFormato); set(setFormatos, c.formatos); set(setFotosServicio, c.fotosServicio);
+    if (c.fallasTierra !== undefined) setFallasTierra(anexosDeReporte(c.fallasTierra));
     if (typeof c.tokenVerificacion === 'string') tokenRef.current = c.tokenVerificacion;
     if (c.firmaIngData || c.firmaClienteData || c.recibioFirma) {
       setFirmaIngData(c.firmaIngData || null);
@@ -567,6 +572,7 @@ export default function NuevoReportePage() {
       recibioFirma: d.clienteAusente?.recibioFirma || null,
       usaFormato: Array.isArray(d.formatosMtto) && d.formatosMtto.length > 0, formatos: Array.isArray(d.formatosMtto) ? d.formatosMtto : [],
       fotosServicio: conUrl,
+      fallasTierra: anexosDeReporte(d.fallasTierra),
       tokenVerificacion: d.tokenVerificacion,
       firmaIngData: d.firmaIngData || null, firmaClienteData: null,
       paso: 1,
@@ -1025,6 +1031,7 @@ export default function NuevoReportePage() {
       servicioProgramadoId: servicioSeleccionadoId || null,
       formatosMtto: conFormato ? formatos : [],
       ...(conFormato ? { tokenVerificacion: tokenVerificacion() } : {}),
+      ...(fallasTierra.length > 0 ? { fallasTierra } : {}),
       ...(clienteAusente
         ? {
             firmaPendiente: true,
@@ -2179,6 +2186,8 @@ export default function NuevoReportePage() {
             </>
           )}
         </div>
+
+        <AnexarFallaTierra clienteId={clienteId} fecha={fecha} visible={pasoKey === 'evidencia'} anexos={fallasTierra} onCambiar={setFallasTierra} />
 
         </div>
 

@@ -15,6 +15,7 @@ import QRCode from 'qrcode';
 import sharp from 'sharp';
 import { descripcionCorta } from './descripcionEquipo';
 import { urlVerificacion } from './etiquetaMantenimiento';
+import { AnexoFallaTierra, anexosDeReporte, etiquetaDispositivo, fechaHoraEnMexico, horaEnMexico } from './anexoFallaTierra';
 import {
   FormatoLlenado, ETIQUETA_FRECUENCIA, ETIQUETA_RESULTADO, ETIQUETA_RESULTADO_DISP, resumenFormato,
   resumenDispositivos, resumenPorTipo, tipoDispositivo,
@@ -675,6 +676,207 @@ export async function generateReportPdf(report: ReportRow, supabase?: any, opcio
 
   for (const f of formatosMtto) {
     await drawAnexo(f);
+  }
+
+  for (const anexo of anexosDeReporte(data.fallasTierra)) {
+    await drawAnexoFallaTierra(anexo);
+  }
+
+  // Anexo «Búsqueda de falla a tierra»: resultado, bitácora de cortes (qué
+  // se sugería y cuánto quedaba después de cada uno) y fotos. Mismo
+  // encabezado que los demás anexos. Lo que se dibuja sale de la copia que
+  // el técnico anexó al reporte (lib/anexoFallaTierra.ts).
+  async function drawAnexoFallaTierra(a: AnexoFallaTierra) {
+    const BOTTOM = MARGIN + 24;
+    const AMBAR = rgb(0.8, 0.5, 0.08);
+    let hoja = 1;
+    // Las fuentes de respaldo (Helvetica) no traen Ω ni otros símbolos.
+    const t = (texto: string) => (texto || '').replace(/Ω/g, ' ohm').replace(/[^\x20-\xFF\u2013\u2014\u2018\u2019\u201C\u201D\u2026]/g, '');
+    const pie = () => {
+      page.drawText(t(`Búsqueda de falla a tierra · ${a.lazo.codigo} · Anexo al reporte de servicio · Folio ${folio} · Hoja ${hoja}`), {
+        x: MARGIN, y: MARGIN / 2, size: 6.5, font, color: GRAY_TEXT,
+      });
+    };
+    const espacio = (alto: number) => {
+      if (y - alto < BOTTOM) {
+        pie();
+        hoja++;
+        newPage();
+      }
+    };
+
+    newPage();
+    const top = y;
+    drawBadge(page, display, MARGIN, top, 34);
+    drawWordmark(page, display, MARGIN + 44, top - 13, 12);
+    const titulo = 'BÚSQUEDA DE FALLA A TIERRA';
+    page.drawText(titulo, { x: PAGE_W - MARGIN - display.widthOfTextAtSize(titulo, 12.5), y: top - 10, size: 12.5, font: display, color: NAVY });
+    const sub = `Anexo al reporte · Folio ${folio}`;
+    page.drawText(sub, { x: PAGE_W - MARGIN - font.widthOfTextAtSize(sub, 7.5), y: top - 23, size: 7.5, font, color: GRAY_TEXT });
+    y = top - 48;
+    page.drawText(t(report.empresa_cliente || 'Cliente sin especificar'), { x: MARGIN, y, size: 15, font: display, color: NAVY, maxWidth: contentW });
+    y -= 14;
+    const datosLazo = [`${a.lazo.codigo} ${a.lazo.nombre}`, a.lazo.circuito, a.lazo.clase, a.lazo.panel ? `Panel ${a.lazo.panel}` : '', `${a.lazo.dispositivos} dispositivos`]
+      .filter(Boolean).join('  ·  ');
+    page.drawText(t(`Servicio del ${fechaDMA(report.fecha)}  ·  ${datosLazo}`), { x: MARGIN, y, size: 8.5, font, color: GRAY_TEXT, maxWidth: contentW });
+    y -= 10;
+    page.drawLine({ start: { x: MARGIN, y }, end: { x: PAGE_W - MARGIN, y }, thickness: 1.5, color: NAVY });
+    y -= 16;
+
+    // ---- Resultado ----
+    const resuelta = a.estado === 'resuelta';
+    const color = resuelta ? VERDE : AMBAR;
+    const lineasResultado: { texto: string; negrita?: boolean }[] = [];
+    if (resuelta) {
+      lineasResultado.push({ texto: `Dónde: ${a.encontrada ? etiquetaDispositivo(a.encontrada) : 'En el cable, entre dispositivos'}`, negrita: true });
+      if (a.encontrada && (a.encontrada.lugar || a.encontrada.ubicacion)) {
+        lineasResultado.push({ texto: [a.encontrada.lugar, a.encontrada.ubicacion].filter(Boolean).join(' · ') });
+      }
+      if (a.causa) lineasResultado.push({ texto: `Causa: ${a.causa}` });
+    } else if (a.final.contradictorio) {
+      lineasResultado.push({ texto: 'Los cortes registrados se contradicen: hay que volver a medir (puede haber más de una falla).', negrita: true });
+    } else {
+      lineasResultado.push({ texto: `La falla sigue en ${a.final.quedan} ${a.final.quedan === 1 ? 'dispositivo' : 'dispositivos'}${a.final.tramo ? ` (${a.final.tramo})` : ''}.`, negrita: true });
+      if (!a.final.siguiente && a.final.quedan > 1) {
+        lineasResultado.push({ texto: 'No hay un corte a la salida de un dispositivo que los separe (por ejemplo, ramas en estrella): desconecta y mide cada rama por separado.' });
+      }
+      if (a.final.siguiente) {
+        const s = a.final.siguiente;
+        lineasResultado.push({ texto: `Siguiente corte recomendado: salida de ${etiquetaDispositivo(s)}${s.lugar || s.ubicacion ? ` (${[s.lugar, s.ubicacion].filter(Boolean).join(' · ')})` : ''}` });
+      }
+    }
+    const anchoTexto = contentW - 24;
+    const renglones = lineasResultado.flatMap((l) => wrapText(t(l.texto), l.negrita ? bold : font, 9.5, anchoTexto).map((r) => ({ r, negrita: l.negrita })));
+    const altoCaja = 26 + renglones.length * 13;
+    page.drawRectangle({ x: MARGIN, y: y - altoCaja, width: contentW, height: altoCaja, color: rgb(0.97, 0.98, 0.98), borderColor: GRAY_LINE, borderWidth: 0.5 });
+    page.drawRectangle({ x: MARGIN, y: y - altoCaja, width: 4, height: altoCaja, color });
+    page.drawText(resuelta ? 'FALLA ENCONTRADA' : 'BÚSQUEDA EN PROCESO', { x: MARGIN + 14, y: y - 15, size: 10, font: bold, color });
+    renglones.forEach((l, i) => {
+      page.drawText(l.r, { x: MARGIN + 14, y: y - 30 - i * 13, size: 9.5, font: l.negrita ? bold : font, color: NAVY });
+    });
+    y -= altoCaja + 12;
+
+    // ---- Datos de la búsqueda ----
+    const minutos = a.resuelta_en ? Math.round((new Date(a.resuelta_en).getTime() - new Date(a.abierta_en).getTime()) / 60000) : 0;
+    const duracion = minutos >= 60 ? `${Math.floor(minutos / 60)} h ${minutos % 60} min` : minutos > 0 ? `${minutos} min` : '—';
+    const datos: [string, string][] = [
+      ['INICIÓ', fechaHoraEnMexico(a.abierta_en)],
+      [resuelta ? 'ENCONTRADA' : 'ESTADO AL ANEXAR', fechaHoraEnMexico(a.resuelta_en || a.capturado_en)],
+      ['CORTES', String(a.cortes.length)],
+      ['DURACIÓN', resuelta ? duracion : 'En proceso'],
+    ];
+    const anchoDato = contentW / datos.length;
+    datos.forEach(([etiqueta, valor], i) => {
+      const x = MARGIN + i * anchoDato;
+      page.drawText(etiqueta, { x, y, size: 6.5, font: bold, color: GRAY_TEXT });
+      page.drawText(t(valor), { x, y: y - 12, size: 9.5, font: bold, color: NAVY, maxWidth: anchoDato - 8 });
+    });
+    y -= 30;
+
+    // ---- Bitácora de cortes ----
+    page.drawText('BITÁCORA DE CORTES', { x: MARGIN, y, size: 8, font: bold, color: NAVY });
+    y -= 6;
+    const columnas = [
+      { titulo: '#', ancho: 20 },
+      { titulo: 'HORA', ancho: 42 },
+      { titulo: 'ABRÍ A LA SALIDA DE', ancho: 0 },
+      { titulo: 'FALLA QUEDÓ', ancho: 62 },
+      { titulo: 'MEDICIÓN', ancho: 58 },
+      { titulo: 'SUGERIDO', ancho: 66 },
+      { titulo: 'QUEDABAN', ancho: 88 },
+    ];
+    const fijo = columnas.reduce((suma, c) => suma + c.ancho, 0);
+    columnas[2].ancho = contentW - fijo;
+    const xs: number[] = [];
+    columnas.reduce((x, c) => { xs.push(x); return x + c.ancho; }, MARGIN);
+
+    const encabezadoTabla = () => {
+      page.drawRectangle({ x: MARGIN, y: y - 14, width: contentW, height: 14, color: NAVY });
+      columnas.forEach((c, i) => page.drawText(c.titulo, { x: xs[i] + 4, y: y - 10, size: 6.5, font: bold, color: WHITE }));
+      y -= 14;
+    };
+    encabezadoTabla();
+
+    if (a.cortes.length === 0) {
+      page.drawText('No se registraron cortes.', { x: MARGIN + 4, y: y - 12, size: 8.5, font, color: GRAY_TEXT });
+      y -= 18;
+    }
+    a.cortes.forEach((c, k) => {
+      const celdas: { lineas: string[]; negrita?: boolean; color?: typeof NAVY; tam?: number }[] = [
+        { lineas: [String(c.numero)], negrita: true },
+        { lineas: [horaEnMexico(c.hecho_en)] },
+        {
+          lineas: c.donde
+            ? [...wrapText(t(etiquetaDispositivo(c.donde)), bold, 8, columnas[2].ancho - 8).slice(0, 2),
+              ...wrapText(t([c.donde.lugar, c.donde.ubicacion].filter(Boolean).join(' · ')), font, 7.5, columnas[2].ancho - 8).slice(0, 2)]
+            : ['(dispositivo borrado)'],
+        },
+        { lineas: [`Lado ${c.lado}`], negrita: true, color: c.lado === 'campo' ? AMBAR : NAVY },
+        { lineas: wrapText(t(c.medicion || '—'), font, 7.5, columnas[4].ancho - 8).slice(0, 2), tam: 7.5 },
+        { lineas: c.sugerido ? (c.siguioSugerencia ? ['Sí, el sugerido'] : wrapText(t(`No (era ${c.sugerido.direccion || c.sugerido.nombre})`), font, 7.5, columnas[5].ancho - 8).slice(0, 2)) : ['—'], tam: 7.5 },
+        { lineas: wrapText(t(`${c.quedan} ${c.quedan === 1 ? 'dispositivo' : 'dispositivos'}${c.tramo ? ` · ${c.tramo}` : ''}`), font, 7.5, columnas[6].ancho - 8).slice(0, 3), tam: 7.5 },
+      ];
+      const notas = c.notas ? wrapText(t(`Notas: ${c.notas}`), font, 7.5, contentW - xs[2] + MARGIN - 8).slice(0, 3) : [];
+      const alto = Math.max(...celdas.map((cel) => cel.lineas.length)) * 10 + notas.length * 9.5 + 8;
+      if (y - alto < BOTTOM) {
+        pie();
+        hoja++;
+        newPage();
+        encabezadoTabla();
+      }
+      if (k % 2 === 1) page.drawRectangle({ x: MARGIN, y: y - alto, width: contentW, height: alto, color: FONDO_TABLA });
+      celdas.forEach((cel, i) => {
+        cel.lineas.forEach((linea, j) => {
+          // En «Abrí a la salida de» la primera línea (el dispositivo) va en negritas.
+          const negrita = cel.negrita || (i === 2 && j === 0 && !!c.donde);
+          page.drawText(linea, { x: xs[i] + 4, y: y - 11 - j * 10, size: cel.tam || (i === 2 && j > 0 ? 7.5 : 8), font: negrita ? bold : font, color: cel.color || (i === 2 && j > 0 ? GRAY_TEXT : NAVY) });
+        });
+      });
+      const altoCeldas = Math.max(...celdas.map((cel) => cel.lineas.length)) * 10;
+      notas.forEach((linea, j) => {
+        page.drawText(linea, { x: xs[2] + 4, y: y - 11 - altoCeldas - j * 9.5, size: 7.5, font, color: GRAY_TEXT });
+      });
+      y -= alto;
+      page.drawLine({ start: { x: MARGIN, y }, end: { x: PAGE_W - MARGIN, y }, thickness: 0.4, color: GRAY_LINE });
+    });
+    y -= 8;
+    const nota = '«Sugerido»: el corte que la app recomendaba en ese momento para partir a la mitad lo que quedaba. «Quedaban»: dispositivos donde todavía podía estar la falla después del corte.';
+    for (const linea of wrapText(t(nota), font, 6.5, contentW)) {
+      page.drawText(linea, { x: MARGIN, y, size: 6.5, font, color: GRAY_TEXT });
+      y -= 8.5;
+    }
+    y -= 10;
+
+    // ---- Fotos ----
+    const fotos: { path: string; caption: string }[] = [];
+    if (a.foto_path) fotos.push({ path: a.foto_path, caption: `Falla encontrada${a.encontrada ? ` · ${etiquetaDispositivo(a.encontrada)}` : ''}${a.causa ? ` · ${a.causa}` : ''}` });
+    for (const c of a.cortes) {
+      if (c.foto_path) fotos.push({ path: c.foto_path, caption: `Corte ${c.numero} · ${c.donde ? etiquetaDispositivo(c.donde) : ''} · falla del lado ${c.lado}${c.medicion ? ` · ${c.medicion}` : ''}` });
+    }
+    const items: ItemPdf[] = [];
+    if (supabase) {
+      for (const f of fotos) {
+        try {
+          const { data: blob, error: dlErr } = await supabase.storage.from('evidencias').download(f.path);
+          if (dlErr || !blob) continue;
+          items.push({ bytes: new Uint8Array(await blob.arrayBuffer()), caption: t(f.caption) });
+        } catch {
+          // si una foto falla, se omite y se sigue con las demás
+        }
+      }
+    }
+    if (items.length > 0) {
+      espacio(40);
+      page.drawText('EVIDENCIA FOTOGRÁFICA', { x: MARGIN, y, size: 8, font: bold, color: NAVY });
+      y -= 12;
+      await dibujarEvidencias({
+        pdfDoc, fuentes: { font, bold, display }, x: MARGIN, ancho: contentW,
+        pagina: () => page, y: () => y, fijarY: (v) => { y = v; },
+        espacio,
+        altoHoja: PAGE_H - MARGIN - BOTTOM,
+      }, items);
+    }
+    pie();
   }
 
   // Anexo de evidencia: mismo encabezado que los formatos, con el resumen de

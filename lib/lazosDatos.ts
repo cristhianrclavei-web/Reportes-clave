@@ -3,6 +3,7 @@
 import { createClient } from './supabaseClient';
 import { reducirFoto } from './reducirFoto';
 import type { Cambio, Corte, Elemento, Falla, Lazo, TipoCircuito } from './lazos';
+import { AnexoFallaTierra, resumirBusqueda } from './anexoFallaTierra';
 
 // Datos de lazos y circuitos (supabase/patch_lazos.sql).
 //
@@ -359,6 +360,10 @@ export function subirFotoElemento(elemento: Elemento, archivo: File): Promise<st
   return subirFoto(elemento.lazo_id, elemento.id, archivo, 'La foto necesita señal. Puedes agregarla después desde la ficha del dispositivo.');
 }
 
+export function subirFotoCorte(lazoId: string, corte: Corte, archivo: File): Promise<string> {
+  return subirFoto(lazoId, `corte-${corte.id}`, archivo, 'La foto necesita señal. Intenta cuando tengas señal, o quítala para guardar el corte sin foto.');
+}
+
 export function subirFotoFalla(falla: Falla, archivo: File): Promise<string> {
   return subirFoto(falla.lazo_id, `falla-${falla.id}`, archivo, 'La foto necesita señal. Intenta cuando tengas señal, o quítala para cerrar sin foto.');
 }
@@ -367,4 +372,85 @@ export async function urlFotoElemento(path: string): Promise<string | null> {
   const { data, error } = await createClient().storage.from('evidencias').createSignedUrl(path, 3600);
   if (error) return null;
   return data.signedUrl;
+}
+
+// ---------- Búsquedas para la tarjeta del lazo y el reporte ----------
+
+// Cortes de una búsqueda (abierta o ya cerrada), en el orden en que se hicieron.
+export async function cortesDeFalla(fallaId: string): Promise<Corte[]> {
+  const { data, error } = await createClient().from('lazo_cortes').select('*').eq('falla_id', fallaId).order('creado_en');
+  if (error) throw new Error(mensajeError(error, 'cargar los cortes'));
+  return (data as Corte[]) || [];
+}
+
+const DIAS_RECIENTES = 30;
+
+// Búsquedas de falla de los lazos de un cliente para anexarlas al reporte:
+// las abiertas y las cerradas en los últimos 30 días, ya resumidas.
+// Sin señal se usan las copias locales de los lazos que se abrieron en este
+// teléfono (solo traen la búsqueda abierta).
+export async function busquedasDelCliente(clienteId: string): Promise<{ busquedas: AnexoFallaTierra[]; sinConexion: boolean }> {
+  const supabase = createClient();
+  const ahora = new Date().toISOString();
+
+  const rLazos = await supabase.from('lazos').select('*').eq('cliente_id', clienteId);
+  if (rLazos.error) {
+    if (esErrorDeRed(rLazos.error)) return { busquedas: busquedasLocales(clienteId, ahora), sinConexion: true };
+    throw new Error(mensajeError(rLazos.error, 'cargar los lazos del cliente'));
+  }
+  const lazos = (rLazos.data as Lazo[]) || [];
+  if (lazos.length === 0) return { busquedas: [], sinConexion: false };
+  const lazoIds = lazos.map((l) => l.id);
+
+  const desde = new Date(Date.now() - DIAS_RECIENTES * 24 * 3600 * 1000).toISOString();
+  const rFallas = await supabase
+    .from('lazo_fallas')
+    .select('*')
+    .in('lazo_id', lazoIds)
+    .or(`estado.eq.abierta,resuelta_en.gte.${desde}`)
+    .order('abierta_en', { ascending: false });
+  if (rFallas.error) {
+    if (esErrorDeRed(rFallas.error)) return { busquedas: busquedasLocales(clienteId, ahora), sinConexion: true };
+    throw new Error(mensajeError(rFallas.error, 'cargar las búsquedas de falla'));
+  }
+  const fallas = (rFallas.data as Falla[]) || [];
+  if (fallas.length === 0) return { busquedas: [], sinConexion: false };
+
+  const lazosConFalla = [...new Set(fallas.map((f) => f.lazo_id))];
+  const [rElementos, rCortes] = await Promise.all([
+    supabase.from('lazo_elementos').select('*').in('lazo_id', lazosConFalla),
+    supabase.from('lazo_cortes').select('*').in('falla_id', fallas.map((f) => f.id)),
+  ]);
+  const errorDetalle = rElementos.error || rCortes.error;
+  if (errorDetalle) {
+    if (esErrorDeRed(errorDetalle)) return { busquedas: busquedasLocales(clienteId, ahora), sinConexion: true };
+    throw new Error(mensajeError(errorDetalle, 'cargar los cortes'));
+  }
+  const elementos = (rElementos.data as Elemento[]) || [];
+  const cortes = (rCortes.data as Corte[]) || [];
+
+  const busquedas = fallas.map((falla) => {
+    const lazo = lazos.find((l) => l.id === falla.lazo_id) as Lazo;
+    return resumirBusqueda(
+      lazo,
+      elementos.filter((e) => e.lazo_id === lazo.id),
+      falla,
+      cortes.filter((c) => c.falla_id === falla.id),
+      ahora,
+    );
+  });
+  return { busquedas, sinConexion: false };
+}
+
+function busquedasLocales(clienteId: string, ahora: string): AnexoFallaTierra[] {
+  const lista = leerLocal<LazoResumen[]>(CLAVE_LISTA) || [];
+  const resultado: AnexoFallaTierra[] = [];
+  for (const lazo of lista.filter((l) => l.cliente_id === clienteId)) {
+    const copia = leerLocal<DatosLazo>(clavePaquete(lazo.id));
+    if (!copia) continue;
+    const datos = aplicarPendientes(copia);
+    if (!datos.falla) continue;
+    resultado.push(resumirBusqueda(datos.lazo, datos.elementos, datos.falla, datos.cortes, ahora));
+  }
+  return resultado;
 }

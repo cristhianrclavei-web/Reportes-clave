@@ -1,5 +1,7 @@
 'use client';
 
+import ResumenFallaTierra from '@/components/lazos/ResumenFallaTierra';
+import { anexosDeReporte } from '@/lib/anexoFallaTierra';
 import { avisar, confirmar } from '@/lib/dialogos';
 import TablaEquiposInstalados from '@/components/reporte/TablaEquiposInstalados';
 import VisorVideo, { MarcaVideo } from '@/components/VisorVideo';
@@ -705,6 +707,18 @@ export default function ReportDetailModal({
         {(report.data?.formatosMtto || []).length > 0 && (
           <Section title="Formato de mantenimiento preventivo">
             <ResumenFormatos formatos={report.data.formatosMtto} />
+          </Section>
+        )}
+
+        {anexosDeReporte(report.data?.fallasTierra).length > 0 && (
+          <Section title="Búsqueda de falla a tierra">
+            <div className="flex flex-col gap-3">
+              {anexosDeReporte(report.data?.fallasTierra).map((anexo) => (
+                <div key={anexo.falla_id} className="rounded-2xl border border-line p-3">
+                  <ResumenFallaTierra anexo={anexo} />
+                </div>
+              ))}
+            </div>
           </Section>
         )}
 

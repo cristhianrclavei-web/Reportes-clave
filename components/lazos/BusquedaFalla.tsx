@@ -1,7 +1,7 @@
 'use client';
 
-import { useRef, useState } from 'react';
-import { AlertTriangle, Camera, CheckCircle2, Image as IconoGaleria, Plus, Scissors, Trash2, X } from 'lucide-react';
+import { useState } from 'react';
+import { AlertTriangle, CheckCircle2, ChevronDown, FileText, Plus, Scissors, Trash2 } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
 import DiagramaLazo, { EstadoEnFalla } from '@/components/lazos/DiagramaLazo';
 import { confirmar } from '@/lib/dialogos';
@@ -12,7 +12,10 @@ import {
 } from '@/lib/lazos';
 import ElegirDispositivo from '@/components/lazos/ElegirDispositivo';
 import VerFoto from '@/components/lazos/VerFoto';
-import { ResultadoGuardar, borrarCorte, guardarCorte, guardarFalla, subirFotoFalla } from '@/lib/lazosDatos';
+import { ResultadoGuardar, borrarCorte, cortesDeFalla, guardarCorte, guardarFalla, subirFotoCorte, subirFotoFalla } from '@/lib/lazosDatos';
+import CampoFoto from '@/components/lazos/CampoFoto';
+import ResumenFallaTierra from '@/components/lazos/ResumenFallaTierra';
+import { resumirBusqueda } from '@/lib/anexoFallaTierra';
 
 // Búsqueda de falla a tierra seccionando el lazo. Cada corte dice dónde se
 // abrió (a la salida de qué dispositivo, en la línea o dentro de una rama) y
@@ -32,7 +35,8 @@ function fecha(iso: string | null): string {
   return new Date(iso).toLocaleString('es-MX', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-// Fallas ya encontradas en este lazo: cuándo, dónde, por qué y su foto.
+// Fallas ya encontradas en este lazo. Cada tarjeta muestra lo esencial y se
+// despliega para ver la bitácora completa de cortes.
 function FallasEncontradas({ lazo, elementos, resueltas, onTocar }: {
   lazo: Lazo;
   elementos: Elemento[];
@@ -44,29 +48,67 @@ function FallasEncontradas({ lazo, elementos, resueltas, onTocar }: {
       <h3 className="text-[12px] font-semibold uppercase tracking-[0.08em] text-muted mb-2">Fallas encontradas</h3>
       {resueltas.length === 0 && <p className="text-[13px] text-muted">Todavía no se ha cerrado ninguna búsqueda en este lazo.</p>}
       <ul className="flex flex-col gap-2">
-        {resueltas.map((f) => {
-          const elemento = elementos.find((e) => e.id === f.elemento_id) || null;
-          return (
-            <li key={f.id} className="rounded-xl bg-surface border border-line p-3 text-[13.5px]">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="font-semibold text-amber">{fecha(f.resuelta_en)}</span>
-              </div>
-              <p className="mt-1">
-                <span className="text-muted">Dónde: </span>
-                {elemento ? (
-                  <button type="button" onClick={() => onTocar(elemento)} className="font-mono underline decoration-dotted underline-offset-2">
-                    {conDireccion(elemento, lazo)}
-                  </button>
-                ) : f.elemento_id ? 'un dispositivo que ya se borró' : 'en el cable, entre dispositivos'}
-              </p>
-              {elemento?.ubicacion && <p className="text-muted text-[12.5px]">{elemento.ubicacion}</p>}
-              {f.causa && <p className="mt-1"><span className="text-muted">Causa: </span>{f.causa}</p>}
-              {f.foto_path && <VerFoto path={f.foto_path} />}
-            </li>
-          );
-        })}
+        {resueltas.map((f) => <TarjetaFalla key={f.id} lazo={lazo} elementos={elementos} falla={f} onTocar={onTocar} />)}
       </ul>
     </div>
+  );
+}
+
+function TarjetaFalla({ lazo, elementos, falla, onTocar }: {
+  lazo: Lazo;
+  elementos: Elemento[];
+  falla: Falla;
+  onTocar: (elemento: Elemento) => void;
+}) {
+  const [abierta, setAbierta] = useState(false);
+  const [cortes, setCortes] = useState<Corte[] | null>(null);
+  const [cargando, setCargando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const elemento = elementos.find((e) => e.id === falla.elemento_id) || null;
+
+  async function alternar() {
+    const abrir = !abierta;
+    setAbierta(abrir);
+    if (!abrir || cortes) return;
+    setCargando(true);
+    setError(null);
+    try {
+      setCortes(await cortesDeFalla(falla.id));
+    } catch (e: any) {
+      setError(`${e?.message || 'No se pudieron cargar los cortes.'} Revisa tu señal y vuelve a intentar.`);
+      setAbierta(false);
+    }
+    setCargando(false);
+  }
+
+  return (
+    <li className="rounded-xl bg-surface border border-line p-3 text-[13.5px]">
+      <span className="font-semibold text-amber">{fecha(falla.resuelta_en)}</span>
+      <p className="mt-1">
+        <span className="text-muted">Dónde: </span>
+        {elemento ? (
+          <button type="button" onClick={() => onTocar(elemento)} className="font-mono underline decoration-dotted underline-offset-2">
+            {conDireccion(elemento, lazo)}
+          </button>
+        ) : falla.elemento_id ? 'un dispositivo que ya se borró' : 'en el cable, entre dispositivos'}
+      </p>
+      {elemento?.ubicacion && <p className="text-muted text-[12.5px]">{elemento.ubicacion}</p>}
+      {falla.causa && <p className="mt-1"><span className="text-muted">Causa: </span>{falla.causa}</p>}
+      {!abierta && falla.foto_path && <VerFoto path={falla.foto_path} />}
+
+      <button type="button" onClick={alternar} aria-expanded={abierta}
+        className="mt-2.5 w-full min-h-[42px] rounded-lg bg-surface-2 border border-line text-[13px] font-semibold flex items-center justify-center gap-1.5">
+        <FileText size={15} strokeWidth={2.2} />
+        {cargando ? 'Cargando…' : abierta ? 'Ocultar bitácora' : 'Ver bitácora de la búsqueda'}
+        <ChevronDown size={15} strokeWidth={2.4} className={`transition-transform ${abierta ? 'rotate-180' : ''}`} />
+      </button>
+      {error && <p className="text-red text-[12.5px] mt-1.5">{error}</p>}
+      {abierta && cortes && (
+        <div className="mt-3 pt-3 border-t border-line">
+          <ResumenFallaTierra anexo={resumirBusqueda(lazo, elementos, falla, cortes, falla.resuelta_en || falla.abierta_en)} conEncabezado={false} />
+        </div>
+      )}
+    </li>
   );
 }
 
@@ -209,6 +251,9 @@ export default function BusquedaFalla({ lazo, elementos, falla, cortes, resuelta
               ? 'Todavía sin cortes: la falla puede estar en todo el lazo'
               : `Tramo con falla · ${zona.ids.size} ${zona.ids.size === 1 ? 'dispositivo' : 'dispositivos'} · ${textoPosiciones}`}
           </p>
+          {!unoSolo && !elementoSugerido && validos.length > 0 && zona.ids.size > 1 && (
+            <p className="text-[13px] mt-2 text-muted">No hay un corte a la salida de un dispositivo que los separe (por ejemplo, ramas en estrella): desconecta y mide cada rama por separado.</p>
+          )}
           {unoSolo ? (
             <p className="text-[13.5px] mt-2">La falla está en <span className="font-mono">{conDireccion(unoSolo, lazo)}</span> o en el cable que llega a él. Revisa su cableado y su caja.</p>
           ) : elementoSugerido && (
@@ -244,6 +289,7 @@ export default function BusquedaFalla({ lazo, elementos, falla, cortes, resuelta
                   <p className="text-muted text-[12.5px]">
                     La falla quedó del lado {c.lado}{c.medicion ? ` · ${c.medicion}` : ''}{c.notas ? ` · ${c.notas}` : ''}
                   </p>
+                  {c.foto_path && <VerFoto path={c.foto_path} texto="Ver foto del corte" />}
                 </div>
                 <span className="text-[11.5px] text-faint shrink-0">{hora(c.creado_en)}</span>
                 <button type="button" onClick={() => quitarCorte(c)} aria-label={`Quitar el corte ${c.numero}`} className="w-8 h-8 -m-1 rounded-full flex items-center justify-center text-faint hover:text-red shrink-0">
@@ -254,6 +300,11 @@ export default function BusquedaFalla({ lazo, elementos, falla, cortes, resuelta
           })}
         </ul>
       </div>
+
+      <p className="flex gap-2 rounded-2xl bg-surface border border-line p-3 text-[12.5px] text-muted">
+        <FileText size={16} strokeWidth={2.2} className="shrink-0 text-teal mt-0.5" />
+        <span>Para que quede en tu reporte: en el reporte de servicio de este cliente, paso «Evidencia», toca «Anexar búsqueda» en «Falla a tierra». Se anexa aunque todavía no la encuentres.</span>
+      </p>
 
       {error && <p className="text-red font-semibold text-[13px]">{error}</p>}
 
@@ -305,7 +356,8 @@ function RegistrarCorte({ lazo, elementos, falla, sugeridoId, zona, onCerrar, on
   const [lado, setLado] = useState<'panel' | 'campo' | null>(null);
   const [medicion, setMedicion] = useState('');
   const [notas, setNotas] = useState('');
-  const [errores, setErrores] = useState<Partial<Record<'elemento' | 'lado' | 'general', string>>>({});
+  const [foto, setFoto] = useState<File | null>(null);
+  const [errores, setErrores] = useState<Partial<Record<'elemento' | 'lado' | 'foto' | 'general', string>>>({});
   const [guardando, setGuardando] = useState(false);
 
   async function guardar() {
@@ -320,6 +372,17 @@ function RegistrarCorte({ lazo, elementos, falla, sugeridoId, zona, onCerrar, on
       medicion: medicion.trim() || null, notas: notas.trim() || null,
       creado_en: new Date().toISOString(),
     };
+    // La foto sube primero (necesita señal). Si no sube, el corte no se
+    // guarda todavía: se avisa y el técnico reintenta o la quita.
+    if (foto) {
+      try {
+        corte.foto_path = await subirFotoCorte(lazo.id, corte, foto);
+      } catch (err: any) {
+        setErrores({ foto: err?.message || 'No se pudo subir la foto. Intenta de nuevo o quítala.' });
+        setGuardando(false);
+        return;
+      }
+    }
     try {
       const resultado = await guardarCorte(lazo.id, corte);
       onGuardado(corte, resultado);
@@ -367,6 +430,11 @@ function RegistrarCorte({ lazo, elementos, falla, sugeridoId, zona, onCerrar, on
           </div>
         </div>
 
+        <div className="mt-3">
+          <CampoFoto titulo="Foto del corte (opcional)" archivo={foto}
+            onCambiar={(a) => { setFoto(a); setErrores((e) => ({ ...e, foto: undefined })); }} error={errores.foto} />
+        </div>
+
         {errores.general && <p className="text-red font-semibold text-[13px] mt-3">{errores.general}</p>}
 
         <div className="flex gap-2 mt-4">
@@ -392,18 +460,11 @@ function ResolverFalla({ lazo, elementos, falla, sugeridoId, zona, onCerrar, onG
   const [elementoId, setElementoId] = useState(sugeridoId || '');
   const [causa, setCausa] = useState('');
   const [foto, setFoto] = useState<File | null>(null);
-  const [vistaFoto, setVistaFoto] = useState<string | null>(null);
-  // Dos entradas: con `capture` el teléfono abre directo la cámara y no deja
-  // elegir de la galería, así que la galería va en su propio botón.
-  const entradaCamara = useRef<HTMLInputElement | null>(null);
-  const entradaGaleria = useRef<HTMLInputElement | null>(null);
   const [errores, setErrores] = useState<Partial<Record<'causa' | 'foto' | 'general', string>>>({});
   const [guardando, setGuardando] = useState(false);
 
   function elegirFoto(archivo: File | null) {
-    if (vistaFoto) URL.revokeObjectURL(vistaFoto);
     setFoto(archivo);
-    setVistaFoto(archivo ? URL.createObjectURL(archivo) : null);
     setErrores((e) => ({ ...e, foto: undefined }));
   }
 
@@ -462,32 +523,9 @@ function ResolverFalla({ lazo, elementos, falla, sugeridoId, zona, onCerrar, onG
           placeholder="Agua en la caja, cable pellizcado en la charola…" className={`${CAMPO} py-2.5`} />
         {errores.causa && <p className="text-red font-semibold text-[13px] mt-1">{errores.causa}</p>}
 
-        <span className="block text-[12.5px] text-muted mt-3 mb-1">Foto de evidencia (opcional)</span>
-        {vistaFoto ? (
-          <div className="relative rounded-xl overflow-hidden border border-line">
-            <img src={vistaFoto} alt="Foto de evidencia" className="w-full max-h-[200px] object-cover" />
-            <button type="button" onClick={() => elegirFoto(null)} aria-label="Quitar la foto"
-              className="absolute top-2 right-2 w-9 h-9 rounded-full bg-bg/80 flex items-center justify-center">
-              <X size={18} strokeWidth={2.4} />
-            </button>
-          </div>
-        ) : (
-          <div className="flex gap-2">
-            <button type="button" onClick={() => entradaCamara.current?.click()}
-              className="flex-1 min-h-[50px] rounded-xl border border-dashed border-line-strong bg-surface-2 text-[14px] font-medium flex items-center justify-center gap-2">
-              <Camera size={18} strokeWidth={2.2} /> Cámara
-            </button>
-            <button type="button" onClick={() => entradaGaleria.current?.click()}
-              className="flex-1 min-h-[50px] rounded-xl border border-dashed border-line-strong bg-surface-2 text-[14px] font-medium flex items-center justify-center gap-2">
-              <IconoGaleria size={18} strokeWidth={2.2} /> Galería
-            </button>
-          </div>
-        )}
-        <input ref={entradaCamara} type="file" accept="image/*" capture="environment" className="hidden"
-          onChange={(ev) => { elegirFoto(ev.target.files?.[0] || null); ev.target.value = ''; }} />
-        <input ref={entradaGaleria} type="file" accept="image/*" className="hidden"
-          onChange={(ev) => { elegirFoto(ev.target.files?.[0] || null); ev.target.value = ''; }} />
-        {errores.foto && <p className="text-red font-semibold text-[13px] mt-1">{errores.foto}</p>}
+        <div className="mt-3">
+          <CampoFoto titulo="Foto de evidencia (opcional)" archivo={foto} onCambiar={elegirFoto} error={errores.foto} />
+        </div>
 
         {errores.general && <p className="text-red font-semibold text-[13px] mt-2">{errores.general}</p>}
 

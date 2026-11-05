@@ -51,6 +51,8 @@ export type Corte = {
   lado: 'panel' | 'campo';
   medicion: string | null;
   notas: string | null;
+  // Foto de evidencia del corte (patch_lazos_corte_foto.sql).
+  foto_path?: string | null;
   creado_en: string;
 };
 
