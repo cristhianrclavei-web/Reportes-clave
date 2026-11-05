@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, ChevronLeft, CloudUpload, History, Plus, Settings2, WifiOff } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, CloudUpload, FileDown, History, Plus, Settings2, WifiOff } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
 import DiagramaLazo, { Simbolo } from '@/components/lazos/DiagramaLazo';
@@ -293,9 +293,24 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
         )}
 
         {vista === 'diagrama' && (
-          <div className="rounded-2xl bg-surface border border-line p-3 overflow-x-auto">
-            <DiagramaLazo lazo={lazo} elementos={elementos} onTocar={abrirFicha} />
-          </div>
+          <>
+            <div className="flex justify-end mb-2">
+              {/* Necesita señal: el PDF se arma en el servidor. */}
+              <a href={`/api/lazos/${lazo.id}/pdf`} target="_blank" rel="noopener noreferrer"
+                onClick={(ev) => {
+                  if (!navigator.onLine) {
+                    ev.preventDefault();
+                    showToast('El PDF necesita señal. Intenta cuando tengas conexión.');
+                  }
+                }}
+                className="min-h-[42px] px-3.5 rounded-xl border border-line bg-surface-2 text-[13.5px] font-semibold flex items-center gap-1.5">
+                <FileDown size={16} strokeWidth={2.2} /> Exportar PDF
+              </a>
+            </div>
+            <div className="rounded-2xl bg-surface border border-line p-3 overflow-x-auto">
+              <DiagramaLazo lazo={lazo} elementos={elementos} onTocar={abrirFicha} />
+            </div>
+          </>
         )}
 
         {vista === 'falla' && (

@@ -18,6 +18,7 @@ const SECCION_LAZOS: SeccionManual = {
         'Si algo cuelga del dispositivo anterior (la corneta de un módulo, una derivación), toca «Colgar de…»; para seguir con la línea principal, «Volver a la línea».',
         'Si la dirección ya la tiene otro dispositivo del lazo, la app te avisa antes de guardar.',
         'Toca cualquier dispositivo (en la lista o en el diagrama) para ver su ficha: dónde está, de cuál viene y a cuál sigue. Desde ahí lo corriges, insertas otro antes o después, cuelgas otro o lo borras.',
+        'En la pestaña «Diagrama», «Exportar PDF» descarga el diagrama unifilar en hoja carta horizontal, con los símbolos usados y la lista de dispositivos (lugar, dirección, tipo, ubicación y de cuál cuelga). Necesita señal.',
       ],
       nota: 'Sin señal se guarda en el teléfono y sube solo al volver la conexión (la foto sí necesita señal).',
     },
