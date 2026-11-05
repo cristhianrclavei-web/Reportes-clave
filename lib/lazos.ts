@@ -228,37 +228,97 @@ export function siguienteDireccion(letra: 'D' | 'M', elementos: Elemento[]): num
 
 // ---------- Búsqueda de falla a tierra ----------
 
-export type Tramo = {
-  desde: number;
-  hasta: number;
-  // Dos cortes se contradicen (p. ej. la falla se movió o se anotó mal un lado).
+// Recorrido del lazo como en la lista: cada dispositivo de la línea
+// principal y enseguida todo lo que cuelga de él (rama por rama).
+export function enOrdenDeRecorrido(elementos: Elemento[]): Elemento[] {
+  const resultado: Elemento[] = [];
+  function agregar(e: Elemento, vueltas: number) {
+    resultado.push(e);
+    if (vueltas > 50) return; // por si algún dato quedara en ciclo
+    for (const hijo of hijosDe(elementos, e.id)) agregar(hijo, vueltas + 1);
+  }
+  for (const e of lineaPrincipal(elementos)) agregar(e, 0);
+  return resultado;
+}
+
+// Todo lo que cuelga de un dispositivo, en cualquier nivel.
+function descendientesDe(elementos: Elemento[], id: string): string[] {
+  const resultado: string[] = [];
+  for (const hijo of hijosDe(elementos, id)) {
+    resultado.push(hijo.id, ...descendientesDe(elementos, hijo.id));
+  }
+  return resultado;
+}
+
+// Qué queda del lado campo al abrir el lazo a la salida de un dispositivo.
+// - En la línea principal: lo que sigue en la línea y sus ramas (las ramas
+//   del propio dispositivo se quedan del lado panel, salen antes del corte).
+// - En una rama: lo que cuelga de él.
+export function ladoCampo(elementos: Elemento[], elemento: Elemento): Set<string> {
+  const campo = new Set<string>();
+  if (elemento.padre_id) {
+    for (const id of descendientesDe(elementos, elemento.id)) campo.add(id);
+    return campo;
+  }
+  const principal = lineaPrincipal(elementos);
+  const indice = principal.findIndex((e) => e.id === elemento.id);
+  for (const siguiente of principal.slice(indice + 1)) {
+    campo.add(siguiente.id);
+    for (const id of descendientesDe(elementos, siguiente.id)) campo.add(id);
+  }
+  return campo;
+}
+
+export type ZonaFalla = {
+  // Dispositivos donde todavía puede estar la falla.
+  ids: Set<string>;
+  // Los cortes se contradicen (p. ej. se anotó mal un lado o hay dos fallas).
   contradictorio: boolean;
 };
 
-// Tramo donde está la falla después de los cortes, en orden de captura.
-// Cortar a la salida de la posición k deja 1…k del lado panel y k+1…n del
-// lado campo.
-export function tramoConFalla(total: number, cortes: { posicion: number; lado: 'panel' | 'campo' }[]): Tramo {
-  let desde = 1;
-  let hasta = total;
+// Dónde puede estar la falla después de los cortes. Cada corte con la falla
+// del lado campo deja solo lo de ese lado; del lado panel, lo quita.
+export function zonaConFalla(elementos: Elemento[], cortes: { elementoId: string; lado: 'panel' | 'campo' }[]): ZonaFalla {
+  let ids = new Set(elementos.map((e) => e.id));
   for (const corte of cortes) {
-    if (corte.lado === 'campo') desde = Math.max(desde, corte.posicion + 1);
-    else hasta = Math.min(hasta, corte.posicion);
+    const elemento = elementos.find((e) => e.id === corte.elementoId);
+    if (!elemento) continue;
+    const campo = ladoCampo(elementos, elemento);
+    const quedan = new Set<string>();
+    for (const id of ids) {
+      const estaEnCampo = campo.has(id);
+      if (corte.lado === 'campo' && estaEnCampo) quedan.add(id);
+      if (corte.lado === 'panel' && !estaEnCampo) quedan.add(id);
+    }
+    ids = quedan;
   }
-  if (desde > hasta) return { desde: hasta, hasta: desde, contradictorio: true };
-  return { desde, hasta, contradictorio: false };
+  return { ids, contradictorio: ids.size === 0 };
 }
 
-// Dónde conviene cortar: a la salida de la posición que parte el tramo a la
-// mitad. null si ya queda un solo dispositivo.
-export function corteSugerido(tramo: Tramo): number | null {
-  if (tramo.contradictorio || tramo.hasta <= tramo.desde) return null;
-  return Math.floor((tramo.desde + tramo.hasta - 1) / 2);
+// Dónde conviene cortar: el dispositivo que parte la zona lo más cerca
+// posible de la mitad, ya sea en la línea principal o dentro de una rama.
+// null si ya queda un solo dispositivo.
+export function corteSugerido(elementos: Elemento[], zona: ZonaFalla): Elemento | null {
+  if (zona.contradictorio || zona.ids.size <= 1) return null;
+  let mejor: Elemento | null = null;
+  let mejorLadoMayor = Infinity;
+  for (const elemento of enOrdenDeRecorrido(elementos)) {
+    let enCampo = 0;
+    for (const id of ladoCampo(elementos, elemento)) if (zona.ids.has(id)) enCampo++;
+    const enPanel = zona.ids.size - enCampo;
+    // Un corte que deja todo de un solo lado no enseña nada.
+    if (enCampo === 0 || enPanel === 0) continue;
+    const ladoMayor = Math.max(enCampo, enPanel);
+    if (ladoMayor < mejorLadoMayor) {
+      mejor = elemento;
+      mejorLadoMayor = ladoMayor;
+    }
+  }
+  return mejor;
 }
 
 // Cuántos cortes más, como máximo, para llegar a un solo dispositivo.
-export function cortesRestantes(tramo: Tramo): number {
-  const cuantos = tramo.hasta - tramo.desde + 1;
+export function cortesRestantes(cuantos: number): number {
   if (cuantos <= 1) return 0;
   return Math.ceil(Math.log2(cuantos));
 }

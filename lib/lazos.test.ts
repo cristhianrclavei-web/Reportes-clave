@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  Cambio, Elemento, corteSugerido, describirCambio, cortesRestantes, direccionOcupada, direccionVisible, lineaPrincipal,
-  nombreSugerido, normalizarDireccion, ordenEntre, posiciones, siguienteDireccion, tramoConFalla,
+  Cambio, Elemento, corteSugerido, describirCambio, cortesRestantes, direccionOcupada, direccionVisible, enOrdenDeRecorrido, lineaPrincipal,
+  nombreSugerido, normalizarDireccion, ordenEntre, posiciones, siguienteDireccion, zonaConFalla,
 } from './lazos';
 
 function el(id: string, orden: number, extra: Partial<Elemento> = {}): Elemento {
@@ -63,34 +63,64 @@ describe('nombres y direcciones', () => {
 });
 
 describe('búsqueda de falla a tierra', () => {
-  it('sin cortes el tramo es todo el lazo y sugiere cortar a la mitad', () => {
-    const tramo = tramoConFalla(34, []);
-    expect(tramo).toEqual({ desde: 1, hasta: 34, contradictorio: false });
-    expect(corteSugerido(tramo)).toBe(17);
-    expect(cortesRestantes(tramo)).toBe(6);
+  // Línea de 1 a n, sin ramas.
+  function linea(n: number): Elemento[] {
+    return Array.from({ length: n }, (_, i) => el(`p${i + 1}`, i + 1));
+  }
+  const ids = (zona: { ids: Set<string> }) => [...zona.ids].sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
+
+  it('sin cortes la falla puede estar en todo el lazo y sugiere cortar a la mitad', () => {
+    const lista = linea(34);
+    const zona = zonaConFalla(lista, []);
+    expect(zona.ids.size).toBe(34);
+    expect(corteSugerido(lista, zona)?.id).toBe('p17');
+    expect(cortesRestantes(zona.ids.size)).toBe(6);
   });
 
-  it('acota el tramo con cada corte', () => {
-    const tramo = tramoConFalla(34, [
-      { posicion: 17, lado: 'campo' },
-      { posicion: 26, lado: 'panel' },
-      { posicion: 22, lado: 'campo' },
+  it('acota la zona con cada corte en la línea principal', () => {
+    const lista = linea(34);
+    const zona = zonaConFalla(lista, [
+      { elementoId: 'p17', lado: 'campo' },
+      { elementoId: 'p26', lado: 'panel' },
+      { elementoId: 'p22', lado: 'campo' },
     ]);
-    expect(tramo).toEqual({ desde: 23, hasta: 26, contradictorio: false });
-    expect(corteSugerido(tramo)).toBe(24);
-    expect(cortesRestantes(tramo)).toBe(2);
+    expect(ids(zona)).toEqual(['p23', 'p24', 'p25', 'p26']);
+    expect(corteSugerido(lista, zona)?.id).toBe('p24');
+    expect(cortesRestantes(zona.ids.size)).toBe(2);
   });
 
   it('con un solo dispositivo ya no sugiere corte', () => {
-    const tramo = tramoConFalla(10, [{ posicion: 4, lado: 'campo' }, { posicion: 5, lado: 'panel' }]);
-    expect(tramo).toEqual({ desde: 5, hasta: 5, contradictorio: false });
-    expect(corteSugerido(tramo)).toBeNull();
+    const lista = linea(10);
+    const zona = zonaConFalla(lista, [{ elementoId: 'p4', lado: 'campo' }, { elementoId: 'p5', lado: 'panel' }]);
+    expect(ids(zona)).toEqual(['p5']);
+    expect(corteSugerido(lista, zona)).toBeNull();
   });
 
   it('marca cortes que se contradicen', () => {
-    const tramo = tramoConFalla(10, [{ posicion: 6, lado: 'campo' }, { posicion: 3, lado: 'panel' }]);
-    expect(tramo.contradictorio).toBe(true);
-    expect(corteSugerido(tramo)).toBeNull();
+    const lista = linea(10);
+    const zona = zonaConFalla(lista, [{ elementoId: 'p6', lado: 'campo' }, { elementoId: 'p3', lado: 'panel' }]);
+    expect(zona.contradictorio).toBe(true);
+    expect(corteSugerido(lista, zona)).toBeNull();
+  });
+
+  it('permite cortar dentro de una rama', () => {
+    // p1 — p2 — p3; de p2 cuelgan dos ramas: a1→a2→a3 y b1.
+    const lista = [
+      el('p1', 1), el('p2', 2), el('p3', 3),
+      el('a1', 1, { padre_id: 'p2' }), el('a2', 1, { padre_id: 'a1' }), el('a3', 1, { padre_id: 'a2' }),
+      el('b1', 2, { padre_id: 'p2' }),
+    ];
+    expect(enOrdenDeRecorrido(lista).map((e) => e.id)).toEqual(['p1', 'p2', 'a1', 'a2', 'a3', 'b1', 'p3']);
+
+    // Abrir la salida de p2 en la línea: sus ramas quedan del lado panel.
+    const sinP3 = zonaConFalla(lista, [{ elementoId: 'p2', lado: 'panel' }]);
+    expect(sinP3.ids.has('p3')).toBe(false);
+    expect(sinP3.ids.has('a3')).toBe(true);
+
+    // Abrir dentro de la rama: la falla después de a1 deja solo a2 y a3.
+    const enRama = zonaConFalla(lista, [{ elementoId: 'a1', lado: 'campo' }]);
+    expect([...enRama.ids].sort()).toEqual(['a2', 'a3']);
+    expect(corteSugerido(lista, enRama)?.id).toBe('a2');
   });
 });
 
