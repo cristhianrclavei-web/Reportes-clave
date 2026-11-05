@@ -26,10 +26,10 @@ const SECCION_LAZOS: SeccionManual = {
       resumen: 'En el lazo, pestaña «Falla a tierra». La app marca el tramo donde está la falla y te dice dónde cortar.',
       pasos: [
         'Toca «Iniciar búsqueda de falla a tierra».',
-        'Cada vez que abras el lazo, toca «Registrar corte»: a la salida de qué dispositivo abriste y de qué lado quedó la falla (lado panel o lado campo), y si quieres lo que mediste.',
+        'Cada vez que abras el lazo, toca «Registrar corte»: a la salida de qué dispositivo abriste (también dentro de una rama; puedes buscarlo por su dirección, como L01D040) y de qué lado quedó la falla (lado panel o lado campo), y si quieres lo que mediste.',
         'La barra y el diagrama pintan en ámbar el tramo con la falla y se sugiere el siguiente corte a la mitad del tramo.',
         'Si te equivocaste en un corte, quítalo con el bote de basura y el tramo se vuelve a calcular.',
-        'Al encontrarla, toca «Encontré la falla», elige dónde estaba y escribe la causa. Queda en la ficha de ese dispositivo.',
+        'Al encontrarla, toca «Encontré la falla», elige dónde estaba, escribe la causa y, si quieres, toma una foto de evidencia (necesita señal). Queda en la ficha de ese dispositivo y en el historial del lazo.',
       ],
     },
   ],

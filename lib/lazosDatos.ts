@@ -345,16 +345,22 @@ export function descartarPrimerPendiente() {
 // ---------- Fotos ----------
 
 // La foto necesita señal: es pesada para guardarla en la cola.
-export async function subirFotoElemento(elemento: Elemento, archivo: File): Promise<string> {
-  if (typeof navigator !== 'undefined' && !navigator.onLine) {
-    throw new Error('La foto necesita señal. Puedes agregarla después desde la ficha del dispositivo.');
-  }
+async function subirFoto(lazoId: string, nombre: string, archivo: File, avisoSinSenal: string): Promise<string> {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) throw new Error(avisoSinSenal);
   const supabase = createClient();
   const reducida = await reducirFoto(archivo);
-  const path = `lazos/${elemento.lazo_id}/${elemento.id}-${Date.now()}.jpg`;
+  const path = `lazos/${lazoId}/${nombre}-${Date.now()}.jpg`;
   const { error } = await supabase.storage.from('evidencias').upload(path, reducida, { contentType: reducida.type || 'image/jpeg' });
   if (error) throw new Error(mensajeError(error, 'subir la foto'));
   return path;
+}
+
+export function subirFotoElemento(elemento: Elemento, archivo: File): Promise<string> {
+  return subirFoto(elemento.lazo_id, elemento.id, archivo, 'La foto necesita señal. Puedes agregarla después desde la ficha del dispositivo.');
+}
+
+export function subirFotoFalla(falla: Falla, archivo: File): Promise<string> {
+  return subirFoto(falla.lazo_id, `falla-${falla.id}`, archivo, 'La foto necesita señal. Intenta cuando tengas señal, o quítala para cerrar sin foto.');
 }
 
 export async function urlFotoElemento(path: string): Promise<string | null> {

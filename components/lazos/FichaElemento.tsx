@@ -7,6 +7,7 @@ import { Simbolo } from '@/components/lazos/DiagramaLazo';
 import { confirmar } from '@/lib/dialogos';
 import { Cambio, Elemento, Falla, Lazo, describirCambio, direccionVisible, hijosDe, lineaPrincipal, posiciones, tipoDispositivo } from '@/lib/lazos';
 import { urlFotoElemento } from '@/lib/lazosDatos';
+import VerFoto from '@/components/lazos/VerFoto';
 
 // Ficha de un dispositivo: dónde está, de cuál viene y a cuál sigue, su foto
 // y las fallas que se encontraron en él. Desde aquí se corrige, se inserta
@@ -136,7 +137,10 @@ export default function FichaElemento({ lazo, elementos, elemento, fallas, cambi
           {fallasAqui.map((f) => (
             <li key={f.id} className="flex gap-2.5">
               <span className="w-2 h-2 rounded-full bg-amber mt-1.5 shrink-0" />
-              <span><b className="font-semibold">{fecha(f.resuelta_en)} · Falla a tierra aquí</b>{f.causa ? ` · ${f.causa}` : ''}</span>
+              <span>
+                <b className="font-semibold">{fecha(f.resuelta_en)} · Falla a tierra aquí</b>{f.causa ? ` · ${f.causa}` : ''}
+                {f.foto_path && <VerFoto path={f.foto_path} />}
+              </span>
             </li>
           ))}
           {cambiosAqui.map((c) => (

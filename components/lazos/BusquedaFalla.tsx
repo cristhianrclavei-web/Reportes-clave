@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { AlertTriangle, CheckCircle2, Plus, Scissors, Trash2 } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { AlertTriangle, Camera, CheckCircle2, Plus, Scissors, Trash2, X } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
 import DiagramaLazo, { EstadoEnFalla } from '@/components/lazos/DiagramaLazo';
 import { confirmar } from '@/lib/dialogos';
@@ -11,7 +11,7 @@ import {
   posiciones, zonaConFalla,
 } from '@/lib/lazos';
 import ElegirDispositivo from '@/components/lazos/ElegirDispositivo';
-import { ResultadoGuardar, borrarCorte, guardarCorte, guardarFalla } from '@/lib/lazosDatos';
+import { ResultadoGuardar, borrarCorte, guardarCorte, guardarFalla, subirFotoFalla } from '@/lib/lazosDatos';
 
 // Búsqueda de falla a tierra seccionando el lazo. Cada corte dice dónde se
 // abrió (a la salida de qué dispositivo, en la línea o dentro de una rama) y
@@ -343,8 +343,18 @@ function ResolverFalla({ lazo, elementos, falla, sugeridoId, zona, onCerrar, onG
 }) {
   const [elementoId, setElementoId] = useState(sugeridoId || '');
   const [causa, setCausa] = useState('');
-  const [errores, setErrores] = useState<Partial<Record<'causa' | 'general', string>>>({});
+  const [foto, setFoto] = useState<File | null>(null);
+  const [vistaFoto, setVistaFoto] = useState<string | null>(null);
+  const entradaFoto = useRef<HTMLInputElement | null>(null);
+  const [errores, setErrores] = useState<Partial<Record<'causa' | 'foto' | 'general', string>>>({});
   const [guardando, setGuardando] = useState(false);
+
+  function elegirFoto(archivo: File | null) {
+    if (vistaFoto) URL.revokeObjectURL(vistaFoto);
+    setFoto(archivo);
+    setVistaFoto(archivo ? URL.createObjectURL(archivo) : null);
+    setErrores((e) => ({ ...e, foto: undefined }));
+  }
 
   async function guardar() {
     if (!causa.trim()) {
@@ -353,10 +363,27 @@ function ResolverFalla({ lazo, elementos, falla, sugeridoId, zona, onCerrar, onG
     }
     setErrores({});
     setGuardando(true);
+
+    // La foto sube primero porque necesita señal. Si no sube, no se cierra la
+    // búsqueda: se avisa y el técnico decide reintentar o cerrar sin foto.
+    let fotoPath: string | null = falla.foto_path || null;
+    if (foto) {
+      try {
+        fotoPath = await subirFotoFalla(falla, foto);
+      } catch (err: any) {
+        setErrores({ foto: err?.message || 'No se pudo subir la foto. Intenta de nuevo o quítala.' });
+        setGuardando(false);
+        return;
+      }
+    }
+
     const resuelta: Falla = {
       ...falla, estado: 'resuelta', elemento_id: elementoId || null, causa: causa.trim(),
       resuelta_en: new Date().toISOString(),
     };
+    // Solo se manda la columna si hay foto: así cerrar sin foto sigue
+    // funcionando aunque la base aún no tenga patch_lazos_falla_foto.sql.
+    if (fotoPath) resuelta.foto_path = fotoPath;
     try {
       const resultado = await guardarFalla(resuelta);
       onGuardado(resuelta, resultado);
@@ -383,6 +410,30 @@ function ResolverFalla({ lazo, elementos, falla, sugeridoId, zona, onCerrar, onG
         <textarea id="falla-causa" value={causa} onChange={(ev) => setCausa(ev.target.value)} maxLength={500} rows={3}
           placeholder="Agua en la caja, cable pellizcado en la charola…" className={`${CAMPO} py-2.5`} />
         {errores.causa && <p className="text-red font-semibold text-[13px] mt-1">{errores.causa}</p>}
+
+        <span className="block text-[12.5px] text-muted mt-3 mb-1">Foto de evidencia (opcional)</span>
+        {vistaFoto ? (
+          <div className="relative rounded-xl overflow-hidden border border-line">
+            <img src={vistaFoto} alt="Foto de evidencia" className="w-full max-h-[200px] object-cover" />
+            <button type="button" onClick={() => elegirFoto(null)} aria-label="Quitar la foto"
+              className="absolute top-2 right-2 w-9 h-9 rounded-full bg-bg/80 flex items-center justify-center">
+              <X size={18} strokeWidth={2.4} />
+            </button>
+            <button type="button" onClick={() => entradaFoto.current?.click()}
+              className="absolute bottom-2 right-2 rounded-lg bg-bg/80 px-2.5 py-1.5 text-[12.5px] font-semibold flex items-center gap-1">
+              <Camera size={14} strokeWidth={2.4} /> Cambiar
+            </button>
+          </div>
+        ) : (
+          <button type="button" onClick={() => entradaFoto.current?.click()}
+            className="w-full min-h-[50px] rounded-xl border border-dashed border-line-strong bg-surface-2 text-[14px] font-medium flex items-center justify-center gap-2">
+            <Camera size={18} strokeWidth={2.2} /> Tomar o elegir foto
+          </button>
+        )}
+        <input ref={entradaFoto} type="file" accept="image/*" capture="environment" className="hidden"
+          onChange={(ev) => { elegirFoto(ev.target.files?.[0] || null); ev.target.value = ''; }} />
+        {errores.foto && <p className="text-red font-semibold text-[13px] mt-1">{errores.foto}</p>}
+
         {errores.general && <p className="text-red font-semibold text-[13px] mt-2">{errores.general}</p>}
 
         <div className="flex gap-2 mt-4">

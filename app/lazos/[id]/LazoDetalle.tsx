@@ -6,6 +6,7 @@ import { AlertTriangle, ChevronLeft, CloudUpload, History, Plus, Settings2, Wifi
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
 import DiagramaLazo, { Simbolo } from '@/components/lazos/DiagramaLazo';
+import VerFoto from '@/components/lazos/VerFoto';
 import HojaCaptura, { Lugar, lugarAlFinal, lugarAntesDe, lugarColgandoDe, lugarDespuesDe } from '@/components/lazos/HojaCaptura';
 import FichaElemento, { fechaHora } from '@/components/lazos/FichaElemento';
 import BusquedaFalla from '@/components/lazos/BusquedaFalla';
@@ -354,6 +355,7 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
                   <span>
                     {describirCambio(c, lazo.numero, (id) => elementos.find((e) => e.id === id)?.nombre || null)}
                     <span className="block text-[12px] text-faint">{c.usuario_nombre || 'Alguien'} · {fechaHora(c.creado_en)}</span>
+                    {c.tabla === 'lazo_fallas' && c.despues?.foto_path && <VerFoto path={c.despues.foto_path} texto="Ver foto de la falla" />}
                   </span>
                 </li>
               ))}

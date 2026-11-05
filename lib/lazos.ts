@@ -37,6 +37,8 @@ export type Falla = {
   estado: 'abierta' | 'resuelta';
   elemento_id: string | null;
   causa: string | null;
+  // Foto de evidencia al cerrar (patch_lazos_falla_foto.sql).
+  foto_path?: string | null;
   abierta_en: string;
   resuelta_en: string | null;
   abierta_por?: string;
