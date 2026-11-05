@@ -148,7 +148,7 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
         falla = null;
         cortes = [];
         if (cambio.falla) setHistorial((h) => [cambio.falla as Falla, ...h]);
-        showToast('Búsqueda cerrada; quedó en el historial del lazo');
+        showToast('Búsqueda cerrada; quedó abajo en «Fallas encontradas»');
       }
     }
     if (cambio.corte) cortes = cortes.concat(cambio.corte);
@@ -299,7 +299,7 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
         )}
 
         {vista === 'falla' && (
-          <BusquedaFalla lazo={lazo} elementos={elementos} falla={datos.falla} cortes={datos.cortes} onCambio={alCambiarFalla} onTocar={abrirFicha} />
+          <BusquedaFalla lazo={lazo} elementos={elementos} falla={datos.falla} cortes={datos.cortes} resueltas={historial} onCambio={alCambiarFalla} onTocar={abrirFicha} />
         )}
       </div>
 

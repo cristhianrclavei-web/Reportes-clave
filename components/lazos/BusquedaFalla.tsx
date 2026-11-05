@@ -11,6 +11,7 @@ import {
   posiciones, zonaConFalla,
 } from '@/lib/lazos';
 import ElegirDispositivo from '@/components/lazos/ElegirDispositivo';
+import VerFoto from '@/components/lazos/VerFoto';
 import { ResultadoGuardar, borrarCorte, guardarCorte, guardarFalla, subirFotoFalla } from '@/lib/lazosDatos';
 
 // Búsqueda de falla a tierra seccionando el lazo. Cada corte dice dónde se
@@ -26,15 +27,59 @@ function conDireccion(e: Elemento, lazo: Lazo): string {
   return direccion ? `${e.nombre} · ${direccion}` : e.nombre;
 }
 
+function fecha(iso: string | null): string {
+  if (!iso) return '';
+  return new Date(iso).toLocaleString('es-MX', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+// Fallas ya encontradas en este lazo: cuándo, dónde, por qué y su foto.
+function FallasEncontradas({ lazo, elementos, resueltas, onTocar }: {
+  lazo: Lazo;
+  elementos: Elemento[];
+  resueltas: Falla[];
+  onTocar: (elemento: Elemento) => void;
+}) {
+  return (
+    <div>
+      <h3 className="text-[12px] font-semibold uppercase tracking-[0.08em] text-muted mb-2">Fallas encontradas</h3>
+      {resueltas.length === 0 && <p className="text-[13px] text-muted">Todavía no se ha cerrado ninguna búsqueda en este lazo.</p>}
+      <ul className="flex flex-col gap-2">
+        {resueltas.map((f) => {
+          const elemento = elementos.find((e) => e.id === f.elemento_id) || null;
+          return (
+            <li key={f.id} className="rounded-xl bg-surface border border-line p-3 text-[13.5px]">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="font-semibold text-amber">{fecha(f.resuelta_en)}</span>
+              </div>
+              <p className="mt-1">
+                <span className="text-muted">Dónde: </span>
+                {elemento ? (
+                  <button type="button" onClick={() => onTocar(elemento)} className="font-mono underline decoration-dotted underline-offset-2">
+                    {conDireccion(elemento, lazo)}
+                  </button>
+                ) : f.elemento_id ? 'un dispositivo que ya se borró' : 'en el cable, entre dispositivos'}
+              </p>
+              {elemento?.ubicacion && <p className="text-muted text-[12.5px]">{elemento.ubicacion}</p>}
+              {f.causa && <p className="mt-1"><span className="text-muted">Causa: </span>{f.causa}</p>}
+              {f.foto_path && <VerFoto path={f.foto_path} />}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 function hora(iso: string): string {
   return new Date(iso).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
 }
 
-export default function BusquedaFalla({ lazo, elementos, falla, cortes, onCambio, onTocar }: {
+export default function BusquedaFalla({ lazo, elementos, falla, cortes, resueltas, onCambio, onTocar }: {
   lazo: Lazo;
   elementos: Elemento[];
   falla: Falla | null;
   cortes: Corte[];
+  resueltas: Falla[];
   // Avisa al padre qué cambió para que actualice sus datos.
   onCambio: (cambio: { falla?: Falla | null; corte?: Corte; corteBorrado?: string }, resultado: ResultadoGuardar) => void;
   onTocar: (elemento: Elemento) => void;
@@ -67,6 +112,7 @@ export default function BusquedaFalla({ lazo, elementos, falla, cortes, onCambio
 
   if (!falla) {
     return (
+      <div className="flex flex-col gap-4">
       <div className="rounded-2xl bg-surface border border-line p-4">
         <h2 className="font-display font-bold text-[20px]">Búsqueda de falla a tierra</h2>
         <p className="text-[14px] text-muted mt-1.5 leading-relaxed">
@@ -78,6 +124,8 @@ export default function BusquedaFalla({ lazo, elementos, falla, cortes, onCambio
           className="w-full mt-4 min-h-[50px] rounded-xl bg-amber text-inkOnAccent font-semibold text-[15px] disabled:opacity-50">
           {iniciando ? 'Iniciando…' : 'Iniciar búsqueda de falla a tierra'}
         </button>
+      </div>
+      <FallasEncontradas lazo={lazo} elementos={elementos} resueltas={resueltas} onTocar={onTocar} />
       </div>
     );
   }
