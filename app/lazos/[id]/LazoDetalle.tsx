@@ -44,6 +44,28 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
   const [cambios, setCambios] = useState<Cambio[]>([]);
   const [avisoHistorial, setAvisoHistorial] = useState<string | null>(null);
   const [verHistorial, setVerHistorial] = useState(false);
+  const [exportando, setExportando] = useState(false);
+
+  // El PDF se arma en el servidor y se descarga con un enlace firmado de
+  // Storage (ver app/api/lazos/[id]/pdf): abrir el PDF directo no funciona
+  // dentro de la app de Android.
+  async function exportarPdf() {
+    if (!navigator.onLine) {
+      showToast('El PDF necesita señal. Intenta cuando tengas conexión.', 'error');
+      return;
+    }
+    setExportando(true);
+    try {
+      const respuesta = await fetch(`/api/lazos/${lazoId}/pdf?enlace=1`, { cache: 'no-store' });
+      const cuerpo = await respuesta.json().catch(() => ({}));
+      if (!respuesta.ok || !cuerpo.url) throw new Error(cuerpo.error || `No se pudo generar el PDF (código ${respuesta.status}).`);
+      window.location.assign(cuerpo.url);
+      showToast('Descargando el PDF del diagrama');
+    } catch (e: any) {
+      showToast(e?.message || 'No se pudo generar el PDF. Revisa tu señal e intenta de nuevo.', 'error');
+    }
+    setExportando(false);
+  }
 
   // El historial lo anota la base; se vuelve a pedir al abrir una ficha o
   // el historial, para ver lo más reciente.
@@ -295,17 +317,10 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
         {vista === 'diagrama' && (
           <>
             <div className="flex justify-end mb-2">
-              {/* Necesita señal: el PDF se arma en el servidor. */}
-              <a href={`/api/lazos/${lazo.id}/pdf`} target="_blank" rel="noopener noreferrer"
-                onClick={(ev) => {
-                  if (!navigator.onLine) {
-                    ev.preventDefault();
-                    showToast('El PDF necesita señal. Intenta cuando tengas conexión.');
-                  }
-                }}
-                className="min-h-[42px] px-3.5 rounded-xl border border-line bg-surface-2 text-[13.5px] font-semibold flex items-center gap-1.5">
-                <FileDown size={16} strokeWidth={2.2} /> Exportar PDF
-              </a>
+              <button type="button" onClick={exportarPdf} disabled={exportando}
+                className="min-h-[42px] px-3.5 rounded-xl border border-line bg-surface-2 text-[13.5px] font-semibold flex items-center gap-1.5 disabled:opacity-60">
+                <FileDown size={16} strokeWidth={2.2} /> {exportando ? 'Generando PDF…' : 'Exportar PDF'}
+              </button>
             </div>
             <div className="rounded-2xl bg-surface border border-line p-3 overflow-x-auto">
               <DiagramaLazo lazo={lazo} elementos={elementos} onTocar={abrirFicha} />

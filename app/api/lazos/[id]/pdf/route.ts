@@ -5,7 +5,7 @@ import { generateLazoPdf } from '@/lib/generateLazoPdf';
 export const dynamic = 'force-dynamic';
 
 // PDF del diagrama unifilar de un lazo (técnicos y supervisión).
-export async function GET(_request: NextRequest, props: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -45,6 +45,24 @@ export async function GET(_request: NextRequest, props: { params: Promise<{ id: 
   const nombreArchivo = `diagrama-${rLazo.data.codigo}-${cliente?.nombre || 'cliente'}`
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/gi, '-');
+  // ?enlace=1: el PDF se guarda en Storage y se devuelve un enlace firmado de
+  // supabase.co. Así funciona también en la app de Android: su visor interno
+  // no abre PDFs, pero un enlace de otro dominio lo manda a Chrome.
+  if (request.nextUrl.searchParams.get('enlace') === '1') {
+    // shortcut: cada exportación deja un archivo en lazos/<id>/pdf/ (~400 KB); limpiar con un cron si llegan a pesar.
+    const ruta = `lazos/${params.id}/pdf/${nombreArchivo}-${Date.now()}.pdf`;
+    const subida = await supabase.storage.from('evidencias').upload(ruta, bytes, { contentType: 'application/pdf' });
+    if (subida.error) {
+      console.error('[lazo-pdf] No se pudo guardar el PDF:', subida.error.message);
+      return NextResponse.json({ error: 'No se pudo preparar el PDF para descargar. Intenta de nuevo.' }, { status: 500 });
+    }
+    const firmado = await supabase.storage.from('evidencias').createSignedUrl(ruta, 600, { download: `${nombreArchivo}.pdf` });
+    if (firmado.error || !firmado.data) {
+      return NextResponse.json({ error: 'No se pudo preparar el enlace del PDF. Intenta de nuevo.' }, { status: 500 });
+    }
+    return NextResponse.json({ url: firmado.data.signedUrl }, { headers: { 'Cache-Control': 'no-store' } });
+  }
+
   return new NextResponse(new Uint8Array(bytes), {
     status: 200,
     headers: {
