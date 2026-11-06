@@ -32,6 +32,14 @@ const CAMPO = 'w-full px-3 min-h-[46px] rounded-xl bg-surface-2 border border-li
 // (sirven desde el primer dispositivo).
 const NIVELES_COMUNES = ['Sótano', 'Planta baja', 'Nivel 1', 'Nivel 2', 'Mezanine', 'Azotea'];
 
+// Enfoca el siguiente campo de texto de la hoja (como el «Siguiente» del teclado).
+function pasarAlSiguienteCampo(actual: HTMLInputElement) {
+  const campos = Array.from(document.querySelectorAll<HTMLInputElement>('input:not([type=hidden]):not([type=file]):not([type=checkbox]):not([type=radio])'));
+  const siguiente = campos[campos.indexOf(actual) + 1];
+  if (siguiente) siguiente.focus();
+  else actual.blur();
+}
+
 // Campo de texto que completa con lo ya usado: al escribir «habit» aparece
 // en gris «Habitación 30»; Enter (o tocar la sugerencia) la acepta, y si se
 // sigue escribiendo se queda lo escrito.
@@ -46,14 +54,18 @@ function CampoConSugerencias({ id, etiqueta, valor, onCambiar, sugerencias, plac
 }) {
   const sugerencia = sugerenciaPara(valor, sugerencias);
 
-  // Nada cambia en el campo mientras se escribe (ni el botón Enter del
-  // teclado): en Android cambiar atributos del campo enfocado reinicia el
-  // teclado y borra la letra que se estaba escribiendo.
+  // El botón del teclado es «Listo» y no cambia mientras se escribe: en
+  // Android cambiarlo reinicia el teclado y borra la letra escrita. Con
+  // «Siguiente» Android brinca de campo sin avisar, por eso no se usa.
+  // Primer toque: acepta la sugerencia. Sin sugerencia: pasa al siguiente campo.
   function alTeclear(ev: React.KeyboardEvent<HTMLInputElement>) {
-    if (ev.key === 'Enter' && sugerencia) {
-      ev.preventDefault();
+    if (ev.key !== 'Enter') return;
+    ev.preventDefault();
+    if (sugerencia) {
       onCambiar(sugerencia);
+      return;
     }
+    pasarAlSiguienteCampo(ev.currentTarget);
   }
 
   return (
@@ -61,7 +73,7 @@ function CampoConSugerencias({ id, etiqueta, valor, onCambiar, sugerencias, plac
       <label htmlFor={id} className="block text-[12.5px] text-muted mb-1">{etiqueta}</label>
       <div className="relative">
         <input id={id} value={valor} onChange={(ev) => onCambiar(ev.target.value)} onKeyDown={alTeclear} maxLength={maximo}
-          placeholder={placeholder} autoComplete="off" className={CAMPO} />
+          placeholder={placeholder} autoComplete="off" enterKeyHint="done" className={CAMPO} />
         {sugerencia && (
           // Lo que falta, en gris, justo después de lo escrito (lo escrito va transparente para alinear).
           <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 right-0 px-3 border border-transparent flex items-center text-[15px] whitespace-pre overflow-hidden">
