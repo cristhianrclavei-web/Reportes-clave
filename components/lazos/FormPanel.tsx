@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { Minus, Plus } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
 import { showToast } from '@/components/Toast';
@@ -9,33 +8,13 @@ import { confirmar } from '@/lib/dialogos';
 import { Panel } from '@/lib/lazos';
 import { actualizarPanel, borrarPanel, crearPanel } from '@/lib/lazosDatos';
 
-// Alta y edición de un panel: nombre, modelo, dónde está y cuántas salidas
-// tiene de cada tipo (tarjetas SLC, NAC y voceo). Pide señal, como crear un
-// lazo: se hace una vez.
+// Alta y edición de un panel: nombre, modelo y dónde está. Sus circuitos
+// (SLC, NAC, voceo) se agregan después desde la pantalla del panel. Pide
+// señal, como crear un lazo: se hace una vez.
 
 const CAMPO = 'w-full px-3.5 min-h-[46px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]';
 
-type Errores = Partial<Record<'cliente' | 'nombre' | 'salidas', string>>;
-
-function Contador({ etiqueta, detalle, valor, onCambiar }: { etiqueta: string; detalle: string; valor: number; onCambiar: (n: number) => void }) {
-  return (
-    <div className="flex items-center gap-3 py-2">
-      <div className="flex-1 min-w-0">
-        <p className="text-[14.5px] font-semibold">{etiqueta}</p>
-        <p className="text-[12px] text-muted">{detalle}</p>
-      </div>
-      <button type="button" onClick={() => onCambiar(Math.max(0, valor - 1))} aria-label={`Quitar una ${etiqueta}`}
-        className="w-10 h-10 rounded-full bg-surface-2 border border-line flex items-center justify-center disabled:opacity-40" disabled={valor === 0}>
-        <Minus size={17} strokeWidth={2.6} />
-      </button>
-      <span className="w-7 text-center font-mono font-semibold text-[17px]" aria-live="polite">{valor}</span>
-      <button type="button" onClick={() => onCambiar(Math.min(20, valor + 1))} aria-label={`Agregar una ${etiqueta}`}
-        className="w-10 h-10 rounded-full bg-surface-2 border border-line flex items-center justify-center disabled:opacity-40" disabled={valor === 20}>
-        <Plus size={17} strokeWidth={2.6} />
-      </button>
-    </div>
-  );
-}
+type Errores = Partial<Record<'cliente' | 'nombre', string>>;
 
 export default function FormPanel({ panel, clienteInicial, esSupervisor, onCerrar, onGuardado }: {
   // Con panel: editar. Sin panel: crear uno nuevo.
@@ -50,9 +29,6 @@ export default function FormPanel({ panel, clienteInicial, esSupervisor, onCerra
   const [nombre, setNombre] = useState(panel?.nombre || 'Panel principal');
   const [modelo, setModelo] = useState(panel?.modelo || '');
   const [ubicacion, setUbicacion] = useState(panel?.ubicacion || '');
-  const [slc, setSlc] = useState(panel?.slc ?? 1);
-  const [nac, setNac] = useState(panel?.nac ?? 2);
-  const [voceo, setVoceo] = useState(panel?.voceo ?? 0);
   const [errores, setErrores] = useState<Errores>({});
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
@@ -61,7 +37,6 @@ export default function FormPanel({ panel, clienteInicial, esSupervisor, onCerra
     const e: Errores = {};
     if (!clienteId) e.cliente = 'Elige el cliente de la lista. Si no existe, pide a supervisión que lo dé de alta.';
     if (!nombre.trim()) e.nombre = 'Ponle un nombre, por ejemplo «Panel principal» o «Panel torre A».';
-    if (slc + nac + voceo === 0) e.salidas = 'El panel necesita al menos una salida.';
     return e;
   }
 
@@ -71,7 +46,7 @@ export default function FormPanel({ panel, clienteInicial, esSupervisor, onCerra
     setErrorGeneral(null);
     if (Object.keys(e).length > 0) return;
     setGuardando(true);
-    const datos = { nombre: nombre.trim(), modelo: modelo.trim() || null, ubicacion: ubicacion.trim() || null, slc, nac, voceo };
+    const datos = { nombre: nombre.trim(), modelo: modelo.trim() || null, ubicacion: ubicacion.trim() || null };
     try {
       if (panel) {
         await actualizarPanel(panel.id, datos);
@@ -134,13 +109,6 @@ export default function FormPanel({ panel, clienteInicial, esSupervisor, onCerra
         <label htmlFor="panel-ubicacion" className="block text-[13px] text-muted mt-4 mb-1.5">Dónde está</label>
         <input id="panel-ubicacion" value={ubicacion} onChange={(ev) => setUbicacion(ev.target.value)} maxLength={160} placeholder="Cuarto eléctrico, nivel -2" className={CAMPO} />
 
-        <p className="text-[13px] text-muted mt-4">Salidas del panel</p>
-        <div className="rounded-2xl bg-surface border border-line px-3 mt-1.5 divide-y divide-line">
-          <Contador etiqueta="SLC" detalle="Lazos de detección (tarjetas)" valor={slc} onCambiar={setSlc} />
-          <Contador etiqueta="NAC" detalle="Circuitos de sirenas y estrobos" valor={nac} onCambiar={setNac} />
-          <Contador etiqueta="Voceo" detalle="Circuitos de bocinas" valor={voceo} onCambiar={setVoceo} />
-        </div>
-        {errores.salidas && <p className="text-red font-semibold text-[13px] mt-1">{errores.salidas}</p>}
 
         {errorGeneral && <p className="text-red font-semibold text-[13px] mt-3">{errorGeneral}</p>}
 

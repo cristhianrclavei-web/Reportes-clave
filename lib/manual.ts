@@ -13,8 +13,8 @@ const SECCION_LAZOS: SeccionManual = {
       titulo: 'Capturar un lazo mientras cableas',
       resumen: 'Técnicos: pestaña «Lazos». Supervisión: en la ficha del cliente → «Lazos y circuitos». Anota los dispositivos en el orden en que corre el cable y la app dibuja el diagrama unifilar.',
       pasos: [
-        'Primero registra el panel: «Nuevo panel», el cliente, el nombre, la marca y modelo, dónde está y cuántas salidas tiene (SLC para lazos, NAC para sirenas y estrobos, voceo).',
-        'Toca el panel para entrar: ves su frente con cada salida (SLC 1, SLC 2, NAC 1…). Las capturadas muestran cuántos dispositivos tienen y una luz ámbar si hay falla a tierra abierta; en una vacía toca «Capturar» y el circuito ya sale con su tipo, número y panel. En «Diagrama» ves todos los circuitos del panel, cada uno en su carril.',
+        'Primero registra el panel: «Nuevo panel», el cliente, el nombre, la marca y modelo, y dónde está.',
+        'Toca el panel para entrar: sus circuitos salen uno debajo de otro (primero los SLC, luego las NAC y el voceo), con cuántos dispositivos tiene cada uno y si hay falla a tierra abierta. Toca «Agregar circuito», elige SLC (lazo de detección), NAC (sirenas y estrobos) o Voceo, y el circuito ya sale con su número siguiente y su panel. En «Diagrama» ves todos los circuitos del panel, cada uno en su carril.',
         'Los circuitos que capturaste antes de registrar el panel salen abajo en «Circuitos del cliente sin panel»: toca «Pasar aquí». También se cambia desde el lazo, en ⚙ Datos del lazo → Panel.',
         'Toca «Agregar dispositivo», elige el tipo (SH, MC, MM…, o RG para una caja de registro), revisa la dirección y la ubicación y toca «Guardar y siguiente». La hoja se queda abierta para el siguiente, con la siguiente dirección libre.',
         'La ubicación va por partes: «Área» (Cocina, Central de enfermeras, Bodega 1), «Nivel» (Planta baja, Nivel -1) y una «Referencia» opcional (sobre plafón). Lo que ya usaste en el lazo aparece abajo de cada campo para tocarlo, y el nivel se queda puesto para el siguiente dispositivo. El resumen del lazo cuenta cuántos hay en cada nivel.',

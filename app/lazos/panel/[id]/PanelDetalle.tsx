@@ -2,14 +2,15 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, ChevronLeft, CircuitBoard, MapPin, Settings2, WifiOff } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, CircuitBoard, MapPin, Plus, Settings2, WifiOff, X } from 'lucide-react';
+import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
-import FrentePanel from '@/components/lazos/FrentePanel';
+import FrentePanel, { COLOR_TIPO, DESCRIPCION_TIPO, ICONO_TIPO, fondo } from '@/components/lazos/FrentePanel';
 import FormPanel from '@/components/lazos/FormPanel';
 import PanelLazos from '@/components/lazos/PanelLazos';
 import { NuevoLazo } from '@/app/lazos/LazosList';
 import { catalogoEnCache, listarCatalogoClientes } from '@/lib/clientesCatalogo';
-import { NOMBRE_CIRCUITO, Panel, TipoCircuito, ordenarCircuitos, siguienteNumeroDeLazo } from '@/lib/lazos';
+import { NOMBRE_CIRCUITO, Panel, SALIDA_CIRCUITO, TipoCircuito, ordenarCircuitos, siguienteNumeroDeLazo } from '@/lib/lazos';
 import { LazoResumen, asignarPanel, listarLazos, listarPaneles, nombreCompletoPanel, textoDePanel } from '@/lib/lazosDatos';
 
 type Vista = 'circuitos' | 'diagrama';
@@ -25,6 +26,7 @@ export default function PanelDetalle({ panelId, esSupervisor }: { panelId: strin
   const [editando, setEditando] = useState(false);
   const [capturando, setCapturando] = useState<{ tipo: TipoCircuito; numero: number } | null>(null);
   const [pasando, setPasando] = useState<string | null>(null);
+  const [eligiendoTipo, setEligiendoTipo] = useState(false);
 
   const cargar = useCallback(async () => {
     setError(null);
@@ -79,7 +81,6 @@ export default function PanelDetalle({ panelId, esSupervisor }: { panelId: strin
 
   const circuitos = ordenarCircuitos(lazos.filter((l) => l.panel_id === panel.id));
   const sueltos = lazos.filter((l) => l.cliente_id === panel.cliente_id && !l.panel_id);
-  const salidas = panel.slc + panel.nac + panel.voceo;
   const dispositivos = circuitos.reduce((suma, l) => suma + l.dispositivos, 0);
   const fallas = circuitos.filter((l) => l.fallaAbierta).length;
 
@@ -89,7 +90,7 @@ export default function PanelDetalle({ panelId, esSupervisor }: { panelId: strin
   ];
 
   return (
-    <div className="max-w-3xl mx-auto pb-16">
+    <div className="max-w-3xl mx-auto pb-28">
       <div className="sticky top-0 z-20 glass-strong px-4 py-3" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}>
         <div className="flex items-center gap-2">
           <Link href={`/lazos?cliente=${panel.cliente_id}`} aria-label="Volver a los lazos del cliente" className="shrink-0 w-11 h-11 -ml-1.5 rounded-full flex items-center justify-center active:scale-90 transition-transform">
@@ -137,7 +138,7 @@ export default function PanelDetalle({ panelId, esSupervisor }: { panelId: strin
           <dl className="grid grid-cols-3 gap-2 mt-4 relative">
             <div className="rounded-xl bg-surface-2 px-2.5 py-2">
               <dt className="text-[11px] text-faint">Circuitos</dt>
-              <dd className="font-display font-bold text-[20px] leading-tight">{circuitos.length}<span className="text-[13px] text-muted font-sans font-normal"> / {salidas}</span></dd>
+              <dd className="font-display font-bold text-[20px] leading-tight">{circuitos.length}</dd>
             </div>
             <div className="rounded-xl bg-surface-2 px-2.5 py-2">
               <dt className="text-[11px] text-faint">Dispositivos</dt>
@@ -152,11 +153,7 @@ export default function PanelDetalle({ panelId, esSupervisor }: { panelId: strin
 
         {vista === 'circuitos' && (
           <>
-            <FrentePanel
-              panel={panel}
-              circuitos={circuitos}
-              onCapturar={(tipo, numero) => setCapturando({ tipo, numero: numero ?? siguienteNumeroDeLazo(circuitos, tipo) })}
-            />
+            <FrentePanel circuitos={circuitos} />
 
             {sueltos.length > 0 && (
               <section className="mt-6">
@@ -191,6 +188,54 @@ export default function PanelDetalle({ panelId, esSupervisor }: { panelId: strin
           )
         )}
       </div>
+
+      {/* pr-20: deja libre el botón flotante del asistente. */}
+      {vista === 'circuitos' && (
+        <div className="fixed bottom-0 inset-x-0 z-10 bg-bg/95 border-t border-line pl-4 pr-20 sm:pr-4 pt-3" style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}>
+          <button type="button" onClick={() => setEligiendoTipo(true)}
+            className="w-full max-w-3xl mx-auto min-h-[52px] rounded-xl bg-teal text-inkOnAccent font-semibold text-[15.5px] flex items-center justify-center gap-2">
+            <Plus size={19} strokeWidth={2.6} /> Agregar circuito
+          </button>
+        </div>
+      )}
+
+      {eligiendoTipo && (
+        <ModalOverlay onClose={() => setEligiendoTipo(false)}>
+          <div className="glass-strong rounded-3xl max-w-md w-full p-4">
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <h2 className="font-display font-bold text-[21px]">Agregar circuito</h2>
+              <button type="button" onClick={() => setEligiendoTipo(false)} aria-label="Cerrar" className="w-10 h-10 rounded-full flex items-center justify-center text-muted hover:bg-surface-2">
+                <X size={20} strokeWidth={2.4} />
+              </button>
+            </div>
+            <p className="text-[12.5px] text-muted mb-3">¿Qué sale de esta tarjeta o salida del panel?</p>
+            <div className="flex flex-col gap-2">
+              {(['deteccion', 'estrobos', 'voceo'] as TipoCircuito[]).map((tipo) => {
+                const color = COLOR_TIPO[tipo];
+                const Icono = ICONO_TIPO[tipo];
+                const numero = siguienteNumeroDeLazo(circuitos, tipo);
+                return (
+                  <button key={tipo} type="button"
+                    onClick={() => { setEligiendoTipo(false); setCapturando({ tipo, numero }); }}
+                    className="w-full rounded-2xl border p-3 flex items-center gap-3 text-left transition-transform active:scale-[0.98]"
+                    style={{ borderColor: fondo(color, 45), backgroundColor: fondo(color, 8) }}>
+                    <span className="w-12 h-12 shrink-0 rounded-xl flex items-center justify-center" style={{ color, backgroundColor: fondo(color, 16) }}>
+                      <Icono size={22} strokeWidth={2.2} />
+                    </span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block font-display font-bold text-[17px]" style={{ color }}>{SALIDA_CIRCUITO[tipo]}</span>
+                      <span className="block text-[13px] text-muted">{DESCRIPCION_TIPO[tipo]}</span>
+                    </span>
+                    <span className="shrink-0 font-mono text-[12.5px] font-semibold rounded-lg px-2 py-1" style={{ color, backgroundColor: fondo(color, 16) }}>
+                      {SALIDA_CIRCUITO[tipo]} {numero}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
 
       {capturando && (
         <NuevoLazo

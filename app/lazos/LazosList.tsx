@@ -185,7 +185,7 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
                     {panel.ubicacion && (
                       <p className="flex items-center gap-1 text-[12px] text-faint mt-1.5"><MapPin size={12} strokeWidth={2.4} />{panel.ubicacion}</p>
                     )}
-                    <div className="mt-2.5"><SalidasCompactas panel={panel} circuitos={circuitos} /></div>
+                    <div className="mt-2.5"><SalidasCompactas circuitos={circuitos} /></div>
                     {conFalla.length > 0 && (
                       <p className="flex items-center gap-1.5 mt-2.5 text-[13px] font-medium text-amber">
                         <AlertTriangle size={15} strokeWidth={2.4} /> Falla a tierra abierta en {conFalla.map((l) => etiquetaSalida(l)).join(', ')}

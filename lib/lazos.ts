@@ -19,7 +19,8 @@ export type Lazo = {
   creado_en: string;
 };
 
-// Un panel de un cliente y cuántas salidas de cada tipo tiene.
+// Un panel de un cliente. slc/nac/voceo quedan en la base pero ya no se
+// usan: los circuitos se agregan uno por uno.
 export type Panel = {
   id: string;
   cliente_id: string;
@@ -282,32 +283,6 @@ export function siguienteNumeroDeLazo(lazosDelPanel: Lazo[], tipo: TipoCircuito 
   let mayor = 0;
   for (const l of lazosDelPanel) if (l.tipo === tipo) mayor = Math.max(mayor, l.numero || 0);
   return Math.min(mayor + 1, 99);
-}
-
-export type Salida = { tipo: TipoCircuito; numero: number | null; lazo: Lazo | null };
-
-// Las salidas de un panel, como se ven en su frente: cada SLC, NAC y voceo
-// que tiene, con el circuito capturado en ella o vacía. Lo capturado con un
-// número más alto que las salidas (o sin número) también aparece.
-export function salidasDelPanel<T extends Lazo>(panel: Pick<Panel, 'slc' | 'nac' | 'voceo'>, circuitos: T[]): { tipo: TipoCircuito; salidas: (Salida & { lazo: T | null })[] }[] {
-  const capacidad: Record<TipoCircuito, number> = { deteccion: panel.slc, estrobos: panel.nac, voceo: panel.voceo };
-  const tipos: TipoCircuito[] = ['deteccion', 'estrobos', 'voceo'];
-  const resultado: { tipo: TipoCircuito; salidas: (Salida & { lazo: T | null })[] }[] = [];
-  for (const tipo of tipos) {
-    const delTipo = ordenarCircuitos(circuitos.filter((c) => c.tipo === tipo));
-    const salidas: (Salida & { lazo: T | null })[] = [];
-    for (let n = 1; n <= capacidad[tipo]; n++) {
-      const enEsa = delTipo.filter((c) => c.numero === n);
-      if (enEsa.length === 0) salidas.push({ tipo, numero: n, lazo: null });
-      for (const c of enEsa) salidas.push({ tipo, numero: n, lazo: c });
-    }
-    for (const c of delTipo) {
-      const fuera = c.numero === null || c.numero > capacidad[tipo];
-      if (fuera) salidas.push({ tipo, numero: c.numero, lazo: c });
-    }
-    if (salidas.length > 0) resultado.push({ tipo, salidas });
-  }
-  return resultado;
 }
 
 // ---------- Nombres y direcciones ----------

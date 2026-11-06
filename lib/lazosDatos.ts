@@ -173,7 +173,7 @@ export async function listarPaneles(): Promise<{ paneles: Panel[]; faltaPatch: b
   return { paneles, faltaPatch: false, sinConexion: false };
 }
 
-export type DatosPanel = Pick<Panel, 'cliente_id' | 'nombre' | 'modelo' | 'ubicacion' | 'slc' | 'nac' | 'voceo'>;
+export type DatosPanel = Pick<Panel, 'cliente_id' | 'nombre' | 'modelo' | 'ubicacion'>;
 
 // Lo que se escribe en lazos.panel: el PDF y la búsqueda de falla lo usan.
 export function textoDePanel(panel: Pick<Panel, 'nombre' | 'modelo'>): string {
