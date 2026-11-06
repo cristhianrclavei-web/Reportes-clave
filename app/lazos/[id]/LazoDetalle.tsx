@@ -288,7 +288,7 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
 
         {vista === 'diagrama' && (
           <>
-            <div className="flex items-center justify-end gap-2 mb-2">
+            <div className="flex flex-wrap items-center justify-end gap-2 mb-2">
               {hayVariosLazos && (
                 <div className="mr-auto grid grid-cols-2 gap-0.5 rounded-xl bg-surface border border-line p-0.5" role="radiogroup" aria-label="Qué ver en el diagrama">
                   {[{ panel: false, texto: 'Este lazo' }, { panel: true, texto: `Panel · ${delPanel.length}` }].map((o) => (
@@ -299,9 +299,15 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
                   ))}
                 </div>
               )}
+              {lazo.tipo === 'deteccion' && (
+                <button type="button" onClick={() => setAgregandoLazo(true)} aria-label="Agregar otro lazo a este panel"
+                  className="min-h-[42px] px-3 rounded-xl border border-teal/60 bg-teal/10 text-teal text-[13.5px] font-semibold flex items-center gap-1 shrink-0">
+                  <Plus size={16} strokeWidth={2.6} /> Lazo {siguienteNumeroDeLazo(delPanel.length ? delPanel : [lazo])}
+                </button>
+              )}
               <button type="button" onClick={exportarPdf} disabled={exportando}
                 className="min-h-[42px] px-3.5 rounded-xl border border-line bg-surface-2 text-[13.5px] font-semibold flex items-center gap-1.5 disabled:opacity-60">
-                <FileDown size={16} strokeWidth={2.2} /> {exportando ? 'Generando PDF…' : 'Exportar PDF'}
+                <FileDown size={16} strokeWidth={2.2} /> {exportando ? 'Generando…' : 'PDF'}
               </button>
             </div>
             {hayVariosLazos && verPanel ? (
