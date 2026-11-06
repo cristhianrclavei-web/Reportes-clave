@@ -46,6 +46,9 @@ function CampoConSugerencias({ id, etiqueta, valor, onCambiar, sugerencias, plac
 }) {
   const sugerencia = sugerenciaPara(valor, sugerencias);
 
+  // Nada cambia en el campo mientras se escribe (ni el botón Enter del
+  // teclado): en Android cambiar atributos del campo enfocado reinicia el
+  // teclado y borra la letra que se estaba escribiendo.
   function alTeclear(ev: React.KeyboardEvent<HTMLInputElement>) {
     if (ev.key === 'Enter' && sugerencia) {
       ev.preventDefault();
@@ -58,7 +61,7 @@ function CampoConSugerencias({ id, etiqueta, valor, onCambiar, sugerencias, plac
       <label htmlFor={id} className="block text-[12.5px] text-muted mb-1">{etiqueta}</label>
       <div className="relative">
         <input id={id} value={valor} onChange={(ev) => onCambiar(ev.target.value)} onKeyDown={alTeclear} maxLength={maximo}
-          placeholder={placeholder} autoComplete="off" enterKeyHint={sugerencia ? 'done' : 'next'} className={CAMPO} />
+          placeholder={placeholder} autoComplete="off" className={CAMPO} />
         {sugerencia && (
           // Lo que falta, en gris, justo después de lo escrito (lo escrito va transparente para alinear).
           <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 right-0 px-3 border border-transparent flex items-center text-[15px] whitespace-pre overflow-hidden">

@@ -13,3 +13,10 @@ node_modules/
 # Instalaciones nuevas: binarios locales y exportaciones de la base
 scripts/instalacion/.pg17/
 scripts/instalacion/salida/
+
+# Video promocional: tomas grabadas y sesiones del demo
+video-promo/tomas/
+video-promo/salida/
+
+# Borradores legales (contrato, precios, avisos): no van al repositorio
+documentacion-legal/
