@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, Cable, ChevronLeft, ChevronRight, Plus, WifiOff, X } from 'lucide-react';
+import { AlertTriangle, Cable, ChevronLeft, ChevronRight, CircuitBoard, MapPin, Plus, WifiOff, X } from 'lucide-react';
+import FormPanel from '@/components/lazos/FormPanel';
+import { SalidasCompactas } from '@/components/lazos/FrentePanel';
 import MenuCuenta from '@/components/MenuCuenta';
 import TecnicoTabs from '@/components/TecnicoTabs';
 import Logo from '@/components/Logo';
@@ -12,8 +14,8 @@ import EstadoVacio from '@/components/EstadoVacio';
 import EncabezadoSeccion, { BOTON_PRINCIPAL, RotuloGrupo } from '@/components/tecnico/EncabezadoSeccion';
 import { showToast } from '@/components/Toast';
 import { catalogoEnCache, listarCatalogoClientes, ClienteCatalogo } from '@/lib/clientesCatalogo';
-import { NOMBRE_CIRCUITO, PREFIJO_CIRCUITO, TipoCircuito } from '@/lib/lazos';
-import { crearLazo, listarLazos, LazoResumen } from '@/lib/lazosDatos';
+import { NOMBRE_CIRCUITO, PREFIJO_CIRCUITO, Panel, TipoCircuito, etiquetaSalida } from '@/lib/lazos';
+import { crearLazo, listarLazos, listarPaneles, LazoResumen } from '@/lib/lazosDatos';
 
 const CAMPO = 'w-full px-3.5 min-h-[46px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]';
 
@@ -31,13 +33,18 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
   const [sinConexion, setSinConexion] = useState(false);
   const [filtroCliente, setFiltroCliente] = useState<string | null>(clienteInicial);
   const [nuevoAbierto, setNuevoAbierto] = useState(false);
+  const [paneles, setPaneles] = useState<Panel[]>([]);
+  const [faltaPatchPaneles, setFaltaPatchPaneles] = useState(false);
+  const [nuevoPanel, setNuevoPanel] = useState(false);
 
   async function cargar() {
     setErrorCarga(null);
     try {
-      const resultado = await listarLazos();
+      const [resultado, rPaneles] = await Promise.all([listarLazos(), listarPaneles()]);
       setLazos(resultado.lazos);
-      setSinConexion(resultado.sinConexion);
+      setPaneles(rPaneles.paneles);
+      setFaltaPatchPaneles(rPaneles.faltaPatch);
+      setSinConexion(resultado.sinConexion || rPaneles.sinConexion);
     } catch (e: any) {
       setErrorCarga(e?.message || 'No se pudieron cargar los lazos.');
     } finally {
@@ -55,9 +62,14 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
   const nombreCliente = (id: string) => clientes.find((c) => c.id === id)?.nombre || 'Cliente';
 
   const visibles = filtroCliente ? lazos.filter((l) => l.cliente_id === filtroCliente) : lazos;
+  const panelesVisibles = filtroCliente ? paneles.filter((p) => p.cliente_id === filtroCliente) : paneles;
 
-  // Agrupados por cliente, en orden alfabético.
+  // Agrupados por cliente, en orden alfabético. Un cliente con panel pero
+  // todavía sin circuitos también sale.
   const porCliente = new Map<string, LazoResumen[]>();
+  for (const panel of panelesVisibles) {
+    if (!porCliente.has(panel.cliente_id)) porCliente.set(panel.cliente_id, []);
+  }
   for (const lazo of visibles) {
     const lista = porCliente.get(lazo.cliente_id) || [];
     lista.push(lazo);
@@ -94,9 +106,17 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
           titulo="Lazos y circuitos"
           detalle="El cableado de cada lazo de detección, voceo y estrobos, en el orden en que corre el cable."
           accion={
-            <button type="button" onClick={() => setNuevoAbierto(true)} className={BOTON_PRINCIPAL}>
-              <Plus size={19} strokeWidth={2.6} /> Nuevo lazo o circuito
-            </button>
+            <div className="flex flex-col sm:flex-row gap-2">
+              {!faltaPatchPaneles && (
+                <button type="button" onClick={() => setNuevoPanel(true)} className={BOTON_PRINCIPAL}>
+                  <CircuitBoard size={19} strokeWidth={2.4} /> Nuevo panel
+                </button>
+              )}
+              <button type="button" onClick={() => setNuevoAbierto(true)}
+                className="min-h-[48px] px-5 rounded-2xl border border-line bg-surface-2 font-semibold text-[14.5px] flex items-center justify-center gap-2">
+                <Plus size={18} strokeWidth={2.6} /> Circuito sin panel
+              </button>
+            </div>
           }
         />
 
@@ -121,7 +141,14 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
 
         {cargando && <p className="text-[14px] text-muted">Cargando…</p>}
 
-        {!cargando && !errorCarga && visibles.length === 0 && (
+        {faltaPatchPaneles && esSupervisor && (
+          <p className="flex items-start gap-2 text-[13px] text-amber bg-amber/10 rounded-xl px-3 py-2 mb-4">
+            <AlertTriangle size={16} strokeWidth={2.4} className="shrink-0 mt-px" />
+            Para agrupar los circuitos por panel falta correr supabase/patch_lazos_paneles.sql en la base.
+          </p>
+        )}
+
+        {!cargando && !errorCarga && visibles.length === 0 && panelesVisibles.length === 0 && (
           <EstadoVacio
             icono={<Cable size={26} strokeWidth={2} />}
             titulo="Todavía no hay lazos"
@@ -129,11 +156,48 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
           />
         )}
 
-        {grupos.map(([clienteId, lista]) => (
+        {grupos.map(([clienteId, lista]) => {
+          const panelesDelCliente = paneles.filter((p) => p.cliente_id === clienteId);
+          const sueltos = lista.filter((l) => !l.panel_id || !panelesDelCliente.some((p) => p.id === l.panel_id));
+          return (
           <section key={clienteId} className="mb-6">
-            <RotuloGrupo cuenta={lista.length}>{nombreCliente(clienteId)}</RotuloGrupo>
+            <RotuloGrupo cuenta={panelesDelCliente.length + sueltos.length}>{nombreCliente(clienteId)}</RotuloGrupo>
             <div className="flex flex-col gap-2.5">
-              {lista.map((lazo) => (
+              {panelesDelCliente.map((panel) => {
+                const circuitos = lista.filter((l) => l.panel_id === panel.id);
+                const dispositivos = circuitos.reduce((suma, l) => suma + l.dispositivos, 0);
+                const conFalla = circuitos.filter((l) => l.fallaAbierta);
+                return (
+                  <Link key={panel.id} href={`/lazos/panel/${panel.id}`}
+                    className={`block rounded-2xl bg-surface border p-3.5 transition-colors hover:border-teal/60 ${conFalla.length ? 'border-amber/60' : 'border-line'}`}>
+                    <div className="flex items-center gap-3">
+                      <span className="w-11 h-11 shrink-0 rounded-xl bg-teal/15 text-teal flex items-center justify-center">
+                        <CircuitBoard size={22} strokeWidth={2.2} />
+                      </span>
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-[15.5px] font-semibold truncate">{panel.nombre}</span>
+                        <span className="block text-[12.5px] text-muted truncate">
+                          {[panel.nombre.toLowerCase().includes((panel.modelo || '').toLowerCase()) ? null : panel.modelo, `${circuitos.length} circuitos`, `${dispositivos} dispositivos`].filter(Boolean).join(' · ')}
+                        </span>
+                      </span>
+                      <ChevronRight size={18} className="text-muted shrink-0" />
+                    </div>
+                    {panel.ubicacion && (
+                      <p className="flex items-center gap-1 text-[12px] text-faint mt-1.5"><MapPin size={12} strokeWidth={2.4} />{panel.ubicacion}</p>
+                    )}
+                    <div className="mt-2.5"><SalidasCompactas panel={panel} circuitos={circuitos} /></div>
+                    {conFalla.length > 0 && (
+                      <p className="flex items-center gap-1.5 mt-2.5 text-[13px] font-medium text-amber">
+                        <AlertTriangle size={15} strokeWidth={2.4} /> Falla a tierra abierta en {conFalla.map((l) => etiquetaSalida(l)).join(', ')}
+                      </p>
+                    )}
+                  </Link>
+                );
+              })}
+              {panelesDelCliente.length > 0 && sueltos.length > 0 && (
+                <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-faint mt-2">Sin panel</p>
+              )}
+              {sueltos.map((lazo) => (
                 <Link key={lazo.id} href={`/lazos/${lazo.id}`} className={`block rounded-2xl bg-surface border p-3.5 transition-colors hover:border-teal/60 ${lazo.fallaAbierta ? 'border-amber/60' : 'border-line'}`}>
                   <div className="flex items-center gap-2.5">
                     <span className="font-mono text-[13px] rounded-lg bg-surface-2 px-2 py-1">{lazo.codigo}</span>
@@ -154,8 +218,18 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
               ))}
             </div>
           </section>
-        ))}
+          );
+        })}
       </div>
+
+      {nuevoPanel && (
+        <FormPanel
+          clienteInicial={filtroCliente ? { id: filtroCliente, nombre: nombreCliente(filtroCliente) } : null}
+          esSupervisor={esSupervisor}
+          onCerrar={() => setNuevoPanel(false)}
+          onGuardado={(panel) => { if (panel) window.location.href = `/lazos/panel/${panel.id}`; }}
+        />
+      )}
 
       {nuevoAbierto && (
         <NuevoLazo
@@ -174,13 +248,13 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
 export function NuevoLazo({ clienteInicial, lazosExistentes, inicial, onCerrar, onCreado }: {
   clienteInicial: { id: string; nombre: string } | null;
   lazosExistentes: LazoResumen[];
-  inicial?: { numero: number; clase: 'A' | 'B'; panel: string };
+  inicial?: { numero: number; clase: 'A' | 'B'; panel: string; tipo?: TipoCircuito; panel_id?: string | null };
   onCerrar: () => void;
   onCreado: (id: string) => void;
 }) {
   const [cliente, setCliente] = useState(clienteInicial?.nombre || '');
   const [clienteId, setClienteId] = useState<string | null>(clienteInicial?.id || null);
-  const [tipo, setTipo] = useState<TipoCircuito>('deteccion');
+  const [tipo, setTipo] = useState<TipoCircuito>(inicial?.tipo || 'deteccion');
   const [numero, setNumero] = useState(String(inicial?.numero || 1));
   const [codigo, setCodigo] = useState('LZ1');
   // Mientras no se escriba a mano, el código sigue al tipo y al número.
@@ -197,7 +271,7 @@ export function NuevoLazo({ clienteInicial, lazosExistentes, inicial, onCerrar, 
     if (codigoAMano) return;
     const prefijo = PREFIJO_CIRCUITO[tipo];
     const usados = lazosExistentes.filter((l) => l.cliente_id === clienteId && l.tipo === tipo).length;
-    const siguiente = tipo === 'deteccion' ? Number(numero) || usados + 1 : usados + 1;
+    const siguiente = Number(numero) || usados + 1;
     setCodigo(`${prefijo}${siguiente}`);
   }, [tipo, numero, clienteId, codigoAMano, lazosExistentes]);
 
@@ -206,9 +280,12 @@ export function NuevoLazo({ clienteInicial, lazosExistentes, inicial, onCerrar, 
     if (!clienteId) e.cliente = 'Elige el cliente de la lista. Si no existe, pide a supervisión que lo dé de alta.';
     if (!nombre.trim()) e.nombre = 'Ponle un nombre, por ejemplo «Lazo 1 · Data Center».';
     if (!/^[A-Za-z0-9-]{1,12}$/.test(codigo.trim())) e.codigo = 'Solo letras, números y guion (hasta 12).';
-    if (tipo === 'deteccion') {
+    // En detección el número va siempre (es el «1» de L01D008); en NAC y
+    // voceo es opcional fuera de un panel.
+    const numeroObligatorio = tipo === 'deteccion' || !!inicial?.panel_id;
+    if (numeroObligatorio || numero.trim()) {
       const n = Number(numero);
-      if (!Number.isInteger(n) || n < 1 || n > 99) e.numero = 'El número de lazo va de 1 a 99.';
+      if (!Number.isInteger(n) || n < 1 || n > 99) e.numero = 'El número va de 1 a 99.';
     }
     return e;
   }
@@ -225,9 +302,10 @@ export function NuevoLazo({ clienteInicial, lazosExistentes, inicial, onCerrar, 
         tipo,
         codigo: codigo.trim().toUpperCase(),
         nombre: nombre.trim(),
-        numero: tipo === 'deteccion' ? Number(numero) : null,
+        numero: numero.trim() ? Number(numero) : null,
         clase: tipo === 'deteccion' ? clase : null,
         panel: panel.trim() || null,
+        panel_id: inicial?.panel_id || null,
       });
       showToast('Lazo creado');
       onCreado(lazo.id);
@@ -257,19 +335,19 @@ export function NuevoLazo({ clienteInicial, lazosExistentes, inicial, onCerrar, 
           {(['deteccion', 'voceo', 'estrobos'] as TipoCircuito[]).map((t) => (
             <button key={t} type="button" role="radio" aria-checked={tipo === t} onClick={() => setTipo(t)}
               className={`min-h-[40px] rounded-lg text-[13.5px] font-semibold ${tipo === t ? 'bg-teal text-inkOnAccent' : 'text-muted'}`}>
-              {t === 'deteccion' ? 'Detección' : t === 'voceo' ? 'Voceo' : 'Estrobos'}
+              {t === 'deteccion' ? 'Detección' : t === 'voceo' ? 'Voceo' : 'NAC'}
             </button>
           ))}
         </div>
 
         <div className="grid grid-cols-2 gap-3 mt-4">
-          {tipo === 'deteccion' && (
-            <div>
-              <label htmlFor="lazo-numero" className="block text-[13px] text-muted mb-1.5">Número de lazo en el panel</label>
+          <div>
+              <label htmlFor="lazo-numero" className="block text-[13px] text-muted mb-1.5">
+                {tipo === 'deteccion' ? 'Número de lazo (SLC)' : tipo === 'estrobos' ? 'Número de NAC' : 'Número de voceo'}
+              </label>
               <input id="lazo-numero" inputMode="numeric" value={numero} onChange={(ev) => setNumero(ev.target.value.replace(/\D/g, '').slice(0, 2))} className={CAMPO} />
               {errores.numero && <p className="text-red font-semibold text-[13px] mt-1">{errores.numero}</p>}
-            </div>
-          )}
+          </div>
           <div>
             <label htmlFor="lazo-codigo" className="block text-[13px] text-muted mb-1.5">Código</label>
             <input id="lazo-codigo" value={codigo} onChange={(ev) => { setCodigo(ev.target.value.toUpperCase()); setCodigoAMano(true); }} className={`${CAMPO} font-mono`} />
@@ -279,7 +357,7 @@ export function NuevoLazo({ clienteInicial, lazosExistentes, inicial, onCerrar, 
         <p className="text-[12px] text-faint mt-1.5">El código encabeza el nombre de cada dispositivo: {codigo || 'LZ1'}_SH_1.</p>
 
         <label htmlFor="lazo-nombre" className="block text-[13px] text-muted mt-4 mb-1.5">Nombre</label>
-        <input id="lazo-nombre" value={nombre} onChange={(ev) => setNombre(ev.target.value)} maxLength={120} placeholder="Lazo 1 · Data Center" className={CAMPO} />
+        <input id="lazo-nombre" value={nombre} onChange={(ev) => setNombre(ev.target.value)} maxLength={120} placeholder={tipo === 'deteccion' ? 'Lazo 1 · Data Center' : tipo === 'estrobos' ? 'Sirenas nivel -2' : 'Voceo planta baja'} className={CAMPO} />
         {errores.nombre && <p className="text-red font-semibold text-[13px] mt-1">{errores.nombre}</p>}
 
         {tipo === 'deteccion' && (
@@ -296,8 +374,14 @@ export function NuevoLazo({ clienteInicial, lazosExistentes, inicial, onCerrar, 
           </>
         )}
 
-        <label htmlFor="lazo-panel" className="block text-[13px] text-muted mt-4 mb-1.5">Panel (opcional)</label>
-        <input id="lazo-panel" value={panel} onChange={(ev) => setPanel(ev.target.value)} maxLength={160} placeholder="Notifier NFS2-3030, cuarto eléctrico" className={CAMPO} />
+        {inicial?.panel_id ? (
+          <p className="mt-4 text-[13px] text-muted">Panel: <span className="font-semibold text-ink">{panel}</span></p>
+        ) : (
+          <>
+            <label htmlFor="lazo-panel" className="block text-[13px] text-muted mt-4 mb-1.5">Panel (opcional)</label>
+            <input id="lazo-panel" value={panel} onChange={(ev) => setPanel(ev.target.value)} maxLength={160} placeholder="Notifier NFS2-3030, cuarto eléctrico" className={CAMPO} />
+          </>
+        )}
 
         {errorGeneral && <p className="text-red font-semibold text-[13px] mt-3">{errorGeneral}</p>}
 

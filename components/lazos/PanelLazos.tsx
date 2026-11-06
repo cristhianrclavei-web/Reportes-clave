@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, ChevronDown, ExternalLink, Plus } from 'lucide-react';
 import DiagramaLazo from '@/components/lazos/DiagramaLazo';
-import { Elemento, Lazo } from '@/lib/lazos';
+import { COLOR_TIPO, fondo } from '@/components/lazos/FrentePanel';
+import { Elemento, Lazo, etiquetaSalida } from '@/lib/lazos';
 import { LazoResumen, obtenerLazo } from '@/lib/lazosDatos';
 
 // Diagrama de todo un panel: el PCI una sola vez y cada lazo (cada tarjeta
@@ -12,33 +13,24 @@ import { LazoResumen, obtenerLazo } from '@/lib/lazosDatos';
 // por separado y se puede plegar, así las líneas de un lazo nunca se cruzan
 // con las del otro y la pantalla no se satura.
 
-// Color de cada lazo en el orden del panel. Se evita el ámbar: es el color
-// de «sospechoso» en la búsqueda de falla.
-const COLORES = ['rgb(var(--c-acento))', '#6EA8FE', '#C792EA', '#F28FB0', '#7DD3C0'];
-
-export function colorDeLazo(indice: number): string {
-  return COLORES[indice % COLORES.length];
-}
-
-function fondo(color: string, porcentaje: number): string {
-  return `color-mix(in srgb, ${color} ${porcentaje}%, transparent)`;
-}
-
 type Carril = { elementos: Elemento[] | null; error: string | null };
 
-export default function PanelLazos({ actual, elementosActual, lazos, onTocar, onAgregarLazo }: {
-  actual: Lazo;
-  elementosActual: Elemento[];
-  // Los lazos del panel, incluido el actual, en orden (lazosDelMismoPanel).
+export default function PanelLazos({ actual, elementosActual = [], lazos, nombrePanel, onTocar, onAgregarLazo }: {
+  // El lazo que se está viendo (en la pantalla del panel no hay ninguno).
+  actual?: Lazo;
+  elementosActual?: Elemento[];
+  // Los circuitos del panel, incluido el actual, en orden (lazosDelMismoPanel).
   lazos: LazoResumen[];
-  onTocar: (elemento: Elemento) => void;
-  onAgregarLazo: () => void;
+  nombrePanel: string;
+  onTocar?: (elemento: Elemento) => void;
+  onAgregarLazo?: () => void;
 }) {
   const router = useRouter();
   const [carriles, setCarriles] = useState<Record<string, Carril>>({});
-  const [plegados, setPlegados] = useState<Set<string>>(new Set());
-  const otros = lazos.filter((l) => l.id !== actual.id);
-  const idsOtros = otros.map((l) => l.id).join(',');
+  // Para no saturar: solo se abre el lazo actual (o el primero); los demás
+  // se despliegan al tocarlos y hasta entonces se cargan.
+  const abiertoAlInicio = actual?.id || lazos[0]?.id;
+  const [plegados, setPlegados] = useState<Set<string>>(() => new Set(lazos.map((l) => l.id).filter((id) => id !== abiertoAlInicio)));
 
   async function cargarCarril(id: string) {
     setCarriles((c) => ({ ...c, [id]: { elementos: null, error: null } }));
@@ -50,11 +42,15 @@ export default function PanelLazos({ actual, elementosActual, lazos, onTocar, on
     }
   }
 
-  // Los otros lazos se piden una vez (sin señal salen de la copia del
-  // teléfono si ya se abrieron antes).
+  // Cada carril abierto se pide una vez (sin señal sale de la copia del
+  // teléfono si ese lazo ya se abrió antes).
+  const abiertosSinCargar = lazos
+    .filter((l) => l.id !== actual?.id && !plegados.has(l.id) && !carriles[l.id])
+    .map((l) => l.id)
+    .join(',');
   useEffect(() => {
-    for (const id of idsOtros.split(',').filter(Boolean)) cargarCarril(id);
-  }, [idsOtros]);
+    for (const id of abiertosSinCargar.split(',').filter(Boolean)) cargarCarril(id);
+  }, [abiertosSinCargar]);
 
   function alternar(id: string) {
     const nuevos = new Set(plegados);
@@ -63,24 +59,24 @@ export default function PanelLazos({ actual, elementosActual, lazos, onTocar, on
     setPlegados(nuevos);
   }
 
-  const total = lazos.reduce((suma, l) => suma + (l.id === actual.id ? elementosActual.length : l.dispositivos), 0);
+  const total = lazos.reduce((suma, l) => suma + (l.id === actual?.id ? elementosActual.length : l.dispositivos), 0);
 
   return (
     <div className="rounded-2xl bg-surface border border-line p-3">
       <div className="flex items-center gap-2.5">
         <span className="font-mono text-[13px] border-[1.5px] border-teal text-teal rounded-md px-2 py-1 shrink-0">PCI</span>
         <div className="min-w-0">
-          <p className="text-[13.5px] font-semibold truncate">{actual.panel || 'Panel'}</p>
-          <p className="text-[12px] text-muted">{lazos.length} lazos · {total} dispositivos</p>
+          <p className="text-[13.5px] font-semibold truncate">{nombrePanel}</p>
+          <p className="text-[12px] text-muted">{lazos.length} circuitos · {total} dispositivos</p>
         </div>
       </div>
 
       {/* El bus del panel baja por la izquierda y de él sale cada lazo. */}
       <div className="relative mt-2 pl-5">
         <div className="absolute left-[15px] top-0 bottom-[30px] w-0.5 bg-line-strong" aria-hidden="true" />
-        {lazos.map((l, i) => {
-          const color = colorDeLazo(i);
-          const esActual = l.id === actual.id;
+        {lazos.map((l) => {
+          const color = COLOR_TIPO[l.tipo];
+          const esActual = l.id === actual?.id;
           const carril = esActual ? { elementos: elementosActual, error: null } : carriles[l.id];
           const cuantos = esActual ? elementosActual.length : l.dispositivos;
           const plegado = plegados.has(l.id);
@@ -92,7 +88,7 @@ export default function PanelLazos({ actual, elementosActual, lazos, onTocar, on
                   <button type="button" onClick={() => alternar(l.id)} aria-expanded={!plegado}
                     className="flex-1 min-w-0 flex items-center gap-2 text-left min-h-[40px]">
                     <span className="shrink-0 rounded-lg px-2 py-1 font-mono text-[11.5px] font-bold" style={{ color, backgroundColor: fondo(color, 16) }}>
-                      SLC {l.numero ?? '?'}
+                      {etiquetaSalida(l)}
                     </span>
                     <span className="min-w-0">
                       <span className="block text-[14px] font-semibold truncate">
@@ -129,7 +125,7 @@ export default function PanelLazos({ actual, elementosActual, lazos, onTocar, on
                         colorLinea={color}
                         conPanel={false}
                         // En otro lazo, tocar un dispositivo abre ese lazo.
-                        onTocar={esActual ? onTocar : () => router.push(`/lazos/${l.id}`)}
+                        onTocar={esActual && onTocar ? onTocar : () => router.push(`/lazos/${l.id}`)}
                       />
                     )}
                   </div>
@@ -140,10 +136,12 @@ export default function PanelLazos({ actual, elementosActual, lazos, onTocar, on
         })}
       </div>
 
-      <button type="button" onClick={onAgregarLazo}
-        className="mt-3 w-full min-h-[46px] rounded-xl border border-dashed border-line-strong text-[13.5px] font-semibold text-muted flex items-center justify-center gap-1.5 hover:text-ink">
-        <Plus size={16} strokeWidth={2.6} /> Agregar otro lazo a este panel
-      </button>
+      {onAgregarLazo && (
+        <button type="button" onClick={onAgregarLazo}
+          className="mt-3 w-full min-h-[46px] rounded-xl border border-dashed border-line-strong text-[13.5px] font-semibold text-muted flex items-center justify-center gap-1.5 hover:text-ink">
+          <Plus size={16} strokeWidth={2.6} /> Agregar otro lazo a este panel
+        </button>
+      )}
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import { createClient } from './supabaseClient';
 import { reducirFoto } from './reducirFoto';
-import type { Cambio, Corte, Elemento, Falla, Lazo, TipoCircuito } from './lazos';
+import type { Cambio, Corte, Elemento, Falla, Lazo, Panel, TipoCircuito } from './lazos';
 import { AnexoFallaTierra, resumirBusqueda } from './anexoFallaTierra';
 
 // Datos de lazos y circuitos (supabase/patch_lazos.sql).
@@ -28,6 +28,7 @@ type Pendiente =
 
 const CLAVE_COLA = 'lazosPendientes';
 const CLAVE_LISTA = 'lazosLista';
+const CLAVE_PANELES = 'lazosPaneles';
 const clavePaquete = (lazoId: string) => `lazo:${lazoId}`;
 
 // ---------- Copias locales ----------
@@ -116,6 +117,7 @@ export type DatosNuevoLazo = {
   numero: number | null;
   clase: 'A' | 'B' | null;
   panel: string | null;
+  panel_id?: string | null;
 };
 
 // Crear y editar un lazo pide señal: es un paso corto que se hace una vez.
@@ -123,7 +125,11 @@ export async function crearLazo(datos: DatosNuevoLazo): Promise<Lazo> {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Tu sesión terminó. Vuelve a entrar.');
-  const { data, error } = await supabase.from('lazos').insert({ ...datos, creado_por: user.id }).select('*').single();
+  // panel_id solo va si hay panel: así crear un lazo suelto funciona aunque
+  // falte correr patch_lazos_paneles.sql.
+  const { panel_id, ...resto } = datos;
+  const fila = panel_id ? { ...resto, panel_id, creado_por: user.id } : { ...resto, creado_por: user.id };
+  const { data, error } = await supabase.from('lazos').insert(fila).select('*').single();
   if (error) {
     if (esErrorDeRed(error)) throw new Error('Sin conexión. Crea el lazo cuando tengas señal.');
     throw new Error(mensajeError(error, 'crear el lazo'));
@@ -142,6 +148,84 @@ export async function actualizarLazo(id: string, cambios: Partial<DatosNuevoLazo
 export async function borrarLazo(id: string): Promise<void> {
   const { error } = await createClient().from('lazos').delete().eq('id', id);
   if (error) throw new Error(mensajeError(error, 'borrar el lazo'));
+}
+
+// ---------- Paneles ----------
+
+function faltaTabla(error: { message?: string } | null | undefined): boolean {
+  return /does not exist|could not find the table|schema cache|panel_id/i.test(error?.message || '');
+}
+
+const AVISO_PATCH_PANELES = 'Los paneles todavía no están activados: falta correr supabase/patch_lazos_paneles.sql en la base.';
+
+// Paneles de todos los clientes. Sin el patch regresa la lista vacía y
+// `faltaPatch`, para que la app siga mostrando los lazos sueltos.
+export async function listarPaneles(): Promise<{ paneles: Panel[]; faltaPatch: boolean; sinConexion: boolean }> {
+  const { data, error } = await createClient().from('lazo_paneles').select('*').order('creado_en', { ascending: true });
+  if (error) {
+    if (faltaTabla(error)) return { paneles: [], faltaPatch: true, sinConexion: false };
+    const copia = leerLocal<Panel[]>(CLAVE_PANELES);
+    if (esErrorDeRed(error) && copia) return { paneles: copia, faltaPatch: false, sinConexion: true };
+    throw new Error(mensajeError(error, 'cargar los paneles'));
+  }
+  const paneles = (data as Panel[]) || [];
+  guardarLocal(CLAVE_PANELES, paneles);
+  return { paneles, faltaPatch: false, sinConexion: false };
+}
+
+export type DatosPanel = Pick<Panel, 'cliente_id' | 'nombre' | 'modelo' | 'ubicacion' | 'slc' | 'nac' | 'voceo'>;
+
+// Lo que se escribe en lazos.panel: el PDF y la búsqueda de falla lo usan.
+export function textoDePanel(panel: Pick<Panel, 'nombre' | 'modelo'>): string {
+  return panel.modelo || panel.nombre;
+}
+
+// «Panel principal · Firelite ES-1000X», sin repetir si el nombre ya trae el modelo.
+export function nombreCompletoPanel(panel: Pick<Panel, 'nombre' | 'modelo'>): string {
+  if (!panel.modelo || panel.nombre.toLowerCase().includes(panel.modelo.toLowerCase())) return panel.nombre;
+  return `${panel.nombre} · ${panel.modelo}`;
+}
+
+export async function crearPanel(datos: DatosPanel): Promise<Panel> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Tu sesión terminó. Vuelve a entrar.');
+  const { data, error } = await supabase.from('lazo_paneles').insert({ ...datos, creado_por: user.id }).select('*').single();
+  if (error) {
+    if (faltaTabla(error)) throw new Error(AVISO_PATCH_PANELES);
+    if (esErrorDeRed(error)) throw new Error('Sin conexión. Crea el panel cuando tengas señal.');
+    throw new Error(mensajeError(error, 'crear el panel'));
+  }
+  return data as Panel;
+}
+
+export async function actualizarPanel(id: string, cambios: Omit<DatosPanel, 'cliente_id'>): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.from('lazo_paneles').update(cambios).eq('id', id);
+  if (error) {
+    if (esErrorDeRed(error)) throw new Error('Sin conexión. Guarda los cambios cuando tengas señal.');
+    throw new Error(mensajeError(error, 'guardar el panel'));
+  }
+  // Los circuitos del panel llevan su nombre escrito: se pone al día.
+  const { error: errorLazos } = await supabase.from('lazos').update({ panel: textoDePanel(cambios) }).eq('panel_id', id);
+  if (errorLazos) throw new Error(mensajeError(errorLazos, 'poner el nombre nuevo del panel en sus circuitos'));
+}
+
+export async function borrarPanel(id: string): Promise<void> {
+  const { error } = await createClient().from('lazo_paneles').delete().eq('id', id);
+  if (error) throw new Error(mensajeError(error, 'borrar el panel'));
+}
+
+// Pasa un circuito a un panel (o lo deja suelto con null).
+export async function asignarPanel(lazoId: string, panel: Panel | null): Promise<{ panel_id: string | null; panel: string | null }> {
+  const cambios = { panel_id: panel ? panel.id : null, panel: panel ? textoDePanel(panel) : null };
+  const { error } = await createClient().from('lazos').update(cambios).eq('id', lazoId);
+  if (error) {
+    if (faltaTabla(error)) throw new Error(AVISO_PATCH_PANELES);
+    if (esErrorDeRed(error)) throw new Error('Sin conexión. Cambia el panel cuando tengas señal.');
+    throw new Error(mensajeError(error, 'cambiar el panel'));
+  }
+  return cambios;
 }
 
 // ---------- Un lazo ----------

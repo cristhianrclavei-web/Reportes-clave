@@ -15,10 +15,10 @@ import HojaCaptura, { Lugar, lugarAlFinal, lugarAntesDe, lugarColgandoDe, lugarD
 import FichaElemento, { fechaHora } from '@/components/lazos/FichaElemento';
 import BusquedaFalla from '@/components/lazos/BusquedaFalla';
 import { confirmar } from '@/lib/dialogos';
-import { Cambio, Corte, Elemento, Falla, NOMBRE_CIRCUITO, describirCambio, hijosDe, lazosDelMismoPanel, lineaPrincipal, siguienteNumeroDeLazo } from '@/lib/lazos';
+import { Cambio, Corte, Elemento, Falla, NOMBRE_CIRCUITO, Panel, describirCambio, etiquetaSalida, hijosDe, lazosDelMismoPanel, lineaPrincipal, siguienteNumeroDeLazo } from '@/lib/lazos';
 import {
   DatosLazo, LazoResumen, ResultadoGuardar, actualizarLazo, borrarElemento, borrarLazo, descartarPrimerPendiente,
-  fallasResueltas, guardarCopiaLazo, guardarElemento, historialDeLazo, listarLazos, obtenerLazo, pendientesDeLazo, subirPendientes,
+  fallasResueltas, guardarCopiaLazo, guardarElemento, historialDeLazo, listarLazos, listarPaneles, obtenerLazo, asignarPanel, nombreCompletoPanel, textoDePanel, pendientesDeLazo, subirPendientes,
 } from '@/lib/lazosDatos';
 
 type Vista = 'lista' | 'diagrama' | 'falla';
@@ -51,6 +51,7 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
   const [exportando, setExportando] = useState(false);
   // Todos los lazos, para juntar los que salen del mismo panel.
   const [todosLosLazos, setTodosLosLazos] = useState<LazoResumen[]>([]);
+  const [paneles, setPaneles] = useState<Panel[]>([]);
   const [verPanel, setVerPanel] = useState(true);
   const [agregandoLazo, setAgregandoLazo] = useState(false);
 
@@ -98,6 +99,7 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
       // Si falla, solo no se ofrece la vista del panel completo: el lazo
       // se sigue viendo y capturando igual.
       listarLazos().then((r) => setTodosLosLazos(r.lazos)).catch(() => setTodosLosLazos([]));
+      listarPaneles().then((r) => setPaneles(r.paneles)).catch(() => setPaneles([]));
     } catch (e: any) {
       setErrorCarga(e?.message || 'No se pudo cargar el lazo.');
     } finally {
@@ -221,6 +223,8 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
   const principal = lineaPrincipal(elementos);
 
   const delPanel = lazosDelMismoPanel(lazo, todosLosLazos);
+  const panelDelLazo = paneles.find((p) => p.id === lazo.panel_id) || null;
+  const nombrePanel = panelDelLazo ? nombreCompletoPanel(panelDelLazo) : lazo.panel || 'Panel';
   const hayVariosLazos = delPanel.length > 1;
 
   const pestanas: { k: Vista; label: string }[] = [
@@ -233,12 +237,12 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
     <div className="max-w-3xl mx-auto pb-28">
       <div className="sticky top-0 z-20 glass-strong px-4 py-3" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}>
         <div className="flex items-center gap-2">
-          <Link href={`/lazos?cliente=${lazo.cliente_id}`} aria-label="Volver a los lazos" className="shrink-0 w-11 h-11 -ml-1.5 rounded-full flex items-center justify-center active:scale-90 transition-transform">
+          <Link href={panelDelLazo ? `/lazos/panel/${panelDelLazo.id}` : `/lazos?cliente=${lazo.cliente_id}`} aria-label={panelDelLazo ? `Volver al ${panelDelLazo.nombre}` : 'Volver a los lazos'} className="shrink-0 w-11 h-11 -ml-1.5 rounded-full flex items-center justify-center active:scale-90 transition-transform">
             <ChevronLeft size={24} strokeWidth={2.4} />
           </Link>
           <div className="min-w-0 flex-1">
             <p className="text-[11.5px] text-faint uppercase tracking-[0.06em] truncate">
-              {NOMBRE_CIRCUITO[lazo.tipo]}{lazo.clase ? ` · Clase ${lazo.clase}` : ''} · {principal.length} en línea
+              {lazo.numero ? `${etiquetaSalida(lazo)} · ` : ''}{panelDelLazo ? panelDelLazo.nombre : NOMBRE_CIRCUITO[lazo.tipo]}{lazo.clase ? ` · Clase ${lazo.clase}` : ''}
             </p>
             <h1 className="font-display font-bold text-[22px] leading-tight truncate">
               <span className="font-mono text-[16px] text-teal mr-1.5">{lazo.codigo}</span>{lazo.nombre}
@@ -311,7 +315,7 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
               </button>
             </div>
             {hayVariosLazos && verPanel ? (
-              <PanelLazos actual={lazo} elementosActual={elementos} lazos={delPanel} onTocar={abrirFicha} onAgregarLazo={() => setAgregandoLazo(true)} />
+              <PanelLazos actual={lazo} elementosActual={elementos} lazos={delPanel} nombrePanel={nombrePanel} onTocar={abrirFicha} onAgregarLazo={() => setAgregandoLazo(true)} />
             ) : (
               <>
                 <div className="rounded-2xl bg-surface border border-line p-3 overflow-x-auto">
@@ -403,7 +407,12 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
         <NuevoLazo
           clienteInicial={{ id: lazo.cliente_id, nombre: catalogoEnCache().find((c) => c.id === lazo.cliente_id)?.nombre || 'Cliente' }}
           lazosExistentes={todosLosLazos}
-          inicial={{ numero: siguienteNumeroDeLazo(delPanel.length ? delPanel : [lazo]), clase: lazo.clase || 'B', panel: lazo.panel || '' }}
+          inicial={{
+            numero: siguienteNumeroDeLazo(delPanel.length ? delPanel : [lazo]),
+            clase: lazo.clase || 'B',
+            panel: panelDelLazo ? textoDePanel(panelDelLazo) : lazo.panel || '',
+            panel_id: panelDelLazo?.id || null,
+          }}
           onCerrar={() => setAgregandoLazo(false)}
           onCreado={(id) => { window.location.href = `/lazos/${id}`; }}
         />
@@ -412,24 +421,36 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
       {editandoLazo && (
         <DatosDelLazo
           datos={datos}
+          paneles={paneles.filter((p) => p.cliente_id === lazo.cliente_id)}
           esSupervisor={esSupervisor}
           onCerrar={() => setEditandoLazo(false)}
-          onGuardado={(cambios) => { actualizar({ ...datos, lazo: { ...lazo, ...cambios } }); setEditandoLazo(false); }}
+          onGuardado={(cambios) => {
+            actualizar({ ...datos, lazo: { ...lazo, ...cambios } });
+            // La lista de todos los lazos también, para que la vista Panel cuadre.
+            setTodosLosLazos((todos) => todos.map((l) => (l.id === lazo.id ? { ...l, ...cambios } : l)));
+            setEditandoLazo(false);
+          }}
         />
       )}
     </div>
   );
 }
 
-function DatosDelLazo({ datos, esSupervisor, onCerrar, onGuardado }: {
+type CambiosLazo = { nombre: string; panel: string | null; clase: 'A' | 'B' | null; numero: number | null; panel_id?: string | null };
+
+function DatosDelLazo({ datos, paneles, esSupervisor, onCerrar, onGuardado }: {
   datos: DatosLazo;
+  // Paneles registrados de este cliente.
+  paneles: Panel[];
   esSupervisor: boolean;
   onCerrar: () => void;
-  onGuardado: (cambios: { nombre: string; panel: string | null; clase: 'A' | 'B' | null }) => void;
+  onGuardado: (cambios: CambiosLazo) => void;
 }) {
   const { lazo } = datos;
   const [nombre, setNombre] = useState(lazo.nombre);
   const [panel, setPanel] = useState(lazo.panel || '');
+  const [panelId, setPanelId] = useState<string>(lazo.panel_id || '');
+  const [numero, setNumero] = useState(lazo.numero ? String(lazo.numero) : '');
   const [clase, setClase] = useState<'A' | 'B' | null>(lazo.clase);
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
@@ -437,11 +458,21 @@ function DatosDelLazo({ datos, esSupervisor, onCerrar, onGuardado }: {
 
   async function guardar() {
     if (!nombre.trim()) { setError('El lazo necesita un nombre.'); return; }
+    const numeroValido = /^\d{1,2}$/.test(numero) && Number(numero) >= 1;
+    if (lazo.tipo === 'deteccion' && !numeroValido) { setError('El número de lazo va de 1 a 99.'); return; }
+    if (numero && !numeroValido) { setError('El número va de 1 a 99.'); return; }
     setGuardando(true);
     setError(null);
-    const cambios = { nombre: nombre.trim(), panel: panel.trim() || null, clase };
+    const elegido = paneles.find((p) => p.id === panelId) || null;
+    const cambios: CambiosLazo = { nombre: nombre.trim(), panel: elegido ? textoDePanel(elegido) : panel.trim() || null, clase, numero: numero ? Number(numero) : null };
     try {
-      await actualizarLazo(lazo.id, cambios);
+      await actualizarLazo(lazo.id, { nombre: cambios.nombre, panel: cambios.panel, clase: cambios.clase, numero: cambios.numero });
+      // El panel se cambia aparte: así guardar sigue funcionando aunque falte
+      // correr patch_lazos_paneles.sql.
+      if ((lazo.panel_id || '') !== panelId) {
+        const r = await asignarPanel(lazo.id, elegido);
+        cambios.panel_id = r.panel_id;
+      }
       showToast('Datos del lazo guardados');
       onGuardado(cambios);
     } catch (e: any) {
@@ -472,8 +503,25 @@ function DatosDelLazo({ datos, esSupervisor, onCerrar, onGuardado }: {
         <h2 className="font-display font-bold text-[21px] mb-3">Datos del lazo</h2>
         <label htmlFor="dl-nombre" className="block text-[12.5px] text-muted mb-1">Nombre</label>
         <input id="dl-nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} maxLength={120} className={campo} />
-        <label htmlFor="dl-panel" className="block text-[12.5px] text-muted mt-3 mb-1">Panel</label>
-        <input id="dl-panel" value={panel} onChange={(e) => setPanel(e.target.value)} maxLength={160} className={campo} />
+        <label htmlFor="dl-numero" className="block text-[12.5px] text-muted mt-3 mb-1">
+          {lazo.tipo === 'deteccion' ? 'Número de lazo (SLC)' : lazo.tipo === 'estrobos' ? 'Número de NAC' : 'Número de voceo'}
+        </label>
+        <input id="dl-numero" inputMode="numeric" value={numero} onChange={(e) => setNumero(e.target.value.replace(/\D/g, '').slice(0, 2))} className={campo} />
+        {paneles.length > 0 && (
+          <>
+            <label htmlFor="dl-panel-id" className="block text-[12.5px] text-muted mt-3 mb-1">Panel</label>
+            <select id="dl-panel-id" value={panelId} onChange={(e) => setPanelId(e.target.value)} className={campo}>
+              <option value="">Sin panel</option>
+              {paneles.map((p) => <option key={p.id} value={p.id}>{nombreCompletoPanel(p)}</option>)}
+            </select>
+          </>
+        )}
+        {!panelId && (
+          <>
+            <label htmlFor="dl-panel" className="block text-[12.5px] text-muted mt-3 mb-1">{paneles.length > 0 ? 'Panel escrito (sin registrar)' : 'Panel'}</label>
+            <input id="dl-panel" value={panel} onChange={(e) => setPanel(e.target.value)} maxLength={160} className={campo} />
+          </>
+        )}
         {lazo.tipo === 'deteccion' && (
           <div className="grid grid-cols-2 gap-1 rounded-xl bg-surface-2 p-1 mt-3" role="radiogroup" aria-label="Clase">
             {(['B', 'A'] as const).map((c) => (

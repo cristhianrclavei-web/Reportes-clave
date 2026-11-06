@@ -13,6 +13,22 @@ export type Lazo = {
   numero: number | null;
   clase: 'A' | 'B' | null;
   panel: string | null;
+  // Panel al que pertenece (patch_lazos_paneles.sql). Sin el patch no viene.
+  panel_id?: string | null;
+  notas: string | null;
+  creado_en: string;
+};
+
+// Un panel de un cliente y cuántas salidas de cada tipo tiene.
+export type Panel = {
+  id: string;
+  cliente_id: string;
+  nombre: string;
+  modelo: string | null;
+  ubicacion: string | null;
+  slc: number;
+  nac: number;
+  voceo: number;
   notas: string | null;
   creado_en: string;
 };
@@ -91,6 +107,7 @@ export const TIPOS_POR_CIRCUITO: Record<TipoCircuito, TipoDispositivo[]> = {
   estrobos: [
     { codigo: 'ES', nombre: 'Estrobo', forma: 'cuadro', conDireccion: false },
     { codigo: 'SE', nombre: 'Sirena con estrobo', forma: 'cuadro', conDireccion: false },
+    { codigo: 'CO', nombre: 'Corneta / sirena', forma: 'cuadro', conDireccion: false },
     CAJA,
     FIN_DE_LINEA,
   ],
@@ -99,15 +116,26 @@ export const TIPOS_POR_CIRCUITO: Record<TipoCircuito, TipoDispositivo[]> = {
 export const NOMBRE_CIRCUITO: Record<TipoCircuito, string> = {
   deteccion: 'Lazo de detección',
   voceo: 'Circuito de voceo',
-  estrobos: 'Circuito de estrobos',
+  estrobos: 'Circuito NAC · sirenas y estrobos',
 };
 
-// Prefijo del código según el tipo: LZ1, VC1, ES1.
+// Prefijo del código según el tipo: LZ1, VC1, NAC1.
 export const PREFIJO_CIRCUITO: Record<TipoCircuito, string> = {
   deteccion: 'LZ',
   voceo: 'VC',
-  estrobos: 'ES',
+  estrobos: 'NAC',
 };
+
+// Cómo se llama la salida del panel de cada tipo: SLC 1, NAC 3, Voceo 1.
+export const SALIDA_CIRCUITO: Record<TipoCircuito, string> = {
+  deteccion: 'SLC',
+  voceo: 'Voceo',
+  estrobos: 'NAC',
+};
+
+export function etiquetaSalida(lazo: Pick<Lazo, 'tipo' | 'numero'>): string {
+  return `${SALIDA_CIRCUITO[lazo.tipo]} ${lazo.numero ?? '?'}`;
+}
 
 export function tipoDispositivo(codigo: string): TipoDispositivo {
   for (const lista of Object.values(TIPOS_POR_CIRCUITO)) {
@@ -185,23 +213,58 @@ function panelNormalizado(panel: string | null): string {
   return (panel || '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
-// Lazos de detección que salen del mismo panel que `lazo` (mismo cliente y
-// el mismo panel escrito), incluido él, ordenados por número de lazo. Así un
-// panel con dos tarjetas SLC muestra sus dos lazos juntos.
-export function lazosDelMismoPanel<T extends Lazo>(lazo: Lazo, todos: T[]): T[] {
-  if (lazo.tipo !== 'deteccion') return todos.filter((l) => l.id === lazo.id);
-  const panel = panelNormalizado(lazo.panel);
-  const mismos = todos.filter((l) =>
-    l.cliente_id === lazo.cliente_id && l.tipo === 'deteccion' && panelNormalizado(l.panel) === panel);
-  mismos.sort((a, b) => (a.numero ?? 99) - (b.numero ?? 99) || a.codigo.localeCompare(b.codigo));
-  return mismos;
+const ORDEN_TIPO: Record<TipoCircuito, number> = { deteccion: 0, estrobos: 1, voceo: 2 };
+
+// Orden de los circuitos en un panel: lazos SLC, luego NAC, luego voceo, y
+// dentro de cada tipo por número.
+export function ordenarCircuitos<T extends Lazo>(lista: T[]): T[] {
+  return [...lista].sort((a, b) =>
+    ORDEN_TIPO[a.tipo] - ORDEN_TIPO[b.tipo] || (a.numero ?? 99) - (b.numero ?? 99) || a.codigo.localeCompare(b.codigo));
 }
 
-// Siguiente número de lazo libre en ese panel (para proponer el lazo 2).
-export function siguienteNumeroDeLazo(lazosDelPanel: Lazo[]): number {
+// Circuitos que salen del mismo panel que `lazo`, incluido él. Con panel
+// registrado (panel_id) son todos los de ese panel; sin él, los lazos de
+// detección del mismo cliente con el mismo panel escrito.
+export function lazosDelMismoPanel<T extends Lazo>(lazo: Lazo, todos: T[]): T[] {
+  if (lazo.panel_id) return ordenarCircuitos(todos.filter((l) => l.panel_id === lazo.panel_id));
+  if (lazo.tipo !== 'deteccion') return todos.filter((l) => l.id === lazo.id);
+  const panel = panelNormalizado(lazo.panel);
+  return ordenarCircuitos(todos.filter((l) =>
+    !l.panel_id && l.cliente_id === lazo.cliente_id && l.tipo === 'deteccion' && panelNormalizado(l.panel) === panel));
+}
+
+// Siguiente número libre de ese tipo en el panel (para proponer el lazo 2
+// o la NAC 3).
+export function siguienteNumeroDeLazo(lazosDelPanel: Lazo[], tipo: TipoCircuito = 'deteccion'): number {
   let mayor = 0;
-  for (const l of lazosDelPanel) mayor = Math.max(mayor, l.numero || 0);
+  for (const l of lazosDelPanel) if (l.tipo === tipo) mayor = Math.max(mayor, l.numero || 0);
   return Math.min(mayor + 1, 99);
+}
+
+export type Salida = { tipo: TipoCircuito; numero: number | null; lazo: Lazo | null };
+
+// Las salidas de un panel, como se ven en su frente: cada SLC, NAC y voceo
+// que tiene, con el circuito capturado en ella o vacía. Lo capturado con un
+// número más alto que las salidas (o sin número) también aparece.
+export function salidasDelPanel<T extends Lazo>(panel: Pick<Panel, 'slc' | 'nac' | 'voceo'>, circuitos: T[]): { tipo: TipoCircuito; salidas: (Salida & { lazo: T | null })[] }[] {
+  const capacidad: Record<TipoCircuito, number> = { deteccion: panel.slc, estrobos: panel.nac, voceo: panel.voceo };
+  const tipos: TipoCircuito[] = ['deteccion', 'estrobos', 'voceo'];
+  const resultado: { tipo: TipoCircuito; salidas: (Salida & { lazo: T | null })[] }[] = [];
+  for (const tipo of tipos) {
+    const delTipo = ordenarCircuitos(circuitos.filter((c) => c.tipo === tipo));
+    const salidas: (Salida & { lazo: T | null })[] = [];
+    for (let n = 1; n <= capacidad[tipo]; n++) {
+      const enEsa = delTipo.filter((c) => c.numero === n);
+      if (enEsa.length === 0) salidas.push({ tipo, numero: n, lazo: null });
+      for (const c of enEsa) salidas.push({ tipo, numero: n, lazo: c });
+    }
+    for (const c of delTipo) {
+      const fuera = c.numero === null || c.numero > capacidad[tipo];
+      if (fuera) salidas.push({ tipo, numero: c.numero, lazo: c });
+    }
+    if (salidas.length > 0) resultado.push({ tipo, salidas });
+  }
+  return resultado;
 }
 
 // ---------- Nombres y direcciones ----------
@@ -403,6 +466,8 @@ function diferencias(antes: Record<string, any>, despues: Record<string, any>, n
     else if (clave === 'tipo') partes.push(`tipo ${a} → ${d}`);
     else if (clave === 'panel') partes.push(`panel ${texto(a)} → ${texto(d)}`);
     else if (clave === 'clase') partes.push(`clase ${a || '—'} → ${d || '—'}`);
+    else if (clave === 'panel_id') partes.push(d ? 'lo pasó a un panel' : 'lo quitó del panel');
+    else if (clave === 'numero') partes.push(`número ${a ?? '—'} → ${d ?? '—'}`);
   }
   if (movido) partes.push('lo cambió de lugar en el lazo');
   return partes;

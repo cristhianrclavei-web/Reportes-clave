@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   Cambio, Elemento, corteSugerido, describirCambio, cortesRestantes, direccionOcupada, direccionVisible, enOrdenDeRecorrido, lineaPrincipal,
-  conteoPorTipo, lazosDelMismoPanel, nombreSugerido, siguienteNumeroDeLazo, sinDireccion, normalizarDireccion, ordenEntre, posiciones, siguienteDireccion, zonaConFalla,
+  conteoPorTipo, lazosDelMismoPanel, salidasDelPanel, nombreSugerido, siguienteNumeroDeLazo, sinDireccion, normalizarDireccion, ordenEntre, posiciones, siguienteDireccion, zonaConFalla,
 } from './lazos';
 
 function el(id: string, orden: number, extra: Partial<Elemento> = {}): Elemento {
@@ -161,6 +161,22 @@ describe('resumen del lazo y lazos del mismo panel', () => {
   it('junta los lazos del mismo panel aunque cambien mayúsculas y espacios', () => {
     expect(lazosDelMismoPanel(l1, [l2, otro, l1, otroCliente]).map((l) => l.id)).toEqual(['a', 'b']);
     expect(siguienteNumeroDeLazo([l1, l2])).toBe(3);
+  });
+
+  it('con panel registrado junta todos sus circuitos: SLC, luego NAC', () => {
+    const nac2 = { ...l1, id: 'n2', tipo: 'estrobos' as const, codigo: 'NAC2', numero: 2, panel_id: 'P' };
+    const slc1 = { ...l1, panel_id: 'P' };
+    expect(lazosDelMismoPanel(slc1, [nac2, slc1, l2]).map((l) => l.id)).toEqual(['a', 'n2']);
+    expect(siguienteNumeroDeLazo([slc1, nac2], 'estrobos')).toBe(3);
+  });
+
+  it('arma las salidas del panel con las vacías y lo que sobra', () => {
+    const nac2 = { ...l1, id: 'n2', tipo: 'estrobos' as const, numero: 2 };
+    const extra = { ...l1, id: 'x', numero: 5 };
+    const r = salidasDelPanel({ slc: 2, nac: 4, voceo: 0 }, [nac2, l1, extra]);
+    expect(r.map((g) => g.tipo)).toEqual(['deteccion', 'estrobos']);
+    expect(r[0].salidas.map((s) => [s.numero, s.lazo?.id ?? null])).toEqual([[1, 'a'], [2, null], [5, 'x']]);
+    expect(r[1].salidas.map((s) => s.lazo?.id ?? null)).toEqual([null, 'n2', null, null]);
   });
 
   it('cuenta por tipo y encuentra los que no tienen dirección', () => {
