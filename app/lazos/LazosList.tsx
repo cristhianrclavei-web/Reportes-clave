@@ -169,22 +169,25 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
   );
 }
 
-function NuevoLazo({ clienteInicial, lazosExistentes, onCerrar, onCreado }: {
+// También se abre desde el diagrama de un lazo para agregar el siguiente
+// lazo del mismo panel (llega con panel, número y clase ya puestos).
+export function NuevoLazo({ clienteInicial, lazosExistentes, inicial, onCerrar, onCreado }: {
   clienteInicial: { id: string; nombre: string } | null;
   lazosExistentes: LazoResumen[];
+  inicial?: { numero: number; clase: 'A' | 'B'; panel: string };
   onCerrar: () => void;
   onCreado: (id: string) => void;
 }) {
   const [cliente, setCliente] = useState(clienteInicial?.nombre || '');
   const [clienteId, setClienteId] = useState<string | null>(clienteInicial?.id || null);
   const [tipo, setTipo] = useState<TipoCircuito>('deteccion');
-  const [numero, setNumero] = useState('1');
+  const [numero, setNumero] = useState(String(inicial?.numero || 1));
   const [codigo, setCodigo] = useState('LZ1');
   // Mientras no se escriba a mano, el código sigue al tipo y al número.
   const [codigoAMano, setCodigoAMano] = useState(false);
   const [nombre, setNombre] = useState('');
-  const [clase, setClase] = useState<'A' | 'B'>('B');
-  const [panel, setPanel] = useState('');
+  const [clase, setClase] = useState<'A' | 'B'>(inicial?.clase || 'B');
+  const [panel, setPanel] = useState(inicial?.panel || '');
   const [errores, setErrores] = useState<Errores>({});
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   Cambio, Elemento, corteSugerido, describirCambio, cortesRestantes, direccionOcupada, direccionVisible, enOrdenDeRecorrido, lineaPrincipal,
-  nombreSugerido, normalizarDireccion, ordenEntre, posiciones, siguienteDireccion, zonaConFalla,
+  conteoPorTipo, lazosDelMismoPanel, nombreSugerido, siguienteNumeroDeLazo, sinDireccion, normalizarDireccion, ordenEntre, posiciones, siguienteDireccion, zonaConFalla,
 } from './lazos';
 
 function el(id: string, orden: number, extra: Partial<Elemento> = {}): Elemento {
@@ -148,5 +148,27 @@ describe('historial de cambios', () => {
 
     const cierre: Cambio = { ...base, tabla: 'lazo_fallas', elemento_id: 'e1', accion: 'cambio', antes: { estado: 'abierta' }, despues: { estado: 'resuelta', causa: 'Agua en la caja' } };
     expect(describirCambio(cierre, 1, nombreDe)).toBe('Cerró la búsqueda de falla en LZ1_SH_4: Agua en la caja');
+  });
+});
+
+describe('resumen del lazo y lazos del mismo panel', () => {
+  const base = { cliente_id: 'C', tipo: 'deteccion' as const, nombre: 'x', clase: 'B' as const, notas: null, creado_en: '' };
+  const l1 = { ...base, id: 'a', codigo: 'LZ1', numero: 1, panel: 'Firelite ES-1000X' };
+  const l2 = { ...base, id: 'b', codigo: 'LZ2', numero: 2, panel: '  firelite   es-1000x ' };
+  const otro = { ...base, id: 'c', codigo: 'LZ1', numero: 1, panel: 'Notifier' };
+  const otroCliente = { ...l2, id: 'd', cliente_id: 'Z' };
+
+  it('junta los lazos del mismo panel aunque cambien mayúsculas y espacios', () => {
+    expect(lazosDelMismoPanel(l1, [l2, otro, l1, otroCliente]).map((l) => l.id)).toEqual(['a', 'b']);
+    expect(siguienteNumeroDeLazo([l1, l2])).toBe(3);
+  });
+
+  it('cuenta por tipo y encuentra los que no tienen dirección', () => {
+    const els = [
+      { id: '1', tipo: 'SH', direccion: 'D1' }, { id: '2', tipo: 'SH', direccion: null },
+      { id: '3', tipo: 'EMA', direccion: 'M1' }, { id: '4', tipo: 'RG', direccion: null },
+    ].map((e, i) => ({ lazo_id: 'a', padre_id: null, orden: i, nombre: e.id, ubicacion: null, foto_path: null, ...e }));
+    expect(conteoPorTipo(els)).toEqual([{ tipo: 'SH', cuantos: 2 }, { tipo: 'EMA', cuantos: 1 }, { tipo: 'RG', cuantos: 1 }]);
+    expect(sinDireccion(els).map((e) => e.id)).toEqual(['2']);
   });
 });

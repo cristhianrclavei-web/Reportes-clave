@@ -165,6 +165,45 @@ export function posiciones(elementos: Elemento[]): Map<string, number> {
   return mapa;
 }
 
+// ---------- Resumen y paneles ----------
+
+// Cuántos hay de cada tipo, del más común al menos común (empate: por código).
+export function conteoPorTipo(elementos: Elemento[]): { tipo: string; cuantos: number }[] {
+  const cuenta = new Map<string, number>();
+  for (const e of elementos) cuenta.set(e.tipo, (cuenta.get(e.tipo) || 0) + 1);
+  const lista = [...cuenta.entries()].map(([tipo, cuantos]) => ({ tipo, cuantos }));
+  lista.sort((a, b) => b.cuantos - a.cuantos || a.tipo.localeCompare(b.tipo));
+  return lista;
+}
+
+// Dispositivos de un tipo que lleva dirección y todavía no la tiene.
+export function sinDireccion(elementos: Elemento[]): Elemento[] {
+  return elementos.filter((e) => tipoDispositivo(e.tipo).conDireccion && !e.direccion);
+}
+
+function panelNormalizado(panel: string | null): string {
+  return (panel || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+// Lazos de detección que salen del mismo panel que `lazo` (mismo cliente y
+// el mismo panel escrito), incluido él, ordenados por número de lazo. Así un
+// panel con dos tarjetas SLC muestra sus dos lazos juntos.
+export function lazosDelMismoPanel<T extends Lazo>(lazo: Lazo, todos: T[]): T[] {
+  if (lazo.tipo !== 'deteccion') return todos.filter((l) => l.id === lazo.id);
+  const panel = panelNormalizado(lazo.panel);
+  const mismos = todos.filter((l) =>
+    l.cliente_id === lazo.cliente_id && l.tipo === 'deteccion' && panelNormalizado(l.panel) === panel);
+  mismos.sort((a, b) => (a.numero ?? 99) - (b.numero ?? 99) || a.codigo.localeCompare(b.codigo));
+  return mismos;
+}
+
+// Siguiente número de lazo libre en ese panel (para proponer el lazo 2).
+export function siguienteNumeroDeLazo(lazosDelPanel: Lazo[]): number {
+  let mayor = 0;
+  for (const l of lazosDelPanel) mayor = Math.max(mayor, l.numero || 0);
+  return Math.min(mayor + 1, 99);
+}
+
 // ---------- Nombres y direcciones ----------
 
 // Siguiente nombre automático al estilo de sus planos: LZ1_SH_8. Toma el

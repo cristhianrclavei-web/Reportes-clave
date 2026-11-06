@@ -17,6 +17,8 @@ const SECCION_LAZOS: SeccionManual = {
         'Toca «Agregar dispositivo», elige el tipo (SH, MC, MM…, o RG para una caja de registro), revisa la dirección y la ubicación y toca «Guardar y siguiente». La hoja se queda abierta para el siguiente, con la siguiente dirección libre.',
         'Si algo cuelga del dispositivo anterior (la corneta de un módulo, una derivación), toca «Colgar de…»; para seguir con la línea principal, «Volver a la línea».',
         'Si la dirección ya la tiene otro dispositivo del lazo, la app te avisa antes de guardar.',
+        'Arriba de «Lista en orden» está el resumen: cuántos dispositivos hay, cuántos en la línea y en ramas, cuántos de cada tipo y si a alguno le falta dirección. Lo que cuelga de un dispositivo está plegado: toca el número con la flecha para verlo, o «Desplegar ramas» para abrir todo.',
+        'Si el panel tiene varias tarjetas SLC, en «Diagrama» toca «Agregar el lazo 2 de este panel» (llega con el panel y el número ya puestos). Los lazos con el mismo cliente y el mismo panel escrito se ven juntos en «Panel»: cada lazo en su carril y con su color; pliega el que no ocupes y toca un dispositivo de otro lazo para abrirlo.',
         'Toca cualquier dispositivo (en la lista o en el diagrama) para ver su ficha: dónde está, de cuál viene y a cuál sigue. Desde ahí lo corriges, insertas otro antes o después, cuelgas otro o lo borras.',
         'En la pestaña «Diagrama», «Exportar PDF» descarga el diagrama unifilar en hoja carta horizontal, con los símbolos usados y la lista de dispositivos (lugar, dirección, tipo, ubicación y de cuál cuelga). Necesita señal.',
       ],

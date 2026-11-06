@@ -60,6 +60,8 @@ export default function DiagramaLazo({
   onTocar,
   estados,
   cortes,
+  colorLinea,
+  conPanel = true,
 }: {
   lazo: Lazo;
   elementos: Elemento[];
@@ -67,7 +69,12 @@ export default function DiagramaLazo({
   // Búsqueda de falla: cómo pintar cada dispositivo y dónde se cortó.
   estados?: Map<string, EstadoEnFalla>;
   cortes?: Map<string, number>;
+  // Vista de panel con varios lazos: cada lazo con su color y sin el PCI
+  // propio (lo dibuja PanelLazos una sola vez).
+  colorLinea?: string;
+  conPanel?: boolean;
 }) {
+  const linea = { backgroundColor: colorLinea || 'rgb(var(--c-muted) / 0.7)' };
   const principal = lineaPrincipal(elementos);
   const renglones: Elemento[][] = [];
   for (let i = 0; i < principal.length; i += POR_RENGLON) {
@@ -100,12 +107,12 @@ export default function DiagramaLazo({
     if (hijos.length === 1) return nodoDeRama(hijos[0]);
     return (
       <div className="flex flex-col items-center">
-        <div className="w-0.5 h-2 bg-muted/70" aria-hidden="true" />
+        <div className="w-0.5 h-2" style={linea} aria-hidden="true" />
         <div className="flex">
           {hijos.map((hijo, i) => (
             <div key={hijo.id} className="relative flex flex-col items-center px-1" style={{ minWidth: ANCHO_COLUMNA }}>
-              {i > 0 && <div className="absolute left-0 top-0 w-1/2 h-0.5 bg-muted/70" aria-hidden="true" />}
-              {i < hijos.length - 1 && <div className="absolute right-0 top-0 w-1/2 h-0.5 bg-muted/70" aria-hidden="true" />}
+              {i > 0 && <div className="absolute left-0 top-0 w-1/2 h-0.5" style={linea} aria-hidden="true" />}
+              {i < hijos.length - 1 && <div className="absolute right-0 top-0 w-1/2 h-0.5" style={linea} aria-hidden="true" />}
               {nodoDeRama(hijo)}
             </div>
           ))}
@@ -117,7 +124,7 @@ export default function DiagramaLazo({
   function nodoDeRama(e: Elemento): React.ReactNode {
     return (
       <div className="flex flex-col items-center">
-        <div className="w-0.5 h-2 bg-muted/70" aria-hidden="true" />
+        <div className="w-0.5 h-2" style={linea} aria-hidden="true" />
         {boton(e, true)}
         {ramasDe(e.id)}
       </div>
@@ -126,10 +133,12 @@ export default function DiagramaLazo({
 
   return (
     <div className="w-max min-w-full">
-      <div className="flex items-center gap-2">
-        <span className="font-mono text-[13px] border-[1.5px] border-teal text-teal rounded-md px-2 py-1">PCI</span>
-        <span className="text-[11.5px] text-faint truncate">{lazo.panel || 'Panel'} · salida</span>
-      </div>
+      {conPanel && (
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-[13px] border-[1.5px] border-teal text-teal rounded-md px-2 py-1">PCI</span>
+          <span className="text-[11.5px] text-faint truncate">{lazo.panel || 'Panel'} · salida</span>
+        </div>
+      )}
 
       {principal.length === 0 && (
         <p className="text-[13px] text-muted mt-4">Todavía no hay dispositivos. Captura el primero desde «Lista en orden».</p>
@@ -139,19 +148,19 @@ export default function DiagramaLazo({
         <div key={i} className="relative pl-5">
           {/* Entrada del renglón: del PCI (el primero) o del regreso del
               renglón de arriba, baja hasta la línea. */}
-          <div className="absolute left-[9px] top-0 h-4 w-0.5 bg-muted/70" aria-hidden="true" />
+          <div className="absolute left-[9px] top-0 h-4 w-0.5" style={linea} aria-hidden="true" />
           {/* Si sigue otro renglón: la línea baja por la derecha y regresa
               por abajo a la izquierda, como un salto de línea. Así se lee que
               el siguiente renglón va en serie, no que sale del panel. */}
           {i < renglones.length - 1 && (
             <>
-              <div className="absolute right-2 top-[14px] bottom-0 w-0.5 bg-muted/70" aria-hidden="true" />
-              <div className="absolute left-[9px] right-2 bottom-0 h-0.5 bg-muted/70" aria-hidden="true" />
+              <div className="absolute right-2 top-[14px] bottom-0 w-0.5" style={linea} aria-hidden="true" />
+              <div className="absolute left-[9px] right-2 bottom-0 h-0.5" style={linea} aria-hidden="true" />
             </>
           )}
           <div className="h-3.5" />
           <div className="relative">
-            <div className="absolute -left-[11px] right-2 top-0 h-0.5 bg-muted/70" aria-hidden="true" />
+            <div className="absolute -left-[11px] right-2 top-0 h-0.5" style={linea} aria-hidden="true" />
             <div className="flex">
               {renglon.map((e) => {
                 const corte = cortes?.get(e.id);
@@ -162,7 +171,7 @@ export default function DiagramaLazo({
                         <Scissors size={10} strokeWidth={2.6} aria-hidden="true" />{corte}
                       </span>
                     )}
-                    <div className="w-0.5 h-3 bg-muted/70" aria-hidden="true" />
+                    <div className="w-0.5 h-3" style={linea} aria-hidden="true" />
                     {boton(e, false)}
                     {ramasDe(e.id)}
                     <div className="h-3" />

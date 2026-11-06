@@ -5,16 +5,20 @@ import Link from 'next/link';
 import { AlertTriangle, ChevronLeft, CloudUpload, FileDown, History, Plus, Settings2, WifiOff } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
-import DiagramaLazo, { Simbolo } from '@/components/lazos/DiagramaLazo';
+import DiagramaLazo from '@/components/lazos/DiagramaLazo';
+import ListaEnOrden from '@/components/lazos/ListaEnOrden';
+import PanelLazos from '@/components/lazos/PanelLazos';
+import { NuevoLazo } from '@/app/lazos/LazosList';
+import { catalogoEnCache } from '@/lib/clientesCatalogo';
 import VerFoto from '@/components/lazos/VerFoto';
 import HojaCaptura, { Lugar, lugarAlFinal, lugarAntesDe, lugarColgandoDe, lugarDespuesDe } from '@/components/lazos/HojaCaptura';
 import FichaElemento, { fechaHora } from '@/components/lazos/FichaElemento';
 import BusquedaFalla from '@/components/lazos/BusquedaFalla';
 import { confirmar } from '@/lib/dialogos';
-import { Cambio, Corte, Elemento, Falla, NOMBRE_CIRCUITO, describirCambio, direccionVisible, hijosDe, lineaPrincipal } from '@/lib/lazos';
+import { Cambio, Corte, Elemento, Falla, NOMBRE_CIRCUITO, describirCambio, hijosDe, lazosDelMismoPanel, lineaPrincipal, siguienteNumeroDeLazo } from '@/lib/lazos';
 import {
-  DatosLazo, ResultadoGuardar, actualizarLazo, borrarElemento, borrarLazo, descartarPrimerPendiente,
-  fallasResueltas, guardarCopiaLazo, guardarElemento, historialDeLazo, obtenerLazo, pendientesDeLazo, subirPendientes,
+  DatosLazo, LazoResumen, ResultadoGuardar, actualizarLazo, borrarElemento, borrarLazo, descartarPrimerPendiente,
+  fallasResueltas, guardarCopiaLazo, guardarElemento, historialDeLazo, listarLazos, obtenerLazo, pendientesDeLazo, subirPendientes,
 } from '@/lib/lazosDatos';
 
 type Vista = 'lista' | 'diagrama' | 'falla';
@@ -45,6 +49,10 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
   const [avisoHistorial, setAvisoHistorial] = useState<string | null>(null);
   const [verHistorial, setVerHistorial] = useState(false);
   const [exportando, setExportando] = useState(false);
+  // Todos los lazos, para juntar los que salen del mismo panel.
+  const [todosLosLazos, setTodosLosLazos] = useState<LazoResumen[]>([]);
+  const [verPanel, setVerPanel] = useState(true);
+  const [agregandoLazo, setAgregandoLazo] = useState(false);
 
   // El PDF se arma en el servidor y se descarga con un enlace firmado de
   // Storage (ver app/api/lazos/[id]/pdf): abrir el PDF directo no funciona
@@ -87,6 +95,9 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
       setDatos(resultado.datos);
       setSinConexion(resultado.sinConexion);
       if (!resultado.sinConexion) fallasResueltas(lazoId).then(setHistorial).catch(() => {});
+      // Si falla, solo no se ofrece la vista del panel completo: el lazo
+      // se sigue viendo y capturando igual.
+      listarLazos().then((r) => setTodosLosLazos(r.lazos)).catch(() => setTodosLosLazos([]));
     } catch (e: any) {
       setErrorCarga(e?.message || 'No se pudo cargar el lazo.');
     } finally {
@@ -209,37 +220,8 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
   const { lazo, elementos } = datos;
   const principal = lineaPrincipal(elementos);
 
-  // Lista en orden: cada dispositivo de la línea y, sangrado, lo que cuelga.
-  // marca: número en la línea principal, ↳ al empezar una rama, ↓ en serie.
-  function filas(lista: Elemento[], nivel: number, marca: 'numero' | 'rama' | 'serie'): React.ReactNode[] {
-    const numerar = marca === 'numero';
-    const resultado: React.ReactNode[] = [];
-    lista.forEach((e, i) => {
-      const direccion = direccionVisible(e.direccion, lazo.numero);
-      resultado.push(
-        <li key={e.id}>
-          <button type="button" onClick={() => abrirFicha(e)} className="w-full flex items-center gap-3 py-2 text-left hover:bg-surface-2/60 rounded-lg"
-            style={{ paddingLeft: nivel * 26 }}>
-            <span className={`w-7 h-7 shrink-0 rounded-lg font-mono text-[11px] flex items-center justify-center ${numerar ? 'bg-surface-2 text-muted' : 'text-faint'}`}>
-              {numerar ? i + 1 : marca === 'serie' ? '↓' : '↳'}
-            </span>
-            <span className="w-11 shrink-0 flex justify-center text-ink scale-[0.8]"><Simbolo tipo={e.tipo} chico /></span>
-            <span className="flex-1 min-w-0">
-              <span className="block font-mono text-[14px] truncate">{e.nombre}</span>
-              {e.ubicacion && <span className="block text-[12px] text-muted truncate">{e.ubicacion}</span>}
-            </span>
-            {direccion && <span className="font-mono text-[12px] rounded-md bg-surface-2 px-1.5 py-0.5 shrink-0">{direccion}</span>}
-          </button>
-        </li>,
-      );
-      // Lo que sigue en serie dentro de una rama va a la misma sangría; las
-      // ramas de un dispositivo, un nivel más adentro.
-      const hijos = hijosDe(elementos, e.id);
-      const enSerie = nivel > 0 && hijos.length === 1;
-      resultado.push(...filas(hijos, enSerie ? nivel : nivel + 1, enSerie ? 'serie' : 'rama'));
-    });
-    return resultado;
-  }
+  const delPanel = lazosDelMismoPanel(lazo, todosLosLazos);
+  const hayVariosLazos = delPanel.length > 1;
 
   const pestanas: { k: Vista; label: string }[] = [
     { k: 'lista', label: 'Lista en orden' },
@@ -302,29 +284,45 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
           </div>
         )}
 
-        {vista === 'lista' && (
-          <>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="font-mono text-[12px] border-[1.5px] border-teal text-teal rounded-md px-1.5 py-0.5">PCI</span>
-              <span className="text-[12.5px] text-muted truncate">{lazo.panel || 'Panel'} · salida del lazo</span>
-            </div>
-            {principal.length === 0
-              ? <p className="text-[14px] text-muted py-6">Todavía no hay dispositivos. Toca «Agregar dispositivo» y captura en el orden en que corre el cable.</p>
-              : <ol className="divide-y divide-line">{filas(principal, 0, 'numero')}</ol>}
-          </>
-        )}
+        {vista === 'lista' && <ListaEnOrden lazo={lazo} elementos={elementos} onTocar={abrirFicha} />}
 
         {vista === 'diagrama' && (
           <>
-            <div className="flex justify-end mb-2">
+            <div className="flex items-center justify-end gap-2 mb-2">
+              {hayVariosLazos && (
+                <div className="mr-auto grid grid-cols-2 gap-0.5 rounded-xl bg-surface border border-line p-0.5" role="radiogroup" aria-label="Qué ver en el diagrama">
+                  {[{ panel: false, texto: 'Este lazo' }, { panel: true, texto: `Panel · ${delPanel.length}` }].map((o) => (
+                    <button key={o.texto} type="button" role="radio" aria-checked={verPanel === o.panel} onClick={() => setVerPanel(o.panel)}
+                      className={`min-h-[38px] px-3 rounded-lg text-[13px] font-semibold ${verPanel === o.panel ? 'bg-teal text-inkOnAccent' : 'text-muted'}`}>
+                      {o.texto}
+                    </button>
+                  ))}
+                </div>
+              )}
               <button type="button" onClick={exportarPdf} disabled={exportando}
                 className="min-h-[42px] px-3.5 rounded-xl border border-line bg-surface-2 text-[13.5px] font-semibold flex items-center gap-1.5 disabled:opacity-60">
                 <FileDown size={16} strokeWidth={2.2} /> {exportando ? 'Generando PDF…' : 'Exportar PDF'}
               </button>
             </div>
-            <div className="rounded-2xl bg-surface border border-line p-3 overflow-x-auto">
-              <DiagramaLazo lazo={lazo} elementos={elementos} onTocar={abrirFicha} />
-            </div>
+            {hayVariosLazos && verPanel ? (
+              <PanelLazos actual={lazo} elementosActual={elementos} lazos={delPanel} onTocar={abrirFicha} onAgregarLazo={() => setAgregandoLazo(true)} />
+            ) : (
+              <>
+                <div className="rounded-2xl bg-surface border border-line p-3 overflow-x-auto">
+                  <DiagramaLazo lazo={lazo} elementos={elementos} onTocar={abrirFicha} />
+                </div>
+                {lazo.tipo === 'deteccion' && !hayVariosLazos && (
+                  <button type="button" onClick={() => setAgregandoLazo(true)}
+                    className="mt-3 w-full rounded-2xl border border-dashed border-line-strong p-3 text-left flex items-center gap-3 hover:border-teal/60">
+                    <span className="w-10 h-10 shrink-0 rounded-full bg-teal/15 text-teal flex items-center justify-center"><Plus size={19} strokeWidth={2.6} /></span>
+                    <span className="min-w-0">
+                      <span className="block text-[14px] font-semibold">Agregar el lazo {siguienteNumeroDeLazo([lazo])} de este panel</span>
+                      <span className="block text-[12.5px] text-muted">Si el panel tiene otra tarjeta SLC, captúrala y ve los dos lazos juntos en el diagrama.</span>
+                    </span>
+                  </button>
+                )}
+              </>
+            )}
           </>
         )}
 
@@ -393,6 +391,16 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
             <button type="button" onClick={() => setVerHistorial(false)} className="mt-4 min-h-[46px] rounded-xl bg-surface-2 border border-line font-semibold text-[14.5px]">Cerrar</button>
           </div>
         </ModalOverlay>
+      )}
+
+      {agregandoLazo && (
+        <NuevoLazo
+          clienteInicial={{ id: lazo.cliente_id, nombre: catalogoEnCache().find((c) => c.id === lazo.cliente_id)?.nombre || 'Cliente' }}
+          lazosExistentes={todosLosLazos}
+          inicial={{ numero: siguienteNumeroDeLazo(delPanel.length ? delPanel : [lazo]), clase: lazo.clase || 'B', panel: lazo.panel || '' }}
+          onCerrar={() => setAgregandoLazo(false)}
+          onCreado={(id) => { window.location.href = `/lazos/${id}`; }}
+        />
       )}
 
       {editandoLazo && (
