@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   Cambio, Elemento, corteSugerido, describirCambio, cortesRestantes, direccionOcupada, direccionVisible, enOrdenDeRecorrido, lineaPrincipal,
-  armarUbicacion, conteoPorNivel, conteoPorTipo, lazosDelMismoPanel, partesDe, valoresUsados, nombreSugerido, siguienteNumeroDeLazo, sinDireccion, normalizarDireccion, ordenEntre, posiciones, siguienteDireccion, zonaConFalla,
+  armarUbicacion, conteoPorNivel, conteoPorTipo, lazosDelMismoPanel, sugerenciaPara, partesDe, valoresUsados, nombreSugerido, siguienteNumeroDeLazo, sinDireccion, normalizarDireccion, ordenEntre, posiciones, siguienteDireccion, zonaConFalla,
 } from './lazos';
 
 function el(id: string, orden: number, extra: Partial<Elemento> = {}): Elemento {
@@ -200,5 +200,19 @@ describe('ubicación por partes', () => {
     expect(valoresUsados(els, 'nivel')).toEqual(['Planta baja', 'Nivel 1']);
     expect(valoresUsados(els, 'area')).toEqual(['Cocina', 'Bodega 1']);
     expect(conteoPorNivel(els)).toEqual([{ nivel: 'Planta baja', cuantos: 2 }, { nivel: 'Nivel 1', cuantos: 1 }]);
+  });
+});
+
+describe('sugerenciaPara', () => {
+  const usados = ['Habitación 30', 'Habitación 31', 'Pasillo'];
+  it('da la primera que empieza con lo escrito, sin importar acentos ni mayúsculas', () => {
+    expect(sugerenciaPara('habitacion', usados)).toBe('Habitación 30');
+    expect(sugerenciaPara('Habitación 31', usados)).toBeNull();
+    expect(sugerenciaPara('habitación 3', usados)).toBe('Habitación 30');
+    expect(sugerenciaPara('pa', usados)).toBe('Pasillo');
+  });
+  it('nada si no hay texto o nada coincide', () => {
+    expect(sugerenciaPara('', usados)).toBeNull();
+    expect(sugerenciaPara('cocina', usados)).toBeNull();
   });
 });

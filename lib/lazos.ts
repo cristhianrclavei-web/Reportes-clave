@@ -227,6 +227,23 @@ export function valoresUsados(elementos: Elemento[], campo: 'area' | 'nivel', ma
   return [...cuenta.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'es')).slice(0, maximo).map(([valor]) => valor);
 }
 
+// Sin acentos ni mayúsculas, para comparar lo que se escribe con lo ya usado.
+function sinAcentos(texto: string): string {
+  return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+// Primera sugerencia que empieza con lo escrito («habit» → «Habitación 30»).
+// Nada si no hay lo escrito, si nada coincide o si ya está completo.
+export function sugerenciaPara(escrito: string, sugerencias: string[]): string | null {
+  const buscado = sinAcentos(escrito);
+  if (!buscado.trim()) return null;
+  for (const s of sugerencias) {
+    const opcion = sinAcentos(s);
+    if (opcion.startsWith(buscado) && opcion !== buscado) return s;
+  }
+  return null;
+}
+
 // Cuántos dispositivos hay en cada nivel (los que no tienen nivel no cuentan).
 export function conteoPorNivel(elementos: Elemento[]): { nivel: string; cuantos: number }[] {
   const cuenta = new Map<string, number>();

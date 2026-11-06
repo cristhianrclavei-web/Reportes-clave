@@ -7,7 +7,7 @@ import { Simbolo } from '@/components/lazos/DiagramaLazo';
 import { generarUUID } from '@/lib/uuid';
 import {
   Elemento, Lazo, PartesUbicacion, TIPOS_POR_CIRCUITO, armarUbicacion, direccionOcupada, direccionVisible, hijosDe, lineaPrincipal,
-  nombreSugerido, normalizarDireccion, ordenEntre, partesDe, prefijoLazo, siguienteDireccion, tipoDispositivo, valoresUsados,
+  nombreSugerido, normalizarDireccion, ordenEntre, partesDe, prefijoLazo, siguienteDireccion, tipoDispositivo, sugerenciaPara, valoresUsados,
 } from '@/lib/lazos';
 import { guardarElemento, subirFotoElemento } from '@/lib/lazosDatos';
 
@@ -28,11 +28,13 @@ export type Lugar = { padreId: string | null; ordenAntes: number | null; ordenDe
 
 const CAMPO = 'w-full px-3 min-h-[46px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]';
 
-// Niveles comunes para el primer dispositivo, cuando el lazo todavía no
-// tiene ninguno anotado.
+// Niveles comunes, sugeridos después de los que ya se usaron en el lazo
+// (sirven desde el primer dispositivo).
 const NIVELES_COMUNES = ['Sótano', 'Planta baja', 'Nivel 1', 'Nivel 2', 'Mezanine', 'Azotea'];
 
-// Campo de texto con los valores ya usados abajo, para tocarlos.
+// Campo de texto que completa con lo ya usado: al escribir «habit» aparece
+// en gris «Habitación 30»; Enter (o tocar la sugerencia) la acepta, y si se
+// sigue escribiendo se queda lo escrito.
 function CampoConSugerencias({ id, etiqueta, valor, onCambiar, sugerencias, placeholder, maximo }: {
   id: string;
   etiqueta: string;
@@ -42,19 +44,34 @@ function CampoConSugerencias({ id, etiqueta, valor, onCambiar, sugerencias, plac
   placeholder: string;
   maximo: number;
 }) {
+  const sugerencia = sugerenciaPara(valor, sugerencias);
+
+  function alTeclear(ev: React.KeyboardEvent<HTMLInputElement>) {
+    if (ev.key === 'Enter' && sugerencia) {
+      ev.preventDefault();
+      onCambiar(sugerencia);
+    }
+  }
+
   return (
     <div className="mt-3">
       <label htmlFor={id} className="block text-[12.5px] text-muted mb-1">{etiqueta}</label>
-      <input id={id} value={valor} onChange={(ev) => onCambiar(ev.target.value)} maxLength={maximo} placeholder={placeholder} className={CAMPO} />
-      {sugerencias.length > 0 && (
-        <div className="flex gap-1.5 mt-1.5 overflow-x-auto pb-0.5 -mx-0.5 px-0.5" aria-label={`${etiqueta}: usados en este lazo`}>
-          {sugerencias.map((s) => (
-            <button key={s} type="button" onClick={() => onCambiar(s)} aria-pressed={valor === s}
-              className={`shrink-0 min-h-[34px] px-3 rounded-full border text-[12.5px] whitespace-nowrap ${valor === s ? 'border-teal bg-teal/15 text-teal font-semibold' : 'border-line bg-surface-2 text-muted'}`}>
-              {s}
-            </button>
-          ))}
-        </div>
+      <div className="relative">
+        <input id={id} value={valor} onChange={(ev) => onCambiar(ev.target.value)} onKeyDown={alTeclear} maxLength={maximo}
+          placeholder={placeholder} autoComplete="off" enterKeyHint={sugerencia ? 'done' : 'next'} className={CAMPO} />
+        {sugerencia && (
+          // Lo que falta, en gris, justo después de lo escrito (lo escrito va transparente para alinear).
+          <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 right-0 px-3 border border-transparent flex items-center text-[15px] whitespace-pre overflow-hidden">
+            <span className="text-transparent">{valor}</span>
+            <span className="text-faint">{sugerencia.slice(valor.length)}</span>
+          </span>
+        )}
+      </div>
+      {sugerencia && (
+        <button type="button" onClick={() => onCambiar(sugerencia)}
+          className="mt-1 min-h-[30px] text-[12.5px] text-teal font-medium">
+          Enter o toca para usar «{sugerencia}»
+        </button>
       )}
     </div>
   );
@@ -129,9 +146,9 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
   const [nombreAMano, setNombreAMano] = useState(Boolean(editando));
   // Ubicación por partes: área (Cocina, Bodega 1), nivel y una referencia.
   const [partes, setPartes] = useState<PartesUbicacion>(editando ? partesDe(editando) : { area: '', nivel: '', referencia: '' });
-  const niveles = valoresUsados(elementos, 'nivel');
-  const sugerenciasNivel = niveles.length > 0 ? niveles : NIVELES_COMUNES;
-  const sugerenciasArea = valoresUsados(elementos, 'area');
+  const niveles = valoresUsados(elementos, 'nivel', 100);
+  const sugerenciasNivel = [...niveles, ...NIVELES_COMUNES.filter((n) => !niveles.includes(n))];
+  const sugerenciasArea = valoresUsados(elementos, 'area', 100);
   const [foto, setFoto] = useState<File | null>(null);
   const [errores, setErrores] = useState<Errores>({});
   const [guardando, setGuardando] = useState(false);
