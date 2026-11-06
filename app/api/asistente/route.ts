@@ -1,3 +1,4 @@
+import { avisoDeCuenta } from '@/lib/asistente/avisoCuenta';
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@/lib/supabaseServer';
@@ -102,9 +103,13 @@ async function autorizar() {
 
 function respuestaError(e: unknown) {
   if (e instanceof Rechazo) return NextResponse.json({ error: e.message }, { status: e.estado });
-  if (e instanceof Anthropic.AuthenticationError) {
-    console.error('[asistente] llave de Claude inválida');
-    return NextResponse.json({ error: 'El asistente no está bien configurado. Avisa a quien administra la app.' }, { status: 503 });
+  if (e instanceof Anthropic.APIError) {
+    // Llave vencida o sin créditos: se dice tal cual, no «intenta de nuevo».
+    const aviso = avisoDeCuenta(e.status, e.message);
+    if (aviso) {
+      console.error('[asistente] problema con la cuenta de Anthropic', e.status, e.message);
+      return NextResponse.json({ error: aviso, cuenta: true }, { status: 503 });
+    }
   }
   if (e instanceof Anthropic.RateLimitError) {
     return NextResponse.json({ error: 'El asistente está muy ocupado. Intenta de nuevo en un minuto.' }, { status: 429 });

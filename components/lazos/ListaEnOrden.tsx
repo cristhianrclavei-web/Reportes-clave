@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import { Simbolo } from '@/components/lazos/DiagramaLazo';
-import { Elemento, Lazo, conteoPorTipo, direccionVisible, hijosDe, lineaPrincipal, sinDireccion, tipoDispositivo } from '@/lib/lazos';
+import { Elemento, Lazo, conteoPorNivel, conteoPorTipo, direccionVisible, hijosDe, lineaPrincipal, sinDireccion, tipoDispositivo } from '@/lib/lazos';
 
 // Pestaña «Lista en orden»: arriba el resumen del lazo (cuántos hay y de qué
 // tipo) y abajo los dispositivos en el orden del cable. Lo que cuelga de un
@@ -20,6 +20,7 @@ function ResumenLazo({ lazo, elementos }: { lazo: Lazo; elementos: Elemento[] })
   const enRamas = elementos.length - enLinea;
   const tipos = conteoPorTipo(elementos);
   const faltan = sinDireccion(elementos);
+  const porNivel = conteoPorNivel(elementos);
   let detectores = 0;
   let modulos = 0;
   for (const e of elementos) {
@@ -68,6 +69,19 @@ function ResumenLazo({ lazo, elementos }: { lazo: Lazo; elementos: Elemento[] })
             </li>
           ))}
         </ul>
+      )}
+
+      {porNivel.length > 0 && (
+        <div className="mt-3">
+          <p className="text-[11.5px] font-semibold uppercase tracking-[0.08em] text-faint mb-1.5">Por nivel</p>
+          <ul className="flex flex-wrap gap-1.5" aria-label="Dispositivos por nivel">
+            {porNivel.map(({ nivel, cuantos }) => (
+              <li key={nivel} className="rounded-xl bg-surface-2 border border-line px-2.5 py-1 text-[12px]">
+                <span className="font-mono font-semibold text-[13px]">{cuantos}</span> <span className="text-muted">{nivel}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {faltan.length > 0 && (

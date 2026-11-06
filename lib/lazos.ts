@@ -41,7 +41,12 @@ export type Elemento = {
   tipo: string;
   nombre: string;
   direccion: string | null;
+  // Todo junto («Cocina · Planta baja · sobre plafón»); es lo que se muestra.
   ubicacion: string | null;
+  // Por partes (patch_lazos_ubicacion.sql). Sin el patch no vienen.
+  area?: string | null;
+  nivel?: string | null;
+  referencia?: string | null;
   foto_path: string | null;
   creado_por?: string;
   creado_en?: string;
@@ -191,6 +196,44 @@ export function posiciones(elementos: Elemento[]): Map<string, number> {
     if (actual && mapa.has(actual.id)) mapa.set(e.id, mapa.get(actual.id) as number);
   }
   return mapa;
+}
+
+// ---------- Ubicación por partes ----------
+
+export type PartesUbicacion = { area: string; nivel: string; referencia: string };
+
+// «Cocina · Planta baja · sobre plafón». null si no hay nada.
+export function armarUbicacion(partes: PartesUbicacion): string | null {
+  const texto = [partes.area, partes.nivel, partes.referencia].map((p) => p.trim()).filter(Boolean).join(' · ');
+  return texto || null;
+}
+
+// Partes para editar un dispositivo. Los capturados antes de separar la
+// ubicación solo tienen el texto junto: va completo en «Área».
+export function partesDe(e: Pick<Elemento, 'ubicacion' | 'area' | 'nivel' | 'referencia'>): PartesUbicacion {
+  if (e.area || e.nivel || e.referencia) return { area: e.area || '', nivel: e.nivel || '', referencia: e.referencia || '' };
+  return { area: e.ubicacion || '', nivel: '', referencia: '' };
+}
+
+// Valores que ya se usaron en el lazo para un campo, del más usado al menos
+// (para tocarlos en vez de escribirlos otra vez).
+export function valoresUsados(elementos: Elemento[], campo: 'area' | 'nivel', maximo = 8): string[] {
+  const cuenta = new Map<string, number>();
+  for (const e of elementos) {
+    const valor = (e[campo] || '').trim();
+    if (valor) cuenta.set(valor, (cuenta.get(valor) || 0) + 1);
+  }
+  return [...cuenta.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'es')).slice(0, maximo).map(([valor]) => valor);
+}
+
+// Cuántos dispositivos hay en cada nivel (los que no tienen nivel no cuentan).
+export function conteoPorNivel(elementos: Elemento[]): { nivel: string; cuantos: number }[] {
+  const cuenta = new Map<string, number>();
+  for (const e of elementos) {
+    const nivel = (e.nivel || '').trim();
+    if (nivel) cuenta.set(nivel, (cuenta.get(nivel) || 0) + 1);
+  }
+  return [...cuenta.entries()].map(([nivel, cuantos]) => ({ nivel, cuantos })).sort((a, b) => b.cuantos - a.cuantos || a.nivel.localeCompare(b.nivel, 'es'));
 }
 
 // ---------- Resumen y paneles ----------
@@ -463,6 +506,8 @@ function diferencias(antes: Record<string, any>, despues: Record<string, any>, n
     else if (clave === 'foto_path') partes.push(a ? 'cambió la foto' : 'agregó la foto');
     else if (clave === 'nombre') partes.push(`nombre ${texto(a)} → ${texto(d)}`);
     else if (clave === 'ubicacion') partes.push(`ubicación ${texto(a)} → ${texto(d)}`);
+    // area, nivel y referencia ya van dentro de «ubicación».
+    else if (clave === 'area' || clave === 'nivel' || clave === 'referencia') continue;
     else if (clave === 'tipo') partes.push(`tipo ${a} → ${d}`);
     else if (clave === 'panel') partes.push(`panel ${texto(a)} → ${texto(d)}`);
     else if (clave === 'clase') partes.push(`clase ${a || '—'} → ${d || '—'}`);

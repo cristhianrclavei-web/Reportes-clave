@@ -6,8 +6,8 @@ import ModalOverlay from '@/components/ModalOverlay';
 import { Simbolo } from '@/components/lazos/DiagramaLazo';
 import { generarUUID } from '@/lib/uuid';
 import {
-  Elemento, Lazo, TIPOS_POR_CIRCUITO, direccionOcupada, direccionVisible, hijosDe, lineaPrincipal,
-  nombreSugerido, normalizarDireccion, ordenEntre, prefijoLazo, siguienteDireccion, tipoDispositivo,
+  Elemento, Lazo, PartesUbicacion, TIPOS_POR_CIRCUITO, armarUbicacion, direccionOcupada, direccionVisible, hijosDe, lineaPrincipal,
+  nombreSugerido, normalizarDireccion, ordenEntre, partesDe, prefijoLazo, siguienteDireccion, tipoDispositivo, valoresUsados,
 } from '@/lib/lazos';
 import { guardarElemento, subirFotoElemento } from '@/lib/lazosDatos';
 
@@ -27,6 +27,38 @@ import { guardarElemento, subirFotoElemento } from '@/lib/lazosDatos';
 export type Lugar = { padreId: string | null; ordenAntes: number | null; ordenDespues: number | null; adoptar?: string[] };
 
 const CAMPO = 'w-full px-3 min-h-[46px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]';
+
+// Niveles comunes para el primer dispositivo, cuando el lazo todavía no
+// tiene ninguno anotado.
+const NIVELES_COMUNES = ['Sótano', 'Planta baja', 'Nivel 1', 'Nivel 2', 'Mezanine', 'Azotea'];
+
+// Campo de texto con los valores ya usados abajo, para tocarlos.
+function CampoConSugerencias({ id, etiqueta, valor, onCambiar, sugerencias, placeholder, maximo }: {
+  id: string;
+  etiqueta: string;
+  valor: string;
+  onCambiar: (valor: string) => void;
+  sugerencias: string[];
+  placeholder: string;
+  maximo: number;
+}) {
+  return (
+    <div className="mt-3">
+      <label htmlFor={id} className="block text-[12.5px] text-muted mb-1">{etiqueta}</label>
+      <input id={id} value={valor} onChange={(ev) => onCambiar(ev.target.value)} maxLength={maximo} placeholder={placeholder} className={CAMPO} />
+      {sugerencias.length > 0 && (
+        <div className="flex gap-1.5 mt-1.5 overflow-x-auto pb-0.5 -mx-0.5 px-0.5" aria-label={`${etiqueta}: usados en este lazo`}>
+          {sugerencias.map((s) => (
+            <button key={s} type="button" onClick={() => onCambiar(s)} aria-pressed={valor === s}
+              className={`shrink-0 min-h-[34px] px-3 rounded-full border text-[12.5px] whitespace-nowrap ${valor === s ? 'border-teal bg-teal/15 text-teal font-semibold' : 'border-line bg-surface-2 text-muted'}`}>
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Lugar al final de la línea principal.
 export function lugarAlFinal(elementos: Elemento[]): Lugar {
@@ -95,7 +127,11 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
   const [numero, setNumero] = useState('');
   const [nombre, setNombre] = useState(editando?.nombre || '');
   const [nombreAMano, setNombreAMano] = useState(Boolean(editando));
-  const [ubicacion, setUbicacion] = useState(editando?.ubicacion || '');
+  // Ubicación por partes: área (Cocina, Bodega 1), nivel y una referencia.
+  const [partes, setPartes] = useState<PartesUbicacion>(editando ? partesDe(editando) : { area: '', nivel: '', referencia: '' });
+  const niveles = valoresUsados(elementos, 'nivel');
+  const sugerenciasNivel = niveles.length > 0 ? niveles : NIVELES_COMUNES;
+  const sugerenciasArea = valoresUsados(elementos, 'area');
   const [foto, setFoto] = useState<File | null>(null);
   const [errores, setErrores] = useState<Errores>({});
   const [guardando, setGuardando] = useState(false);
@@ -154,7 +190,8 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
     if (!nombreLimpio) e.nombre = 'Escribe el nombre del dispositivo.';
     else if (nombreLimpio.length > 40) e.nombre = 'El nombre es muy largo (máximo 40).';
     else if (elementos.some((x) => x.nombre === nombreLimpio && x.id !== editando?.id)) e.nombre = 'Ya hay un dispositivo con ese nombre en este lazo.';
-    if (ubicacion.length > 160) e.ubicacion = 'La ubicación es muy larga (máximo 160).';
+    const ubicacion = armarUbicacion(partes) || '';
+    if (ubicacion.length > 160) e.ubicacion = 'La ubicación es muy larga (máximo 160 en total). Acorta la referencia.';
     return { errores: e, direccion };
   }
 
@@ -173,7 +210,10 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
       tipo,
       nombre: nombre.trim(),
       direccion,
-      ubicacion: ubicacion.trim() || null,
+      ubicacion: armarUbicacion(partes),
+      area: partes.area.trim() || null,
+      nivel: partes.nivel.trim() || null,
+      referencia: partes.referencia.trim() || null,
       foto_path: editando?.foto_path || null,
       creado_por: editando?.creado_por,
       creado_en: editando?.creado_en,
@@ -217,6 +257,8 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
       setUltimo(elemento);
       setCapturados((n) => n + 1);
       setFoto(null);
+      // El siguiente casi siempre va en el mismo nivel: el nivel se queda.
+      setPartes({ area: '', nivel: partes.nivel, referencia: '' });
       setNombreAMano(false);
       setNombre(nombreSugerido(lazo.codigo, tipo, [...elementos, elemento]));
       if (infoTipo.conDireccion && direccion) setNumero(String(siguienteDireccion(letra, [...elementos, elemento])).padStart(3, '0'));
@@ -312,9 +354,13 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
           </div>
         )}
 
-        <label htmlFor="disp-ubicacion" className="block text-[12.5px] text-muted mt-3 mb-1">Ubicación</label>
-        <input id="disp-ubicacion" value={ubicacion} onChange={(ev) => setUbicacion(ev.target.value)} maxLength={160}
-          placeholder="Pasillo B, sobre plafón" className={CAMPO} />
+        <CampoConSugerencias id="disp-area" etiqueta="Área" valor={partes.area} onCambiar={(area) => setPartes((antes) => ({ ...antes, area }))}
+          sugerencias={sugerenciasArea} placeholder="Cocina, Central de enfermeras, Bodega 1" maximo={80} />
+        <CampoConSugerencias id="disp-nivel" etiqueta="Nivel" valor={partes.nivel} onCambiar={(nivel) => setPartes((antes) => ({ ...antes, nivel }))}
+          sugerencias={sugerenciasNivel} placeholder="Planta baja, Nivel -1" maximo={40} />
+        <label htmlFor="disp-referencia" className="block text-[12.5px] text-muted mt-3 mb-1">Referencia (opcional)</label>
+        <input id="disp-referencia" value={partes.referencia} onChange={(ev) => { const referencia = ev.target.value; setPartes((antes) => ({ ...antes, referencia })); }} maxLength={80}
+          placeholder="Sobre plafón, junto a la puerta" className={CAMPO} />
         {errores.ubicacion && <p className="text-red font-semibold text-[13px] mt-1">{errores.ubicacion}</p>}
 
         <label htmlFor="disp-nombre" className="block text-[12.5px] text-muted mt-3 mb-1">Nombre</label>

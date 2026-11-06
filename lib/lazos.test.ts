@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   Cambio, Elemento, corteSugerido, describirCambio, cortesRestantes, direccionOcupada, direccionVisible, enOrdenDeRecorrido, lineaPrincipal,
-  conteoPorTipo, lazosDelMismoPanel, salidasDelPanel, nombreSugerido, siguienteNumeroDeLazo, sinDireccion, normalizarDireccion, ordenEntre, posiciones, siguienteDireccion, zonaConFalla,
+  armarUbicacion, conteoPorNivel, conteoPorTipo, lazosDelMismoPanel, partesDe, valoresUsados, salidasDelPanel, nombreSugerido, siguienteNumeroDeLazo, sinDireccion, normalizarDireccion, ordenEntre, posiciones, siguienteDireccion, zonaConFalla,
 } from './lazos';
 
 function el(id: string, orden: number, extra: Partial<Elemento> = {}): Elemento {
@@ -186,5 +186,28 @@ describe('resumen del lazo y lazos del mismo panel', () => {
     ].map((e, i) => ({ lazo_id: 'a', padre_id: null, orden: i, nombre: e.id, ubicacion: null, foto_path: null, ...e }));
     expect(conteoPorTipo(els)).toEqual([{ tipo: 'SH', cuantos: 2 }, { tipo: 'EMA', cuantos: 1 }, { tipo: 'RG', cuantos: 1 }]);
     expect(sinDireccion(els).map((e) => e.id)).toEqual(['2']);
+  });
+});
+
+describe('ubicación por partes', () => {
+  const el = (id: string, area: string | null, nivel: string | null) =>
+    ({ id, lazo_id: 'a', padre_id: null, orden: 1, tipo: 'SH', nombre: id, direccion: null, ubicacion: null, foto_path: null, area, nivel });
+
+  it('junta las partes sin dejar separadores sueltos', () => {
+    expect(armarUbicacion({ area: 'Cocina', nivel: 'Planta baja', referencia: ' sobre plafón ' })).toBe('Cocina · Planta baja · sobre plafón');
+    expect(armarUbicacion({ area: '', nivel: 'Nivel -1', referencia: '' })).toBe('Nivel -1');
+    expect(armarUbicacion({ area: ' ', nivel: '', referencia: '' })).toBeNull();
+  });
+
+  it('un dispositivo viejo pone su ubicación completa en «Área»', () => {
+    expect(partesDe({ ubicacion: 'Central de enfermeras nivel -1' })).toEqual({ area: 'Central de enfermeras nivel -1', nivel: '', referencia: '' });
+    expect(partesDe({ ubicacion: 'x', area: 'Cocina', nivel: 'PB' })).toEqual({ area: 'Cocina', nivel: 'PB', referencia: '' });
+  });
+
+  it('sugiere los niveles más usados y los cuenta', () => {
+    const els = [el('1', 'Cocina', 'Planta baja'), el('2', 'Cocina', 'Nivel 1'), el('3', 'Bodega 1', 'Planta baja'), el('4', null, null)];
+    expect(valoresUsados(els, 'nivel')).toEqual(['Planta baja', 'Nivel 1']);
+    expect(valoresUsados(els, 'area')).toEqual(['Cocina', 'Bodega 1']);
+    expect(conteoPorNivel(els)).toEqual([{ nivel: 'Planta baja', cuantos: 2 }, { nivel: 'Nivel 1', cuantos: 1 }]);
   });
 });

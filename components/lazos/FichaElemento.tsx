@@ -108,9 +108,21 @@ export default function FichaElemento({ lazo, elementos, elemento, fallas, cambi
         </div>
 
         <dl className="rounded-2xl bg-surface border border-line px-3 mt-2 text-[14px]">
-          <div className="flex justify-between gap-3 py-2.5 border-b border-line">
-            <dt className="text-muted">Ubicación</dt><dd className="text-right">{elemento.ubicacion || '—'}</dd>
-          </div>
+          {/* Con la ubicación por partes se ve cada una; los capturados antes
+              solo tienen el texto junto. */}
+          {elemento.area || elemento.nivel || elemento.referencia ? (
+            <>
+              {[['Área', elemento.area], ['Nivel', elemento.nivel], ['Referencia', elemento.referencia]].map(([titulo, valor]) => valor && (
+                <div key={titulo} className="flex justify-between gap-3 py-2.5 border-b border-line">
+                  <dt className="text-muted">{titulo}</dt><dd className="text-right font-medium">{valor}</dd>
+                </div>
+              ))}
+            </>
+          ) : (
+            <div className="flex justify-between gap-3 py-2.5 border-b border-line">
+              <dt className="text-muted">Ubicación</dt><dd className="text-right">{elemento.ubicacion || '—'}</dd>
+            </div>
+          )}
           {padre && (
             <div className="flex justify-between gap-3 py-2.5 border-b border-line">
               <dt className="text-muted">Cuelga de</dt><dd className="font-mono text-[13px]">{padre.nombre}</dd>

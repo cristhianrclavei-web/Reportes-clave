@@ -342,8 +342,14 @@ export type ResultadoGuardar = { pendiente: boolean };
 
 async function ejecutar(p: Pendiente) {
   const supabase = createClient();
-  if (p.accion === 'guardar') return supabase.from(p.tabla).upsert(p.fila);
-  return supabase.from(p.tabla).delete().eq('id', p.id);
+  if (p.accion === 'borrar') return supabase.from(p.tabla).delete().eq('id', p.id);
+  const resultado = await supabase.from(p.tabla).upsert(p.fila);
+  // Sin patch_lazos_ubicacion.sql la base no tiene área/nivel/referencia: se
+  // guarda sin ellas (no se pierde nada, todo va junto en `ubicacion`).
+  const faltanPartes = p.tabla === 'lazo_elementos' && /\b(area|nivel|referencia)\b/.test(resultado.error?.message || '');
+  if (!faltanPartes) return resultado;
+  const { area, nivel, referencia, ...sinPartes } = p.fila;
+  return supabase.from(p.tabla).upsert(sinPartes);
 }
 
 // Intenta guardar directo. Sin señal, lo deja en la cola y avisa que quedó
