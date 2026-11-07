@@ -17,7 +17,7 @@ import Logo from '@/components/Logo';
 import {
   Servicio, Tarea, Evento, Auditoria,
   obtenerServicioCompleto, editarServicio, reasignarTecnicos, listarTecnicos, calcularEstadoTiempo, agregarDiasAGrupo, motivoNoEditable, cambiarTamanoSitio,
-  calcularProgresoTareas, eliminarProyecto, eliminarDiaDeProyecto, reprogramarDia, cerrarDiaManualmente, cerrarServicioOlvidado, cancelarServicio, reactivarServicio,
+  calcularProgresoTareas, eliminarProyecto, eliminarDiaDeProyecto, reprogramarDia, cerrarDiaManualmente, cerrarServicioOlvidado, cerrarServicioSinIniciar, cancelarServicio, reactivarServicio,
   leerAjustesOperacion,
 } from '@/lib/serviciosProgramados';
 import ProgressBar from '@/components/ProgressBar';
@@ -122,6 +122,19 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
   const [horaFinOlvidado, setHoraFinOlvidado] = useState('');
   const [motivoOlvidado, setMotivoOlvidado] = useState('');
   const [cerrandoOlvidado, setCerrandoOlvidado] = useState(false);
+  // Nunca se inició (el técnico olvidó usar la app): supervisión lo cierra
+  // con la hora real de llegada y término.
+  const [showSinIniciar, setShowSinIniciar] = useState(false);
+  const [llegadaSinIniciar, setLlegadaSinIniciar] = useState('');
+  const [finSinIniciar, setFinSinIniciar] = useState('');
+  const [resultadoSinIniciar, setResultadoSinIniciar] = useState<'terminado' | 'pendiente'>('terminado');
+  const [motivoSinIniciar, setMotivoSinIniciar] = useState('');
+  const [cerrandoSinIniciar, setCerrandoSinIniciar] = useState(false);
+  // El día de hoy se lee después de montar (no en el render del servidor).
+  const [hoy, setHoy] = useState<string | null>(null);
+  useEffect(() => { setHoy(hoyLocal()); }, []);
+  // Sus botones «No: cambiar fecha / cancelar» sustituyen a los de siempre.
+  const noSeInicio = servicio?.estado === 'programado' && hoy !== null && servicio.fecha < hoy;
   const [nuevaFecha, setNuevaFecha] = useState('');
   const [reprogramando, setReprogramando] = useState(false);
   const [showCancelar, setShowCancelar] = useState(false);
@@ -371,6 +384,61 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
       avisar(e?.message || 'No se pudo cerrar el servicio. Revisa la conexión.');
     } finally {
       setCerrandoOlvidado(false);
+    }
+  }
+
+  // Propone el horario programado del servicio; el supervisor lo cambia
+  // por la hora real que le confirmaron.
+  function abrirSinIniciar() {
+    if (!servicio) return;
+    const llegada = (servicio.hora_programada || '09:00').slice(0, 5);
+    let salida = (servicio.hora_salida_programada || '').slice(0, 5);
+    if (!salida) {
+      const [h, m] = llegada.split(':').map(Number);
+      const totalMin = Math.min(h * 60 + m + (servicio.duracion_estimada_min || 60), 23 * 60 + 59);
+      salida = `${String(Math.floor(totalMin / 60)).padStart(2, '0')}:${String(totalMin % 60).padStart(2, '0')}`;
+    }
+    setLlegadaSinIniciar(`${servicio.fecha}T${llegada}`);
+    setFinSinIniciar(`${servicio.fecha}T${salida}`);
+    setResultadoSinIniciar('terminado');
+    setMotivoSinIniciar('');
+    setShowSinIniciar(true);
+  }
+
+  async function handleCerrarSinIniciar() {
+    if (!servicio) return;
+    if (!llegadaSinIniciar || !finSinIniciar) {
+      avisar('Indica la hora de llegada y la de término.');
+      return;
+    }
+    const llegada = new Date(llegadaSinIniciar);
+    const fin = new Date(finSinIniciar);
+    if (llegadaSinIniciar.slice(0, 10) !== servicio.fecha) {
+      avisar(`La llegada debe ser el día del servicio (${fechaDMA(servicio.fecha)}).`);
+      return;
+    }
+    if (fin.getTime() <= llegada.getTime()) {
+      avisar('La hora de término debe ser después de la llegada.');
+      return;
+    }
+    if (fin.getTime() > Date.now()) {
+      avisar('La hora de término no puede ser en el futuro.');
+      return;
+    }
+    if (motivoSinIniciar.trim().length < 3) {
+      avisar('Escribe cómo supiste que se hizo (por ejemplo: «me lo confirmó por teléfono»).');
+      return;
+    }
+    setCerrandoSinIniciar(true);
+    try {
+      await cerrarServicioSinIniciar(servicio.id, llegada.toISOString(), fin.toISOString(), resultadoSinIniciar, motivoSinIniciar);
+      showToast('Servicio cerrado por el técnico', 'success');
+      setShowSinIniciar(false);
+      await cargar();
+    } catch (e: any) {
+      avisar(e?.message || 'No se pudo cerrar el servicio. Revisa la conexión.');
+    } finally {
+      setCerrandoSinIniciar(false);
     }
   }
 
@@ -691,7 +759,8 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
                 <div className="mt-2.5"><ResultadoBadges resultado={resultado} /></div>
               )}
               <EficienciaServicio servicio={servicio} />
-              <VisitaSinTrabajoPanel servicio={servicio} onCambio={cargar} />
+              {/* Cerrado como trabajado por supervisión: no aplica «no se trabajó». */}
+              {servicio.cierre_tipo !== 'sin_registro' && <VisitaSinTrabajoPanel servicio={servicio} onCambio={cargar} />}
             </>
 
           ) : (
@@ -754,9 +823,45 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
             </div>
           )}
 
+          {/* Ya pasó su día y nadie lo inició: ¿se hizo o no? Si se hizo, se
+              cierra por el técnico (no se cancela: el trabajo sí cuenta). */}
+          {noSeInicio && (
+            <div className="mt-3 p-3.5 rounded-xl bg-amber/10 border border-amber/35">
+              <p className="text-[13.5px] font-semibold text-amber flex items-center gap-1.5">
+                <AlertTriangle size={15} strokeWidth={2.4} /> No se inició
+              </p>
+              <p className="text-[12.5px] text-ink/80 mt-1 leading-relaxed">
+                Era para el {fechaDMA(servicio.fecha)} y nadie marcó llegada ni inicio. ¿Se hizo el servicio?
+              </p>
+              <div className="flex flex-col gap-2 mt-2.5">
+                <button onClick={abrirSinIniciar}
+                  className="min-h-[44px] rounded-xl bg-teal text-inkOnAccent text-[14px] font-semibold flex items-center justify-center gap-1.5">
+                  <CheckCircle2 size={16} strokeWidth={2.4} /> Sí se hizo: cerrar por el técnico
+                </button>
+                <div className="flex gap-2">
+                  <button onClick={() => { setShowReprogramar(true); setNuevaFecha(servicio.fecha); }}
+                    className="flex-1 min-h-[42px] rounded-xl border border-amber/40 bg-surface text-[13px] font-semibold text-amber">
+                    No: cambiar fecha
+                  </button>
+                  <button onClick={() => { setShowCancelar(true); setMotivoCancelar(''); }}
+                    className="flex-1 min-h-[42px] rounded-xl border border-red/35 bg-surface text-[13px] font-semibold text-red">
+                    No: cancelar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Lo cerró supervisión porque el técnico nunca lo inició. */}
+          {servicio.estado === 'concluido' && servicio.cierre_tipo === 'sin_registro' && (
+            <p className="mt-3 text-[12.5px] text-muted">
+              <span className="font-semibold text-amber">Sin registro del técnico.</span> Cerrado por supervisión{servicio.cierre_nota ? `: ${servicio.cierre_nota}` : ''}.
+            </p>
+          )}
+
           {/* Reprogramar la fecha de este día */}
           {servicio.estado !== 'concluido' && servicio.estado !== 'cancelado' && (
-            !showReprogramar ? (
+            !showReprogramar ? (noSeInicio ? null :
               <button
                 onClick={() => { setShowReprogramar(true); setNuevaFecha(servicio.fecha); }}
                 className="inline-flex items-center gap-1.5 mt-3 mr-2 px-3.5 min-h-[40px] rounded-full border text-[13.5px] font-semibold transition-colors border-amber/40 bg-amber/10 text-amber hover:bg-amber/20"
@@ -788,7 +893,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
 
           {/* Cancelar: no se va a hacer. Queda en el historial con el motivo. */}
           {servicio.estado === 'programado' && (
-            !showCancelar ? (
+            !showCancelar ? (noSeInicio ? null :
               <button onClick={() => { setShowCancelar(true); setMotivoCancelar(''); }}
                 className="inline-flex items-center gap-1.5 mt-3 mr-2 px-3.5 min-h-[40px] rounded-full border text-[13.5px] font-semibold transition-colors border-red/35 bg-red/5 text-red hover:bg-red/10">
                 <X size={16} strokeWidth={2.4} /> Cancelar servicio
@@ -1348,6 +1453,52 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
                 className="flex-1 min-h-[48px] rounded-xl bg-teal text-inkOnAccent text-[14.5px] font-semibold disabled:opacity-50"
               >
                 {cerrandoOlvidado ? 'Guardando...' : servicio.estado === 'concluido' ? 'Guardar hora' : 'Cerrar servicio'}
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
+
+      {showSinIniciar && servicio && (
+        <ModalOverlay onClose={() => !cerrandoSinIniciar && setShowSinIniciar(false)}>
+          <div className="glass-strong rounded-3xl max-w-md w-full p-5 max-h-[92vh] overflow-y-auto">
+            <p className="font-display font-semibold text-[16px] mb-1">Cerrar por el técnico</p>
+            <p className="text-[13px] text-muted mb-3.5 leading-relaxed">
+              El técnico no registró nada en la app. Pon las horas reales en que estuvieron en el sitio. Cuenta como trabajo hecho y queda
+              marcado «sin registro del técnico», con tu nombre en la línea de tiempo y el historial. El reporte sigue pendiente.
+            </p>
+
+            <label htmlFor="sin-iniciar-llegada" className="text-[13px] text-ink/75 block mb-1.5">¿A qué hora llegaron?</label>
+            <input id="sin-iniciar-llegada" type="datetime-local" value={llegadaSinIniciar} onChange={(e) => setLlegadaSinIniciar(e.target.value)}
+              className="w-full px-3 min-h-[46px] mb-3 rounded-lg bg-surface border border-line text-[14.5px]" />
+
+            <label htmlFor="sin-iniciar-fin" className="text-[13px] text-ink/75 block mb-1.5">¿A qué hora terminaron?</label>
+            <input id="sin-iniciar-fin" type="datetime-local" value={finSinIniciar} onChange={(e) => setFinSinIniciar(e.target.value)}
+              className="w-full px-3 min-h-[46px] mb-3 rounded-lg bg-surface border border-line text-[14.5px]" />
+
+            <p className="text-[13px] text-ink/75 mb-1.5">¿Cómo quedó el trabajo?</p>
+            <div className="flex gap-2 mb-3">
+              {([['terminado', 'Terminado'], ['pendiente', 'Quedó pendiente']] as const).map(([valor, texto]) => (
+                <button key={valor} type="button" onClick={() => setResultadoSinIniciar(valor)} aria-pressed={resultadoSinIniciar === valor}
+                  className={`flex-1 min-h-[42px] rounded-xl border text-[13.5px] font-semibold ${resultadoSinIniciar === valor ? 'border-teal bg-teal/15 text-teal' : 'border-line bg-surface-2 text-muted'}`}>
+                  {texto}
+                </button>
+              ))}
+            </div>
+
+            <label htmlFor="sin-iniciar-motivo" className="text-[13px] text-ink/75 block mb-1.5">¿Cómo supiste que se hizo?</label>
+            <textarea id="sin-iniciar-motivo" value={motivoSinIniciar} onChange={(e) => setMotivoSinIniciar(e.target.value)}
+              placeholder="Me lo confirmó por teléfono; el cliente firmó la orden…"
+              className="w-full px-3 py-2.5 mb-4 rounded-xl bg-surface border border-line focus:border-teal focus:outline-none text-[14px] min-h-[80px]" />
+
+            <div className="flex gap-2">
+              <button onClick={() => setShowSinIniciar(false)} disabled={cerrandoSinIniciar}
+                className="flex-1 min-h-[48px] rounded-xl border border-line-strong text-ink/80 text-[14.5px] font-medium">
+                Volver
+              </button>
+              <button onClick={handleCerrarSinIniciar} disabled={cerrandoSinIniciar || motivoSinIniciar.trim().length < 3}
+                className="flex-1 min-h-[48px] rounded-xl bg-teal text-inkOnAccent text-[14.5px] font-semibold disabled:opacity-50">
+                {cerrandoSinIniciar ? 'Guardando...' : 'Cerrar servicio'}
               </button>
             </div>
           </div>

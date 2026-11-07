@@ -119,6 +119,7 @@ export async function POST(request: NextRequest) {
   let serviciosAbiertos = 0;
   let cierresPorConfirmar = 0;
   let porAutorizar = 0;
+  let serviciosSinIniciar = 0;
   if (momento === 'manana') {
     const { error: errCierre } = await admin.rpc('cerrar_servicios_olvidados');
     if (errCierre) console.error('No se pudieron cerrar los servicios olvidados:', errCierre.message);
@@ -165,15 +166,29 @@ export async function POST(request: NextRequest) {
       caducadas.push(...r.caducadas);
     }
 
+    // Servicios de días anteriores que nadie inició (el técnico olvidó usar
+    // la app o no se hizo): supervisión decide si se cierra, cambia de fecha
+    // o se cancela.
+    const { data: sinIniciar, error: errSinIniciar } = await admin
+      .from('servicios_programados')
+      .select('id')
+      .eq('estado', 'programado')
+      .lt('fecha', hoy)
+      .gte('fecha', INICIO_COBERTURA);
+    if (errSinIniciar) console.error('No se pudieron leer los servicios sin iniciar:', errSinIniciar.message);
+    const listaSinIniciar = (sinIniciar as any[]) || [];
+    serviciosSinIniciar = listaSinIniciar.length;
+
     // Días justificados por el técnico (o cubiertos solo con bitácora) que
     // esperan la autorización del supervisor.
     const { data: cobertura } = await admin.rpc('cobertura_dias', { p_desde: inicioVentana(hoy), p_hasta: sumarDias(hoy, -1) });
     porAutorizar = ((cobertura as any[]) || []).filter((f) => f.estado === 'por_autorizar').length;
 
-    const idsPorRevisar = [...listaSolos.map((x) => x.id), ...listaAbiertos.map((x) => x.id)];
-    if (serviciosAbiertos > 0 || cierresPorConfirmar > 0 || porAutorizar > 0) {
+    const idsPorRevisar = [...listaSolos.map((x) => x.id), ...listaAbiertos.map((x) => x.id), ...listaSinIniciar.map((x) => x.id)];
+    if (serviciosAbiertos > 0 || cierresPorConfirmar > 0 || porAutorizar > 0 || serviciosSinIniciar > 0) {
       const partes: string[] = [];
       if (serviciosAbiertos > 0) partes.push(`${serviciosAbiertos} servicio(s) de días anteriores sin cerrar`);
+      if (serviciosSinIniciar > 0) partes.push(`${serviciosSinIniciar} servicio(s) que no se iniciaron`);
       if (cierresPorConfirmar > 0) partes.push(`${cierresPorConfirmar} servicio(s) cerrados solos con la hora por confirmar`);
       if (porAutorizar > 0) partes.push(`${porAutorizar} día(s) justificados por autorizar`);
       const { data: sup } = await admin.rpc('destinatarios_notificacion_tipo', { p_destino: 'supervisores', p_tipo: 'reportes_atrasados' });
@@ -296,7 +311,7 @@ export async function POST(request: NextRequest) {
     await admin.from('push_suscripciones').delete().in('endpoint', caducadas);
   }
 
-  return NextResponse.json({ enviadas, tecnicos: porTecnico.size, escalados, serviciosAbiertos, cierresPorConfirmar, porAutorizar, valesVencidos, equiposSinRegistro, horasPorAutorizar, limpiadas: caducadas.length });
+  return NextResponse.json({ enviadas, tecnicos: porTecnico.size, escalados, serviciosAbiertos, serviciosSinIniciar, cierresPorConfirmar, porAutorizar, valesVencidos, equiposSinRegistro, horasPorAutorizar, limpiadas: caducadas.length });
 }
 
 // Adónde lleva el resumen del supervisor: al servicio (o a la lista) si hay

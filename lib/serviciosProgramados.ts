@@ -48,7 +48,8 @@ export type Servicio = {
   minutos_pausados: number;
   // Quién cerró el servicio cuando el técnico lo olvidó
   // (patch_cierre_servicio_olvidado.sql): null = lo cerró el técnico.
-  cierre_tipo?: 'supervisor' | 'automatico' | null;
+  // 'sin_registro': nunca se inició y supervisión lo cerró (patch_servicio_sin_iniciar.sql).
+  cierre_tipo?: 'supervisor' | 'automatico' | 'sin_registro' | null;
   cierre_nota?: string | null;
   // Tipo y tiempo permitido de la pausa en curso (patch_control_pausas.sql).
   pausa_tipo?: string | null;
@@ -1872,6 +1873,33 @@ export async function cerrarServicioOlvidado(servicioId: string, horaFinIso: str
     p_motivo: motivo.trim(),
   });
   if (error) throw new Error(error.message);
+}
+
+// El técnico fue pero nunca inició el servicio en la app: el supervisor lo
+// cierra con la hora real de llegada y término. Lo hace la base
+// (cerrar_servicio_sin_iniciar) para que línea de tiempo e historial queden
+// juntos; queda marcado «sin registro del técnico».
+export async function cerrarServicioSinIniciar(
+  servicioId: string,
+  horaLlegadaIso: string,
+  horaFinIso: string,
+  resultado: 'terminado' | 'pendiente',
+  motivo: string,
+): Promise<void> {
+  if (motivo.trim().length < 3) throw new Error('Escribe cómo supiste que se hizo.');
+  const { error } = await createClient().rpc('cerrar_servicio_sin_iniciar', {
+    p_servicio: servicioId,
+    p_hora_llegada: horaLlegadaIso,
+    p_hora_fin: horaFinIso,
+    p_resultado: resultado,
+    p_motivo: motivo.trim(),
+  });
+  if (error) {
+    if (/cerrar_servicio_sin_iniciar|function .* does not exist|PGRST202/i.test(error.message)) {
+      throw new Error('Falta actualizar la base (patch_servicio_sin_iniciar.sql). Avisa al administrador.');
+    }
+    throw new Error(error.message);
+  }
 }
 
 // Cierra el día como concluirServicio(), y además cancela los días
