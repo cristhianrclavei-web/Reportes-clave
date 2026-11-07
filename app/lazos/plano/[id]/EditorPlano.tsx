@@ -218,7 +218,10 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   }, [sincronizarLazos]);
 
   function cambiar(nuevo: Estado) {
-    setHistorial((h) => [...h.slice(-(HISTORIAL_MAXIMO - 1)), estadoRef.current]);
+    // El estado de antes se toma aquí, no dentro de setHistorial: React
+    // puede correr esa función ya con el estado nuevo y «Deshacer» no regresaría nada.
+    const antes = estadoRef.current;
+    setHistorial((h) => [...h.slice(-(HISTORIAL_MAXIMO - 1)), antes]);
     setEstado(nuevo);
     setCambios((n) => n + 1);
   }
@@ -590,7 +593,10 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   // Al arrastrar un equipo: se anota el estado de antes una sola vez para
   // que «Deshacer» lo regrese a donde estaba.
   function arrastreInicio(id: string) {
-    setHistorial((h) => [...h.slice(-(HISTORIAL_MAXIMO - 1)), estadoRef.current]);
+    // El estado de antes se toma aquí, no dentro de setHistorial: React
+    // puede correr esa función ya con el estado nuevo y «Deshacer» no regresaría nada.
+    const antes = estadoRef.current;
+    setHistorial((h) => [...h.slice(-(HISTORIAL_MAXIMO - 1)), antes]);
     setSeleccion({ tipo: 'equipo', id });
   }
 
