@@ -3,15 +3,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
-  Check, ChevronLeft, CloudOff, FileDown, Hand, Link2, Link2Off, Loader2, Minus, MoreVertical, Plus, MousePointer2, PenLine, Ruler, Spline, Trash2, Undo2, X,
+  Check, ChevronLeft, CloudOff, FileDown, Hand, Link2, Link2Off, Loader2, Minus, MoreVertical, Plus, MousePointer2, PenLine, Ruler, Spline, Trash2, Undo2, Waypoints, X,
 } from 'lucide-react';
+import HojaCaptura from '@/components/lazos/HojaCaptura';
 import LienzoPlano, { type Seleccion } from '@/components/lazos/LienzoPlano';
 import { Simbolo } from '@/components/lazos/DiagramaLazo';
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
 import { confirmar, pedirTexto } from '@/lib/dialogos';
 import { catalogoEnCache, listarCatalogoClientes } from '@/lib/clientesCatalogo';
-import { direccionVisible, enOrdenDeRecorrido, tipoDispositivo, type Elemento } from '@/lib/lazos';
+import {
+  TIPOS_POR_CIRCUITO, direccionVisible, enOrdenDeRecorrido, hijosDe, lineaPrincipal, lugarDespuesDe, tipoDispositivo,
+  type Elemento, type Lugar,
+} from '@/lib/lazos';
+import { pendientesDeLazo, subirPendientes } from '@/lib/lazosDatos';
+import { colorDeLazo, conexionesEnPlano, lugarParaConectar, revisarLazo, tieneSiguiente } from '@/lib/conexionesPlano';
 import {
   DIAMETROS, TIPOS_TUBERIA, aEscuadra, cantidadesDeEquipos, cantidadesDeTuberia, colorTuberia, distancia,
   escalaDesdeMedida, escalaDesdeProporcion, formatoMetros, longitudEnHoja, metrosDeTuberia, nombrePlanoSchema,
@@ -19,20 +25,33 @@ import {
   type EquipoPlano, type Plano, type Punto, type Sembrado, type TuberiaPlano,
 } from '@/lib/planos';
 import {
-  borrarPlano, descargarPdfOriginal, entregarPdf, guardarSembrado, lazosDelCliente, leerPendiente, obtenerPlano,
-  renombrarPlano, urlArchivo, type LazoConElementos,
+  borrarPlano, descargarPdfOriginal, entregarPdf, guardarCopiaLazos, guardarSembrado, imagenDelPlano, lazosDelCliente, leerPendiente,
+  obtenerPlano, otrosPlanosDelCliente, renombrarPlano, type LazoConElementos,
 } from '@/lib/planosDatos';
 
-type Herramienta = 'ver' | 'equipo' | 'tuberia' | 'escala';
+type Herramienta = 'ver' | 'equipo' | 'conectar' | 'tuberia' | 'escala';
 type EstadoGuardado = 'guardado' | 'guardando' | 'pendiente' | 'error';
 type PorColocar = { tipo: string; elementoId: string | null };
 type Estado = { sembrado: Sembrado; metros: number | null };
+// De dónde sale el siguiente al conectar: el panel o un dispositivo.
+type Desde = 'panel' | string;
+// Hoja de captura abierta desde el plano: un dispositivo nuevo (en un equipo
+// suelto o en un punto vacío) o corregir uno ya ligado.
+type HojaPlano = {
+  lazo: LazoConElementos;
+  lugar: Lugar;
+  editando: Elemento | null;
+  equipoId: string | null;
+  punto: Punto | null;
+  tipo: string | null;
+};
 
 const HISTORIAL_MAXIMO = 60;
 
 const HERRAMIENTAS: { id: Herramienta; nombre: string; icono: React.ReactNode }[] = [
   { id: 'ver', nombre: 'Mover', icono: <Hand size={18} strokeWidth={2.3} /> },
   { id: 'equipo', nombre: 'Equipos', icono: <MousePointer2 size={18} strokeWidth={2.3} /> },
+  { id: 'conectar', nombre: 'Conectar', icono: <Waypoints size={18} strokeWidth={2.3} /> },
   { id: 'tuberia', nombre: 'Tubería', icono: <Spline size={18} strokeWidth={2.3} /> },
   { id: 'escala', nombre: 'Escala', icono: <Ruler size={18} strokeWidth={2.3} /> },
 ];
@@ -45,6 +64,13 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   const [plano, setPlano] = useState<Plano | null>(null);
   const [imagenUrl, setImagenUrl] = useState<string | null>(null);
   const [lazos, setLazos] = useState<LazoConElementos[]>([]);
+  const lazosRef = useRef(lazos);
+  lazosRef.current = lazos;
+  // En qué otro plano del cliente está cada dispositivo (va en uno solo).
+  const [otrosPlanos, setOtrosPlanos] = useState<Map<string, string>>(new Map());
+  const [sinConexion, setSinConexion] = useState(false);
+  const [pendientesLazos, setPendientesLazos] = useState(0);
+  const [rechazoLazos, setRechazoLazos] = useState<string | null>(null);
   const [errorCarga, setErrorCarga] = useState<string | null>(null);
 
   // Lo dibujado y la escala van juntos para que «Deshacer» regrese ambos.
@@ -73,14 +99,21 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   const [exportando, setExportando] = useState(false);
   const [menu, setMenu] = useState(false);
   const [panelAbierto, setPanelAbierto] = useState(true);
+  const [verConexiones, setVerConexiones] = useState(true);
+  const [lazoActivoId, setLazoActivoId] = useState<string | null>(null);
+  const [desde, setDesde] = useState<Desde | null>(null);
+  const [enMedio, setEnMedio] = useState(false);
+  const [tipoNuevo, setTipoNuevo] = useState<string | null>(null);
+  const [hoja, setHoja] = useState<HojaPlano | null>(null);
 
   // ---------- Carga ----------
 
   const cargar = useCallback(async () => {
     setErrorCarga(null);
     try {
-      const datos = await obtenerPlano(planoId);
+      const { plano: datos, sinConexion: sinSenal } = await obtenerPlano(planoId);
       setPlano(datos);
+      setSinConexion(sinSenal);
       const pendiente = leerPendiente(planoId);
       if (pendiente) {
         // Cambios que no alcanzaron a subir la vez pasada: ganan a los del servidor.
@@ -90,8 +123,14 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
       } else {
         setEstado({ sembrado: datos.sembrado, metros: datos.metros_por_unidad });
       }
-      urlArchivo(datos.imagen_path).then(setImagenUrl).catch((e) => setErrorCarga(e.message));
-      lazosDelCliente(datos.cliente_id).then(setLazos).catch((e) => showToast(e.message, 'error'));
+      imagenDelPlano(datos.imagen_path).then(setImagenUrl).catch((e) => setErrorCarga(e.message));
+      lazosDelCliente(datos.cliente_id)
+        .then((r) => {
+          setLazos(r.lazos);
+          if (r.sinConexion) setSinConexion(true);
+        })
+        .catch((e) => showToast(e.message, 'error'));
+      otrosPlanosDelCliente(datos.cliente_id, planoId).then(setOtrosPlanos).catch((e) => showToast(e.message, 'error'));
     } catch (e: any) {
       setErrorCarga(e?.message || 'No se pudo abrir el plano.');
     }
@@ -133,6 +172,34 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     return () => window.removeEventListener('online', alVolverSenal);
   }, [guardado, subir]);
 
+  // Dispositivos capturados desde el plano sin señal: van en la misma cola
+  // de los lazos y se suben al volver la señal.
+  const contarPendientesLazos = useCallback(
+    () => lazosRef.current.reduce((suma, l) => suma + pendientesDeLazo(l.id), 0),
+    [],
+  );
+
+  const sincronizarLazos = useCallback(async () => {
+    setPendientesLazos(contarPendientesLazos());
+    if (!navigator.onLine || contarPendientesLazos() === 0) return;
+    const resultado = await subirPendientes();
+    setRechazoLazos(resultado.rechazo);
+    const quedan = contarPendientesLazos();
+    setPendientesLazos(quedan);
+    if (quedan === 0) showToast('Se subieron los dispositivos capturados sin señal');
+  }, [contarPendientesLazos]);
+
+  useEffect(() => {
+    if (lazos.length > 0) sincronizarLazos();
+    // Solo cuando llegan los lazos; después lo dispara la señal.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lazos.length > 0]);
+
+  useEffect(() => {
+    window.addEventListener('online', sincronizarLazos);
+    return () => window.removeEventListener('online', sincronizarLazos);
+  }, [sincronizarLazos]);
+
   function cambiar(nuevo: Estado) {
     setHistorial((h) => [...h.slice(-(HISTORIAL_MAXIMO - 1)), estadoRef.current]);
     setEstado(nuevo);
@@ -164,8 +231,8 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
 
   // Lo que falta sembrar de cada lazo, en el orden en que corre el cable.
   const faltantesPorLazo = useMemo(
-    () => lazos.map((lazo) => ({ lazo, faltan: enOrdenDeRecorrido(lazo.elementos).filter((e) => !sembrados.has(e.id)) })),
-    [lazos, sembrados],
+    () => lazos.map((lazo) => ({ lazo, faltan: enOrdenDeRecorrido(lazo.elementos).filter((e) => !sembrados.has(e.id) && !otrosPlanos.has(e.id)) })),
+    [lazos, sembrados, otrosPlanos],
   );
 
   function etiquetaDeElemento(elemento: Elemento, lazo: LazoConElementos): string {
@@ -220,6 +287,139 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     return e.etiqueta || '';
   }, [elementosPorId]);
 
+  // ---------- Conectar (el lazo se arma desde el plano) ----------
+
+  const colorPorLazo = useMemo(() => new Map(lazos.map((l, i) => [l.id, colorDeLazo(i)])), [lazos]);
+  const conexiones = useMemo(() => conexionesEnPlano(lazos, estado.sembrado, otrosPlanos), [lazos, estado.sembrado, otrosPlanos]);
+  const lazoActivo = lazos.find((l) => l.id === lazoActivoId) || null;
+  const elementoDesde = desde && desde !== 'panel' ? elementosPorId.get(desde)?.elemento || null : null;
+
+  function textoDeElemento(elemento: Elemento, lazo: LazoConElementos): string {
+    const direccion = direccionVisible(elemento.direccion, lazo.numero);
+    return direccion ? `${elemento.nombre} · ${direccion}` : elemento.nombre;
+  }
+
+  function elegirLazo(lazo: LazoConElementos) {
+    setLazoActivoId(lazo.id);
+    // Lazo vacío: arranca en el panel. Si ya tiene, se toca de dónde sigue.
+    setDesde(lazo.elementos.length === 0 ? 'panel' : null);
+    setEnMedio(false);
+    setTipoNuevo(TIPOS_POR_CIRCUITO[lazo.tipo][0].codigo);
+  }
+
+  // Conectar arranca con el primer lazo del cliente (aunque los lazos lleguen
+  // después de abrir la herramienta).
+  useEffect(() => {
+    if (herramienta === 'conectar' && !lazoActivoId && lazos.length > 0) elegirLazo(lazos[0]);
+    // elegirLazo solo cambia estado de aquí.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [herramienta, lazoActivoId, lazos]);
+
+  function elegirDesde(nuevo: Desde) {
+    setDesde(nuevo);
+    setEnMedio(false);
+  }
+
+  // Al conectar: tocar un dispositivo del lazo = seguir desde él; tocar un
+  // equipo suelto o un punto vacío = capturar el siguiente ahí.
+  function tocarAlConectar(p: Punto, equipo: EquipoPlano | null) {
+    if (!lazoActivo) {
+      showToast('Elige abajo el lazo que vas a conectar', 'error');
+      setPanelAbierto(true);
+      return;
+    }
+    const ligado = equipo?.elementoId ? elementosPorId.get(equipo.elementoId) || null : null;
+    if (equipo && ligado) {
+      if (ligado.lazo.id !== lazoActivo.id) {
+        showToast(`Ese es de ${ligado.lazo.codigo}. Cámbiate a ese lazo abajo para seguir desde él.`, 'error');
+        return;
+      }
+      elegirDesde(ligado.elemento.id);
+      return;
+    }
+    if (!desde) {
+      showToast('Primero toca de dónde sale el cable: un dispositivo del lazo o «Desde el panel»', 'error');
+      setPanelAbierto(true);
+      return;
+    }
+    const origen = desde === 'panel' ? 'panel' : lazoActivo.elementos.find((e) => e.id === desde);
+    if (!origen) {
+      setDesde(null);
+      showToast('Ese dispositivo ya no está en el lazo. Toca de dónde sale el cable.', 'error');
+      return;
+    }
+    const tipo = equipo ? equipo.tipo : tipoNuevo;
+    if (!tipo) {
+      showToast('Elige abajo qué equipo vas a poner', 'error');
+      return;
+    }
+    setHoja({
+      lazo: lazoActivo,
+      lugar: lugarParaConectar(lazoActivo.elementos, origen, enMedio),
+      editando: null,
+      equipoId: equipo ? equipo.id : null,
+      punto: equipo ? null : p,
+      tipo,
+    });
+  }
+
+  // El lazo cambió (se capturó o corrigió un dispositivo): se actualiza aquí
+  // y en la copia del teléfono.
+  function ponerElementoEnLazos(elemento: Elemento) {
+    const nuevos = lazosRef.current.map((l) => (
+      l.id === elemento.lazo_id ? { ...l, elementos: l.elementos.filter((e) => e.id !== elemento.id).concat(elemento) } : l
+    ));
+    setLazos(nuevos);
+    if (plano) guardarCopiaLazos(plano.cliente_id, nuevos);
+  }
+
+  // Lo llama la hoja por cada dispositivo que guarda (el nuevo y, si se metió
+  // en medio de una rama, los que pasan a colgar de él).
+  function alGuardarDesdeHoja(abierta: HojaPlano, elemento: Elemento, pendiente: boolean) {
+    ponerElementoEnLazos(elemento);
+    setPendientesLazos(contarPendientesLazos());
+    if (pendiente && navigator.onLine) sincronizarLazos();
+
+    const { sembrado } = estadoRef.current;
+    if (abierta.editando) {
+      // Si se corrigió el tipo, el símbolo también cambia.
+      if (elemento.id === abierta.editando.id && elemento.tipo !== abierta.editando.tipo) {
+        cambiarSembrado({ ...sembrado, equipos: sembrado.equipos.map((e) => (e.elementoId === elemento.id ? { ...e, tipo: elemento.tipo } : e)) });
+      }
+      return;
+    }
+    const esElNuevo = !abierta.lazo.elementos.some((e) => e.id === elemento.id);
+    if (!esElNuevo) return;
+    const etiqueta = etiquetaDeElemento(elemento, abierta.lazo);
+    if (abierta.equipoId) {
+      cambiarSembrado({
+        ...sembrado,
+        equipos: sembrado.equipos.map((e) => (e.id === abierta.equipoId ? { ...e, elementoId: elemento.id, tipo: elemento.tipo, etiqueta } : e)),
+      });
+    } else if (abierta.punto) {
+      const equipo: EquipoPlano = { id: nuevoId(), tipo: elemento.tipo, x: abierta.punto[0], y: abierta.punto[1], elementoId: elemento.id, etiqueta };
+      if (tamanoNuevo !== 1) equipo.tamano = tamanoNuevo;
+      cambiarSembrado({ ...sembrado, equipos: [...sembrado.equipos, equipo] });
+    }
+    // El siguiente sale de este.
+    setDesde(elemento.id);
+    setEnMedio(false);
+    setTipoNuevo(elemento.tipo);
+  }
+
+  function editarDatos(equipo: EquipoPlano) {
+    const ligado = equipo.elementoId ? elementosPorId.get(equipo.elementoId) : null;
+    if (!ligado) return;
+    setHoja({
+      lazo: ligado.lazo,
+      lugar: lugarDespuesDe(ligado.lazo.elementos, ligado.elemento),
+      editando: ligado.elemento,
+      equipoId: equipo.id,
+      punto: null,
+      tipo: null,
+    });
+  }
+
   // ---------- Acciones en el plano ----------
 
   const W = plano?.ancho || 1;
@@ -260,6 +460,10 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   }
 
   function alTocar(p: Punto, equipo: EquipoPlano | null, tuberia: TuberiaPlano | null) {
+    if (herramienta === 'conectar') {
+      tocarAlConectar(p, equipo);
+      return;
+    }
     if (herramienta === 'equipo') {
       colocarEquipo(p);
       return;
@@ -402,6 +606,8 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
         pdfOriginal: original,
         cliente,
         etiquetas,
+        conexiones,
+        lazos: lazos.map((l) => ({ id: l.id, texto: `${l.codigo} · ${l.nombre}`, color: colorPorLazo.get(l.id) || '#0f766e' })),
       });
       const nombreArchivo = `sembrado-${plano.nombre}-${cliente}`.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/gi, '-');
       const url = await entregarPdf(plano.id, bytes, nombreArchivo);
@@ -477,7 +683,9 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
         </Link>
         <div className="flex-1 min-w-0">
           <p className="font-display font-semibold text-[16.5px] truncate">{plano.nombre}</p>
-          <EstadoDeGuardado estado={guardado} error={errorGuardar} onReintentar={subir} />
+          {sinConexion
+            ? <p className="text-[12px] text-amber flex items-center gap-1"><CloudOff size={12} /> Sin señal: copia guardada en este teléfono</p>
+            : <EstadoDeGuardado estado={guardado} error={errorGuardar} onReintentar={subir} />}
         </div>
         <button type="button" onClick={deshacer} disabled={historial.length === 0} aria-label="Deshacer" title="Deshacer"
           className="w-11 h-11 rounded-xl border border-line bg-surface-2 flex items-center justify-center disabled:opacity-40">
@@ -523,8 +731,13 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
             onArrastreInicio={arrastreInicio}
             onArrastre={arrastre}
             onArrastreFin={arrastreFin}
+            conexiones={verConexiones || herramienta === 'conectar' ? conexiones : null}
+            colorPorLazo={colorPorLazo}
+            resaltado={herramienta === 'conectar' && elementoDesde ? elementoDesde.id : null}
           />
-          <AyudaFlotante herramienta={herramienta} porColocar={porColocar} trazo={trazo.length} medida={medida.length} etiqueta={porColocar?.elementoId ? (() => {
+          <AyudaFlotante herramienta={herramienta} porColocar={porColocar} trazo={trazo.length} medida={medida.length}
+            desde={desde === 'panel' ? 'el panel' : elementoDesde && lazoActivo ? textoDeElemento(elementoDesde, lazoActivo) : null}
+            etiqueta={porColocar?.elementoId ? (() => {
             const l = elementosPorId.get(porColocar.elementoId!);
             return l ? `${l.elemento.nombre}${l.elemento.direccion ? ` · ${etiquetaDeElemento(l.elemento, l.lazo)}` : ''}` : '';
           })() : porColocar ? tipoDispositivo(porColocar.tipo).nombre : ''} />
@@ -532,7 +745,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
 
         {/* Herramientas y panel: abajo en celular, a la derecha en computadora */}
         <aside className="shrink-0 lg:w-[380px] border-t lg:border-t-0 lg:border-l border-line bg-surface flex flex-col min-h-0 lg:h-full">
-          <div className="grid grid-cols-4 gap-1 p-2" role="tablist" aria-label="Herramientas">
+          <div className="grid grid-cols-5 gap-1 p-2" role="tablist" aria-label="Herramientas">
             {HERRAMIENTAS.map((h) => (
               <button key={h.id} type="button" role="tab" aria-selected={herramienta === h.id}
                 onClick={() => (herramienta === h.id ? setPanelAbierto((a) => !a) : elegirHerramienta(h.id))}
@@ -553,7 +766,8 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
                       onTamano={(t) => cambiarTamano(equipoElegido.id, t)} onTamanoATodos={() => tamanoATodos(tamanoDe(equipoElegido))}
                       variosEquipos={sembrado.equipos.length > 1}
                       candidatos={candidatosPara(equipoElegido)}
-                      onLigar={(elementoId) => ligarEquipo(equipoElegido.id, elementoId)} onDesligar={() => desligarEquipo(equipoElegido.id)} />
+                      onLigar={(elementoId) => ligarEquipo(equipoElegido.id, elementoId)} onDesligar={() => desligarEquipo(equipoElegido.id)}
+                      onEditarDatos={() => editarDatos(equipoElegido)} />
                   )}
                   {tuberiaElegida && (
                     <FichaTuberia tuberia={tuberiaElegida} metros={metrosDeTuberia(tuberiaElegida, metros)}
@@ -574,6 +788,10 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
                           </button>
                         </div>
                       )}
+                      <label className="flex items-center gap-2.5 pt-1 pb-2 text-[14px]">
+                        <input type="checkbox" checked={verConexiones} onChange={(ev) => setVerConexiones(ev.target.checked)} className="w-5 h-5 accent-teal" />
+                        Ver conexiones de los lazos (línea punteada)
+                      </label>
                       <p className="text-[13px] text-muted pt-1 pb-3">Toca un equipo o una tubería para ver su ficha (ahí se agranda o achica el equipo). Arrastra un equipo para moverlo; arrastra el plano para recorrerlo.</p>
                       <Cantidades sembrado={sembrado} metros={metros} />
                     </>
@@ -587,6 +805,28 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
                   porColocar={porColocar}
                   onElegir={setPorColocar}
                   etiquetaDe={etiquetaDeElemento}
+                />
+              )}
+
+              {herramienta === 'conectar' && (
+                <PanelConectar
+                  lazos={lazos}
+                  lazoActivo={lazoActivo}
+                  colorPorLazo={colorPorLazo}
+                  onElegirLazo={elegirLazo}
+                  desde={desde}
+                  elementoDesde={elementoDesde}
+                  onDesde={elegirDesde}
+                  enMedio={enMedio}
+                  onEnMedio={setEnMedio}
+                  tipoNuevo={tipoNuevo}
+                  onTipoNuevo={setTipoNuevo}
+                  textoDe={textoDeElemento}
+                  planoDe={otrosPlanos}
+                  sembrados={sembrados}
+                  pendientes={pendientesLazos}
+                  rechazo={rechazoLazos}
+                  clienteId={plano.cliente_id}
                 />
               )}
 
@@ -642,6 +882,20 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
           </div>
         </aside>
       </div>
+
+      {hoja && (
+        <HojaCaptura
+          lazo={hoja.lazo}
+          elementos={hoja.lazo.elementos}
+          lugarInicial={hoja.lugar}
+          editando={hoja.editando}
+          tipoInicial={hoja.tipo || undefined}
+          nivelInicial={plano.nombre.slice(0, 40)}
+          unoSolo
+          onGuardado={(elemento, pendiente) => alGuardarDesdeHoja(hoja, elemento, pendiente)}
+          onCerrar={() => setHoja(null)}
+        />
+      )}
     </div>
   );
 }
@@ -661,11 +915,13 @@ function EstadoDeGuardado({ estado, error, onReintentar }: { estado: EstadoGuard
   return <p className="text-[12px] text-faint flex items-center gap-1"><Check size={12} strokeWidth={2.6} /> Guardado</p>;
 }
 
-function AyudaFlotante({ herramienta, porColocar, trazo, medida, etiqueta }: {
-  herramienta: Herramienta; porColocar: PorColocar | null; trazo: number; medida: number; etiqueta: string;
+function AyudaFlotante({ herramienta, porColocar, trazo, medida, etiqueta, desde }: {
+  herramienta: Herramienta; porColocar: PorColocar | null; trazo: number; medida: number; etiqueta: string; desde: string | null;
 }) {
   let texto: React.ReactNode = null;
-  if (herramienta === 'equipo') {
+  if (herramienta === 'conectar') {
+    texto = desde ? <>Sale de <b>{desde}</b> · toca dónde va el siguiente</> : 'Toca el dispositivo del que sale el cable';
+  } else if (herramienta === 'equipo') {
     texto = porColocar ? <>Toca el plano para sembrar <b>{etiqueta}</b></> : 'Elige qué equipo vas a sembrar';
   } else if (herramienta === 'tuberia') {
     texto = trazo === 0 ? 'Toca donde empieza la tubería' : 'Toca el siguiente quiebre · doble clic o «Terminar tramo»';
@@ -760,7 +1016,133 @@ function PanelEquipos({ faltantesPorLazo, porColocar, onElegir, etiquetaDe }: {
   );
 }
 
-function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, onTamanoATodos, variosEquipos, candidatos, onLigar, onDesligar }: {
+function PanelConectar({
+  lazos, lazoActivo, colorPorLazo, onElegirLazo, desde, elementoDesde, onDesde, enMedio, onEnMedio, tipoNuevo, onTipoNuevo,
+  textoDe, planoDe, sembrados, pendientes, rechazo, clienteId,
+}: {
+  lazos: LazoConElementos[];
+  lazoActivo: LazoConElementos | null;
+  colorPorLazo: Map<string, string>;
+  onElegirLazo: (l: LazoConElementos) => void;
+  desde: Desde | null;
+  elementoDesde: Elemento | null;
+  onDesde: (d: Desde) => void;
+  enMedio: boolean;
+  onEnMedio: (v: boolean) => void;
+  tipoNuevo: string | null;
+  onTipoNuevo: (t: string) => void;
+  textoDe: (e: Elemento, l: LazoConElementos) => string;
+  planoDe: Map<string, string>;
+  sembrados: Set<string>;
+  pendientes: number;
+  rechazo: string | null;
+  clienteId: string;
+}) {
+  if (lazos.length === 0) {
+    return (
+      <div className="pt-1 text-[13.5px]">
+        <p>Este cliente todavía no tiene lazos. Crea el lazo (necesita señal) y regresa a conectarlo aquí.</p>
+        <Link href={`/lazos?cliente=${clienteId}`} className="inline-block mt-2 font-semibold text-teal underline">Ir a Lazos y circuitos</Link>
+      </div>
+    );
+  }
+
+  // El último del recorrido, por si el lazo sigue desde otro plano.
+  const recorrido = lazoActivo ? enOrdenDeRecorrido(lazoActivo.elementos) : [];
+  const ultimo = recorrido[recorrido.length - 1] || null;
+  // Qué le sigue a `desde` hoy (para ofrecer rama o en medio).
+  let siguiente: Elemento | null = null;
+  if (lazoActivo && elementoDesde && tieneSiguiente(lazoActivo.elementos, elementoDesde)) {
+    if (elementoDesde.padre_id) {
+      siguiente = hijosDe(lazoActivo.elementos, elementoDesde.id)[0] || null;
+    } else {
+      const principal = lineaPrincipal(lazoActivo.elementos);
+      siguiente = principal[principal.findIndex((e) => e.id === elementoDesde.id) + 1] || null;
+    }
+  }
+  const enAlgunPlano = new Set([...sembrados, ...planoDe.keys()]);
+  const avisos = lazoActivo ? revisarLazo(lazoActivo, lazoActivo.elementos, enAlgunPlano, (d) => direccionVisible(d, lazoActivo.numero)) : [];
+
+  return (
+    <div className="pt-1">
+      {pendientes > 0 && (
+        <p className="mb-2 text-[12.5px] text-amber flex items-center gap-1.5">
+          <CloudOff size={14} /> {pendientes} {pendientes === 1 ? 'cambio del lazo guardado' : 'cambios del lazo guardados'} en este teléfono; suben al tener señal.
+        </p>
+      )}
+      {rechazo && <p className="mb-2 text-[12.5px] text-red font-semibold">{rechazo} Ábrelo en el lazo para corregirlo.</p>}
+
+      <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-faint mb-1.5">Lazo</p>
+      <div className="flex flex-wrap gap-1.5">
+        {lazos.map((l) => (
+          <button key={l.id} type="button" onClick={() => onElegirLazo(l)} aria-pressed={lazoActivo?.id === l.id}
+            className={`min-h-[40px] px-3 rounded-xl border text-[13.5px] font-semibold flex items-center gap-2 ${lazoActivo?.id === l.id ? 'border-teal bg-teal/15' : 'border-line bg-surface-2'}`}>
+            <span className="w-4 border-t-2 border-dashed" style={{ borderColor: colorPorLazo.get(l.id) }} />
+            {l.codigo}
+          </button>
+        ))}
+      </div>
+
+      {lazoActivo && (
+        <>
+          <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-faint mt-4 mb-1.5">Sale de</p>
+          <p className="text-[14px] font-semibold">
+            {desde === 'panel' ? 'El panel' : elementoDesde ? textoDe(elementoDesde, lazoActivo) : <span className="text-muted font-normal">Toca en el plano el dispositivo del que sale el cable.</span>}
+            {elementoDesde && planoDe.has(elementoDesde.id) && <span className="text-muted font-normal"> (en {planoDe.get(elementoDesde.id)})</span>}
+          </p>
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            <button type="button" onClick={() => onDesde('panel')} aria-pressed={desde === 'panel'}
+              className={`min-h-[38px] px-3 rounded-lg border text-[13px] ${desde === 'panel' ? 'border-teal bg-teal/15' : 'border-line bg-surface-2'}`}>Desde el panel</button>
+            {ultimo && ultimo.id !== desde && (
+              <button type="button" onClick={() => onDesde(ultimo.id)}
+                className="min-h-[38px] px-3 rounded-lg border border-line bg-surface-2 text-[13px] text-left">
+                Seguir desde el último: <span className="font-mono">{textoDe(ultimo, lazoActivo)}</span>
+                {planoDe.has(ultimo.id) && <span className="text-muted"> ({planoDe.get(ultimo.id)})</span>}
+              </button>
+            )}
+          </div>
+          {siguiente && (
+            <div className="mt-2 flex flex-col gap-1 text-[13px]">
+              <label className="flex items-center gap-2">
+                <input type="radio" checked={!enMedio} onChange={() => onEnMedio(false)} className="w-4 h-4 accent-teal" />
+                Rama nueva (derivación en T)
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="radio" checked={enMedio} onChange={() => onEnMedio(true)} className="w-4 h-4 accent-teal" />
+                En medio, antes de <span className="font-mono">{textoDe(siguiente, lazoActivo)}</span>
+              </label>
+            </div>
+          )}
+
+          <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-faint mt-4 mb-1.5">Equipo nuevo (al tocar un punto vacío)</p>
+          <div className="grid grid-cols-4 gap-1.5">
+            {TIPOS_POR_CIRCUITO[lazoActivo.tipo].map((t) => (
+              <button key={t.codigo} type="button" onClick={() => onTipoNuevo(t.codigo)} title={t.nombre} aria-pressed={tipoNuevo === t.codigo}
+                className={`min-h-[56px] rounded-xl border flex flex-col items-center justify-center gap-0.5 px-1 text-ink ${tipoNuevo === t.codigo ? 'border-teal bg-teal/15' : 'border-line bg-surface-2'}`}>
+                <Simbolo tipo={t.codigo} chico />
+                {/* Los detectores dicen S o C: abajo va el código. Los demás ya lo traen dentro. */}
+                {t.forma === 'detector' && <span className="text-[10.5px] leading-tight text-center text-muted">{t.codigo}</span>}
+              </button>
+            ))}
+          </div>
+          <p className="text-[12.5px] text-muted mt-2">Toca un punto vacío para poner uno nuevo, o un equipo suelto para darle sus datos. Se guarda en el lazo y aparece en el diagrama unifilar.</p>
+
+          {avisos.length > 0 && (
+            <div className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
+              <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-amber mb-1">Revisar</p>
+              <ul className="text-[13px] list-disc pl-4 flex flex-col gap-0.5">
+                {avisos.map((a) => <li key={a}>{a}</li>)}
+              </ul>
+            </div>
+          )}
+          <Link href={`/lazos/${lazoActivo.id}`} className="inline-block mt-3 text-[13px] font-semibold text-teal underline">Ver el diagrama unifilar de {lazoActivo.codigo}</Link>
+        </>
+      )}
+    </div>
+  );
+}
+
+function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, onTamanoATodos, variosEquipos, candidatos, onLigar, onDesligar, onEditarDatos }: {
   equipo: EquipoPlano;
   ligado: { elemento: Elemento; lazo: LazoConElementos } | null;
   etiqueta: string;
@@ -772,6 +1154,7 @@ function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, o
   candidatos: { elemento: Elemento; lazo: LazoConElementos; etiqueta: string }[];
   onLigar: (elementoId: string) => void;
   onDesligar: () => void;
+  onEditarDatos: () => void;
 }) {
   const [eligiendo, setEligiendo] = useState(false);
   const tamano = tamanoDe(equipo);
@@ -791,9 +1174,14 @@ function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, o
             <p className="text-[12.5px] text-faint mt-1">Equipo suelto, no está ligado a ningún dispositivo del lazo.</p>
           )}
           {ligado && (
-            <button type="button" onClick={onDesligar} className="mt-1.5 ml-3 text-[13px] text-muted underline inline-flex items-center gap-1">
-              <Link2Off size={14} /> Desligar
-            </button>
+            <span className="flex flex-wrap gap-x-3">
+              <button type="button" onClick={onEditarDatos} className="mt-1.5 text-[13px] font-semibold text-teal underline inline-flex items-center gap-1">
+                <PenLine size={14} /> Editar datos
+              </button>
+              <button type="button" onClick={onDesligar} className="mt-1.5 text-[13px] text-muted underline inline-flex items-center gap-1">
+                <Link2Off size={14} /> Desligar
+              </button>
+            </span>
           )}
         </div>
         <button type="button" onClick={onCerrar} aria-label="Cerrar ficha" className="w-9 h-9 rounded-full flex items-center justify-center"><X size={18} /></button>

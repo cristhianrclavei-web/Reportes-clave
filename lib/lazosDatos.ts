@@ -230,23 +230,31 @@ export async function asignarPanel(lazoId: string, panel: Panel | null): Promise
 
 // ---------- Un lazo ----------
 
+// Los dispositivos de un lazo con lo que todavía está en la cola (también
+// lo usa el plano, que captura dispositivos con esta misma cola).
+export function elementosConPendientes(lazoId: string, elementos: Elemento[]): Elemento[] {
+  let resultado = [...elementos];
+  for (const p of leerCola()) {
+    if (p.lazoId !== lazoId || p.tabla !== 'lazo_elementos') continue;
+    if (p.accion === 'guardar') {
+      const fila = p.fila as unknown as Elemento;
+      resultado = resultado.filter((e) => e.id !== fila.id).concat(fila);
+    } else {
+      resultado = resultado.filter((e) => e.id !== p.id && e.padre_id !== p.id);
+    }
+  }
+  return resultado;
+}
+
 // Aplica sobre los datos lo que todavía está en la cola, para que lo
 // capturado sin señal se vea en la lista y en el diagrama.
 function aplicarPendientes(datos: DatosLazo): DatosLazo {
   const cola = leerCola().filter((p) => p.lazoId === datos.lazo.id);
-  let elementos = [...datos.elementos];
+  const elementos = elementosConPendientes(datos.lazo.id, datos.elementos);
   let falla = datos.falla;
   let cortes = [...datos.cortes];
 
   for (const p of cola) {
-    if (p.tabla === 'lazo_elementos') {
-      if (p.accion === 'guardar') {
-        const fila = p.fila as unknown as Elemento;
-        elementos = elementos.filter((e) => e.id !== fila.id).concat(fila);
-      } else {
-        elementos = elementos.filter((e) => e.id !== p.id && e.padre_id !== p.id);
-      }
-    }
     if (p.tabla === 'lazo_fallas' && p.accion === 'guardar') {
       const fila = p.fila as unknown as Falla;
       falla = fila.estado === 'abierta' ? fila : null;

@@ -2,17 +2,42 @@
 
 import { createClient } from './supabaseClient';
 import type { Elemento, Lazo } from './lazos';
+import { elementosConPendientes } from './lazosDatos';
 import { leerSembrado, sembradoSchema, type Plano, type Sembrado } from './planos';
 
 // Datos de los planos (supabase/patch_lazos_planos.sql).
 //
-// El plano necesita señal para abrirse (la imagen viene de Storage), pero lo
-// que se siembra nunca se pierde: cada cambio se guarda primero en este
-// teléfono y solo se borra esa copia cuando el servidor confirma.
+// Lo que se siembra nunca se pierde: cada cambio se guarda primero en este
+// teléfono y solo se borra esa copia cuando el servidor confirma. Un plano
+// que ya se abrió en este teléfono se puede volver a abrir sin señal (se
+// guarda copia del plano, de su imagen y de los lazos del cliente).
 
 export type PlanoResumen = Pick<Plano, 'id' | 'cliente_id' | 'nombre' | 'actualizado_en'>;
 
-export type LazoConElementos = Pick<Lazo, 'id' | 'codigo' | 'nombre' | 'tipo' | 'numero'> & { elementos: Elemento[] };
+export type LazoConElementos = Lazo & { elementos: Elemento[] };
+
+function esErrorDeRed(error: { message?: string } | null | undefined): boolean {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return true;
+  return /fetch|network|load failed|timeout/i.test(error?.message || '');
+}
+
+function leerCopia<T>(clave: string): T | null {
+  try {
+    const texto = localStorage.getItem(clave);
+    return texto ? (JSON.parse(texto) as T) : null;
+  } catch {
+    // Sin localStorage o copia dañada: se trabaja sin copia.
+    return null;
+  }
+}
+
+function guardarCopia(clave: string, valor: unknown) {
+  try {
+    localStorage.setItem(clave, JSON.stringify(valor));
+  } catch {
+    // Sin espacio: la copia es una ayuda para abrir sin señal, no la fuente.
+  }
+}
 
 function mensajeError(error: { message?: string } | null | undefined, accion: string): string {
   const texto = error?.message || '';
@@ -38,24 +63,77 @@ export async function listarPlanos(): Promise<{ planos: PlanoResumen[]; faltaPat
   return { planos: (data || []) as PlanoResumen[], faltaPatch: false };
 }
 
-export async function obtenerPlano(id: string): Promise<Plano> {
+const copiaPlano = (id: string) => `planoCopia:${id}`;
+
+export async function obtenerPlano(id: string): Promise<{ plano: Plano; sinConexion: boolean }> {
   const { data, error } = await createClient().from('lazo_planos').select('*').eq('id', id).single();
-  if (error || !data) throw new Error(mensajeError(error, 'abrir el plano'));
-  return { ...(data as Plano), sembrado: leerSembrado(data.sembrado) };
+  if (error || !data) {
+    const copia = leerCopia<Plano>(copiaPlano(id));
+    if (copia && esErrorDeRed(error)) return { plano: { ...copia, sembrado: leerSembrado(copia.sembrado) }, sinConexion: true };
+    if (esErrorDeRed(error)) throw new Error('Sin señal y este plano no se ha abierto antes en este teléfono. Ábrelo cuando tengas conexión.');
+    throw new Error(mensajeError(error, 'abrir el plano'));
+  }
+  guardarCopia(copiaPlano(id), data);
+  return { plano: { ...(data as Plano), sembrado: leerSembrado(data.sembrado) }, sinConexion: false };
 }
 
-// Lazos del cliente con sus dispositivos, para sembrarlos en el plano.
-export async function lazosDelCliente(clienteId: string): Promise<LazoConElementos[]> {
+const copiaLazos = (clienteId: string) => `planoLazos:${clienteId}`;
+
+// Lazos del cliente con sus dispositivos, para sembrarlos y conectarlos en
+// el plano. Lleva encima lo capturado sin señal que todavía no sube.
+export async function lazosDelCliente(clienteId: string): Promise<{ lazos: LazoConElementos[]; sinConexion: boolean }> {
   const { data, error } = await createClient()
     .from('lazos')
-    .select('id, codigo, nombre, tipo, numero, lazo_elementos(*)')
+    .select('*, lazo_elementos(*)')
     .eq('cliente_id', clienteId)
     .order('codigo');
-  if (error) throw new Error(mensajeError(error, 'cargar los lazos del cliente'));
-  return (data || []).map((fila: any) => {
-    const { lazo_elementos, ...lazo } = fila;
-    return { ...lazo, elementos: (lazo_elementos || []) as Elemento[] };
-  });
+  let lazos: LazoConElementos[];
+  let sinConexion = false;
+  if (error) {
+    const copia = leerCopia<LazoConElementos[]>(copiaLazos(clienteId));
+    if (!copia || !esErrorDeRed(error)) throw new Error(mensajeError(error, 'cargar los lazos del cliente'));
+    lazos = copia;
+    sinConexion = true;
+  } else {
+    lazos = (data || []).map((fila: any) => {
+      const { lazo_elementos, ...lazo } = fila;
+      return { ...lazo, elementos: (lazo_elementos || []) as Elemento[] };
+    });
+    guardarCopia(copiaLazos(clienteId), lazos);
+  }
+  return { lazos: lazos.map((l) => ({ ...l, elementos: elementosConPendientes(l.id, l.elementos) })), sinConexion };
+}
+
+// Los lazos del cliente cambian desde el plano (se capturan dispositivos):
+// la copia se actualiza para que sin señal se vea lo mismo.
+export function guardarCopiaLazos(clienteId: string, lazos: LazoConElementos[]) {
+  guardarCopia(copiaLazos(clienteId), lazos);
+}
+
+const copiaOtros = (planoId: string) => `planoOtros:${planoId}`;
+
+// En qué otro plano del cliente está sembrado cada dispositivo: un
+// dispositivo va en un solo plano, y las flechas dicen a qué plano sigue el lazo.
+export async function otrosPlanosDelCliente(clienteId: string, planoId: string): Promise<Map<string, string>> {
+  const { data, error } = await createClient()
+    .from('lazo_planos')
+    .select('id, nombre, sembrado')
+    .eq('cliente_id', clienteId)
+    .neq('id', planoId);
+  let pares: [string, string][];
+  if (error) {
+    if (!esErrorDeRed(error)) throw new Error(mensajeError(error, 'cargar los otros planos del cliente'));
+    pares = leerCopia<[string, string][]>(copiaOtros(planoId)) || [];
+  } else {
+    pares = [];
+    for (const otro of data || []) {
+      for (const equipo of leerSembrado(otro.sembrado).equipos) {
+        if (equipo.elementoId) pares.push([equipo.elementoId, otro.nombre]);
+      }
+    }
+    guardarCopia(copiaOtros(planoId), pares);
+  }
+  return new Map(pares);
 }
 
 // ---------- Alta ----------
@@ -170,10 +248,30 @@ export async function guardarSembrado(id: string, cambios: CambiosPlano): Promis
 
 // ---------- Archivos ----------
 
-export async function urlArchivo(path: string): Promise<string> {
-  const { data, error } = await createClient().storage.from('evidencias').createSignedUrl(path, 3600);
-  if (error || !data) throw new Error(mensajeError(error, 'abrir el archivo del plano'));
-  return data.signedUrl;
+// La imagen del plano: del servidor y, sin señal, la copia guardada en este
+// teléfono la última vez que se abrió. Devuelve una dirección local (blob).
+const CACHE_IMAGENES = 'planos-imagenes';
+
+export async function imagenDelPlano(path: string): Promise<string> {
+  const clave = `/copia-plano/${path}`;
+  const { data, error } = await createClient().storage.from('evidencias').download(path);
+  if (data && !error) {
+    try {
+      const cache = await caches.open(CACHE_IMAGENES);
+      await cache.put(clave, new Response(data, { headers: { 'Content-Type': data.type } }));
+    } catch {
+      // Sin Cache Storage: se ve igual, solo no queda copia para abrir sin señal.
+    }
+    return URL.createObjectURL(data);
+  }
+  try {
+    const cache = await caches.open(CACHE_IMAGENES);
+    const copia = await cache.match(clave);
+    if (copia) return URL.createObjectURL(await copia.blob());
+  } catch {
+    // Sin Cache Storage: se avisa abajo.
+  }
+  throw new Error(mensajeError(error, 'abrir la imagen del plano'));
 }
 
 export async function descargarPdfOriginal(path: string): Promise<ArrayBuffer> {

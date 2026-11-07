@@ -90,7 +90,7 @@ function CampoConSugerencias({ id, etiqueta, valor, onCambiar, sugerencias, plac
 
 type Errores = Partial<Record<'direccion' | 'nombre' | 'ubicacion' | 'general', string>>;
 
-export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, onGuardado, onCerrar }: {
+export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, onGuardado, onCerrar, tipoInicial, nivelInicial, unoSolo }: {
   lazo: Lazo;
   elementos: Elemento[];
   lugarInicial: Lugar;
@@ -98,16 +98,22 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
   editando?: Elemento | null;
   onGuardado: (elemento: Elemento, pendiente: boolean) => void;
   onCerrar: () => void;
+  // Desde el plano: el tipo del símbolo tocado, el nivel (nombre del plano)
+  // y solo uno a la vez (el siguiente se toca en el plano).
+  tipoInicial?: string;
+  nivelInicial?: string;
+  unoSolo?: boolean;
 }) {
   const tipos = TIPOS_POR_CIRCUITO[lazo.tipo];
   const [lugar, setLugar] = useState<Lugar>(lugarInicial);
-  const [tipo, setTipo] = useState(editando?.tipo || tipos[0].codigo);
+  const tipoDelPlano = tipos.some((t) => t.codigo === tipoInicial) ? (tipoInicial as string) : null;
+  const [tipo, setTipo] = useState(editando?.tipo || tipoDelPlano || tipos[0].codigo);
   const [letra, setLetra] = useState<'D' | 'M'>('D');
   const [numero, setNumero] = useState('');
   const [nombre, setNombre] = useState(editando?.nombre || '');
   const [nombreAMano, setNombreAMano] = useState(Boolean(editando));
   // Ubicación por partes: área (Cocina, Bodega 1), nivel y una referencia.
-  const [partes, setPartes] = useState<PartesUbicacion>(editando ? partesDe(editando) : { area: '', nivel: '', referencia: '' });
+  const [partes, setPartes] = useState<PartesUbicacion>(editando ? partesDe(editando) : { area: '', nivel: nivelInicial || '', referencia: '' });
   const niveles = valoresUsados(elementos, 'nivel', 100);
   const sugerenciasNivel = [...niveles, ...NIVELES_COMUNES.filter((n) => !niveles.includes(n))];
   const sugerenciasArea = valoresUsados(elementos, 'area', 100);
@@ -355,21 +361,21 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
           {/* Sin `capture`: así el teléfono ofrece cámara o galería. */}
           <input ref={entradaFoto} type="file" accept="image/*" className="hidden"
             onChange={(ev) => setFoto(ev.target.files?.[0] || null)} />
-          {!editando && ultimo && lugar.padreId !== ultimo.id && (
+          {!editando && !unoSolo && ultimo && lugar.padreId !== ultimo.id && (
             <button type="button" onClick={colgarDelAnterior}
               className="flex-1 min-h-[42px] rounded-xl border border-line bg-surface-2 text-[13px] flex items-center justify-center gap-1.5 px-2">
               <CornerDownRight size={16} strokeWidth={2.2} className="shrink-0" />
               <span className="leading-tight text-left">Colgar de<span className="block font-mono text-[12px]">{etiqueta(ultimo)}</span></span>
             </button>
           )}
-          {!editando && origenRama && lugar.padreId !== origenRama.id && (
+          {!editando && !unoSolo && origenRama && lugar.padreId !== origenRama.id && (
             <button type="button" onClick={otraRama}
               className="flex-1 min-h-[42px] rounded-xl border border-line bg-surface-2 text-[13px] flex items-center justify-center gap-1.5 px-2">
               <GitFork size={16} strokeWidth={2.2} className="shrink-0" />
               <span className="leading-tight text-left">Otra rama desde<span className="block font-mono text-[12px]">{etiqueta(origenRama)}</span></span>
             </button>
           )}
-          {!editando && padre && (
+          {!editando && !unoSolo && padre && (
             <button type="button" onClick={volverALaLinea}
               className="flex-1 min-h-[42px] rounded-xl border border-line bg-surface-2 text-[13px] flex items-center justify-center gap-1.5 px-2">
               <Undo2 size={16} strokeWidth={2.2} /> Volver a la línea
@@ -384,10 +390,10 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
             className="flex-1 min-h-[50px] rounded-xl bg-surface-2 border border-line font-semibold text-[14.5px]">
             {capturados > 0 ? 'Terminar' : 'Cancelar'}
           </button>
-          {editando ? (
+          {editando || unoSolo ? (
             <button type="button" onClick={() => guardar(false)} disabled={guardando}
               className="flex-[1.6] min-h-[50px] rounded-xl bg-teal text-inkOnAccent font-semibold text-[15px] disabled:opacity-60">
-              {guardando ? 'Guardando…' : 'Guardar cambios'}
+              {guardando ? 'Guardando…' : editando ? 'Guardar cambios' : 'Guardar'}
             </button>
           ) : (
             <button type="button" onClick={() => guardar(true)} disabled={guardando}

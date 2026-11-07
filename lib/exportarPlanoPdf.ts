@@ -5,6 +5,7 @@
 
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, degrees, rgb } from 'pdf-lib';
 import { tipoDispositivo } from './lazos';
+import type { LineaConexion, MarcaConexion } from './conexionesPlano';
 import {
   cantidadesDeEquipos, cantidadesDeTuberia, colocacionDePagina, colorEquipo, colorTuberia, formatoMetros,
   proporcionDeEscala, tamanoDe, tamanoSimbolo, type Plano,
@@ -55,9 +56,35 @@ export type DatosExportar = {
   cliente: string;
   // Texto junto a cada equipo ligado a un dispositivo (dirección o nombre).
   etiquetas: Map<string, string>;
+  // Conexiones de los lazos (línea punteada) y qué color lleva cada lazo.
+  conexiones?: { lineas: LineaConexion[]; marcas: MarcaConexion[] };
+  lazos?: { id: string; texto: string; color: string }[];
 };
 
-export async function exportarPlanoPdf({ plano, pdfOriginal, cliente, etiquetas }: DatosExportar): Promise<Uint8Array> {
+// Línea punteada con una flecha a la mitad, en coordenadas del PDF.
+function dibujarConexion(hoja: PDFPage, desde: { x: number; y: number }, hasta: { x: number; y: number }, r: number, tinta: ReturnType<typeof rgb>) {
+  const largo = Math.hypot(hasta.x - desde.x, hasta.y - desde.y);
+  if (largo < r * 2.4) return;
+  const ux = (hasta.x - desde.x) / largo;
+  const uy = (hasta.y - desde.y) / largo;
+  const separacion = r * 1.2;
+  const grosor = Math.max(0.5, r / 4.5);
+  hoja.drawLine({
+    start: { x: desde.x + ux * separacion, y: desde.y + uy * separacion },
+    end: { x: hasta.x - ux * separacion, y: hasta.y - uy * separacion },
+    thickness: grosor,
+    color: tinta,
+    dashArray: [grosor * 3, grosor * 2.2],
+  });
+  // drawSvgPath usa y hacia abajo: la flecha se arma con -uy.
+  const p = r * 0.75;
+  const vx = ux;
+  const vy = -uy;
+  const camino = `M ${vx * p} ${vy * p} L ${-vx * p * 0.6 - vy * p * 0.7} ${-vy * p * 0.6 + vx * p * 0.7} L ${-vx * p * 0.6 + vy * p * 0.7} ${-vy * p * 0.6 - vx * p * 0.7} Z`;
+  hoja.drawSvgPath(camino, { x: (desde.x + hasta.x) / 2, y: (desde.y + hasta.y) / 2, color: tinta });
+}
+
+export async function exportarPlanoPdf({ plano, pdfOriginal, cliente, etiquetas, conexiones, lazos = [] }: DatosExportar): Promise<Uint8Array> {
   const original = await PDFDocument.load(pdfOriginal, { ignoreEncryption: true });
   const paginaOriginal = original.getPage(plano.pagina - 1);
   const caja = paginaOriginal.getCropBox();
@@ -81,6 +108,11 @@ export async function exportarPlanoPdf({ plano, pdfOriginal, cliente, etiquetas 
     const camino = t.puntos.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p[0]} ${p[1]}`).join(' ');
     hoja.drawSvgPath(camino, { x: 0, y: H, borderColor: color(colorTuberia(t.diametro)), borderWidth: Math.max(0.6, rNormal / 3.5), borderOpacity: 0.9 });
   }
+  const colorLazo = new Map(lazos.map((l) => [l.id, l.color]));
+  for (const l of conexiones?.lineas || []) {
+    const tinta = color(colorLazo.get(l.lazoId) || '#0f766e');
+    dibujarConexion(hoja, { x: l.desde[0], y: H - l.desde[1] }, { x: l.hasta[0], y: H - l.hasta[1] }, rNormal, tinta);
+  }
   for (const e of plano.sembrado.equipos) {
     const cx = e.x;
     const cy = H - e.y;
@@ -91,6 +123,18 @@ export async function exportarPlanoPdf({ plano, pdfOriginal, cliente, etiquetas 
       const tam = r * 0.85;
       hoja.drawText(texto(rotulo), { x: cx + r * 1.25, y: cy + r * 0.55, size: tam, font: negrita, color: color(colorEquipo(e.tipo)) });
     }
+  }
+
+  for (const m of conexiones?.marcas || []) {
+    const rotulo = texto(m.texto);
+    const tam = rNormal * 0.85;
+    hoja.drawText(rotulo, {
+      x: m.en[0] - negrita.widthOfTextAtSize(rotulo, tam) / 2,
+      y: H - m.en[1] - rNormal * 2.3 - tam * 0.35,
+      size: tam,
+      font: negrita,
+      color: color(colorLazo.get(m.lazoId) || '#0f766e'),
+    });
   }
 
   // Hoja 2: simbología y cantidades (carta horizontal).
@@ -151,6 +195,21 @@ export async function exportarPlanoPdf({ plano, pdfOriginal, cliente, etiquetas 
     const total = texto(formatoMetros(totalMetros));
     resumen.drawText(total, { x: x0 + 314 - negrita.widthOfTextAtSize(total, 11), y: yDer - 2, size: 11, font: negrita, color: tinta });
     resumen.drawText('Medido sobre el plano, sin desperdicio ni bajadas.', { x: x0, y: yDer - 22, size: 9, font: fuente, color: gris });
+  }
+
+  // Abajo: qué lazo es cada línea punteada.
+  const conLineas = lazos.filter((l) => (conexiones?.lineas || []).some((c) => c.lazoId === l.id) || (conexiones?.marcas || []).some((c) => c.lazoId === l.id));
+  if (conLineas.length > 0) {
+    let x = margen;
+    const yLeyenda = margen - 30;
+    resumen.drawText('CONEXIONES', { x, y: yLeyenda + 16, size: 9.5, font: negrita, color: gris });
+    for (const l of conLineas) {
+      const rotulo = texto(l.texto);
+      resumen.drawLine({ start: { x, y: yLeyenda + 3 }, end: { x: x + 22, y: yLeyenda + 3 }, thickness: 1.6, color: color(l.color), dashArray: [4, 3] });
+      resumen.drawText(rotulo, { x: x + 28, y: yLeyenda, size: 9.5, font: fuente, color: tinta });
+      x += 40 + fuente.widthOfTextAtSize(rotulo, 9.5);
+      if (x > 792 - margen - 60) break;
+    }
   }
 
   return pdf.save();

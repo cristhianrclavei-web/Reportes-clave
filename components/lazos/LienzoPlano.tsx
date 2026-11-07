@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Maximize, Minus, Plus } from 'lucide-react';
 import { tipoDispositivo } from '@/lib/lazos';
+import type { LineaConexion, MarcaConexion } from '@/lib/conexionesPlano';
 import {
   colorEquipo, colorTuberia, equipoEn, tamanoDe, tamanoSimbolo, tuberiaEn,
   type EquipoPlano, type Punto, type Sembrado, type TuberiaPlano,
@@ -32,6 +33,7 @@ const RADIO_TOQUE = 22;
 export default function LienzoPlano({
   imagenUrl, ancho, alto, sembrado, etiquetaDe, seleccion, trazo, colorTrazo, medida,
   puedeArrastrar, ajustarPunto, onTocar, onDobleToque, onArrastreInicio, onArrastre, onArrastreFin,
+  conexiones, colorPorLazo, resaltado,
 }: {
   imagenUrl: string | null;
   ancho: number;
@@ -50,6 +52,11 @@ export default function LienzoPlano({
   onArrastreInicio: (id: string) => void;
   onArrastre: (id: string, p: Punto) => void;
   onArrastreFin: (id: string) => void;
+  // Línea punteada con flecha entre dispositivos del mismo lazo (null = no se ven).
+  conexiones: { lineas: LineaConexion[]; marcas: MarcaConexion[] } | null;
+  colorPorLazo: Map<string, string>;
+  // Dispositivo (id del lazo) del que sale el cable al conectar.
+  resaltado: string | null;
 }) {
   const marco = useRef<HTMLDivElement>(null);
   const [vista, setVista] = useState<Vista>({ s: 0, tx: 0, ty: 0 });
@@ -251,9 +258,24 @@ export default function LienzoPlano({
               </g>
             )}
 
+            {conexiones && conexiones.lineas.map((l, i) => (
+              <LineaPunteada key={i} linea={l} color={colorPorLazo.get(l.lazoId) || '#0f766e'} r={r} grosor={grosorTubo * 0.8} />
+            ))}
+
+            {sembrado.equipos.filter((e) => resaltado && e.elementoId === resaltado).map((e) => (
+              <circle key={`desde-${e.id}`} cx={e.x} cy={e.y} r={r * tamanoDe(e) * 2.1} fill="none" stroke="#14b8a6" strokeWidth={grosorTubo}
+                strokeDasharray={`${grosorTubo * 2} ${grosorTubo * 1.5}`} />
+            ))}
+
             {sembrado.equipos.map((e) => (
               <SimboloEnPlano key={e.id} equipo={e} r={r * tamanoDe(e)} etiqueta={etiquetaDe(e)}
                 elegido={seleccion?.tipo === 'equipo' && seleccion.id === e.id} />
+            ))}
+
+            {conexiones && conexiones.marcas.map((m, i) => (
+              <text key={i} x={m.en[0]} y={m.en[1] + r * 2.3} textAnchor="middle" fontSize={r * 0.85} fontWeight={700}
+                fontFamily="ui-sans-serif, system-ui" fill={colorPorLazo.get(m.lazoId) || '#0f766e'}
+                stroke="#fff" strokeWidth={r * 0.3} paintOrder="stroke" strokeLinejoin="round">{m.texto}</text>
             ))}
 
             {medida.length > 0 && (
@@ -279,6 +301,33 @@ export default function LienzoPlano({
         ))}
       </div>
     </div>
+  );
+}
+
+// Conexión de un dispositivo al siguiente: punteada, sin tocar los símbolos,
+// con una flecha a la mitad que dice hacia dónde va el cable.
+function LineaPunteada({ linea, color, r, grosor }: { linea: LineaConexion; color: string; r: number; grosor: number }) {
+  const [x1, y1] = linea.desde;
+  const [x2, y2] = linea.hasta;
+  const largo = Math.hypot(x2 - x1, y2 - y1);
+  if (largo < r * 2.4) return null;
+  const ux = (x2 - x1) / largo;
+  const uy = (y2 - y1) / largo;
+  const separacion = r * 1.2;
+  const mx = (x1 + x2) / 2;
+  const my = (y1 + y2) / 2;
+  const punta = r * 0.75;
+  const flecha = [
+    [mx + ux * punta, my + uy * punta],
+    [mx - ux * punta * 0.6 - uy * punta * 0.7, my - uy * punta * 0.6 + ux * punta * 0.7],
+    [mx - ux * punta * 0.6 + uy * punta * 0.7, my - uy * punta * 0.6 - ux * punta * 0.7],
+  ].map((p) => p.join(',')).join(' ');
+  return (
+    <g style={{ pointerEvents: 'none' }}>
+      <line x1={x1 + ux * separacion} y1={y1 + uy * separacion} x2={x2 - ux * separacion} y2={y2 - uy * separacion}
+        stroke={color} strokeWidth={grosor} strokeDasharray={`${grosor * 3} ${grosor * 2.2}`} strokeLinecap="round" />
+      <polygon points={flecha} fill={color} />
+    </g>
   );
 }
 
