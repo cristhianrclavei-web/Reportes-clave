@@ -396,6 +396,12 @@ export default function NuevoReportePage() {
   // que la etiqueta se pueda imprimir aunque no haya señal; el QR funciona
   // en cuanto el reporte se sube.
   const tokenRef = useRef<string | null>(null);
+  // Id y folio del reporte que se está guardando. Se fijan en el primer
+  // intento y se reusan si el técnico vuelve a tocar «Guardar» (error, señal
+  // lenta): así un reintento corrige el mismo reporte en vez de crear otro.
+  const reporteEnCursoRef = useRef<{ id: string; claveFormato: string } | null>(null);
+  // Evita dos guardados al mismo tiempo por un doble toque.
+  const guardandoRef = useRef(false);
   function tokenVerificacion(): string {
     if (!tokenRef.current) tokenRef.current = generarUUID();
     return tokenRef.current;
@@ -988,6 +994,7 @@ export default function NuevoReportePage() {
     setSoporteria([soporteriaVacia()]);
     setEquipos([{ cant: '', desc: '', modelo: '', marca: '', serie: '' }]);
     setFirmaIngNombre(''); setFirmaClienteNombre('');
+    reporteEnCursoRef.current = null;
     setClienteAusente(false); setMotivoAusente(''); setRecibioNombre(''); setRecibioPuesto(''); setRecibioFirma(null);
     sigIngRef.current?.clear();
     sigClienteRef.current?.clear();
@@ -1214,7 +1221,16 @@ export default function NuevoReportePage() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
+    if (guardandoRef.current) return;
+    guardandoRef.current = true;
+    try {
+      await guardarReporte();
+    } finally {
+      guardandoRef.current = false;
+    }
+  }
 
+  async function guardarReporte() {
     // Si no se capturó la hora de salida, se toma la hora actual sola en
     // vez de detener el guardado — no se actualiza vía setHoraSalida porque
     // ese cambio de estado no se reflejaría a tiempo aquí abajo (React lo
@@ -1282,6 +1298,11 @@ export default function NuevoReportePage() {
           fotos: fotosForOffline,
           fotosExistentes: fotosServicio.map(aEvidencia),
           servicioProgramadoId: servicioSeleccionadoId,
+          // Si ya se intentó en línea, el sincronizador usa el mismo id: si
+          // el servidor sí lo había guardado, no se crea un segundo reporte.
+          ...(reporteEnCursoRef.current
+            ? { sync: { reportId: reporteEnCursoRef.current.id, claveFormato: reporteEnCursoRef.current.claveFormato, subidas: {} } }
+            : {}),
         });
 
         avance(100, 'Guardado en este dispositivo');
@@ -1309,35 +1330,48 @@ export default function NuevoReportePage() {
       const { data: { user } } = await withTimeout(supabase.auth.getUser(), 10000, 'sesión');
       avance(15, 'Asignando folio');
 
-      // Folio automático: iniciales del técnico + "-A-" + consecutivo (por técnico)
-      const { count } = await withTimeout(
-        Promise.resolve(supabase.from('reports').select('id', { count: 'exact', head: true }).eq('created_by', user!.id)),
-        10000,
-        'consecutivo de folio'
-      );
-      const seq = (count || 0) + 1;
-      const claveFormato = `${iniciales(userName || userEmail)}-A-${String(seq).padStart(3, '0')}`;
-
-      const reportId = generarUUID();
+      // Folio automático: iniciales del técnico + "-A-" + consecutivo (por
+      // técnico). En un reintento se reusan el id y el folio del primero.
+      if (!reporteEnCursoRef.current) {
+        const { count } = await withTimeout(
+          Promise.resolve(supabase.from('reports').select('id', { count: 'exact', head: true }).eq('created_by', user!.id)),
+          10000,
+          'consecutivo de folio'
+        );
+        const seq = (count || 0) + 1;
+        reporteEnCursoRef.current = {
+          id: generarUUID(),
+          claveFormato: `${iniciales(userName || userEmail)}-A-${String(seq).padStart(3, '0')}`,
+        };
+      }
+      const reportId = reporteEnCursoRef.current.id;
+      const claveFormato = reporteEnCursoRef.current.claveFormato;
       const baseData = { ...sharedData, fotos: [] as EvidenciaReporte[], claveFormato };
       avance(22, conFormato ? 'Creando el reporte y sus formatos' : 'Creando el reporte');
 
-      const { error } = await withTimeout(
-        Promise.resolve(
-          supabase.from('reports').insert({
-            id: reportId,
-            created_by: user!.id,
-            empresa_cliente: empresaCliente,
-            cliente_id: clienteId,
-            fecha,
-            tipo_servicio: tipoServicio,
-            sub_tipo_servicio: subTipo,
-            data: baseData,
-          })
-        ),
+      const columnas = {
+        empresa_cliente: empresaCliente,
+        cliente_id: clienteId,
+        fecha,
+        tipo_servicio: tipoServicio,
+        sub_tipo_servicio: subTipo,
+        data: baseData,
+      };
+      let { error } = await withTimeout(
+        Promise.resolve(supabase.from('reports').insert({ id: reportId, created_by: user!.id, ...columnas })),
         15000,
         'guardar reporte'
       );
+      // 23505 = ese id ya existe: un intento anterior sí lo guardó aunque el
+      // teléfono no recibió la respuesta. Se actualiza con lo de ahora.
+      if (error?.code === '23505') {
+        const resultado = await withTimeout(
+          Promise.resolve(supabase.from('reports').update(columnas).eq('id', reportId)),
+          15000,
+          'actualizar reporte'
+        );
+        error = resultado.error;
+      }
 
       if (error) {
         setSaving(false);
