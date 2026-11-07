@@ -18,7 +18,7 @@ import {
   type Elemento, type Lugar, type Panel,
 } from '@/lib/lazos';
 import { listarPaneles, pendientesDeLazo, subirPendientes } from '@/lib/lazosDatos';
-import { enderezar, siguientesPuntos, type Ajuste, type ModoTrazo } from '@/lib/trazoRecto';
+import { alinear, enderezar, siguientesPuntos, type Ajuste, type Guias, type ModoTrazo } from '@/lib/trazoRecto';
 import { colorDeLazo, conexionesEnPlano, lugarParaConectar, revisarLazo, tieneSiguiente } from '@/lib/conexionesPlano';
 import {
   DIAMETROS, TIPOS_TUBERIA, cantidadesDeEquipos, cantidadesDeTuberia, colorTuberia, distancia,
@@ -99,6 +99,8 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   // Cuántos puntos agregó cada toque (un toque puede meter un codo), para que
   // «Quitar punto» deshaga el toque completo.
   const [pasosTrazo, setPasosTrazo] = useState<number[]>([]);
+  // Quiebres y puntas de las tuberías: nodos donde se puede unir otra.
+  const nodosTuberia = useMemo(() => estado.sembrado.tuberias.flatMap((t) => t.puntos), [estado.sembrado.tuberias]);
   // Los equipos nuevos salen del último tamaño que se eligió en una ficha.
   const [tamanoNuevo, setTamanoNuevo] = useState(1);
   // Igual con el giro: si el edificio va en diagonal, todos salen ya girados.
@@ -394,7 +396,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
       lugar: lugarParaConectar(lazoActivo.elementos, origen, enMedio),
       editando: null,
       equipoId: equipo ? equipo.id : null,
-      punto: equipo ? null : p,
+      punto: equipo ? null : alinearEquipo(p).puntos[0],
       tipo,
     });
   }
@@ -463,18 +465,27 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   const H = plano?.alto || 1;
   const radioPegar = tamanoSimbolo(W, H);
 
-  // Lo que agrega un toque a la tubería: pegado al centro de un equipo
-  // cercano (con codo si no está en línea) o a 90°/45° del anterior y
-  // alineado con los equipos y la tubería que ya están.
+  // Lo que agrega un toque a la tubería: pegado al centro de un equipo o a
+  // un nodo (quiebre o punta) de otra tubería, con codo si no está en línea;
+  // o a 90°/45° del anterior y alineado con lo que ya está.
   const ajustarPunto = useCallback((p: Punto): Ajuste => {
     const { equipos, tuberias } = estadoRef.current.sembrado;
-    let cercano: EquipoPlano | null = null;
+    let puntoFijo: Punto | null = null;
     let menor = Infinity;
     for (const e of equipos) {
       const d = distancia(p, [e.x, e.y]);
       if (d <= radioPegar * tamanoDe(e) && d < menor) {
-        cercano = e;
+        puntoFijo = [e.x, e.y];
         menor = d;
+      }
+    }
+    if (!puntoFijo) {
+      for (const nodo of tuberias.flatMap((t) => t.puntos)) {
+        const d = distancia(p, nodo);
+        if (d <= radioPegar * 0.8 && d < menor) {
+          puntoFijo = nodo;
+          menor = d;
+        }
       }
     }
     const referencias: Punto[] = [
@@ -484,13 +495,25 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     ];
     return siguientesPuntos(trazo, p, {
       modo: modoTrazo,
-      equipoCercano: cercano ? [cercano.x, cercano.y] : null,
+      puntoFijo,
       referencias,
       tolerancia: radioPegar * 0.6,
     });
   }, [trazo, modoTrazo, radioPegar]);
 
-  function colocarEquipo(p: Punto) {
+  // Al poner o mover un equipo: si queda casi en el mismo eje que otro, se
+  // empareja con él y se muestra la guía (como el rastreo de AutoCAD).
+  const alinearEquipo = useCallback((p: Punto, excepto: string | null = null): Ajuste => {
+    const otros = estadoRef.current.sembrado.equipos.filter((e) => e.id !== excepto).map((e): Punto => [e.x, e.y]);
+    const { punto, guias } = alinear(p, otros, radioPegar * 0.6, { x: true, y: true });
+    return { puntos: [punto], guias };
+  }, [radioPegar]);
+
+  // Guías mientras se arrastra un equipo.
+  const [guiasArrastre, setGuiasArrastre] = useState<Guias | null>(null);
+
+  function colocarEquipo(toque: Punto) {
+    const p = alinearEquipo(toque).puntos[0];
     if (!porColocar) {
       showToast('Elige abajo qué equipo vas a sembrar', 'error');
       setPanelAbierto(true);
@@ -571,7 +594,10 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     setSeleccion({ tipo: 'equipo', id });
   }
 
-  function arrastre(id: string, p: Punto) {
+  function arrastre(id: string, dedo: Punto) {
+    const { puntos, guias } = alinearEquipo(dedo, id);
+    const p = puntos[0];
+    setGuiasArrastre(guias);
     setEstado((actual) => ({
       ...actual,
       sembrado: { ...actual.sembrado, equipos: actual.sembrado.equipos.map((e) => (e.id === id ? { ...e, x: p[0], y: p[1] } : e)) },
@@ -579,6 +605,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   }
 
   function arrastreFin() {
+    setGuiasArrastre(null);
     setCambios((n) => n + 1);
   }
 
@@ -804,7 +831,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
             colorTrazo={colorTuberia(diametro)}
             medida={medida}
             puedeArrastrar={herramienta === 'ver'}
-            ajustarPunto={ajustarPunto}
+            ajustarPunto={herramienta === 'tuberia' ? ajustarPunto : alinearEquipo}
             onTocar={alTocar}
             onDobleToque={() => { if (herramienta === 'tuberia' && trazo.length >= 2) terminarTramo(); }}
             onArrastreInicio={arrastreInicio}
@@ -813,7 +840,9 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
             conexiones={verConexiones || herramienta === 'conectar' ? conexiones : null}
             colorPorLazo={colorPorLazo}
             resaltado={herramienta === 'conectar' ? equipoResaltado : null}
-            trazando={herramienta === 'tuberia'}
+            ayudaPuntero={herramienta === 'tuberia' || herramienta === 'equipo' || herramienta === 'conectar'}
+            guiasArrastre={guiasArrastre}
+            nodos={herramienta === 'tuberia' ? nodosTuberia : []}
           />
           <AyudaFlotante herramienta={herramienta} porColocar={porColocar} trazo={trazo.length} medida={medida.length}
             desde={desde === 'panel' ? 'el panel' : elementoDesde && lazoActivo ? textoDeElemento(elementoDesde, lazoActivo) : null}

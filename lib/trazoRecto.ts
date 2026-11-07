@@ -92,22 +92,23 @@ export function alinear(p: Punto, referencias: Punto[], tolerancia: number, ejes
 export type Ajuste = { puntos: Punto[]; guias: Guias };
 
 // Lo que se agrega al trazo al tocar `p`:
-// - Cerca de un equipo: se pega a su centro (con codo si hace falta).
+// - Cerca de un equipo o de un nodo de otra tubería (`puntoFijo`): se pega
+//   ahí exacto (con codo si hace falta), para unir nodo con nodo.
 // - Si no: a 90°/45° del punto anterior y alineado con lo que ya hay.
 export function siguientesPuntos(
   trazo: Punto[],
   p: Punto,
-  opciones: { modo: ModoTrazo; equipoCercano: Punto | null; referencias: Punto[]; tolerancia: number },
+  opciones: { modo: ModoTrazo; puntoFijo: Punto | null; referencias: Punto[]; tolerancia: number },
 ): Ajuste {
-  const { modo, equipoCercano, referencias, tolerancia } = opciones;
+  const { modo, puntoFijo, referencias, tolerancia } = opciones;
   const sinGuias: Guias = { x: null, y: null };
   const anterior = trazo[trazo.length - 1] || null;
   const previo = trazo[trazo.length - 2] || null;
   const dirPrevia: Punto | null = anterior && previo ? [anterior[0] - previo[0], anterior[1] - previo[1]] : null;
 
-  if (equipoCercano) {
-    if (!anterior) return { puntos: [equipoCercano], guias: sinGuias };
-    return { puntos: conCodo(anterior, equipoCercano, modo, dirPrevia, tolerancia), guias: sinGuias };
+  if (puntoFijo) {
+    if (!anterior) return { puntos: [puntoFijo], guias: sinGuias };
+    return { puntos: conCodo(anterior, puntoFijo, modo, dirPrevia, tolerancia), guias: sinGuias };
   }
   if (!anterior) {
     const { punto, guias } = alinear(p, referencias, tolerancia, { x: true, y: true });

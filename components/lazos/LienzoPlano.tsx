@@ -5,7 +5,7 @@ import { Maximize, Minus, Plus } from 'lucide-react';
 import { figuraDe } from '@/lib/simbolosPlano';
 import { FiguraEnSvg } from '@/components/lazos/SimboloPlano';
 import type { LineaConexion, MarcaConexion } from '@/lib/conexionesPlano';
-import type { Ajuste } from '@/lib/trazoRecto';
+import type { Ajuste, Guias } from '@/lib/trazoRecto';
 import {
   colorEquipo, colorTuberia, equipoEn, tamanoDe, tamanoSimbolo, tuberiaEn,
   type EquipoPlano, type Punto, type Sembrado, type TuberiaPlano,
@@ -35,7 +35,7 @@ const RADIO_TOQUE = 22;
 export default function LienzoPlano({
   imagenUrl, ancho, alto, sembrado, etiquetaDe, seleccion, trazo, colorTrazo, medida,
   puedeArrastrar, ajustarPunto, onTocar, onDobleToque, onArrastreInicio, onArrastre, onArrastreFin,
-  conexiones, colorPorLazo, resaltado, trazando,
+  conexiones, colorPorLazo, resaltado, ayudaPuntero, guiasArrastre, nodos,
 }: {
   imagenUrl: string | null;
   ancho: number;
@@ -59,8 +59,12 @@ export default function LienzoPlano({
   colorPorLazo: Map<string, string>;
   // Símbolo (id en el plano) del que sale el cable al conectar.
   resaltado: string | null;
-  // Herramienta de tubería activa: muestra la vista previa y las guías.
-  trazando: boolean;
+  // Tubería, equipos o conectar: con el mouse encima se ven la vista previa y las guías.
+  ayudaPuntero: boolean;
+  // Guías mientras se arrastra un equipo.
+  guiasArrastre: Guias | null;
+  // Nodos de tubería (quiebres y puntas) a los que se puede unir el trazo.
+  nodos: Punto[];
 }) {
   const marco = useRef<HTMLDivElement>(null);
   const [vista, setVista] = useState<Vista>({ s: 0, tx: 0, ty: 0 });
@@ -224,7 +228,8 @@ export default function LienzoPlano({
   const grosorTubo = listo ? Math.max(tamanoSimbolo(ancho, alto) / 7, 2.5 / s) : 1;
   const ultimo = trazo[trazo.length - 1];
   // Vista previa (con mouse): lo que agregaría el siguiente toque y sus guías.
-  const previa = encima && (ultimo || trazo.length === 0) && trazando ? ajustarPunto(encima) : null;
+  const previa = encima && (ultimo || trazo.length === 0) && ayudaPuntero ? ajustarPunto(encima) : null;
+  const guias = guiasArrastre || previa?.guias || null;
 
   return (
     <div
@@ -270,13 +275,15 @@ export default function LienzoPlano({
               <LineaPunteada key={i} linea={l} color={colorPorLazo.get(l.lazoId) || '#0f766e'} r={r} grosor={grosorTubo * 0.8} />
             ))}
 
-            {/* Guías de alineación, como el rastreo de AutoCAD. */}
-            {previa?.guias.x != null && (
-              <line x1={previa.guias.x} y1={0} x2={previa.guias.x} y2={alto} stroke="#14b8a6" strokeWidth={1.2 / s} strokeDasharray={`${6 / s} ${4 / s}`} style={{ pointerEvents: 'none' }} />
-            )}
-            {previa?.guias.y != null && (
-              <line x1={0} y1={previa.guias.y} x2={ancho} y2={previa.guias.y} stroke="#14b8a6" strokeWidth={1.2 / s} strokeDasharray={`${6 / s} ${4 / s}`} style={{ pointerEvents: 'none' }} />
-            )}
+            {/* Guías de alineación, como el rastreo de AutoCAD: franja
+                sombreada y línea punteada a lo largo de toda la hoja. */}
+            {guias?.x != null && <Guia x1={guias.x} y1={0} x2={guias.x} y2={alto} s={s} />}
+            {guias?.y != null && <Guia x1={0} y1={guias.y} x2={ancho} y2={guias.y} s={s} />}
+
+            {/* Nodos de tubería: puntos donde se puede unir otro tramo. */}
+            {nodos.map((n, i) => (
+              <circle key={`nodo-${i}`} cx={n[0]} cy={n[1]} r={5 / s} fill="#fff" stroke="#0f766e" strokeWidth={1.6 / s} style={{ pointerEvents: 'none' }} />
+            ))}
             {previa && previa.puntos.length > 0 && (
               <circle cx={previa.puntos[previa.puntos.length - 1][0]} cy={previa.puntos[previa.puntos.length - 1][1]} r={grosorTubo * 1.6}
                 fill="none" stroke="#14b8a6" strokeWidth={1.5 / s} style={{ pointerEvents: 'none' }} />
@@ -321,6 +328,15 @@ export default function LienzoPlano({
         ))}
       </div>
     </div>
+  );
+}
+
+function Guia({ x1, y1, x2, y2, s }: { x1: number; y1: number; x2: number; y2: number; s: number }) {
+  return (
+    <g style={{ pointerEvents: 'none' }}>
+      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#14b8a6" strokeOpacity={0.18} strokeWidth={10 / s} />
+      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#0d9488" strokeWidth={1.3 / s} strokeDasharray={`${7 / s} ${5 / s}`} />
+    </g>
   );
 }
 

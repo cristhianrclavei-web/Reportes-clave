@@ -45,12 +45,12 @@ describe('rastreo', () => {
 });
 
 describe('siguiente punto de la tubería', () => {
-  const base = { modo: 'recto' as const, equipoCercano: null, referencias: [[200, 300]] as [number, number][], tolerancia: 6 };
+  const base = { modo: 'recto' as const, puntoFijo: null, referencias: [[200, 300]] as [number, number][], tolerancia: 6 };
   it('el tramo sale horizontal y se alinea con la x de un equipo', () => {
     expect(siguientesPuntos([[0, 0]], [203, 20], base).puntos).toEqual([[200, 0]]);
   });
   it('pegado a un equipo fuera de línea agrega el codo', () => {
-    expect(siguientesPuntos([[0, 0]], [0, 0], { ...base, equipoCercano: [200, 300] }).puntos).toEqual([[0, 300], [200, 300]]);
+    expect(siguientesPuntos([[0, 0]], [0, 0], { ...base, puntoFijo: [200, 300] }).puntos).toEqual([[0, 300], [200, 300]]);
   });
 });
 
