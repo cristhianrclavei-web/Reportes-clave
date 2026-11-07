@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
-  Check, ChevronLeft, CloudOff, FileDown, Hand, Loader2, Minus, MoreVertical, Plus, MousePointer2, PenLine, Ruler, Spline, Trash2, Undo2, X,
+  Check, ChevronLeft, CloudOff, FileDown, Hand, Link2, Link2Off, Loader2, Minus, MoreVertical, Plus, MousePointer2, PenLine, Ruler, Spline, Trash2, Undo2, X,
 } from 'lucide-react';
 import LienzoPlano, { type Seleccion } from '@/components/lazos/LienzoPlano';
 import { Simbolo } from '@/components/lazos/DiagramaLazo';
@@ -170,6 +170,46 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
 
   function etiquetaDeElemento(elemento: Elemento, lazo: LazoConElementos): string {
     return direccionVisible(elemento.direccion, lazo.numero) || elemento.nombre;
+  }
+
+  // Sueltos: sembrados sin dispositivo del lazo (o cuyo dispositivo ya se borró del lazo).
+  const sueltos = useMemo(
+    () => estado.sembrado.equipos.filter((e) => !e.elementoId || !elementosPorId.has(e.elementoId)),
+    [estado.sembrado, elementosPorId],
+  );
+  const totalFaltantes = faltantesPorLazo.reduce((suma, f) => suma + f.faltan.length, 0);
+
+  // Dispositivos con los que se puede ligar un equipo suelto: los que faltan
+  // sembrar, primero los del mismo tipo y en el orden del cable.
+  function candidatosPara(equipo: EquipoPlano) {
+    const lista: { elemento: Elemento; lazo: LazoConElementos; etiqueta: string }[] = [];
+    for (const { lazo, faltan } of faltantesPorLazo) {
+      for (const elemento of faltan) lista.push({ elemento, lazo, etiqueta: etiquetaDeElemento(elemento, lazo) });
+    }
+    const mismoTipo = lista.filter((c) => c.elemento.tipo === equipo.tipo);
+    const otroTipo = lista.filter((c) => c.elemento.tipo !== equipo.tipo);
+    return [...mismoTipo, ...otroTipo];
+  }
+
+  // El símbolo se queda donde está y con su tamaño; solo toma el dispositivo,
+  // su tipo y su dirección.
+  function ligarEquipo(equipoId: string, elementoId: string) {
+    const ligado = elementosPorId.get(elementoId);
+    if (!ligado) return;
+    const etiqueta = etiquetaDeElemento(ligado.elemento, ligado.lazo);
+    const { sembrado } = estadoRef.current;
+    cambiarSembrado({
+      ...sembrado,
+      equipos: sembrado.equipos.map((e) => (e.id === equipoId ? { ...e, elementoId, tipo: ligado.elemento.tipo, etiqueta } : e)),
+    });
+    if (porColocar?.elementoId === elementoId) setPorColocar(null);
+    showToast(`Ligado a ${etiqueta}`);
+  }
+
+  // Sin la dirección vieja: ya no es de ese dispositivo.
+  function desligarEquipo(equipoId: string) {
+    const { sembrado } = estadoRef.current;
+    cambiarSembrado({ ...sembrado, equipos: sembrado.equipos.map((e) => (e.id === equipoId ? { ...e, elementoId: null, etiqueta: null } : e)) });
   }
 
   const etiquetaDe = useCallback((e: EquipoPlano): string => {
@@ -508,10 +548,12 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
               {herramienta === 'ver' && (
                 <>
                   {equipoElegido && (
-                    <FichaEquipo equipo={equipoElegido} ligado={equipoElegido.elementoId ? elementosPorId.get(equipoElegido.elementoId) || null : null}
+                    <FichaEquipo key={equipoElegido.id} equipo={equipoElegido} ligado={equipoElegido.elementoId ? elementosPorId.get(equipoElegido.elementoId) || null : null}
                       etiqueta={etiquetaDe(equipoElegido)} onQuitar={quitarSeleccion} onCerrar={() => setSeleccion(null)}
                       onTamano={(t) => cambiarTamano(equipoElegido.id, t)} onTamanoATodos={() => tamanoATodos(tamanoDe(equipoElegido))}
-                      variosEquipos={sembrado.equipos.length > 1} />
+                      variosEquipos={sembrado.equipos.length > 1}
+                      candidatos={candidatosPara(equipoElegido)}
+                      onLigar={(elementoId) => ligarEquipo(equipoElegido.id, elementoId)} onDesligar={() => desligarEquipo(equipoElegido.id)} />
                   )}
                   {tuberiaElegida && (
                     <FichaTuberia tuberia={tuberiaElegida} metros={metrosDeTuberia(tuberiaElegida, metros)}
@@ -519,6 +561,19 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
                   )}
                   {!equipoElegido && !tuberiaElegida && (
                     <>
+                      {sueltos.length > 0 && totalFaltantes > 0 && (
+                        <div className="mt-1 mb-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
+                          <p className="text-[13.5px]">
+                            Hay <b>{sueltos.length} {sueltos.length === 1 ? 'equipo suelto' : 'equipos sueltos'}</b> en el plano
+                            y <b>{totalFaltantes} {totalFaltantes === 1 ? 'dispositivo' : 'dispositivos'} del lazo</b> sin sembrar.
+                            Si son los mismos, lígalos para que tomen su dirección.
+                          </p>
+                          <button type="button" onClick={() => setSeleccion({ tipo: 'equipo', id: sueltos[0].id })}
+                            className="mt-2 min-h-[40px] px-3 rounded-lg bg-surface border border-line text-[13.5px] font-semibold flex items-center gap-1.5">
+                            <Link2 size={16} /> Ligar el primero
+                          </button>
+                        </div>
+                      )}
                       <p className="text-[13px] text-muted pt-1 pb-3">Toca un equipo o una tubería para ver su ficha (ahí se agranda o achica el equipo). Arrastra un equipo para moverlo; arrastra el plano para recorrerlo.</p>
                       <Cantidades sembrado={sembrado} metros={metros} />
                     </>
@@ -705,7 +760,7 @@ function PanelEquipos({ faltantesPorLazo, porColocar, onElegir, etiquetaDe }: {
   );
 }
 
-function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, onTamanoATodos, variosEquipos }: {
+function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, onTamanoATodos, variosEquipos, candidatos, onLigar, onDesligar }: {
   equipo: EquipoPlano;
   ligado: { elemento: Elemento; lazo: LazoConElementos } | null;
   etiqueta: string;
@@ -714,7 +769,11 @@ function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, o
   onTamano: (tamano: number) => void;
   onTamanoATodos: () => void;
   variosEquipos: boolean;
+  candidatos: { elemento: Elemento; lazo: LazoConElementos; etiqueta: string }[];
+  onLigar: (elementoId: string) => void;
+  onDesligar: () => void;
 }) {
+  const [eligiendo, setEligiendo] = useState(false);
   const tamano = tamanoDe(equipo);
   const menor = siguienteTamano(tamano, -1);
   const mayor = siguienteTamano(tamano, 1);
@@ -729,11 +788,20 @@ function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, o
           {ligado ? (
             <Link href={`/lazos/${ligado.lazo.id}`} className="inline-block mt-1.5 text-[13px] font-semibold text-teal underline">{ligado.lazo.codigo} · {ligado.lazo.nombre}</Link>
           ) : (
-            <p className="text-[12.5px] text-faint mt-1">Equipo suelto, no está en ningún lazo.</p>
+            <p className="text-[12.5px] text-faint mt-1">Equipo suelto, no está ligado a ningún dispositivo del lazo.</p>
+          )}
+          {ligado && (
+            <button type="button" onClick={onDesligar} className="mt-1.5 ml-3 text-[13px] text-muted underline inline-flex items-center gap-1">
+              <Link2Off size={14} /> Desligar
+            </button>
           )}
         </div>
         <button type="button" onClick={onCerrar} aria-label="Cerrar ficha" className="w-9 h-9 rounded-full flex items-center justify-center"><X size={18} /></button>
       </div>
+      {!ligado && (
+        <ListaParaLigar candidatos={candidatos} eligiendo={eligiendo} onAbrir={() => setEligiendo(!eligiendo)}
+          onLigar={(id) => { setEligiendo(false); onLigar(id); }} />
+      )}
       <div className="mt-3 flex items-center gap-2">
         <span className="text-[13px] text-muted flex-1">Tamaño</span>
         <button type="button" onClick={() => onTamano(menor)} disabled={menor === tamano} aria-label="Hacer más chico"
@@ -751,6 +819,40 @@ function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, o
       <button type="button" onClick={onQuitar} className="mt-3 w-full min-h-[44px] rounded-xl border border-red/40 text-red font-semibold text-[14px] flex items-center justify-center gap-1.5">
         <Trash2 size={16} /> Quitar del plano
       </button>
+    </div>
+  );
+}
+
+function ListaParaLigar({ candidatos, eligiendo, onAbrir, onLigar }: {
+  candidatos: { elemento: Elemento; lazo: LazoConElementos; etiqueta: string }[];
+  eligiendo: boolean;
+  onAbrir: () => void;
+  onLigar: (elementoId: string) => void;
+}) {
+  if (candidatos.length === 0) {
+    return <p className="mt-3 text-[12.5px] text-faint">Cuando lo agregues al diagrama del lazo, aquí lo podrás ligar para que tome su dirección.</p>;
+  }
+  return (
+    <div className="mt-3">
+      <button type="button" onClick={onAbrir} aria-expanded={eligiendo}
+        className="w-full min-h-[44px] rounded-xl bg-teal/15 border border-teal/50 text-[14px] font-semibold flex items-center justify-center gap-1.5">
+        <Link2 size={16} /> Ligar a un dispositivo del lazo
+      </button>
+      {eligiendo && (
+        <div className="mt-2 flex flex-col gap-1 max-h-[240px] overflow-y-auto">
+          {candidatos.map(({ elemento, lazo, etiqueta }) => (
+            <button key={elemento.id} type="button" onClick={() => onLigar(elemento.id)}
+              className="min-h-[44px] px-2 rounded-lg flex items-center gap-2.5 text-left hover:bg-surface border border-line">
+              <span className="w-10 flex justify-center text-ink"><Simbolo tipo={elemento.tipo} chico /></span>
+              <span className="flex-1 min-w-0">
+                <span className="block text-[13.5px] font-semibold truncate">{elemento.nombre}</span>
+                <span className="block text-[12px] text-muted truncate">{lazo.codigo}{elemento.ubicacion ? ` · ${elemento.ubicacion}` : ''}</span>
+              </span>
+              <span className="font-mono text-[12px] text-muted">{etiqueta}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
