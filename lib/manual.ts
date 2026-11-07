@@ -51,7 +51,7 @@ const SECCION_LAZOS: SeccionManual = {
         '«Escala»: si no la pusiste, toca los dos extremos de algo cuya medida conoces (una puerta de 0.90 m, una cota) y escribe cuánto mide. Sin escala no se calculan los metros.',
         '«Equipos»: sale el primer dispositivo de los lazos del cliente que falta sembrar; toca en el plano donde va y pasa solo al siguiente en el orden del cable. También puedes elegir otro de la lista o un «equipo suelto» que no está en ningún lazo.',
         '«Tubería»: elige tipo y diámetro y toca donde empieza y cada quiebre; cerca de un equipo el punto se pega a él y, con «Enderezar a escuadra», los tramos casi rectos quedan rectos. Toca «Terminar tramo» (o doble clic en computadora).',
-        '«Mover»: arrastra el plano para recorrerlo, acerca con dos dedos o la rueda del mouse, arrastra un equipo para cambiarlo de lugar y toca un equipo o una tubería para ver su ficha, cambiarle el diámetro o quitarlo. Abajo están las cantidades: equipos por tipo y metros por tipo y diámetro.',
+        '«Mover»: arrastra el plano para recorrerlo, acerca con dos dedos o la rueda del mouse, arrastra un equipo para cambiarlo de lugar y toca un equipo o una tubería para ver su ficha: al equipo lo haces más chico o más grande con − y + (o todos al mismo tamaño), a la tubería le cambias el diámetro, y cualquiera se puede quitar. Abajo están las cantidades: equipos por tipo y metros por tipo y diámetro.',
         '«Deshacer» regresa el último cambio. Todo se guarda solo; sin señal se queda en el teléfono y sube al volver la conexión.',
         '«PDF» descarga el plano original (nítido a cualquier zoom) con lo sembrado encima, y una hoja con la simbología y el cuadro de cantidades.',
       ],

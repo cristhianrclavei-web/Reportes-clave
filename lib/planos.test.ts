@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  aEscuadra, cantidadesDeEquipos, cantidadesDeTuberia, colocacionDePagina, equipoEn, escalaDesdeMedida,
+  aEscuadra, cantidadesDeEquipos, cantidadesDeTuberia, colocacionDePagina, equipoEn, escalaDesdeMedida, siguienteTamano,
   escalaDesdeProporcion, leerSembrado, longitudEnHoja, proporcionDeEscala, sembradoSchema, tuberiaEn, type Sembrado,
 } from './planos';
 
@@ -51,6 +51,17 @@ describe('tocar en el plano', () => {
   it('encuentra el equipo más cercano dentro del radio', () => {
     expect(equipoEn(sembrado, [12, 11], 5)?.id).toBe('a');
     expect(equipoEn(sembrado, [30, 30], 5)).toBeNull();
+  });
+  it('un símbolo agrandado se toca en todo su tamaño', () => {
+    const grande = { ...sembrado, equipos: [{ ...sembrado.equipos[0], tamano: 3 }] };
+    expect(equipoEn(grande, [22, 10], 5, 4)?.id).toBe(sembrado.equipos[0].id);
+    expect(equipoEn(sembrado, [22, 10], 5, 4)).toBeNull();
+  });
+  it('agranda y achica por pasos sin salirse de los extremos', () => {
+    expect(siguienteTamano(1, 1)).toBe(1.25);
+    expect(siguienteTamano(1, -1)).toBe(0.75);
+    expect(siguienteTamano(3, 1)).toBe(3);
+    expect(siguienteTamano(0.4, -1)).toBe(0.4);
   });
   it('encuentra la tubería cerca de un tramo', () => {
     expect(tuberiaEn(sembrado, [31, 20], 2)?.id).toBe('t1');

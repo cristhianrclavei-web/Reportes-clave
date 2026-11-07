@@ -20,6 +20,8 @@ export type EquipoPlano = {
   elementoId?: string | null;
   // Texto junto al símbolo (dirección o nombre corto).
   etiqueta?: string | null;
+  // Tamaño del símbolo respecto al normal (1 = normal, 0.5 = la mitad).
+  tamano?: number | null;
 };
 
 export type TuberiaPlano = {
@@ -95,6 +97,20 @@ export function colorEquipo(tipo: string): string {
 // en un doble carta se vean igual de grandes respecto al dibujo.
 export function tamanoSimbolo(ancho: number, alto: number): number {
   return Math.max(ancho, alto) / 110;
+}
+
+// Pasos para agrandar o achicar un símbolo desde su ficha.
+export const TAMANOS_SIMBOLO = [0.4, 0.5, 0.6, 0.75, 1, 1.25, 1.5, 2, 2.5, 3] as const;
+
+export function tamanoDe(equipo: EquipoPlano): number {
+  return equipo.tamano || 1;
+}
+
+// El paso siguiente (+1) o anterior (-1) al tamaño actual; en los extremos se queda igual.
+export function siguienteTamano(actual: number, direccion: 1 | -1): number {
+  if (direccion === 1) return TAMANOS_SIMBOLO.find((t) => t > actual + 0.001) ?? actual;
+  const menores = TAMANOS_SIMBOLO.filter((t) => t < actual - 0.001);
+  return menores.length > 0 ? menores[menores.length - 1] : actual;
 }
 
 // ---------- Escala ----------
@@ -180,6 +196,7 @@ export const sembradoSchema = z.object({
     y: numeroEnHoja,
     elementoId: z.string().uuid().nullish(),
     etiqueta: z.string().max(40).nullish(),
+    tamano: z.number().min(0.25).max(4).nullish(),
   })).max(3000),
   tuberias: z.array(z.object({
     id: z.string().min(1).max(40),
@@ -201,12 +218,14 @@ export const nombrePlanoSchema = z.string().trim().min(1, 'Ponle nombre al plano
 // ---------- Ayudas para el editor ----------
 
 // El equipo más cercano a un punto, dentro de un radio (para tocarlo).
-export function equipoEn(sembrado: Sembrado, p: Punto, radio: number): EquipoPlano | null {
+// Un símbolo agrandado también se puede tocar en todo su tamaño.
+export function equipoEn(sembrado: Sembrado, p: Punto, radio: number, radioSimbolo = 0): EquipoPlano | null {
   let mejor: EquipoPlano | null = null;
-  let mejorDistancia = radio;
+  let mejorDistancia = Infinity;
   for (const e of sembrado.equipos) {
     const d = distancia(p, [e.x, e.y]);
-    if (d <= mejorDistancia) {
+    const alcance = Math.max(radio, radioSimbolo * tamanoDe(e));
+    if (d <= alcance && d < mejorDistancia) {
       mejor = e;
       mejorDistancia = d;
     }

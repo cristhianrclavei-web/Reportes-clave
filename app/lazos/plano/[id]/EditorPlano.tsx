@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
-  Check, ChevronLeft, CloudOff, FileDown, Hand, Loader2, MoreVertical, MousePointer2, PenLine, Ruler, Spline, Trash2, Undo2, X,
+  Check, ChevronLeft, CloudOff, FileDown, Hand, Loader2, Minus, MoreVertical, Plus, MousePointer2, PenLine, Ruler, Spline, Trash2, Undo2, X,
 } from 'lucide-react';
 import LienzoPlano, { type Seleccion } from '@/components/lazos/LienzoPlano';
 import { Simbolo } from '@/components/lazos/DiagramaLazo';
@@ -15,7 +15,7 @@ import { direccionVisible, enOrdenDeRecorrido, tipoDispositivo, type Elemento } 
 import {
   DIAMETROS, TIPOS_TUBERIA, aEscuadra, cantidadesDeEquipos, cantidadesDeTuberia, colorTuberia, distancia,
   escalaDesdeMedida, escalaDesdeProporcion, formatoMetros, longitudEnHoja, metrosDeTuberia, nombrePlanoSchema,
-  proporcionDeEscala, tamanoSimbolo, tiposSembrables,
+  proporcionDeEscala, siguienteTamano, tamanoDe, tamanoSimbolo, tiposSembrables,
   type EquipoPlano, type Plano, type Punto, type Sembrado, type TuberiaPlano,
 } from '@/lib/planos';
 import {
@@ -64,6 +64,8 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   const [tipoTubo, setTipoTubo] = useState<string>('EMT');
   const [diametro, setDiametro] = useState<string>('3/4"');
   const [escuadra, setEscuadra] = useState(true);
+  // Los equipos nuevos salen del último tamaño que se eligió en una ficha.
+  const [tamanoNuevo, setTamanoNuevo] = useState(1);
   const [medida, setMedida] = useState<Punto[]>([]);
   const [metrosMedida, setMetrosMedida] = useState('');
   const [proporcion, setProporcion] = useState('');
@@ -201,6 +203,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
       return;
     }
     const equipo: EquipoPlano = { id: nuevoId(), tipo: porColocar.tipo, x: p[0], y: p[1], elementoId: porColocar.elementoId };
+    if (tamanoNuevo !== 1) equipo.tamano = tamanoNuevo;
     if (porColocar.elementoId) {
       const ligado = elementosPorId.get(porColocar.elementoId);
       if (ligado) equipo.etiqueta = etiquetaDeElemento(ligado.elemento, ligado.lazo);
@@ -274,6 +277,18 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     if (seleccion.tipo === 'equipo') cambiarSembrado({ ...sembrado, equipos: sembrado.equipos.filter((e) => e.id !== seleccion.id) });
     else cambiarSembrado({ ...sembrado, tuberias: sembrado.tuberias.filter((t) => t.id !== seleccion.id) });
     setSeleccion(null);
+  }
+
+  function cambiarTamano(id: string, tamano: number) {
+    const { sembrado } = estadoRef.current;
+    cambiarSembrado({ ...sembrado, equipos: sembrado.equipos.map((e) => (e.id === id ? { ...e, tamano } : e)) });
+    setTamanoNuevo(tamano);
+  }
+
+  function tamanoATodos(tamano: number) {
+    const { sembrado } = estadoRef.current;
+    cambiarSembrado({ ...sembrado, equipos: sembrado.equipos.map((e) => ({ ...e, tamano })) });
+    showToast(`Todos los equipos quedaron al ${Math.round(tamano * 100)} %`);
   }
 
   function cambiarTuberia(id: string, cambio: Partial<TuberiaPlano>) {
@@ -494,7 +509,9 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
                 <>
                   {equipoElegido && (
                     <FichaEquipo equipo={equipoElegido} ligado={equipoElegido.elementoId ? elementosPorId.get(equipoElegido.elementoId) || null : null}
-                      etiqueta={etiquetaDe(equipoElegido)} onQuitar={quitarSeleccion} onCerrar={() => setSeleccion(null)} />
+                      etiqueta={etiquetaDe(equipoElegido)} onQuitar={quitarSeleccion} onCerrar={() => setSeleccion(null)}
+                      onTamano={(t) => cambiarTamano(equipoElegido.id, t)} onTamanoATodos={() => tamanoATodos(tamanoDe(equipoElegido))}
+                      variosEquipos={sembrado.equipos.length > 1} />
                   )}
                   {tuberiaElegida && (
                     <FichaTuberia tuberia={tuberiaElegida} metros={metrosDeTuberia(tuberiaElegida, metros)}
@@ -502,7 +519,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
                   )}
                   {!equipoElegido && !tuberiaElegida && (
                     <>
-                      <p className="text-[13px] text-muted pt-1 pb-3">Toca un equipo o una tubería para ver su ficha. Arrastra un equipo para moverlo; arrastra el plano para recorrerlo.</p>
+                      <p className="text-[13px] text-muted pt-1 pb-3">Toca un equipo o una tubería para ver su ficha (ahí se agranda o achica el equipo). Arrastra un equipo para moverlo; arrastra el plano para recorrerlo.</p>
                       <Cantidades sembrado={sembrado} metros={metros} />
                     </>
                   )}
@@ -688,13 +705,19 @@ function PanelEquipos({ faltantesPorLazo, porColocar, onElegir, etiquetaDe }: {
   );
 }
 
-function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar }: {
+function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, onTamanoATodos, variosEquipos }: {
   equipo: EquipoPlano;
   ligado: { elemento: Elemento; lazo: LazoConElementos } | null;
   etiqueta: string;
   onQuitar: () => void;
   onCerrar: () => void;
+  onTamano: (tamano: number) => void;
+  onTamanoATodos: () => void;
+  variosEquipos: boolean;
 }) {
+  const tamano = tamanoDe(equipo);
+  const menor = siguienteTamano(tamano, -1);
+  const mayor = siguienteTamano(tamano, 1);
   return (
     <div className="rounded-2xl border border-line bg-surface-2 p-3.5 mt-1">
       <div className="flex items-start gap-3">
@@ -711,6 +734,20 @@ function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar }: {
         </div>
         <button type="button" onClick={onCerrar} aria-label="Cerrar ficha" className="w-9 h-9 rounded-full flex items-center justify-center"><X size={18} /></button>
       </div>
+      <div className="mt-3 flex items-center gap-2">
+        <span className="text-[13px] text-muted flex-1">Tamaño</span>
+        <button type="button" onClick={() => onTamano(menor)} disabled={menor === tamano} aria-label="Hacer más chico"
+          className="w-11 h-11 rounded-xl bg-surface border border-line flex items-center justify-center disabled:opacity-40"><Minus size={18} strokeWidth={2.6} /></button>
+        <button type="button" onClick={() => onTamano(1)} title="Tamaño normal"
+          className="min-w-[64px] h-11 rounded-xl font-mono text-[14px] font-semibold">{Math.round(tamano * 100)} %</button>
+        <button type="button" onClick={() => onTamano(mayor)} disabled={mayor === tamano} aria-label="Hacer más grande"
+          className="w-11 h-11 rounded-xl bg-surface border border-line flex items-center justify-center disabled:opacity-40"><Plus size={18} strokeWidth={2.6} /></button>
+      </div>
+      {variosEquipos && (
+        <button type="button" onClick={onTamanoATodos} className="mt-2 w-full min-h-[40px] rounded-xl border border-line text-[13.5px] font-semibold">
+          Poner todos los equipos a {Math.round(tamano * 100)} %
+        </button>
+      )}
       <button type="button" onClick={onQuitar} className="mt-3 w-full min-h-[44px] rounded-xl border border-red/40 text-red font-semibold text-[14px] flex items-center justify-center gap-1.5">
         <Trash2 size={16} /> Quitar del plano
       </button>

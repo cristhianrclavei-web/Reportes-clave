@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { Maximize, Minus, Plus } from 'lucide-react';
 import { tipoDispositivo } from '@/lib/lazos';
 import {
-  colorEquipo, colorTuberia, equipoEn, tamanoSimbolo, tuberiaEn,
+  colorEquipo, colorTuberia, equipoEn, tamanoDe, tamanoSimbolo, tuberiaEn,
   type EquipoPlano, type Punto, type Sembrado, type TuberiaPlano,
 } from '@/lib/planos';
 
@@ -132,7 +132,7 @@ export default function LienzoPlano({
     if (punteros.current.size === 1) {
       let equipoId: string | null = null;
       if (puedeArrastrar) {
-        const tocado = equipoEn(sembrado, aHoja(p.x, p.y), radioEnHoja());
+        const tocado = equipoEn(sembrado, aHoja(p.x, p.y), radioEnHoja(), r);
         equipoId = tocado?.id || null;
       }
       gesto.current = { tipo: 'posible', x: p.x, y: p.y, vista: vistaRef.current, equipoId };
@@ -192,7 +192,7 @@ export default function LienzoPlano({
     if (g.tipo === 'posible') {
       const p = aHoja(g.x, g.y);
       const radio = radioEnHoja();
-      onTocar(p, equipoEn(sembrado, p, radio), tuberiaEn(sembrado, p, radio * 0.6));
+      onTocar(p, equipoEn(sembrado, p, radio, r), tuberiaEn(sembrado, p, radio * 0.6));
     } else if (g.tipo === 'arrastre') {
       onArrastreFin(g.equipoId);
     }
@@ -252,7 +252,7 @@ export default function LienzoPlano({
             )}
 
             {sembrado.equipos.map((e) => (
-              <SimboloEnPlano key={e.id} equipo={e} r={r} etiqueta={etiquetaDe(e)}
+              <SimboloEnPlano key={e.id} equipo={e} r={r * tamanoDe(e)} etiqueta={etiquetaDe(e)}
                 elegido={seleccion?.tipo === 'equipo' && seleccion.id === e.id} />
             ))}
 

@@ -7,7 +7,7 @@ import { PDFDocument, PDFFont, PDFPage, StandardFonts, degrees, rgb } from 'pdf-
 import { tipoDispositivo } from './lazos';
 import {
   cantidadesDeEquipos, cantidadesDeTuberia, colocacionDePagina, colorEquipo, colorTuberia, formatoMetros,
-  proporcionDeEscala, tamanoSimbolo, type Plano,
+  proporcionDeEscala, tamanoDe, tamanoSimbolo, type Plano,
 } from './planos';
 
 function color(hex: string) {
@@ -76,14 +76,15 @@ export async function exportarPlanoPdf({ plano, pdfOriginal, cliente, etiquetas 
   const lugar = colocacionDePagina(giro, caja.width, caja.height);
   hoja.drawPage(embebida, { x: lugar.x, y: lugar.y, rotate: degrees(lugar.giro) });
 
-  const r = tamanoSimbolo(W, H) / 2;
+  const rNormal = tamanoSimbolo(W, H) / 2;
   for (const t of plano.sembrado.tuberias) {
     const camino = t.puntos.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p[0]} ${p[1]}`).join(' ');
-    hoja.drawSvgPath(camino, { x: 0, y: H, borderColor: color(colorTuberia(t.diametro)), borderWidth: Math.max(0.6, r / 3.5), borderOpacity: 0.9 });
+    hoja.drawSvgPath(camino, { x: 0, y: H, borderColor: color(colorTuberia(t.diametro)), borderWidth: Math.max(0.6, rNormal / 3.5), borderOpacity: 0.9 });
   }
   for (const e of plano.sembrado.equipos) {
     const cx = e.x;
     const cy = H - e.y;
+    const r = rNormal * tamanoDe(e);
     dibujarSimbolo(hoja, negrita, e.tipo, cx, cy, r);
     const rotulo = (e.elementoId && etiquetas.get(e.elementoId)) || e.etiqueta;
     if (rotulo) {
