@@ -4,7 +4,7 @@
 // planos pesan varios MB y una función de Vercel no regresa más de 4.5 MB.
 
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, degrees, rgb } from 'pdf-lib';
-import { tipoDispositivo } from './lazos';
+import { aHoja, figuraDe } from './simbolosPlano';
 import type { LineaConexion, MarcaConexion } from './conexionesPlano';
 import {
   cantidadesDeEquipos, cantidadesDeTuberia, colocacionDePagina, colorEquipo, colorTuberia, formatoMetros,
@@ -21,33 +21,31 @@ function texto(valor: string): string {
   return valor.replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/[–—]/g, '-').replace(/[^\x20-\xFF]/g, '?');
 }
 
-// Símbolo con el centro en (cx, cy) en coordenadas del PDF (y hacia arriba).
-function dibujarSimbolo(hoja: PDFPage, fuente: PDFFont, tipo: string, cx: number, cy: number, r: number) {
-  const t = tipoDispositivo(tipo);
-  const tinta = color(colorEquipo(tipo));
-  const blanco = rgb(1, 1, 1);
-  const grosor = Math.max(0.4, r / 7);
-  if (t.forma === 'detector') {
-    // Hexágono como en el diagrama del lazo (en coordenadas con y hacia abajo).
-    const a = r * 0.55;
-    const camino = `M ${-a} ${-r * 0.9} L ${a} ${-r * 0.9} L ${r} 0 L ${a} ${r * 0.9} L ${-a} ${r * 0.9} L ${-r} 0 Z`;
-    hoja.drawSvgPath(camino, { x: cx, y: cy, color: blanco, borderColor: tinta, borderWidth: grosor });
-    const letra = tipo === 'SC' ? 'C' : 'S';
-    const tam = r * 1.1;
-    hoja.drawText(letra, { x: cx - fuente.widthOfTextAtSize(letra, tam) / 2, y: cy - tam * 0.36, size: tam, font: fuente, color: tinta });
-    return;
+// Símbolo del plano (lib/simbolosPlano.ts, el mismo de la pantalla) con el
+// centro en (cx, cy) en coordenadas del PDF (y hacia arriba), girado `giro`
+// grados en el sentido de las manecillas.
+function dibujarSimbolo(hoja: PDFPage, fuente: PDFFont, tipo: string, cx: number, cy: number, r: number, giro = 0) {
+  const figura = figuraDe(tipo);
+  for (const t of figura.trazos) {
+    // drawSvgPath ya trabaja con y hacia abajo y escala también el grosor.
+    hoja.drawSvgPath(t.d, {
+      x: cx,
+      y: cy,
+      scale: r,
+      rotate: degrees(-giro),
+      color: t.relleno ? color(t.relleno) : undefined,
+      borderColor: t.linea ? color(t.linea) : undefined,
+      borderWidth: t.linea ? t.grosor : 0,
+      borderDashArray: t.guiones,
+    });
   }
-  if (t.forma === 'caja' || t.forma === 'fin') {
-    hoja.drawCircle({ x: cx, y: cy, size: r, color: blanco, borderColor: tinta, borderWidth: grosor, borderDashArray: t.forma === 'caja' ? [r / 3, r / 4] : undefined });
-    const codigo = t.forma === 'caja' ? 'RG' : 'FDL';
-    const tam = r * (codigo.length > 2 ? 0.6 : 0.8);
-    hoja.drawText(codigo, { x: cx - fuente.widthOfTextAtSize(codigo, tam) / 2, y: cy - tam * 0.36, size: tam, font: fuente, color: tinta });
-    return;
+  for (const l of figura.letras) {
+    const tam = l.tam * r;
+    const ancho = fuente.widthOfTextAtSize(l.texto, tam);
+    // Esquina de inicio del texto, girada junto con el símbolo.
+    const [dx, dyAbajo] = aHoja(l.x - ancho / 2 / r, l.y + l.tam * 0.36, 0, 0, r, giro);
+    hoja.drawText(texto(l.texto), { x: cx + dx, y: cy - dyAbajo, size: tam, font: fuente, color: color(l.color), rotate: degrees(-giro) });
   }
-  const ancho = r * (tipo.length > 2 ? 2.4 : 2);
-  hoja.drawRectangle({ x: cx - ancho / 2, y: cy - r * 0.8, width: ancho, height: r * 1.6, color: blanco, borderColor: tinta, borderWidth: grosor });
-  const tam = r * (tipo.length > 2 ? 0.75 : 0.9);
-  hoja.drawText(texto(tipo), { x: cx - fuente.widthOfTextAtSize(texto(tipo), tam) / 2, y: cy - tam * 0.36, size: tam, font: fuente, color: tinta });
 }
 
 export type DatosExportar = {
@@ -117,11 +115,11 @@ export async function exportarPlanoPdf({ plano, pdfOriginal, cliente, etiquetas,
     const cx = e.x;
     const cy = H - e.y;
     const r = rNormal * tamanoDe(e);
-    dibujarSimbolo(hoja, negrita, e.tipo, cx, cy, r);
+    dibujarSimbolo(hoja, negrita, e.tipo, cx, cy, r, e.rotacion || 0);
     const rotulo = (e.elementoId && etiquetas.get(e.elementoId)) || e.etiqueta;
     if (rotulo) {
       const tam = r * 0.85;
-      hoja.drawText(texto(rotulo), { x: cx + r * 1.25, y: cy + r * 0.55, size: tam, font: negrita, color: color(colorEquipo(e.tipo)) });
+      hoja.drawText(texto(rotulo), { x: cx + r * 1.25, y: cy + r * 0.75, size: tam, font: negrita, color: color(colorEquipo(e.tipo)) });
     }
   }
 

@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Maximize, Minus, Plus } from 'lucide-react';
-import { tipoDispositivo } from '@/lib/lazos';
+import { figuraDe } from '@/lib/simbolosPlano';
+import { FiguraEnSvg } from '@/components/lazos/SimboloPlano';
 import type { LineaConexion, MarcaConexion } from '@/lib/conexionesPlano';
 import type { Ajuste } from '@/lib/trazoRecto';
 import {
@@ -350,34 +351,18 @@ function LineaPunteada({ linea, color, r, grosor }: { linea: LineaConexion; colo
   );
 }
 
-// El mismo símbolo que en el diagrama del lazo y en el PDF, en puntos de la hoja.
+// El símbolo del plano (el mismo del PDF), girado y en puntos de la hoja. La
+// etiqueta no gira: se lee siempre derecha.
 function SimboloEnPlano({ equipo, r, etiqueta, elegido }: { equipo: EquipoPlano; r: number; etiqueta: string; elegido: boolean }) {
-  const t = tipoDispositivo(equipo.tipo);
   const tinta = colorEquipo(equipo.tipo);
-  const grosor = r / 7;
-  let forma: React.ReactNode;
-  let texto = equipo.tipo;
-  let tamTexto = r * (equipo.tipo.length > 2 ? 0.75 : 0.9);
-  if (t.forma === 'detector') {
-    const a = r * 0.55;
-    forma = <polygon points={`${-a},${-r * 0.9} ${a},${-r * 0.9} ${r},0 ${a},${r * 0.9} ${-a},${r * 0.9} ${-r},0`} fill="#fff" stroke={tinta} strokeWidth={grosor} />;
-    texto = equipo.tipo === 'SC' ? 'C' : 'S';
-    tamTexto = r * 1.1;
-  } else if (t.forma === 'caja' || t.forma === 'fin') {
-    forma = <circle r={r} fill="#fff" stroke={tinta} strokeWidth={grosor} strokeDasharray={t.forma === 'caja' ? `${r / 3} ${r / 4}` : undefined} />;
-    texto = t.forma === 'caja' ? 'RG' : 'FDL';
-    tamTexto = r * (texto.length > 2 ? 0.6 : 0.8);
-  } else {
-    const ancho = r * (equipo.tipo.length > 2 ? 2.4 : 2);
-    forma = <rect x={-ancho / 2} y={-r * 0.8} width={ancho} height={r * 1.6} fill="#fff" stroke={tinta} strokeWidth={grosor} />;
-  }
   return (
     <g transform={`translate(${equipo.x} ${equipo.y})`} style={{ cursor: 'pointer' }}>
-      {elegido && <circle r={r * 1.8} fill="#14b8a6" fillOpacity={0.22} stroke="#14b8a6" strokeWidth={grosor} />}
-      {forma}
-      <text textAnchor="middle" dominantBaseline="central" fontSize={tamTexto} fontWeight={700} fontFamily="ui-monospace, monospace" fill={tinta}>{texto}</text>
+      {elegido && <circle r={r * 1.9} fill="#14b8a6" fillOpacity={0.22} stroke="#14b8a6" strokeWidth={r / 7} />}
+      <g transform={`rotate(${equipo.rotacion || 0}) scale(${r})`}>
+        <FiguraEnSvg figura={figuraDe(equipo.tipo)} />
+      </g>
       {etiqueta && (
-        <text x={r * 1.25} y={-r * 0.55} fontSize={r * 0.85} fontWeight={700} fontFamily="ui-sans-serif, system-ui" fill={tinta}
+        <text x={r * 1.25} y={-r * 0.75} fontSize={r * 0.85} fontWeight={700} fontFamily="ui-sans-serif, system-ui" fill={tinta}
           stroke="#fff" strokeWidth={r * 0.28} paintOrder="stroke" strokeLinejoin="round">{etiqueta}</text>
       )}
     </g>

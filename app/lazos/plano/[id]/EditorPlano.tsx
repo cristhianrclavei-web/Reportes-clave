@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
-  Check, ChevronLeft, CloudOff, FileDown, Hand, Map as IconoPlano, Link2, Link2Off, Loader2, Minus, MoreVertical, Plus, MousePointer2, PenLine, Ruler, Spline, Trash2, Undo2, Waypoints, X,
+  Check, ChevronLeft, CloudOff, FileDown, Hand, Map as IconoPlano, Link2, Link2Off, Loader2, Minus, MoreVertical, Plus, RotateCcw, RotateCw, MousePointer2, PenLine, Ruler, Spline, Trash2, Undo2, Waypoints, X,
 } from 'lucide-react';
 import HojaCaptura from '@/components/lazos/HojaCaptura';
 import LienzoPlano, { type Seleccion } from '@/components/lazos/LienzoPlano';
-import { Simbolo } from '@/components/lazos/DiagramaLazo';
+import SimboloPlano from '@/components/lazos/SimboloPlano';
+import { girar } from '@/lib/simbolosPlano';
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
 import { pedirTexto } from '@/lib/dialogos';
@@ -97,6 +98,8 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   const [pasosTrazo, setPasosTrazo] = useState<number[]>([]);
   // Los equipos nuevos salen del último tamaño que se eligió en una ficha.
   const [tamanoNuevo, setTamanoNuevo] = useState(1);
+  // Igual con el giro: si el edificio va en diagonal, todos salen ya girados.
+  const [rotacionNueva, setRotacionNueva] = useState(0);
   const [medida, setMedida] = useState<Punto[]>([]);
   const [metrosMedida, setMetrosMedida] = useState('');
   const [proporcion, setProporcion] = useState('');
@@ -405,6 +408,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     } else if (abierta.punto) {
       const equipo: EquipoPlano = { id: nuevoId(), tipo: elemento.tipo, x: abierta.punto[0], y: abierta.punto[1], elementoId: elemento.id, etiqueta };
       if (tamanoNuevo !== 1) equipo.tamano = tamanoNuevo;
+      if (rotacionNueva !== 0) equipo.rotacion = rotacionNueva;
       cambiarSembrado({ ...sembrado, equipos: [...sembrado.equipos, equipo] });
     }
     // El siguiente sale de este.
@@ -467,6 +471,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     }
     const equipo: EquipoPlano = { id: nuevoId(), tipo: porColocar.tipo, x: p[0], y: p[1], elementoId: porColocar.elementoId };
     if (tamanoNuevo !== 1) equipo.tamano = tamanoNuevo;
+    if (rotacionNueva !== 0) equipo.rotacion = rotacionNueva;
     if (porColocar.elementoId) {
       const ligado = elementosPorId.get(porColocar.elementoId);
       if (ligado) equipo.etiqueta = etiquetaDeElemento(ligado.elemento, ligado.lazo);
@@ -554,6 +559,18 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     const { sembrado } = estadoRef.current;
     cambiarSembrado({ ...sembrado, equipos: sembrado.equipos.map((e) => (e.id === id ? { ...e, tamano } : e)) });
     setTamanoNuevo(tamano);
+  }
+
+  function cambiarRotacion(id: string, rotacion: number) {
+    const { sembrado } = estadoRef.current;
+    cambiarSembrado({ ...sembrado, equipos: sembrado.equipos.map((e) => (e.id === id ? { ...e, rotacion } : e)) });
+    setRotacionNueva(rotacion);
+  }
+
+  function rotacionATodos(rotacion: number) {
+    const { sembrado } = estadoRef.current;
+    cambiarSembrado({ ...sembrado, equipos: sembrado.equipos.map((e) => ({ ...e, rotacion })) });
+    showToast(`Todos los equipos quedaron girados a ${rotacion}°`);
   }
 
   function tamanoATodos(tamano: number) {
@@ -795,7 +812,8 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
                       variosEquipos={sembrado.equipos.length > 1}
                       candidatos={candidatosPara(equipoElegido)}
                       onLigar={(elementoId) => ligarEquipo(equipoElegido.id, elementoId)} onDesligar={() => desligarEquipo(equipoElegido.id)}
-                      onEditarDatos={() => editarDatos(equipoElegido)} />
+                      onEditarDatos={() => editarDatos(equipoElegido)}
+                      onRotacion={(g) => cambiarRotacion(equipoElegido.id, g)} onRotacionATodos={() => rotacionATodos(equipoElegido.rotacion || 0)} />
                   )}
                   {tuberiaElegida && (
                     <FichaTuberia tuberia={tuberiaElegida} metros={metrosDeTuberia(tuberiaElegida, metros)} tolerancia={radioPegar * 0.6}
@@ -1118,7 +1136,7 @@ function PanelEquipos({ faltantesPorLazo, porColocar, onElegir, etiquetaDe }: {
                       {faltan.map((e) => (
                         <button key={e.id} type="button" onClick={() => onElegir({ tipo: e.tipo, elementoId: e.id })} aria-pressed={porColocar?.elementoId === e.id}
                           className={`min-h-[44px] px-2 rounded-lg flex items-center gap-2.5 text-left ${porColocar?.elementoId === e.id ? 'bg-teal/15 ring-1 ring-teal' : 'hover:bg-surface'}`}>
-                          <span className="w-10 flex justify-center text-ink"><Simbolo tipo={e.tipo} chico /></span>
+                          <span className="w-10 flex justify-center text-ink"><SimboloPlano tipo={e.tipo} tamano={28} /></span>
                           <span className="flex-1 min-w-0">
                             <span className="block text-[13.5px] font-semibold truncate">{e.nombre}</span>
                             {e.ubicacion && <span className="block text-[12px] text-muted truncate">{e.ubicacion}</span>}
@@ -1140,7 +1158,7 @@ function PanelEquipos({ faltantesPorLazo, porColocar, onElegir, etiquetaDe }: {
           <button key={t.codigo} type="button" onClick={() => onElegir({ tipo: t.codigo, elementoId: null })} title={t.nombre}
             aria-pressed={porColocar?.elementoId === null && porColocar?.tipo === t.codigo}
             className={`min-h-[68px] rounded-xl border flex flex-col items-center justify-center gap-1 px-1 text-ink ${porColocar?.elementoId === null && porColocar?.tipo === t.codigo ? 'border-teal bg-teal/15' : 'border-line bg-surface-2'}`}>
-            <Simbolo tipo={t.codigo} chico />
+            <SimboloPlano tipo={t.codigo} tamano={30} />
             <span className="text-[11px] leading-tight text-center text-muted line-clamp-2">{t.nombre}</span>
           </button>
         ))}
@@ -1252,7 +1270,7 @@ function PanelConectar({
             {TIPOS_POR_CIRCUITO[lazoActivo.tipo].map((t) => (
               <button key={t.codigo} type="button" onClick={() => onTipoNuevo(t.codigo)} title={t.nombre} aria-pressed={tipoNuevo === t.codigo}
                 className={`min-h-[56px] rounded-xl border flex flex-col items-center justify-center gap-0.5 px-1 text-ink ${tipoNuevo === t.codigo ? 'border-teal bg-teal/15' : 'border-line bg-surface-2'}`}>
-                <Simbolo tipo={t.codigo} chico />
+                <SimboloPlano tipo={t.codigo} tamano={30} />
                 {/* Los detectores dicen S o C: abajo va el código. Los demás ya lo traen dentro. */}
                 {t.forma === 'detector' && <span className="text-[10.5px] leading-tight text-center text-muted">{t.codigo}</span>}
               </button>
@@ -1275,7 +1293,9 @@ function PanelConectar({
   );
 }
 
-function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, onTamanoATodos, variosEquipos, candidatos, onLigar, onDesligar, onEditarDatos }: {
+const BOTON_GIRO = 'h-11 px-2 rounded-xl bg-surface border border-line flex items-center gap-0.5 text-[12px] font-semibold';
+
+function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, onTamanoATodos, variosEquipos, candidatos, onLigar, onDesligar, onEditarDatos, onRotacion, onRotacionATodos }: {
   equipo: EquipoPlano;
   ligado: { elemento: Elemento; lazo: LazoConElementos } | null;
   etiqueta: string;
@@ -1288,7 +1308,10 @@ function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, o
   onLigar: (elementoId: string) => void;
   onDesligar: () => void;
   onEditarDatos: () => void;
+  onRotacion: (grados: number) => void;
+  onRotacionATodos: () => void;
 }) {
+  const rotacion = equipo.rotacion || 0;
   const [eligiendo, setEligiendo] = useState(false);
   const tamano = tamanoDe(equipo);
   const menor = siguienteTamano(tamano, -1);
@@ -1296,7 +1319,7 @@ function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, o
   return (
     <div className="rounded-2xl border border-line bg-surface-2 p-3.5 mt-1">
       <div className="flex items-start gap-3">
-        <span className="w-11 flex justify-center pt-1 text-ink"><Simbolo tipo={equipo.tipo} /></span>
+        <span className="w-11 flex justify-center pt-1 text-ink"><SimboloPlano tipo={equipo.tipo} tamano={38} /></span>
         <div className="flex-1 min-w-0">
           <p className="text-[15px] font-semibold">{ligado ? ligado.elemento.nombre : tipoDispositivo(equipo.tipo).nombre}</p>
           <p className="text-[13px] text-muted">{tipoDispositivo(equipo.tipo).nombre}{etiqueta && ligado?.elemento.direccion ? ` · ${etiqueta}` : ''}</p>
@@ -1337,6 +1360,25 @@ function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, o
           Poner todos los equipos a {Math.round(tamano * 100)} %
         </button>
       )}
+      {/* Giro: de 15 en 15 para emparejarlo con la pared; 90 para voltearlo. */}
+      <div className="mt-3 flex items-center gap-1.5">
+        <span className="text-[13px] text-muted flex-1">Girar</span>
+        <button type="button" onClick={() => onRotacion(girar(rotacion, -90))} aria-label="Girar 90 grados a la izquierda" title="−90°"
+          className={BOTON_GIRO}><RotateCcw size={16} strokeWidth={2.4} />90</button>
+        <button type="button" onClick={() => onRotacion(girar(rotacion, -15))} aria-label="Girar 15 grados a la izquierda" title="−15°"
+          className={BOTON_GIRO}><RotateCcw size={14} strokeWidth={2.4} />15</button>
+        <button type="button" onClick={() => onRotacion(0)} title="Sin giro"
+          className="min-w-[52px] h-11 rounded-xl font-mono text-[14px] font-semibold">{rotacion}°</button>
+        <button type="button" onClick={() => onRotacion(girar(rotacion, 15))} aria-label="Girar 15 grados a la derecha" title="+15°"
+          className={BOTON_GIRO}>15<RotateCw size={14} strokeWidth={2.4} /></button>
+        <button type="button" onClick={() => onRotacion(girar(rotacion, 90))} aria-label="Girar 90 grados a la derecha" title="+90°"
+          className={BOTON_GIRO}>90<RotateCw size={16} strokeWidth={2.4} /></button>
+      </div>
+      {variosEquipos && rotacion !== 0 && (
+        <button type="button" onClick={onRotacionATodos} className="mt-2 w-full min-h-[40px] rounded-xl border border-line text-[13.5px] font-semibold">
+          Girar todos los equipos a {rotacion}°
+        </button>
+      )}
       <button type="button" onClick={onQuitar} className="mt-3 w-full min-h-[44px] rounded-xl border border-red/40 text-red font-semibold text-[14px] flex items-center justify-center gap-1.5">
         <Trash2 size={16} /> Quitar del plano
       </button>
@@ -1364,7 +1406,7 @@ function ListaParaLigar({ candidatos, eligiendo, onAbrir, onLigar }: {
           {candidatos.map(({ elemento, lazo, etiqueta }) => (
             <button key={elemento.id} type="button" onClick={() => onLigar(elemento.id)}
               className="min-h-[44px] px-2 rounded-lg flex items-center gap-2.5 text-left hover:bg-surface border border-line">
-              <span className="w-10 flex justify-center text-ink"><Simbolo tipo={elemento.tipo} chico /></span>
+              <span className="w-10 flex justify-center text-ink"><SimboloPlano tipo={elemento.tipo} tamano={28} /></span>
               <span className="flex-1 min-w-0">
                 <span className="block text-[13.5px] font-semibold truncate">{elemento.nombre}</span>
                 <span className="block text-[12px] text-muted truncate">{lazo.codigo}{elemento.ubicacion ? ` · ${elemento.ubicacion}` : ''}</span>
@@ -1423,7 +1465,7 @@ function Cantidades({ sembrado, metros }: { sembrado: Sembrado; metros: number |
         {equipos.length === 0 && <p className="text-[13px] text-muted">Todavía no hay equipos. Usa «Equipos» para sembrarlos.</p>}
         {equipos.map((e) => (
           <div key={e.tipo} className="flex items-center gap-2.5 py-1">
-            <span className="w-10 flex justify-center text-ink"><Simbolo tipo={e.tipo} chico /></span>
+            <span className="w-10 flex justify-center text-ink"><SimboloPlano tipo={e.tipo} tamano={28} /></span>
             <span className="flex-1 text-[14px]">{e.nombre}</span>
             <span className="font-mono font-semibold text-[14px]">{e.cuantos}</span>
           </div>

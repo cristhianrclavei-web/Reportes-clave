@@ -22,6 +22,9 @@ export type EquipoPlano = {
   etiqueta?: string | null;
   // Tamaño del símbolo respecto al normal (1 = normal, 0.5 = la mitad).
   tamano?: number | null;
+  // Giro del símbolo en grados (0 a 359, en el sentido de las manecillas),
+  // para dejarlo derecho con la pared.
+  rotacion?: number | null;
 };
 
 export type TuberiaPlano = {
@@ -197,6 +200,7 @@ export const sembradoSchema = z.object({
     elementoId: z.string().uuid().nullish(),
     etiqueta: z.string().max(40).nullish(),
     tamano: z.number().min(0.25).max(4).nullish(),
+    rotacion: z.number().min(0).max(360).nullish(),
   })).max(3000),
   tuberias: z.array(z.object({
     id: z.string().min(1).max(40),
