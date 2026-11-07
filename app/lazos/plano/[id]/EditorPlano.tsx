@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
-  Check, ChevronLeft, CloudOff, FileDown, Hand, Link2, Link2Off, Loader2, Minus, MoreVertical, Plus, MousePointer2, PenLine, Ruler, Spline, Trash2, Undo2, Waypoints, X,
+  Check, ChevronLeft, CloudOff, FileDown, Hand, Map as IconoPlano, Link2, Link2Off, Loader2, Minus, MoreVertical, Plus, MousePointer2, PenLine, Ruler, Spline, Trash2, Undo2, Waypoints, X,
 } from 'lucide-react';
 import HojaCaptura from '@/components/lazos/HojaCaptura';
 import LienzoPlano, { type Seleccion } from '@/components/lazos/LienzoPlano';
 import { Simbolo } from '@/components/lazos/DiagramaLazo';
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
-import { confirmar, pedirTexto } from '@/lib/dialogos';
+import { pedirTexto } from '@/lib/dialogos';
 import { catalogoEnCache, listarCatalogoClientes } from '@/lib/clientesCatalogo';
 import {
   TIPOS_POR_CIRCUITO, direccionVisible, enOrdenDeRecorrido, hijosDe, lineaPrincipal, lugarDespuesDe, tipoDispositivo,
@@ -105,6 +105,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   const [enMedio, setEnMedio] = useState(false);
   const [tipoNuevo, setTipoNuevo] = useState<string | null>(null);
   const [hoja, setHoja] = useState<HojaPlano | null>(null);
+  const [borrando, setBorrando] = useState(false);
 
   // ---------- Carga ----------
 
@@ -638,17 +639,13 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     }
   }
 
+  // Lo llama el modal de confirmación. Si falla, el error se muestra en el
+  // modal y el plano sigue igual.
   async function borrar() {
-    setMenu(false);
     if (!plano) return;
-    const ok = await confirmar(`¿Borrar el plano «${plano.nombre}»?`, { detalle: 'Se borra con todo lo sembrado y la tubería. Los lazos y sus dispositivos no se tocan.' });
-    if (!ok) return;
-    try {
-      await borrarPlano(plano.id);
-      window.location.href = `/lazos?cliente=${plano.cliente_id}`;
-    } catch (e: any) {
-      showToast(e.message, 'error');
-    }
+    if (!navigator.onLine) throw new Error('Eliminar un plano necesita señal. Intenta cuando tengas conexión.');
+    await borrarPlano(plano.id);
+    window.location.href = `/lazos?cliente=${plano.cliente_id}`;
   }
 
   // ---------- Vista ----------
@@ -696,6 +693,12 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
           {exportando ? <Loader2 size={17} className="animate-spin" /> : <FileDown size={17} strokeWidth={2.4} />}
           <span className="hidden sm:inline">PDF</span>
         </button>
+        {esSupervisor && (
+          <button type="button" onClick={() => setBorrando(true)} aria-label="Eliminar plano" title="Eliminar plano"
+            className="w-11 h-11 rounded-xl border border-red/40 text-red bg-red/10 flex items-center justify-center hover:bg-red/15 active:scale-95 transition-transform">
+            <Trash2 size={18} strokeWidth={2.3} />
+          </button>
+        )}
         <div className="relative">
           <button type="button" onClick={() => setMenu((m) => !m)} aria-label="Más opciones" className="w-11 h-11 rounded-xl flex items-center justify-center">
             <MoreVertical size={20} />
@@ -703,9 +706,6 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
           {menu && (
             <div className="absolute right-0 top-12 w-52 rounded-2xl bg-surface border border-line shadow-xl p-1.5 z-30">
               <button type="button" onClick={renombrar} className="w-full text-left min-h-[44px] px-3 rounded-xl hover:bg-surface-2 flex items-center gap-2 text-[14.5px]"><PenLine size={16} /> Cambiar nombre</button>
-              {esSupervisor && (
-                <button type="button" onClick={borrar} className="w-full text-left min-h-[44px] px-3 rounded-xl hover:bg-surface-2 flex items-center gap-2 text-[14.5px] text-red"><Trash2 size={16} /> Borrar plano</button>
-              )}
             </div>
           )}
         </div>
@@ -883,6 +883,17 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
         </aside>
       </div>
 
+      {borrando && (
+        <ConfirmarBorrarPlano
+          nombre={plano.nombre}
+          imagenUrl={imagenUrl}
+          equipos={sembrado.equipos.length}
+          tramos={sembrado.tuberias.length}
+          onCancelar={() => setBorrando(false)}
+          onBorrar={borrar}
+        />
+      )}
+
       {hoja && (
         <HojaCaptura
           lazo={hoja.lazo}
@@ -901,6 +912,79 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
 }
 
 // ---------- Piezas ----------
+
+// Confirmación para eliminar el plano: qué se borra, qué no, y que no se
+// puede deshacer. Mientras borra no se puede cerrar.
+function ConfirmarBorrarPlano({ nombre, imagenUrl, equipos, tramos, onCancelar, onBorrar }: {
+  nombre: string;
+  imagenUrl: string | null;
+  equipos: number;
+  tramos: number;
+  onCancelar: () => void;
+  onBorrar: () => Promise<void>;
+}) {
+  const [trabajando, setTrabajando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function confirmarBorrado() {
+    setTrabajando(true);
+    setError(null);
+    try {
+      await onBorrar();
+    } catch (e: any) {
+      setError(e?.message || 'No se pudo eliminar el plano. Intenta de nuevo.');
+      setTrabajando(false);
+    }
+  }
+
+  const loQueSeBorra = [
+    `${equipos} ${equipos === 1 ? 'equipo sembrado' : 'equipos sembrados'}`,
+    `${tramos} ${tramos === 1 ? 'tramo de tubería' : 'tramos de tubería'}`,
+  ].join(' y ');
+
+  return (
+    <ModalOverlay onClose={() => !trabajando && onCancelar()}>
+      <div role="alertdialog" aria-modal="true" aria-labelledby="borrar-plano-titulo" aria-describedby="borrar-plano-detalle"
+        className="glass-strong rounded-3xl max-w-sm w-full p-5 text-center">
+        <span className="mx-auto w-14 h-14 rounded-full bg-red/15 ring-8 ring-red/5 text-red flex items-center justify-center">
+          <Trash2 size={26} strokeWidth={2.2} />
+        </span>
+        <h2 id="borrar-plano-titulo" className="font-display font-bold text-[21px] mt-4 leading-tight">¿Seguro que quieres eliminar este plano?</h2>
+
+        <div className="mt-4 rounded-2xl border border-line bg-surface-2 p-2.5 flex items-center gap-3 text-left">
+          <span className="w-14 h-14 shrink-0 rounded-xl bg-white border border-line overflow-hidden flex items-center justify-center">
+            {imagenUrl
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={imagenUrl} alt="" className="w-full h-full object-contain" />
+              : <IconoPlano size={22} className="text-slate-400" />}
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[15px] font-semibold truncate">{nombre}</span>
+            <span className="block text-[12.5px] text-muted">{loQueSeBorra}</span>
+          </span>
+        </div>
+
+        <ul id="borrar-plano-detalle" className="mt-4 text-left text-[13.5px] flex flex-col gap-2">
+          <li className="flex gap-2"><X size={16} strokeWidth={2.6} className="text-red shrink-0 mt-0.5" /> Se borra el plano con todo lo sembrado, la tubería y sus conexiones dibujadas.</li>
+          <li className="flex gap-2"><Check size={16} strokeWidth={2.6} className="text-teal shrink-0 mt-0.5" /> Los lazos y sus dispositivos se quedan: siguen en el diagrama unifilar.</li>
+        </ul>
+        <p className="mt-3 text-[12.5px] font-semibold text-red">Esta acción no se puede deshacer.</p>
+
+        {error && <p className="mt-3 rounded-xl bg-red/10 text-red text-[13px] font-semibold px-3 py-2">{error}</p>}
+
+        <div className="flex gap-2 mt-5">
+          <button type="button" onClick={onCancelar} disabled={trabajando} autoFocus
+            className="flex-1 min-h-[48px] rounded-xl bg-surface-2 border border-line font-semibold text-[14.5px] disabled:opacity-50">Cancelar</button>
+          <button type="button" onClick={confirmarBorrado} disabled={trabajando}
+            className="flex-1 min-h-[48px] rounded-xl bg-red text-white font-semibold text-[14.5px] flex items-center justify-center gap-2 disabled:opacity-70">
+            {trabajando ? <Loader2 size={17} className="animate-spin" /> : <Trash2 size={17} strokeWidth={2.4} />}
+            {trabajando ? 'Eliminando…' : 'Eliminar plano'}
+          </button>
+        </div>
+      </div>
+    </ModalOverlay>
+  );
+}
 
 function EstadoDeGuardado({ estado, error, onReintentar }: { estado: EstadoGuardado; error: string | null; onReintentar: () => void }) {
   if (estado === 'guardando') return <p className="text-[12px] text-muted flex items-center gap-1"><Loader2 size={11} className="animate-spin" /> Guardando…</p>;

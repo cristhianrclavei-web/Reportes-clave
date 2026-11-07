@@ -188,6 +188,14 @@ export async function borrarPlano(id: string): Promise<void> {
   const { data, error } = await createClient().from('lazo_planos').delete().eq('id', id).select('id');
   if (error) throw new Error(mensajeError(error, 'borrar el plano'));
   if (!data || data.length === 0) throw new Error('No se pudo borrar el plano: solo supervisión puede borrarlo.');
+  // Las copias de este teléfono ya no sirven.
+  try {
+    localStorage.removeItem(`planoPendiente:${id}`);
+    localStorage.removeItem(copiaPlano(id));
+    localStorage.removeItem(copiaOtros(id));
+  } catch {
+    // Sin localStorage: no hay copias que limpiar.
+  }
 }
 
 // ---------- Guardar lo sembrado ----------
