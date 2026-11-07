@@ -57,7 +57,7 @@ export default function LienzoPlano({
   // Línea punteada con flecha entre dispositivos del mismo lazo (null = no se ven).
   conexiones: { lineas: LineaConexion[]; marcas: MarcaConexion[] } | null;
   colorPorLazo: Map<string, string>;
-  // Dispositivo (id del lazo) del que sale el cable al conectar.
+  // Símbolo (id en el plano) del que sale el cable al conectar.
   resaltado: string | null;
   // Herramienta de tubería activa: muestra la vista previa y las guías.
   trazando: boolean;
@@ -282,7 +282,7 @@ export default function LienzoPlano({
                 fill="none" stroke="#14b8a6" strokeWidth={1.5 / s} style={{ pointerEvents: 'none' }} />
             )}
 
-            {sembrado.equipos.filter((e) => resaltado && e.elementoId === resaltado).map((e) => (
+            {sembrado.equipos.filter((e) => e.id === resaltado).map((e) => (
               <circle key={`desde-${e.id}`} cx={e.x} cy={e.y} r={r * tamanoDe(e) * 2.1} fill="none" stroke="#14b8a6" strokeWidth={grosorTubo}
                 strokeDasharray={`${grosorTubo * 2} ${grosorTubo * 1.5}`} />
             ))}

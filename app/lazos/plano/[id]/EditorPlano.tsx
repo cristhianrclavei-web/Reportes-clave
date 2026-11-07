@@ -14,10 +14,10 @@ import { showToast } from '@/components/Toast';
 import { pedirTexto } from '@/lib/dialogos';
 import { catalogoEnCache, listarCatalogoClientes } from '@/lib/clientesCatalogo';
 import {
-  TIPOS_POR_CIRCUITO, direccionVisible, enOrdenDeRecorrido, hijosDe, lineaPrincipal, lugarDespuesDe, tipoDispositivo,
-  type Elemento, type Lugar,
+  PANEL_EN_PLANO, TIPOS_POR_CIRCUITO, direccionVisible, enOrdenDeRecorrido, hijosDe, lineaPrincipal, lugarDespuesDe, tipoDispositivo,
+  type Elemento, type Lugar, type Panel,
 } from '@/lib/lazos';
-import { pendientesDeLazo, subirPendientes } from '@/lib/lazosDatos';
+import { listarPaneles, pendientesDeLazo, subirPendientes } from '@/lib/lazosDatos';
 import { enderezar, siguientesPuntos, type Ajuste, type ModoTrazo } from '@/lib/trazoRecto';
 import { colorDeLazo, conexionesEnPlano, lugarParaConectar, revisarLazo, tieneSiguiente } from '@/lib/conexionesPlano';
 import {
@@ -33,7 +33,8 @@ import {
 
 type Herramienta = 'ver' | 'equipo' | 'conectar' | 'tuberia' | 'escala';
 type EstadoGuardado = 'guardado' | 'guardando' | 'pendiente' | 'error';
-type PorColocar = { tipo: string; elementoId: string | null };
+// panelId: al sembrar el panel (tipo FACP), cuál de los del cliente.
+type PorColocar = { tipo: string; elementoId: string | null; panelId?: string | null };
 type Estado = { sembrado: Sembrado; metros: number | null };
 // De dónde sale el siguiente al conectar: el panel o un dispositivo.
 type Desde = 'panel' | string;
@@ -70,6 +71,8 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   lazosRef.current = lazos;
   // En qué otro plano del cliente está cada dispositivo (va en uno solo).
   const [otrosPlanos, setOtrosPlanos] = useState<Map<string, string>>(new Map());
+  // Paneles del cliente, para sembrarlos y que de ahí salgan los lazos.
+  const [paneles, setPaneles] = useState<Panel[]>([]);
   const [sinConexion, setSinConexion] = useState(false);
   const [pendientesLazos, setPendientesLazos] = useState(0);
   const [rechazoLazos, setRechazoLazos] = useState<string | null>(null);
@@ -140,6 +143,9 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
         })
         .catch((e) => showToast(e.message, 'error'));
       otrosPlanosDelCliente(datos.cliente_id, planoId).then(setOtrosPlanos).catch((e) => showToast(e.message, 'error'));
+      listarPaneles()
+        .then((r) => setPaneles(r.paneles.filter((p) => p.cliente_id === datos.cliente_id)))
+        .catch((e) => showToast(e.message, 'error'));
     } catch (e: any) {
       setErrorCarga(e?.message || 'No se pudo abrir el plano.');
     }
@@ -250,7 +256,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
 
   // Sueltos: sembrados sin dispositivo del lazo (o cuyo dispositivo ya se borró del lazo).
   const sueltos = useMemo(
-    () => estado.sembrado.equipos.filter((e) => !e.elementoId || !elementosPorId.has(e.elementoId)),
+    () => estado.sembrado.equipos.filter((e) => e.tipo !== PANEL_EN_PLANO && (!e.elementoId || !elementosPorId.has(e.elementoId))),
     [estado.sembrado, elementosPorId],
   );
   const totalFaltantes = faltantesPorLazo.reduce((suma, f) => suma + f.faltan.length, 0);
@@ -289,12 +295,16 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   }
 
   const etiquetaDe = useCallback((e: EquipoPlano): string => {
+    if (e.panelId) {
+      const panel = paneles.find((p) => p.id === e.panelId);
+      if (panel) return panel.nombre;
+    }
     if (e.elementoId) {
       const ligado = elementosPorId.get(e.elementoId);
       if (ligado) return etiquetaDeElemento(ligado.elemento, ligado.lazo);
     }
     return e.etiqueta || '';
-  }, [elementosPorId]);
+  }, [elementosPorId, paneles]);
 
   // ---------- Conectar (el lazo se arma desde el plano) ----------
 
@@ -302,6 +312,14 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   const conexiones = useMemo(() => conexionesEnPlano(lazos, estado.sembrado, otrosPlanos), [lazos, estado.sembrado, otrosPlanos]);
   const lazoActivo = lazos.find((l) => l.id === lazoActivoId) || null;
   const elementoDesde = desde && desde !== 'panel' ? elementosPorId.get(desde)?.elemento || null : null;
+  // El símbolo del que sale el cable, para marcarlo en el plano.
+  let equipoResaltado: string | null = null;
+  if (desde === 'panel') {
+    const panelAqui = estado.sembrado.equipos.find((e) => e.tipo === PANEL_EN_PLANO && (!lazoActivo?.panel_id || !e.panelId || e.panelId === lazoActivo.panel_id));
+    equipoResaltado = panelAqui ? panelAqui.id : null;
+  } else if (elementoDesde) {
+    equipoResaltado = estado.sembrado.equipos.find((e) => e.elementoId === elementoDesde.id)?.id || null;
+  }
 
   function textoDeElemento(elemento: Elemento, lazo: LazoConElementos): string {
     const direccion = direccionVisible(elemento.direccion, lazo.numero);
@@ -335,6 +353,15 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     if (!lazoActivo) {
       showToast('Elige abajo el lazo que vas a conectar', 'error');
       setPanelAbierto(true);
+      return;
+    }
+    // Tocar el panel: de ahí sale el cable (si es el panel de este lazo).
+    if (equipo && equipo.tipo === PANEL_EN_PLANO) {
+      if (equipo.panelId && lazoActivo.panel_id && equipo.panelId !== lazoActivo.panel_id) {
+        showToast(`Ese no es el panel de ${lazoActivo.codigo}.`, 'error');
+        return;
+      }
+      elegirDesde('panel');
       return;
     }
     const ligado = equipo?.elementoId ? elementosPorId.get(equipo.elementoId) || null : null;
@@ -475,6 +502,14 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     if (porColocar.elementoId) {
       const ligado = elementosPorId.get(porColocar.elementoId);
       if (ligado) equipo.etiqueta = etiquetaDeElemento(ligado.elemento, ligado.lazo);
+    }
+    if (porColocar.tipo === PANEL_EN_PLANO) {
+      const panel = paneles.find((x) => x.id === porColocar.panelId) || null;
+      equipo.panelId = panel ? panel.id : null;
+      equipo.etiqueta = panel ? panel.nombre : 'FACP';
+      // Un panel se siembra una vez: se suelta la selección.
+      setPorColocar(null);
+      showToast(panel ? `${panel.nombre} sembrado` : 'Panel sembrado');
     }
     cambiarSembrado({ ...estadoRef.current.sembrado, equipos: [...estadoRef.current.sembrado.equipos, equipo] });
     // Del lazo: pasa solo al siguiente dispositivo en el orden del cable.
@@ -777,7 +812,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
             onArrastreFin={arrastreFin}
             conexiones={verConexiones || herramienta === 'conectar' ? conexiones : null}
             colorPorLazo={colorPorLazo}
-            resaltado={herramienta === 'conectar' && elementoDesde ? elementoDesde.id : null}
+            resaltado={herramienta === 'conectar' ? equipoResaltado : null}
             trazando={herramienta === 'tuberia'}
           />
           <AyudaFlotante herramienta={herramienta} porColocar={porColocar} trazo={trazo.length} medida={medida.length}
@@ -847,6 +882,8 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
 
               {herramienta === 'equipo' && (
                 <PanelEquipos
+                  paneles={paneles}
+                  panelDondeEsta={(id) => (sembrado.equipos.some((e) => e.panelId === id) ? 'en este plano' : otrosPlanos.has(id) ? `en ${otrosPlanos.get(id)}` : null)}
                   faltantesPorLazo={faltantesPorLazo}
                   porColocar={porColocar}
                   onElegir={setPorColocar}
@@ -1106,7 +1143,9 @@ function Opciones({ titulo, opciones, valor, onElegir, color }: {
   );
 }
 
-function PanelEquipos({ faltantesPorLazo, porColocar, onElegir, etiquetaDe }: {
+function PanelEquipos({ paneles, panelDondeEsta, faltantesPorLazo, porColocar, onElegir, etiquetaDe }: {
+  paneles: Panel[];
+  panelDondeEsta: (id: string) => string | null;
   faltantesPorLazo: { lazo: LazoConElementos; faltan: Elemento[] }[];
   porColocar: PorColocar | null;
   onElegir: (p: PorColocar) => void;
@@ -1114,8 +1153,37 @@ function PanelEquipos({ faltantesPorLazo, porColocar, onElegir, etiquetaDe }: {
 }) {
   const [abierto, setAbierto] = useState<string | null>(null);
   const conDispositivos = faltantesPorLazo.filter((f) => f.lazo.elementos.length > 0);
+  const eligiendoPanel = (id: string | null) => porColocar?.tipo === PANEL_EN_PLANO && (porColocar.panelId || null) === id;
   return (
     <div className="pt-1">
+      <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-faint mb-1.5">Panel de alarma</p>
+      <div className="flex flex-col gap-1.5 mb-4">
+        {paneles.map((p) => {
+          const donde = panelDondeEsta(p.id);
+          return (
+            <button key={p.id} type="button" disabled={Boolean(donde)} aria-pressed={eligiendoPanel(p.id)}
+              onClick={() => onElegir({ tipo: PANEL_EN_PLANO, elementoId: null, panelId: p.id })}
+              className={`min-h-[52px] px-2.5 rounded-xl border flex items-center gap-2.5 text-left disabled:opacity-55 ${eligiendoPanel(p.id) ? 'border-teal bg-teal/15' : 'border-line bg-surface-2'}`}>
+              <SimboloPlano tipo={PANEL_EN_PLANO} tamano={32} />
+              <span className="flex-1 min-w-0">
+                <span className="block text-[14px] font-semibold truncate">{p.nombre}</span>
+                <span className="block text-[12px] text-muted truncate">{donde ? `Ya está ${donde}` : [p.modelo, p.ubicacion].filter(Boolean).join(' · ') || 'Toca para sembrarlo'}</span>
+              </span>
+            </button>
+          );
+        })}
+        {paneles.length === 0 && (
+          <button type="button" aria-pressed={eligiendoPanel(null)} onClick={() => onElegir({ tipo: PANEL_EN_PLANO, elementoId: null, panelId: null })}
+            className={`min-h-[52px] px-2.5 rounded-xl border flex items-center gap-2.5 text-left ${eligiendoPanel(null) ? 'border-teal bg-teal/15' : 'border-line bg-surface-2'}`}>
+            <SimboloPlano tipo={PANEL_EN_PLANO} tamano={32} />
+            <span className="flex-1 min-w-0">
+              <span className="block text-[14px] font-semibold">Panel (FACP)</span>
+              <span className="block text-[12px] text-muted">El cliente no tiene panel registrado; se siembra solo el símbolo.</span>
+            </span>
+          </button>
+        )}
+      </div>
+
       {conDispositivos.length > 0 && (
         <>
           <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-faint mb-1.5">De los lazos del cliente</p>
@@ -1313,6 +1381,7 @@ function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, o
 }) {
   const rotacion = equipo.rotacion || 0;
   const [eligiendo, setEligiendo] = useState(false);
+  const esPanel = equipo.tipo === PANEL_EN_PLANO;
   const tamano = tamanoDe(equipo);
   const menor = siguienteTamano(tamano, -1);
   const mayor = siguienteTamano(tamano, 1);
@@ -1321,10 +1390,14 @@ function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, o
       <div className="flex items-start gap-3">
         <span className="w-11 flex justify-center pt-1 text-ink"><SimboloPlano tipo={equipo.tipo} tamano={38} /></span>
         <div className="flex-1 min-w-0">
-          <p className="text-[15px] font-semibold">{ligado ? ligado.elemento.nombre : tipoDispositivo(equipo.tipo).nombre}</p>
+          <p className="text-[15px] font-semibold">{ligado ? ligado.elemento.nombre : esPanel && etiqueta ? etiqueta : tipoDispositivo(equipo.tipo).nombre}</p>
           <p className="text-[13px] text-muted">{tipoDispositivo(equipo.tipo).nombre}{etiqueta && ligado?.elemento.direccion ? ` · ${etiqueta}` : ''}</p>
           {ligado?.elemento.ubicacion && <p className="text-[13px] text-muted mt-0.5">{ligado.elemento.ubicacion}</p>}
-          {ligado ? (
+          {esPanel ? (
+            equipo.panelId
+              ? <Link href={`/lazos/panel/${equipo.panelId}`} className="inline-block mt-1.5 text-[13px] font-semibold text-teal underline">Ver el panel y sus circuitos</Link>
+              : <p className="text-[12.5px] text-faint mt-1">Panel sin registrar en la app.</p>
+          ) : ligado ? (
             <Link href={`/lazos/${ligado.lazo.id}`} className="inline-block mt-1.5 text-[13px] font-semibold text-teal underline">{ligado.lazo.codigo} · {ligado.lazo.nombre}</Link>
           ) : (
             <p className="text-[12.5px] text-faint mt-1">Equipo suelto, no está ligado a ningún dispositivo del lazo.</p>
@@ -1342,7 +1415,7 @@ function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, o
         </div>
         <button type="button" onClick={onCerrar} aria-label="Cerrar ficha" className="w-9 h-9 rounded-full flex items-center justify-center"><X size={18} /></button>
       </div>
-      {!ligado && (
+      {!ligado && !esPanel && (
         <ListaParaLigar candidatos={candidatos} eligiendo={eligiendo} onAbrir={() => setEligiendo(!eligiendo)}
           onLigar={(id) => { setEligiendo(false); onLigar(id); }} />
       )}

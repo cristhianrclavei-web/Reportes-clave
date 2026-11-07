@@ -142,9 +142,21 @@ function finDeLinea(color: string): FiguraSimbolo {
   };
 }
 
+// Panel de alarma: gabinete con su pantalla verde, como en sus planos.
+function panel(color: string): FiguraSimbolo {
+  return {
+    trazos: [
+      { d: rectangulo(2.0, 2.4, 0.16), relleno: BLANCO, linea: color, grosor: 0.14 },
+      { d: rectangulo(1.5, 0.62, 0.06, 0, -0.62), relleno: '#22c55e', linea: '#15803d', grosor: 0.06 },
+    ],
+    letras: [{ texto: 'FACP', x: 0, y: 0.5, tam: 0.56, color }],
+  };
+}
+
 export function figuraDe(tipo: string): FiguraSimbolo {
   const color = colorEquipo(tipo);
   switch (tipo) {
+    case 'FACP': return panel(color);
     case 'SH': return detector(color, 'S', false);
     case 'SC': return detector(color, 'C', true);
     case 'EMA': return estacion(color, null);

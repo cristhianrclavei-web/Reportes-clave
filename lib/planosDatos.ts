@@ -129,6 +129,7 @@ export async function otrosPlanosDelCliente(clienteId: string, planoId: string):
     for (const otro of data || []) {
       for (const equipo of leerSembrado(otro.sembrado).equipos) {
         if (equipo.elementoId) pares.push([equipo.elementoId, otro.nombre]);
+        if (equipo.panelId) pares.push([equipo.panelId, otro.nombre]);
       }
     }
     guardarCopia(copiaOtros(planoId), pares);

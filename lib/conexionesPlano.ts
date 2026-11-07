@@ -63,13 +63,21 @@ export function colorDeLazo(indice: number): string {
 // Líneas entre dispositivos sembrados en este plano y marcas cuando el
 // cable llega del panel, viene de otro plano o sigue en otro plano.
 // `planoDe`: en qué otro plano está sembrado cada dispositivo.
+// `planoDe` y la posición se buscan igual para dispositivos y paneles (por id).
 export function conexionesEnPlano(
-  lazos: { id: string; elementos: Elemento[] }[],
+  lazos: { id: string; panel_id?: string | null; elementos: Elemento[] }[],
   sembrado: Sembrado,
   planoDe: Map<string, string>,
 ): { lineas: LineaConexion[]; marcas: MarcaConexion[] } {
   const posicion = new Map<string, Punto>();
-  for (const e of sembrado.equipos) if (e.elementoId) posicion.set(e.elementoId, [e.x, e.y]);
+  for (const e of sembrado.equipos) {
+    if (e.elementoId) posicion.set(e.elementoId, [e.x, e.y]);
+    if (e.panelId) posicion.set(e.panelId, [e.x, e.y]);
+  }
+
+  // Un lazo sin panel registrado sale del único panel sin registrar del plano.
+  const sinRegistrar = sembrado.equipos.filter((e) => e.tipo === 'FACP' && !e.panelId);
+  const panelSinRegistro: Punto | null = sinRegistrar.length === 1 ? [sinRegistrar[0].x, sinRegistrar[0].y] : null;
 
   const lineas: LineaConexion[] = [];
   const marcas: MarcaConexion[] = [];
@@ -88,7 +96,13 @@ export function conexionesEnPlano(
       const anterior = anteriorDe(lazo.elementos, elemento);
       if (anterior === null) continue;
       if (anterior === 'panel') {
-        if (aqui) marcar(lazo.id, aqui, '« Panel');
+        // El cable sale del panel: línea si el panel está sembrado aquí.
+        const panelAqui = lazo.panel_id ? posicion.get(lazo.panel_id) || null : panelSinRegistro;
+        const panelEn = lazo.panel_id ? planoDe.get(lazo.panel_id) : undefined;
+        if (aqui && panelAqui) lineas.push({ lazoId: lazo.id, desde: panelAqui, hasta: aqui });
+        else if (aqui && panelEn) marcar(lazo.id, aqui, `« Panel en ${panelEn}`);
+        else if (aqui) marcar(lazo.id, aqui, '« Panel');
+        else if (panelAqui && planoDe.has(elemento.id)) marcar(lazo.id, panelAqui, `Sigue en ${planoDe.get(elemento.id)} »`);
         continue;
       }
       const alla = posicion.get(anterior.id) || null;

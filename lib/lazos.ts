@@ -148,8 +148,12 @@ export function tipoDispositivo(codigo: string): TipoDispositivo {
     const encontrado = lista.find((t) => t.codigo === codigo);
     if (encontrado) return encontrado;
   }
+  // El panel no va en ningún lazo, pero se siembra en el plano.
+  if (codigo === PANEL_EN_PLANO) return { codigo, nombre: 'Panel de alarma (FACP)', forma: 'cuadro', conDireccion: false };
   return { codigo, nombre: codigo, forma: 'cuadro', conDireccion: false };
 }
+
+export const PANEL_EN_PLANO = 'FACP';
 
 // ---------- Orden ----------
 

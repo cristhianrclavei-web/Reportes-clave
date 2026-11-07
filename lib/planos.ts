@@ -25,6 +25,8 @@ export type EquipoPlano = {
   // Giro del símbolo en grados (0 a 359, en el sentido de las manecillas),
   // para dejarlo derecho con la pared.
   rotacion?: number | null;
+  // Si es el panel (tipo FACP): cuál de los paneles del cliente es.
+  panelId?: string | null;
 };
 
 export type TuberiaPlano = {
@@ -201,6 +203,7 @@ export const sembradoSchema = z.object({
     etiqueta: z.string().max(40).nullish(),
     tamano: z.number().min(0.25).max(4).nullish(),
     rotacion: z.number().min(0).max(360).nullish(),
+    panelId: z.string().uuid().nullish(),
   })).max(3000),
   tuberias: z.array(z.object({
     id: z.string().min(1).max(40),

@@ -73,6 +73,24 @@ describe('lo que se dibuja', () => {
     expect(marcas.map((m) => m.texto).sort()).toEqual(['Sigue en Nivel 1 »', 'Sigue en Sótano »', '« Panel']);
   });
 
+  it('si el panel está sembrado, la línea sale de él', () => {
+    const conPanel = { ...sembrado, equipos: [...sembrado.equipos, { id: 'pp', tipo: 'FACP', x: -20, y: 0, panelId: 'P1' }] };
+    const { lineas, marcas } = conexionesEnPlano([{ id: 'L', panel_id: 'P1', elementos: lazo }], conPanel, new Map());
+    expect(lineas[0]).toEqual({ lazoId: 'L', desde: [-20, 0], hasta: [0, 0] });
+    expect(marcas.map((m) => m.texto)).not.toContain('« Panel');
+  });
+
+  it('un lazo sin panel registrado sale del panel sin registrar del plano', () => {
+    const conPanel = { ...sembrado, equipos: [...sembrado.equipos, { id: 'pp', tipo: 'FACP', x: -20, y: 0 }] };
+    const { lineas } = conexionesEnPlano([{ id: 'L', elementos: lazo }], conPanel, new Map());
+    expect(lineas[0].desde).toEqual([-20, 0]);
+  });
+
+  it('si el panel está en otro plano, lo dice', () => {
+    const { marcas } = conexionesEnPlano([{ id: 'L', panel_id: 'P1', elementos: lazo }], sembrado, new Map([['P1', 'Sótano']]));
+    expect(marcas.map((m) => m.texto)).toContain('« Panel en Sótano');
+  });
+
   it('marca de qué plano viene', () => {
     const soloC = { equipos: [{ id: 'pc', tipo: 'SH', x: 5, y: 5, elementoId: 'c' }], tuberias: [] };
     const { lineas, marcas } = conexionesEnPlano([{ id: 'L', elementos: lazo }], soloC, new Map([['b', 'Planta baja']]));
