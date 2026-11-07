@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, Cable, ChevronLeft, ChevronRight, CircuitBoard, Map as IconoPlano, MapPin, Plus, WifiOff, X } from 'lucide-react';
+import { AlertTriangle, Building2, Cable, ChevronLeft, ChevronRight, CircuitBoard, Map as IconoPlano, MapPin, Plus, WifiOff, X } from 'lucide-react';
 import FormPanel from '@/components/lazos/FormPanel';
 import NuevoPlano from '@/components/lazos/NuevoPlano';
 import { SalidasCompactas } from '@/components/lazos/FrentePanel';
@@ -12,12 +12,14 @@ import Logo from '@/components/Logo';
 import ModalOverlay from '@/components/ModalOverlay';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
 import EstadoVacio from '@/components/EstadoVacio';
-import EncabezadoSeccion, { BOTON_PRINCIPAL, RotuloGrupo } from '@/components/tecnico/EncabezadoSeccion';
+import EncabezadoSeccion, { BOTON_PRINCIPAL } from '@/components/tecnico/EncabezadoSeccion';
 import { showToast } from '@/components/Toast';
 import { catalogoEnCache, listarCatalogoClientes, ClienteCatalogo } from '@/lib/clientesCatalogo';
 import { NOMBRE_CIRCUITO, PREFIJO_CIRCUITO, Panel, TipoCircuito, etiquetaSalida } from '@/lib/lazos';
 import { crearLazo, listarLazos, listarPaneles, LazoResumen } from '@/lib/lazosDatos';
 import { listarPlanos, type PlanoResumen } from '@/lib/planosDatos';
+
+const BOTON_SECUNDARIO = 'min-h-[48px] lg:min-h-[46px] px-4 rounded-2xl border border-line bg-surface-2 font-semibold text-[14.5px] flex items-center justify-center gap-2 hover:border-teal/60';
 
 const CAMPO = 'w-full px-3.5 min-h-[46px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]';
 
@@ -40,7 +42,8 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
   const [nuevoPanel, setNuevoPanel] = useState(false);
   const [planos, setPlanos] = useState<PlanoResumen[]>([]);
   const [faltaPatchPlanos, setFaltaPatchPlanos] = useState(true);
-  const [nuevoPlano, setNuevoPlano] = useState(false);
+  // Subir plano: con el cliente ya elegido si se abre desde su tarjeta.
+  const [nuevoPlano, setNuevoPlano] = useState<{ cliente: { id: string; nombre: string } | null } | null>(null);
 
   async function cargar() {
     setErrorCarga(null);
@@ -125,16 +128,16 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
                   <CircuitBoard size={19} strokeWidth={2.4} /> Nuevo panel
                 </button>
               )}
-              <button type="button" onClick={() => setNuevoAbierto(true)}
-                className="min-h-[48px] px-5 rounded-2xl border border-line bg-surface-2 font-semibold text-[14.5px] flex items-center justify-center gap-2">
-                <Plus size={18} strokeWidth={2.6} /> Circuito sin panel
-              </button>
-              {!faltaPatchPlanos && (
-                <button type="button" onClick={() => setNuevoPlano(true)}
-                  className="min-h-[48px] px-5 rounded-2xl border border-line bg-surface-2 font-semibold text-[14.5px] flex items-center justify-center gap-2">
-                  <IconoPlano size={18} strokeWidth={2.4} /> Subir plano
+              <div className="grid grid-cols-2 sm:flex gap-2">
+                <button type="button" onClick={() => setNuevoAbierto(true)} className={BOTON_SECUNDARIO}>
+                  <Plus size={18} strokeWidth={2.6} /> Circuito
                 </button>
-              )}
+                {!faltaPatchPlanos && (
+                  <button type="button" onClick={() => setNuevoPlano({ cliente: filtroCliente ? { id: filtroCliente, nombre: nombreCliente(filtroCliente) } : null })} className={BOTON_SECUNDARIO}>
+                    <IconoPlano size={18} strokeWidth={2.4} /> Plano
+                  </button>
+                )}
+              </div>
             </div>
           }
         />
@@ -179,76 +182,117 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
           const panelesDelCliente = paneles.filter((p) => p.cliente_id === clienteId);
           const sueltos = lista.filter((l) => !l.panel_id || !panelesDelCliente.some((p) => p.id === l.panel_id));
           const planosDelCliente = planos.filter((p) => p.cliente_id === clienteId);
+          const dispositivos = lista.reduce((suma, l) => suma + l.dispositivos, 0);
+          const cuantosCircuitos = panelesDelCliente.length + sueltos.length;
+          const resumen = [
+            planosDelCliente.length ? `${planosDelCliente.length} ${planosDelCliente.length === 1 ? 'plano' : 'planos'}` : null,
+            panelesDelCliente.length ? `${panelesDelCliente.length} ${panelesDelCliente.length === 1 ? 'panel' : 'paneles'}` : null,
+            sueltos.length ? `${sueltos.length} sin panel` : null,
+            `${dispositivos} dispositivos`,
+          ].filter(Boolean).join(' · ');
           return (
-          <section key={clienteId} className="mb-6">
-            <RotuloGrupo cuenta={panelesDelCliente.length + sueltos.length}>{nombreCliente(clienteId)}</RotuloGrupo>
-            {planosDelCliente.length > 0 && (
-              <div className="flex gap-2 overflow-x-auto pb-2.5 -mx-1 px-1">
-                {planosDelCliente.map((plano) => (
-                  <Link key={plano.id} href={`/lazos/plano/${plano.id}`}
-                    className="shrink-0 min-h-[44px] pl-2.5 pr-3.5 rounded-full border border-line bg-surface hover:border-teal/60 flex items-center gap-2 text-[14px] font-semibold">
-                    <span className="w-7 h-7 rounded-full bg-teal/15 text-teal flex items-center justify-center"><IconoPlano size={15} strokeWidth={2.4} /></span>
-                    {plano.nombre}
-                  </Link>
-                ))}
+          // Un cliente = una tarjeta; adentro, sus planos y sus paneles por separado.
+          <section key={clienteId} className="mb-5 rounded-3xl border border-line bg-surface/50 p-3.5 sm:p-4">
+            <header className="flex items-center gap-3 mb-3.5">
+              <span className="w-11 h-11 shrink-0 rounded-2xl bg-surface-2 border border-line text-ink flex items-center justify-center">
+                <Building2 size={21} strokeWidth={2.1} />
+              </span>
+              <span className="min-w-0">
+                <h2 className="font-display font-bold text-[18px] leading-tight truncate">{nombreCliente(clienteId)}</h2>
+                <p className="text-[12.5px] text-muted truncate">{resumen}</p>
+              </span>
+            </header>
+
+            {!faltaPatchPlanos && (
+              <div className="mb-4">
+                <SubtituloGrupo icono={<IconoPlano size={14} strokeWidth={2.4} />} titulo="Planos" cuenta={planosDelCliente.length}
+                  accion={planosDelCliente.length > 0 ? { texto: 'Subir', onClick: () => setNuevoPlano({ cliente: { id: clienteId, nombre: nombreCliente(clienteId) } }) } : null} />
+                {planosDelCliente.length > 0 ? (
+                  <div className="grid grid-cols-[minmax(0,1fr)] sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+                    {planosDelCliente.map((plano) => (
+                      <Link key={plano.id} href={`/lazos/plano/${plano.id}`}
+                        className="min-w-0 rounded-2xl border border-line bg-surface p-2.5 pr-3 flex items-center gap-3 transition-colors hover:border-sky-500/60">
+                        <span className="w-10 h-10 shrink-0 rounded-xl bg-sky-500/15 text-sky-500 flex items-center justify-center">
+                          <IconoPlano size={19} strokeWidth={2.2} />
+                        </span>
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-[14.5px] font-semibold truncate">{plano.nombre}</span>
+                          <span className="block text-[12px] text-muted truncate">Actualizado {fechaCorta(plano.actualizado_en)}</span>
+                        </span>
+                        <ChevronRight size={17} className="text-muted shrink-0" />
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => setNuevoPlano({ cliente: { id: clienteId, nombre: nombreCliente(clienteId) } })}
+                    className="w-full min-h-[48px] rounded-2xl border border-dashed border-line-strong text-[13.5px] font-semibold text-muted flex items-center justify-center gap-2 hover:text-ink">
+                    <Plus size={16} strokeWidth={2.6} /> Subir el plano de este cliente
+                  </button>
+                )}
               </div>
             )}
-            {/* En computadora las tarjetas van en rejilla. */}
-            <div className="grid gap-2.5 lg:grid-cols-2 xl:grid-cols-3 items-start">
-              {panelesDelCliente.map((panel) => {
-                const circuitos = lista.filter((l) => l.panel_id === panel.id);
-                const dispositivos = circuitos.reduce((suma, l) => suma + l.dispositivos, 0);
-                const conFalla = circuitos.filter((l) => l.fallaAbierta);
-                return (
-                  <Link key={panel.id} href={`/lazos/panel/${panel.id}`}
-                    className={`block rounded-2xl bg-surface border p-3.5 transition-colors hover:border-teal/60 ${conFalla.length ? 'border-amber/60' : 'border-line'}`}>
-                    <div className="flex items-center gap-3">
-                      <span className="w-11 h-11 shrink-0 rounded-xl bg-teal/15 text-teal flex items-center justify-center">
-                        <CircuitBoard size={22} strokeWidth={2.2} />
-                      </span>
-                      <span className="flex-1 min-w-0">
-                        <span className="block text-[15.5px] font-semibold truncate">{panel.nombre}</span>
-                        <span className="block text-[12.5px] text-muted truncate">
-                          {[panel.nombre.toLowerCase().includes((panel.modelo || '').toLowerCase()) ? null : panel.modelo, `${circuitos.length} circuitos`, `${dispositivos} dispositivos`].filter(Boolean).join(' · ')}
-                        </span>
-                      </span>
-                      <ChevronRight size={18} className="text-muted shrink-0" />
-                    </div>
-                    {panel.ubicacion && (
-                      <p className="flex items-center gap-1 text-[12px] text-faint mt-1.5"><MapPin size={12} strokeWidth={2.4} />{panel.ubicacion}</p>
-                    )}
-                    <div className="mt-2.5"><SalidasCompactas circuitos={circuitos} /></div>
-                    {conFalla.length > 0 && (
-                      <p className="flex items-center gap-1.5 mt-2.5 text-[13px] font-medium text-amber">
-                        <AlertTriangle size={15} strokeWidth={2.4} /> Falla a tierra abierta en {conFalla.map((l) => etiquetaSalida(l)).join(', ')}
-                      </p>
-                    )}
-                  </Link>
-                );
-              })}
-              {panelesDelCliente.length > 0 && sueltos.length > 0 && (
-                <p className="col-span-full text-[12px] font-semibold uppercase tracking-[0.08em] text-faint mt-2">Sin panel</p>
-              )}
-              {sueltos.map((lazo) => (
-                <Link key={lazo.id} href={`/lazos/${lazo.id}`} className={`block rounded-2xl bg-surface border p-3.5 transition-colors hover:border-teal/60 ${lazo.fallaAbierta ? 'border-amber/60' : 'border-line'}`}>
-                  <div className="flex items-center gap-2.5">
-                    <span className="font-mono text-[13px] rounded-lg bg-surface-2 px-2 py-1">{lazo.codigo}</span>
-                    <span className="flex-1 min-w-0 text-[15.5px] font-semibold truncate">{lazo.nombre}</span>
-                    <ChevronRight size={18} className="text-muted shrink-0" />
-                  </div>
-                  <div className="flex flex-wrap gap-1.5 mt-2.5 text-[12px] text-muted">
-                    <span className="rounded-full bg-surface-2 px-2.5 py-1">{NOMBRE_CIRCUITO[lazo.tipo]}</span>
-                    {lazo.clase && <span className="rounded-full bg-surface-2 px-2.5 py-1">Clase {lazo.clase}</span>}
-                    <span className="rounded-full bg-surface-2 px-2.5 py-1">{lazo.dispositivos} dispositivos</span>
-                  </div>
-                  {lazo.fallaAbierta && (
-                    <p className="flex items-center gap-1.5 mt-2.5 text-[13px] font-medium text-amber">
-                      <AlertTriangle size={15} strokeWidth={2.4} /> Búsqueda de falla a tierra abierta
-                    </p>
+
+            {cuantosCircuitos > 0 && (
+              <div>
+                <SubtituloGrupo icono={<CircuitBoard size={14} strokeWidth={2.4} />} titulo="Paneles y circuitos" cuenta={cuantosCircuitos} accion={null} />
+                {/* minmax(0,1fr): una tarjeta con texto largo no se sale de la pantalla. */}
+                <div className="grid grid-cols-[minmax(0,1fr)] gap-2.5 lg:grid-cols-2 xl:grid-cols-3 items-start">
+                  {panelesDelCliente.map((panel) => {
+                    const circuitos = lista.filter((l) => l.panel_id === panel.id);
+                    const dispositivos = circuitos.reduce((suma, l) => suma + l.dispositivos, 0);
+                    const conFalla = circuitos.filter((l) => l.fallaAbierta);
+                    return (
+                      <Link key={panel.id} href={`/lazos/panel/${panel.id}`}
+                        className={`block rounded-2xl bg-surface border p-3.5 transition-colors hover:border-teal/60 ${conFalla.length ? 'border-amber/60' : 'border-line'}`}>
+                        <div className="flex items-center gap-3">
+                          <span className="w-11 h-11 shrink-0 rounded-xl bg-teal/15 text-teal flex items-center justify-center">
+                            <CircuitBoard size={22} strokeWidth={2.2} />
+                          </span>
+                          <span className="flex-1 min-w-0">
+                            <span className="block text-[15.5px] font-semibold truncate">{panel.nombre}</span>
+                            <span className="block text-[12.5px] text-muted truncate">
+                              {[panel.nombre.toLowerCase().includes((panel.modelo || '').toLowerCase()) ? null : panel.modelo, `${circuitos.length} circuitos`, `${dispositivos} dispositivos`].filter(Boolean).join(' · ')}
+                            </span>
+                          </span>
+                          <ChevronRight size={18} className="text-muted shrink-0" />
+                        </div>
+                        {panel.ubicacion && (
+                          <p className="flex items-center gap-1 text-[12px] text-faint mt-1.5"><MapPin size={12} strokeWidth={2.4} />{panel.ubicacion}</p>
+                        )}
+                        <div className="mt-2.5"><SalidasCompactas circuitos={circuitos} /></div>
+                        {conFalla.length > 0 && (
+                          <p className="flex items-center gap-1.5 mt-2.5 text-[13px] font-medium text-amber">
+                            <AlertTriangle size={15} strokeWidth={2.4} /> Falla a tierra abierta en {conFalla.map((l) => etiquetaSalida(l)).join(', ')}
+                          </p>
+                        )}
+                      </Link>
+                    );
+                  })}
+                  {panelesDelCliente.length > 0 && sueltos.length > 0 && (
+                    <p className="col-span-full text-[12px] font-semibold uppercase tracking-[0.08em] text-faint mt-2">Sin panel</p>
                   )}
-                </Link>
-              ))}
-            </div>
+                  {sueltos.map((lazo) => (
+                    <Link key={lazo.id} href={`/lazos/${lazo.id}`} className={`block rounded-2xl bg-surface border p-3.5 transition-colors hover:border-teal/60 ${lazo.fallaAbierta ? 'border-amber/60' : 'border-line'}`}>
+                      <div className="flex items-center gap-2.5">
+                        <span className="font-mono text-[13px] rounded-lg bg-surface-2 px-2 py-1">{lazo.codigo}</span>
+                        <span className="flex-1 min-w-0 text-[15.5px] font-semibold truncate">{lazo.nombre}</span>
+                        <ChevronRight size={18} className="text-muted shrink-0" />
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 mt-2.5 text-[12px] text-muted">
+                        <span className="rounded-full bg-surface-2 px-2.5 py-1">{NOMBRE_CIRCUITO[lazo.tipo]}</span>
+                        {lazo.clase && <span className="rounded-full bg-surface-2 px-2.5 py-1">Clase {lazo.clase}</span>}
+                        <span className="rounded-full bg-surface-2 px-2.5 py-1">{lazo.dispositivos} dispositivos</span>
+                      </div>
+                      {lazo.fallaAbierta && (
+                        <p className="flex items-center gap-1.5 mt-2.5 text-[13px] font-medium text-amber">
+                          <AlertTriangle size={15} strokeWidth={2.4} /> Búsqueda de falla a tierra abierta
+                        </p>
+                      )}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
           </section>
           );
         })}
@@ -265,8 +309,8 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
 
       {nuevoPlano && (
         <NuevoPlano
-          clienteInicial={filtroCliente ? { id: filtroCliente, nombre: nombreCliente(filtroCliente) } : null}
-          onCerrar={() => setNuevoPlano(false)}
+          clienteInicial={nuevoPlano.cliente}
+          onCerrar={() => setNuevoPlano(null)}
           onCreado={(id) => { window.location.href = `/lazos/plano/${id}`; }}
         />
       )}
@@ -434,4 +478,30 @@ export function NuevoLazo({ clienteInicial, lazosExistentes, inicial, onCerrar, 
       </div>
     </ModalOverlay>
   );
+}
+
+function SubtituloGrupo({ icono, titulo, cuenta, accion }: {
+  icono: React.ReactNode;
+  titulo: string;
+  cuenta: number;
+  accion: { texto: string; onClick: () => void } | null;
+}) {
+  return (
+    <div className="flex items-center gap-2 mb-2 text-faint">
+      {icono}
+      <span className="text-[12px] font-semibold uppercase tracking-[0.08em]">{titulo}</span>
+      {cuenta > 0 && <span className="text-[12px] font-mono">{cuenta}</span>}
+      <span className="flex-1 h-px bg-line" aria-hidden="true" />
+      {accion && (
+        <button type="button" onClick={accion.onClick} className="min-h-[32px] px-2.5 rounded-lg text-[12.5px] font-semibold text-teal flex items-center gap-1 hover:bg-surface-2">
+          <Plus size={14} strokeWidth={2.6} /> {accion.texto}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// «7 nov 2026». La lista se carga en el navegador, así que no afecta la hidratación.
+function fechaCorta(iso: string): string {
+  return new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'America/Mexico_City' });
 }
