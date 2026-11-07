@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, Cable, ChevronLeft, ChevronRight, CircuitBoard, MapPin, Plus, WifiOff, X } from 'lucide-react';
+import { AlertTriangle, Cable, ChevronLeft, ChevronRight, CircuitBoard, Map as IconoPlano, MapPin, Plus, WifiOff, X } from 'lucide-react';
 import FormPanel from '@/components/lazos/FormPanel';
+import NuevoPlano from '@/components/lazos/NuevoPlano';
 import { SalidasCompactas } from '@/components/lazos/FrentePanel';
 import MenuCuenta from '@/components/MenuCuenta';
 import TecnicoTabs from '@/components/TecnicoTabs';
@@ -16,6 +17,7 @@ import { showToast } from '@/components/Toast';
 import { catalogoEnCache, listarCatalogoClientes, ClienteCatalogo } from '@/lib/clientesCatalogo';
 import { NOMBRE_CIRCUITO, PREFIJO_CIRCUITO, Panel, TipoCircuito, etiquetaSalida } from '@/lib/lazos';
 import { crearLazo, listarLazos, listarPaneles, LazoResumen } from '@/lib/lazosDatos';
+import { listarPlanos, type PlanoResumen } from '@/lib/planosDatos';
 
 const CAMPO = 'w-full px-3.5 min-h-[46px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]';
 
@@ -36,6 +38,9 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
   const [paneles, setPaneles] = useState<Panel[]>([]);
   const [faltaPatchPaneles, setFaltaPatchPaneles] = useState(false);
   const [nuevoPanel, setNuevoPanel] = useState(false);
+  const [planos, setPlanos] = useState<PlanoResumen[]>([]);
+  const [faltaPatchPlanos, setFaltaPatchPlanos] = useState(true);
+  const [nuevoPlano, setNuevoPlano] = useState(false);
 
   async function cargar() {
     setErrorCarga(null);
@@ -54,6 +59,10 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
 
   useEffect(() => {
     cargar();
+    // Los planos necesitan señal; sin ellos la lista de lazos sigue igual.
+    listarPlanos()
+      .then((r) => { setPlanos(r.planos); setFaltaPatchPlanos(r.faltaPatch); })
+      .catch((e) => { if (navigator.onLine) showToast(e?.message || 'No se pudieron cargar los planos.', 'error'); });
     // Nombres de los clientes: primero la copia local (funciona sin señal).
     setClientes(catalogoEnCache());
     listarCatalogoClientes().then(setClientes).catch(() => {});
@@ -63,12 +72,16 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
 
   const visibles = filtroCliente ? lazos.filter((l) => l.cliente_id === filtroCliente) : lazos;
   const panelesVisibles = filtroCliente ? paneles.filter((p) => p.cliente_id === filtroCliente) : paneles;
+  const planosVisibles = filtroCliente ? planos.filter((p) => p.cliente_id === filtroCliente) : planos;
 
   // Agrupados por cliente, en orden alfabético. Un cliente con panel pero
   // todavía sin circuitos también sale.
   const porCliente = new Map<string, LazoResumen[]>();
   for (const panel of panelesVisibles) {
     if (!porCliente.has(panel.cliente_id)) porCliente.set(panel.cliente_id, []);
+  }
+  for (const plano of planosVisibles) {
+    if (!porCliente.has(plano.cliente_id)) porCliente.set(plano.cliente_id, []);
   }
   for (const lazo of visibles) {
     const lista = porCliente.get(lazo.cliente_id) || [];
@@ -116,6 +129,12 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
                 className="min-h-[48px] px-5 rounded-2xl border border-line bg-surface-2 font-semibold text-[14.5px] flex items-center justify-center gap-2">
                 <Plus size={18} strokeWidth={2.6} /> Circuito sin panel
               </button>
+              {!faltaPatchPlanos && (
+                <button type="button" onClick={() => setNuevoPlano(true)}
+                  className="min-h-[48px] px-5 rounded-2xl border border-line bg-surface-2 font-semibold text-[14.5px] flex items-center justify-center gap-2">
+                  <IconoPlano size={18} strokeWidth={2.4} /> Subir plano
+                </button>
+              )}
             </div>
           }
         />
@@ -148,7 +167,7 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
           </p>
         )}
 
-        {!cargando && !errorCarga && visibles.length === 0 && panelesVisibles.length === 0 && (
+        {!cargando && !errorCarga && visibles.length === 0 && panelesVisibles.length === 0 && planosVisibles.length === 0 && (
           <EstadoVacio
             icono={<Cable size={26} strokeWidth={2} />}
             titulo="Todavía no hay lazos"
@@ -159,9 +178,21 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
         {grupos.map(([clienteId, lista]) => {
           const panelesDelCliente = paneles.filter((p) => p.cliente_id === clienteId);
           const sueltos = lista.filter((l) => !l.panel_id || !panelesDelCliente.some((p) => p.id === l.panel_id));
+          const planosDelCliente = planos.filter((p) => p.cliente_id === clienteId);
           return (
           <section key={clienteId} className="mb-6">
             <RotuloGrupo cuenta={panelesDelCliente.length + sueltos.length}>{nombreCliente(clienteId)}</RotuloGrupo>
+            {planosDelCliente.length > 0 && (
+              <div className="flex gap-2 overflow-x-auto pb-2.5 -mx-1 px-1">
+                {planosDelCliente.map((plano) => (
+                  <Link key={plano.id} href={`/lazos/plano/${plano.id}`}
+                    className="shrink-0 min-h-[44px] pl-2.5 pr-3.5 rounded-full border border-line bg-surface hover:border-teal/60 flex items-center gap-2 text-[14px] font-semibold">
+                    <span className="w-7 h-7 rounded-full bg-teal/15 text-teal flex items-center justify-center"><IconoPlano size={15} strokeWidth={2.4} /></span>
+                    {plano.nombre}
+                  </Link>
+                ))}
+              </div>
+            )}
             {/* En computadora las tarjetas van en rejilla. */}
             <div className="grid gap-2.5 lg:grid-cols-2 xl:grid-cols-3 items-start">
               {panelesDelCliente.map((panel) => {
@@ -229,6 +260,14 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
           esSupervisor={esSupervisor}
           onCerrar={() => setNuevoPanel(false)}
           onGuardado={(panel) => { if (panel) window.location.href = `/lazos/panel/${panel.id}`; }}
+        />
+      )}
+
+      {nuevoPlano && (
+        <NuevoPlano
+          clienteInicial={filtroCliente ? { id: filtroCliente, nombre: nombreCliente(filtroCliente) } : null}
+          onCerrar={() => setNuevoPlano(false)}
+          onCreado={(id) => { window.location.href = `/lazos/plano/${id}`; }}
         />
       )}
 

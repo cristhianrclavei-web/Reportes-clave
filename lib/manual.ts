@@ -42,6 +42,21 @@ const SECCION_LAZOS: SeccionManual = {
         'Para que quede en tu reporte: en el reporte de servicio de ese cliente, paso «Evidencia», sección «Falla a tierra», toca «Anexar» (la app sugiere la que trabajaste ese día). Se anexa aunque no la hayan encontrado: va con los cortes, lo que se sugería, dónde quedó la falla y las fotos, y sale como hoja aparte en el PDF del reporte. Si haces más cortes después de anexarla, toca «Actualizar».',
       ],
     },
+    {
+      titulo: 'Planos: sembrado de equipos y tubería',
+      resumen: 'Sube el plano del cliente en PDF, siembra los equipos de sus lazos y traza la tubería; la app cuenta equipos y metros.',
+      pasos: [
+        'En AutoCAD exporta el plano a PDF con «DWG To PDF.pc3», una hoja por nivel o área, en gris y sin cotas ni mobiliario.',
+        'En «Lazos y circuitos» toca «Subir plano»: elige el cliente, el PDF y, si trae varias hojas, cuál es (cada hoja es un plano aparte). Si sabes la escala de impresión (1:100), escríbela.',
+        '«Escala»: si no la pusiste, toca los dos extremos de algo cuya medida conoces (una puerta de 0.90 m, una cota) y escribe cuánto mide. Sin escala no se calculan los metros.',
+        '«Equipos»: sale el primer dispositivo de los lazos del cliente que falta sembrar; toca en el plano donde va y pasa solo al siguiente en el orden del cable. También puedes elegir otro de la lista o un «equipo suelto» que no está en ningún lazo.',
+        '«Tubería»: elige tipo y diámetro y toca donde empieza y cada quiebre; cerca de un equipo el punto se pega a él y, con «Enderezar a escuadra», los tramos casi rectos quedan rectos. Toca «Terminar tramo» (o doble clic en computadora).',
+        '«Mover»: arrastra el plano para recorrerlo, acerca con dos dedos o la rueda del mouse, arrastra un equipo para cambiarlo de lugar y toca un equipo o una tubería para ver su ficha, cambiarle el diámetro o quitarlo. Abajo están las cantidades: equipos por tipo y metros por tipo y diámetro.',
+        '«Deshacer» regresa el último cambio. Todo se guarda solo; sin señal se queda en el teléfono y sube al volver la conexión.',
+        '«PDF» descarga el plano original (nítido a cualquier zoom) con lo sembrado encima, y una hoja con la simbología y el cuadro de cantidades.',
+      ],
+      nota: 'Los metros se miden sobre el plano: no incluyen bajadas ni desperdicio.',
+    },
   ],
 };
 
