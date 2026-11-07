@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  aEscuadra, cantidadesDeEquipos, cantidadesDeTuberia, colocacionDePagina, equipoEn, escalaDesdeMedida, siguienteTamano,
+  cantidadesDeEquipos, cantidadesDeTuberia, colocacionDePagina, equipoEn, escalaDesdeMedida, siguienteTamano,
   escalaDesdeProporcion, leerSembrado, longitudEnHoja, proporcionDeEscala, sembradoSchema, tuberiaEn, type Sembrado,
 } from './planos';
 
@@ -66,11 +66,6 @@ describe('tocar en el plano', () => {
   it('encuentra la tubería cerca de un tramo', () => {
     expect(tuberiaEn(sembrado, [31, 20], 2)?.id).toBe('t1');
     expect(tuberiaEn(sembrado, [80, 80], 2)).toBeNull();
-  });
-  it('endereza la tubería casi horizontal o vertical', () => {
-    expect(aEscuadra([0, 0], [100, 3])).toEqual([100, 0]);
-    expect(aEscuadra([0, 0], [2, 100])).toEqual([0, 100]);
-    expect(aEscuadra([0, 0], [50, 50])).toEqual([50, 50]);
   });
 });
 

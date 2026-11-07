@@ -254,16 +254,6 @@ export function tuberiaEn(sembrado: Sembrado, p: Punto, radio: number): TuberiaP
   return null;
 }
 
-// Al dibujar tubería: si el punto queda casi horizontal o vertical respecto
-// al anterior, se endereza (la tubería casi siempre va a escuadra).
-export function aEscuadra(anterior: Punto, p: Punto, tolerancia = 0.08): Punto {
-  const dx = Math.abs(p[0] - anterior[0]);
-  const dy = Math.abs(p[1] - anterior[1]);
-  if (dy <= dx * tolerancia) return [p[0], anterior[1]];
-  if (dx <= dy * tolerancia) return [anterior[0], p[1]];
-  return p;
-}
-
 // Se cambia al girar la hoja: dónde se dibuja la página del PDF original en
 // la hoja nueva para que se vea como en pantalla (pdf-lib gira contra reloj).
 export function colocacionDePagina(rotacion: number, anchoOriginal: number, altoOriginal: number): { x: number; y: number; giro: number } {

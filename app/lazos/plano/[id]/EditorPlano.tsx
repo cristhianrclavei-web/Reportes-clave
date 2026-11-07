@@ -17,9 +17,10 @@ import {
   type Elemento, type Lugar,
 } from '@/lib/lazos';
 import { pendientesDeLazo, subirPendientes } from '@/lib/lazosDatos';
+import { enderezar, siguientesPuntos, type Ajuste, type ModoTrazo } from '@/lib/trazoRecto';
 import { colorDeLazo, conexionesEnPlano, lugarParaConectar, revisarLazo, tieneSiguiente } from '@/lib/conexionesPlano';
 import {
-  DIAMETROS, TIPOS_TUBERIA, aEscuadra, cantidadesDeEquipos, cantidadesDeTuberia, colorTuberia, distancia,
+  DIAMETROS, TIPOS_TUBERIA, cantidadesDeEquipos, cantidadesDeTuberia, colorTuberia, distancia,
   escalaDesdeMedida, escalaDesdeProporcion, formatoMetros, longitudEnHoja, metrosDeTuberia, nombrePlanoSchema,
   proporcionDeEscala, siguienteTamano, tamanoDe, tamanoSimbolo, tiposSembrables,
   type EquipoPlano, type Plano, type Punto, type Sembrado, type TuberiaPlano,
@@ -89,7 +90,11 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   const [trazo, setTrazo] = useState<Punto[]>([]);
   const [tipoTubo, setTipoTubo] = useState<string>('EMT');
   const [diametro, setDiametro] = useState<string>('3/4"');
-  const [escuadra, setEscuadra] = useState(true);
+  // Como AutoCAD: a 90° (recto), con diagonales a 45° o libre.
+  const [modoTrazo, setModoTrazo] = useState<ModoTrazo>('recto');
+  // Cuántos puntos agregó cada toque (un toque puede meter un codo), para que
+  // «Quitar punto» deshaga el toque completo.
+  const [pasosTrazo, setPasosTrazo] = useState<number[]>([]);
   // Los equipos nuevos salen del último tamaño que se eligió en una ficha.
   const [tamanoNuevo, setTamanoNuevo] = useState(1);
   const [medida, setMedida] = useState<Punto[]>([]);
@@ -427,15 +432,32 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   const H = plano?.alto || 1;
   const radioPegar = tamanoSimbolo(W, H);
 
-  // El siguiente punto de la tubería: pegado al centro de un equipo cercano
-  // o, si no, a escuadra con el anterior.
-  const ajustarPunto = useCallback((p: Punto): Punto => {
-    const cercano = estadoRef.current.sembrado.equipos.find((e) => distancia(p, [e.x, e.y]) <= radioPegar);
-    if (cercano) return [cercano.x, cercano.y];
-    const anterior = trazo[trazo.length - 1];
-    if (anterior && escuadra) return aEscuadra(anterior, p);
-    return p;
-  }, [trazo, escuadra, radioPegar]);
+  // Lo que agrega un toque a la tubería: pegado al centro de un equipo
+  // cercano (con codo si no está en línea) o a 90°/45° del anterior y
+  // alineado con los equipos y la tubería que ya están.
+  const ajustarPunto = useCallback((p: Punto): Ajuste => {
+    const { equipos, tuberias } = estadoRef.current.sembrado;
+    let cercano: EquipoPlano | null = null;
+    let menor = Infinity;
+    for (const e of equipos) {
+      const d = distancia(p, [e.x, e.y]);
+      if (d <= radioPegar * tamanoDe(e) && d < menor) {
+        cercano = e;
+        menor = d;
+      }
+    }
+    const referencias: Punto[] = [
+      ...equipos.map((e): Punto => [e.x, e.y]),
+      ...tuberias.flatMap((t) => t.puntos),
+      ...trazo.slice(0, -1),
+    ];
+    return siguientesPuntos(trazo, p, {
+      modo: modoTrazo,
+      equipoCercano: cercano ? [cercano.x, cercano.y] : null,
+      referencias,
+      tolerancia: radioPegar * 0.6,
+    });
+  }, [trazo, modoTrazo, radioPegar]);
 
   function colocarEquipo(p: Punto) {
     if (!porColocar) {
@@ -470,7 +492,9 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
       return;
     }
     if (herramienta === 'tuberia') {
-      setTrazo((t) => [...t, t.length === 0 ? (ajustarPuntoInicial(p)) : ajustarPunto(p)]);
+      const { puntos } = ajustarPunto(p);
+      setTrazo((t) => [...t, ...puntos]);
+      setPasosTrazo((pasos) => [...pasos, puntos.length]);
       return;
     }
     if (herramienta === 'escala') {
@@ -483,9 +507,10 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     if (equipo || tuberia) setPanelAbierto(true);
   }
 
-  function ajustarPuntoInicial(p: Punto): Punto {
-    const cercano = estadoRef.current.sembrado.equipos.find((e) => distancia(p, [e.x, e.y]) <= radioPegar);
-    return cercano ? [cercano.x, cercano.y] : p;
+  function quitarUltimoToque() {
+    const ultimo = pasosTrazo[pasosTrazo.length - 1] || 1;
+    setTrazo((t) => t.slice(0, -ultimo));
+    setPasosTrazo((pasos) => pasos.slice(0, -1));
   }
 
   function terminarTramo() {
@@ -496,6 +521,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     const tuberia: TuberiaPlano = { id: nuevoId(), tipo: tipoTubo, diametro, puntos: trazo };
     cambiarSembrado({ ...estadoRef.current.sembrado, tuberias: [...estadoRef.current.sembrado.tuberias, tuberia] });
     setTrazo([]);
+    setPasosTrazo([]);
   }
 
   // Al arrastrar un equipo: se anota el estado de antes una sola vez para
@@ -545,6 +571,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     setHerramienta(h);
     setSeleccion(null);
     setTrazo([]);
+    setPasosTrazo([]);
     setMedida([]);
     setErrorEscala(null);
     setPanelAbierto(true);
@@ -734,6 +761,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
             conexiones={verConexiones || herramienta === 'conectar' ? conexiones : null}
             colorPorLazo={colorPorLazo}
             resaltado={herramienta === 'conectar' && elementoDesde ? elementoDesde.id : null}
+            trazando={herramienta === 'tuberia'}
           />
           <AyudaFlotante herramienta={herramienta} porColocar={porColocar} trazo={trazo.length} medida={medida.length}
             desde={desde === 'panel' ? 'el panel' : elementoDesde && lazoActivo ? textoDeElemento(elementoDesde, lazoActivo) : null}
@@ -770,7 +798,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
                       onEditarDatos={() => editarDatos(equipoElegido)} />
                   )}
                   {tuberiaElegida && (
-                    <FichaTuberia tuberia={tuberiaElegida} metros={metrosDeTuberia(tuberiaElegida, metros)}
+                    <FichaTuberia tuberia={tuberiaElegida} metros={metrosDeTuberia(tuberiaElegida, metros)} tolerancia={radioPegar * 0.6}
                       onCambiar={(c) => cambiarTuberia(tuberiaElegida.id, c)} onQuitar={quitarSeleccion} onCerrar={() => setSeleccion(null)} />
                   )}
                   {!equipoElegido && !tuberiaElegida && (
@@ -834,15 +862,12 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
                 <div className="pt-1">
                   <Opciones titulo="Tipo" opciones={TIPOS_TUBERIA} valor={tipoTubo} onElegir={setTipoTubo} />
                   <Opciones titulo="Diámetro" opciones={DIAMETROS} valor={diametro} onElegir={setDiametro} color={colorTuberia} />
-                  <label className="flex items-center gap-2.5 mt-3 text-[14px]">
-                    <input type="checkbox" checked={escuadra} onChange={(ev) => setEscuadra(ev.target.checked)} className="w-5 h-5 accent-teal" />
-                    Enderezar a escuadra
-                  </label>
+                  <ModosTrazo valor={modoTrazo} onElegir={setModoTrazo} />
                   <p className="text-[13px] text-muted mt-3">
-                    {trazo.length === 0 ? 'Toca en el plano donde empieza la tubería; cada toque agrega un quiebre. Cerca de un equipo se pega a él.' : `${trazo.length} puntos${metrosTrazo !== null ? ` · ${formatoMetros(metrosTrazo)}` : ''}`}
+                    {trazo.length === 0 ? 'Toca donde empieza la tubería; cada toque agrega un quiebre. Cerca de un equipo se pega a su centro y, si no está en línea, se hace el codo solo.' : `${trazo.length} puntos${metrosTrazo !== null ? ` · ${formatoMetros(metrosTrazo)}` : ''}`}
                   </p>
                   <div className="flex gap-2 mt-3">
-                    <button type="button" onClick={() => setTrazo((t) => t.slice(0, -1))} disabled={trazo.length === 0}
+                    <button type="button" onClick={quitarUltimoToque} disabled={trazo.length === 0}
                       className="flex-1 min-h-[46px] rounded-xl bg-surface-2 border border-line font-semibold text-[14px] disabled:opacity-40">Quitar punto</button>
                     <button type="button" onClick={terminarTramo} disabled={trazo.length < 2}
                       className="flex-[1.3] min-h-[46px] rounded-xl bg-teal text-inkOnAccent font-semibold text-[14px] flex items-center justify-center gap-1.5 disabled:opacity-40">
@@ -1016,6 +1041,30 @@ function AyudaFlotante({ herramienta, porColocar, trazo, medida, etiqueta, desde
   return (
     <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-3 max-w-[92%] rounded-full bg-ink/85 text-bg text-[13px] px-4 py-2 shadow-lg text-center">
       {texto}
+    </div>
+  );
+}
+
+const MODOS_TRAZO: { valor: ModoTrazo; nombre: string; detalle: string }[] = [
+  { valor: 'recto', nombre: 'Recto 90°', detalle: 'Solo horizontal y vertical' },
+  { valor: '45', nombre: '45°', detalle: 'También diagonales' },
+  { valor: 'libre', nombre: 'Libre', detalle: 'Sin ayuda' },
+];
+
+function ModosTrazo({ valor, onElegir }: { valor: ModoTrazo; onElegir: (m: ModoTrazo) => void }) {
+  return (
+    <div className="mt-3">
+      <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-faint mb-1.5">Trazo</p>
+      <div className="grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="Cómo se traza">
+        {MODOS_TRAZO.map((m) => (
+          <button key={m.valor} type="button" role="radio" aria-checked={valor === m.valor} onClick={() => onElegir(m.valor)}
+            className={`min-h-[52px] rounded-xl border px-2 flex flex-col items-center justify-center ${valor === m.valor ? 'border-teal bg-teal/15' : 'border-line bg-surface-2'}`}>
+            <span className="text-[13.5px] font-semibold">{m.nombre}</span>
+            <span className="text-[11px] text-muted leading-tight text-center">{m.detalle}</span>
+          </button>
+        ))}
+      </div>
+      {valor !== 'libre' && <p className="text-[12px] text-muted mt-1.5">Los puntos se alinean con los equipos y la tubería que ya están (línea guía punteada).</p>}
     </div>
   );
 }
@@ -1329,13 +1378,17 @@ function ListaParaLigar({ candidatos, eligiendo, onAbrir, onLigar }: {
   );
 }
 
-function FichaTuberia({ tuberia, metros, onCambiar, onQuitar, onCerrar }: {
+function FichaTuberia({ tuberia, metros, tolerancia, onCambiar, onQuitar, onCerrar }: {
   tuberia: TuberiaPlano;
   metros: number | null;
+  tolerancia: number;
   onCambiar: (c: Partial<TuberiaPlano>) => void;
   onQuitar: () => void;
   onCerrar: () => void;
 }) {
+  // Si enderezarla agrega codos, es que tiene tramos chuecos.
+  const derecha = enderezar(tuberia.puntos, 'recto', tolerancia);
+  const chueca = derecha.length !== tuberia.puntos.length;
   return (
     <div className="rounded-2xl border border-line bg-surface-2 p-3.5 mt-1">
       <div className="flex items-center gap-2">
@@ -1346,6 +1399,12 @@ function FichaTuberia({ tuberia, metros, onCambiar, onQuitar, onCerrar }: {
       </div>
       <Opciones titulo="Tipo" opciones={TIPOS_TUBERIA} valor={tuberia.tipo} onElegir={(tipo) => onCambiar({ tipo })} />
       <Opciones titulo="Diámetro" opciones={DIAMETROS} valor={tuberia.diametro} onElegir={(d) => onCambiar({ diametro: d })} color={colorTuberia} />
+      {chueca && (
+        <button type="button" onClick={() => onCambiar({ puntos: derecha })}
+          className="mt-3 w-full min-h-[44px] rounded-xl border border-teal/50 bg-teal/10 text-teal font-semibold text-[14px] flex items-center justify-center gap-1.5">
+          <Spline size={16} /> Enderezar este tramo (con codos a 90°)
+        </button>
+      )}
       <button type="button" onClick={onQuitar} className="mt-3 w-full min-h-[44px] rounded-xl border border-red/40 text-red font-semibold text-[14px] flex items-center justify-center gap-1.5">
         <Trash2 size={16} /> Quitar tramo
       </button>

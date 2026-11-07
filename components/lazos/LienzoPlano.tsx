@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { Maximize, Minus, Plus } from 'lucide-react';
 import { tipoDispositivo } from '@/lib/lazos';
 import type { LineaConexion, MarcaConexion } from '@/lib/conexionesPlano';
+import type { Ajuste } from '@/lib/trazoRecto';
 import {
   colorEquipo, colorTuberia, equipoEn, tamanoDe, tamanoSimbolo, tuberiaEn,
   type EquipoPlano, type Punto, type Sembrado, type TuberiaPlano,
@@ -33,7 +34,7 @@ const RADIO_TOQUE = 22;
 export default function LienzoPlano({
   imagenUrl, ancho, alto, sembrado, etiquetaDe, seleccion, trazo, colorTrazo, medida,
   puedeArrastrar, ajustarPunto, onTocar, onDobleToque, onArrastreInicio, onArrastre, onArrastreFin,
-  conexiones, colorPorLazo, resaltado,
+  conexiones, colorPorLazo, resaltado, trazando,
 }: {
   imagenUrl: string | null;
   ancho: number;
@@ -45,8 +46,8 @@ export default function LienzoPlano({
   colorTrazo: string;
   medida: Punto[];
   puedeArrastrar: boolean;
-  // Cómo queda el siguiente punto de la tubería (a escuadra, pegado a un equipo).
-  ajustarPunto: (p: Punto) => Punto;
+  // Cómo queda el siguiente toque de la tubería (a 90°, con codo, alineado).
+  ajustarPunto: (p: Punto) => Ajuste;
   onTocar: (p: Punto, equipo: EquipoPlano | null, tuberia: TuberiaPlano | null) => void;
   onDobleToque: () => void;
   onArrastreInicio: (id: string) => void;
@@ -57,6 +58,8 @@ export default function LienzoPlano({
   colorPorLazo: Map<string, string>;
   // Dispositivo (id del lazo) del que sale el cable al conectar.
   resaltado: string | null;
+  // Herramienta de tubería activa: muestra la vista previa y las guías.
+  trazando: boolean;
 }) {
   const marco = useRef<HTMLDivElement>(null);
   const [vista, setVista] = useState<Vista>({ s: 0, tx: 0, ty: 0 });
@@ -219,7 +222,8 @@ export default function LienzoPlano({
   const r = listo ? Math.max(tamanoSimbolo(ancho, alto) / 2, 9 / s) : 1;
   const grosorTubo = listo ? Math.max(tamanoSimbolo(ancho, alto) / 7, 2.5 / s) : 1;
   const ultimo = trazo[trazo.length - 1];
-  const siguiente = ultimo && encima ? ajustarPunto(encima) : null;
+  // Vista previa (con mouse): lo que agregaría el siguiente toque y sus guías.
+  const previa = encima && (ultimo || trazo.length === 0) && trazando ? ajustarPunto(encima) : null;
 
   return (
     <div
@@ -253,7 +257,10 @@ export default function LienzoPlano({
             {trazo.length > 0 && (
               <g>
                 <polyline points={trazo.map((p) => p.join(',')).join(' ')} fill="none" stroke={colorTrazo} strokeWidth={grosorTubo} strokeLinecap="round" strokeLinejoin="round" />
-                {siguiente && <line x1={ultimo[0]} y1={ultimo[1]} x2={siguiente[0]} y2={siguiente[1]} stroke={colorTrazo} strokeWidth={grosorTubo} strokeDasharray={`${grosorTubo * 2} ${grosorTubo * 2}`} />}
+                {previa && ultimo && (
+                  <polyline points={[ultimo, ...previa.puntos].map((p) => p.join(',')).join(' ')} fill="none" stroke={colorTrazo}
+                    strokeWidth={grosorTubo} strokeLinejoin="round" strokeDasharray={`${grosorTubo * 2} ${grosorTubo * 2}`} />
+                )}
                 {trazo.map((p, i) => <circle key={i} cx={p[0]} cy={p[1]} r={grosorTubo * 1.4} fill="#fff" stroke={colorTrazo} strokeWidth={grosorTubo * 0.6} />)}
               </g>
             )}
@@ -261,6 +268,18 @@ export default function LienzoPlano({
             {conexiones && conexiones.lineas.map((l, i) => (
               <LineaPunteada key={i} linea={l} color={colorPorLazo.get(l.lazoId) || '#0f766e'} r={r} grosor={grosorTubo * 0.8} />
             ))}
+
+            {/* Guías de alineación, como el rastreo de AutoCAD. */}
+            {previa?.guias.x != null && (
+              <line x1={previa.guias.x} y1={0} x2={previa.guias.x} y2={alto} stroke="#14b8a6" strokeWidth={1.2 / s} strokeDasharray={`${6 / s} ${4 / s}`} style={{ pointerEvents: 'none' }} />
+            )}
+            {previa?.guias.y != null && (
+              <line x1={0} y1={previa.guias.y} x2={ancho} y2={previa.guias.y} stroke="#14b8a6" strokeWidth={1.2 / s} strokeDasharray={`${6 / s} ${4 / s}`} style={{ pointerEvents: 'none' }} />
+            )}
+            {previa && previa.puntos.length > 0 && (
+              <circle cx={previa.puntos[previa.puntos.length - 1][0]} cy={previa.puntos[previa.puntos.length - 1][1]} r={grosorTubo * 1.6}
+                fill="none" stroke="#14b8a6" strokeWidth={1.5 / s} style={{ pointerEvents: 'none' }} />
+            )}
 
             {sembrado.equipos.filter((e) => resaltado && e.elementoId === resaltado).map((e) => (
               <circle key={`desde-${e.id}`} cx={e.x} cy={e.y} r={r * tamanoDe(e) * 2.1} fill="none" stroke="#14b8a6" strokeWidth={grosorTubo}
