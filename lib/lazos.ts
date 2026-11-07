@@ -548,3 +548,216 @@ export function describirCambio(c: Cambio, numeroLazo: number | null, nombreDe: 
   const partes = diferencias(antes, despues, numeroLazo);
   return `Cambió los datos del lazo${partes.length ? ': ' + partes.join('; ') : ''}`;
 }
+
+// ---------- Lugares: dónde va un dispositivo ----------
+
+// Dónde va el dispositivo: colgando de quién (o en la línea principal) y
+// entre qué números de orden.
+//
+// En la línea principal los dispositivos van uno tras otro con `orden`.
+// Lo que cuelga directo de un dispositivo es una RAMA aparte (varias = una
+// estrella); dentro de una rama, lo que sigue en serie cuelga del anterior.
+// `adoptar`: dispositivos que pasan a colgar del nuevo (al insertar en medio
+// de una rama, lo que seguía queda después del nuevo).
+export type Lugar = { padreId: string | null; ordenAntes: number | null; ordenDespues: number | null; adoptar?: string[] };
+
+// Lugar al final de la línea principal.
+export function lugarAlFinal(elementos: Elemento[]): Lugar {
+  const principal = lineaPrincipal(elementos);
+  const ultimo = principal[principal.length - 1];
+  return { padreId: null, ordenAntes: ultimo ? ultimo.orden : null, ordenDespues: null };
+}
+
+// Lugar justo después de un dispositivo. En una rama: en serie después de
+// él, y lo que seguía pasa a seguir al nuevo.
+export function lugarDespuesDe(elementos: Elemento[], elemento: Elemento): Lugar {
+  if (elemento.padre_id) {
+    return { padreId: elemento.id, ordenAntes: null, ordenDespues: null, adoptar: hijosDe(elementos, elemento.id).map((h) => h.id) };
+  }
+  const hermanos = elemento.padre_id ? hijosDe(elementos, elemento.padre_id) : lineaPrincipal(elementos);
+  const i = hermanos.findIndex((h) => h.id === elemento.id);
+  const siguiente = hermanos[i + 1];
+  return { padreId: elemento.padre_id, ordenAntes: elemento.orden, ordenDespues: siguiente ? siguiente.orden : null };
+}
+
+// Lugar justo antes de un dispositivo. En una rama, el nuevo toma su lugar
+// y él pasa a colgar del nuevo.
+export function lugarAntesDe(elementos: Elemento[], elemento: Elemento): Lugar {
+  const hermanos = elemento.padre_id ? hijosDe(elementos, elemento.padre_id) : lineaPrincipal(elementos);
+  const i = hermanos.findIndex((h) => h.id === elemento.id);
+  const anterior = hermanos[i - 1];
+  const adoptar = elemento.padre_id ? [elemento.id] : undefined;
+  return { padreId: elemento.padre_id, ordenAntes: anterior ? anterior.orden : null, ordenDespues: elemento.orden, adoptar };
+}
+
+// Una rama nueva desde un dispositivo, a la derecha de las que ya tiene.
+export function lugarColgandoDe(elementos: Elemento[], padre: Elemento): Lugar {
+  const hijos = hijosDe(elementos, padre.id);
+  const ultimo = hijos[hijos.length - 1];
+  return { padreId: padre.id, ordenAntes: ultimo ? ultimo.orden : null, ordenDespues: null };
+}
+
+// El dispositivo de la línea principal del que cuelga (o él mismo).
+export function raizDe(elementos: Elemento[], elemento: Elemento): Elemento {
+  let actual = elemento;
+  let vueltas = 0;
+  while (actual.padre_id && vueltas < 50) {
+    const padre = elementos.find((e) => e.id === actual.padre_id);
+    if (!padre) break;
+    actual = padre;
+    vueltas++;
+  }
+  return actual;
+}
+
+
+// ---------- Acomodo del diagrama ----------
+
+// Una rama chica (pocos dispositivos) se dibuja colgando debajo de su
+// dispositivo. Una larga (como 23 en serie) haría el diagrama altísimo y en
+// el PDF se saldría de la hoja: se dibuja aparte como su propia línea, a lo
+// ancho y en renglones, con una etiqueta «Rama A» en el dispositivo del que sale.
+export const MAXIMO_RAMA_COLGADA = 4;
+
+export type BloqueRama = {
+  letra: string;
+  // Dispositivo del que sale la rama.
+  origen: Elemento;
+  // La rama en serie: el primero y lo que sigue colgando uno de otro.
+  linea: Elemento[];
+};
+
+export type AcomodoDiagrama = {
+  principal: Elemento[];
+  bloques: BloqueRama[];
+  // Primer dispositivo de cada rama que va aparte → su letra.
+  letraDeRama: Map<string, string>;
+};
+
+export function cuantosEnRama(elementos: Elemento[], id: string, vueltas = 0): number {
+  if (vueltas > 50) return 1;
+  return 1 + hijosDe(elementos, id).reduce((suma, h) => suma + cuantosEnRama(elementos, h.id, vueltas + 1), 0);
+}
+
+// La serie que empieza en `inicio`: sigue mientras cada uno tenga
+// exactamente un dispositivo colgando. Se detiene en el que tiene varios
+// (una estrella) o ninguno.
+export function cadenaDesde(elementos: Elemento[], inicio: Elemento): Elemento[] {
+  const cadena = [inicio];
+  let actual = inicio;
+  while (cadena.length < 500) {
+    const hijos = hijosDe(elementos, actual.id);
+    if (hijos.length !== 1) break;
+    actual = hijos[0];
+    cadena.push(actual);
+  }
+  return cadena;
+}
+
+// Lo que cuelga del dispositivo `i` de una línea, sin contar al siguiente de
+// la misma línea (en una rama, el siguiente es su hijo).
+export function colgantesEnLinea(elementos: Elemento[], linea: Elemento[], i: number): Elemento[] {
+  const siguiente = linea[i + 1];
+  return hijosDe(elementos, linea[i].id).filter((h) => h.id !== siguiente?.id);
+}
+
+function letraNumero(n: number): string {
+  let texto = '';
+  let k = n;
+  do {
+    texto = String.fromCharCode(65 + (k % 26)) + texto;
+    k = Math.floor(k / 26) - 1;
+  } while (k >= 0);
+  return texto;
+}
+
+export function armarDiagrama(elementos: Elemento[]): AcomodoDiagrama {
+  const principal = lineaPrincipal(elementos);
+  const bloques: BloqueRama[] = [];
+  const letraDeRama = new Map<string, string>();
+
+  // Recorre una línea y aparta sus ramas largas; cada rama apartada se
+  // recorre igual (puede tener sus propias ramas largas).
+  function revisar(linea: Elemento[]) {
+    linea.forEach((e, i) => {
+      for (const colgante of colgantesEnLinea(elementos, linea, i)) {
+        if (cuantosEnRama(elementos, colgante.id) <= MAXIMO_RAMA_COLGADA) continue;
+        const bloque: BloqueRama = { letra: letraNumero(bloques.length), origen: e, linea: cadenaDesde(elementos, colgante) };
+        bloques.push(bloque);
+        letraDeRama.set(colgante.id, bloque.letra);
+        revisar(bloque.linea);
+      }
+    });
+  }
+  revisar(principal);
+  return { principal, bloques, letraDeRama };
+}
+
+// ---------- Mover un dispositivo ----------
+
+export type ModoMover = 'despues' | 'antes' | 'colgar';
+
+function subarbol(elementos: Elemento[], id: string): Set<string> {
+  const ids = new Set<string>([id]);
+  let crecio = true;
+  while (crecio) {
+    crecio = false;
+    for (const e of elementos) {
+      if (e.padre_id && ids.has(e.padre_id) && !ids.has(e.id)) {
+        ids.add(e.id);
+        crecio = true;
+      }
+    }
+  }
+  return ids;
+}
+
+// Qué dispositivos cambian (padre y orden) al mover `moverId` respecto a
+// `destinoId`. Si el que se mueve va en serie dentro de una rama, el hueco
+// se cierra (lo que seguía sube a su lugar); si tiene ramas propias, se las
+// lleva. Lanza un error si el destino no tiene sentido.
+export function planDeMovimiento(elementos: Elemento[], moverId: string, destinoId: string, modo: ModoMover): Elemento[] {
+  const original = new Map(elementos.map((e) => [e.id, e]));
+  const mover = original.get(moverId);
+  const destino = original.get(destinoId);
+  if (!mover || !destino) throw new Error('No se encontró el dispositivo.');
+  if (moverId === destinoId) throw new Error('Elige otro dispositivo como destino.');
+
+  const trabajo = new Map(elementos.map((e) => [e.id, { ...e }]));
+  const lista = () => [...trabajo.values()];
+
+  // 1. Sacarlo de donde está.
+  const hijos = hijosDe(elementos, moverId);
+  if (mover.padre_id && hijos.length === 1) {
+    const siguiente = trabajo.get(hijos[0].id) as Elemento;
+    siguiente.padre_id = mover.padre_id;
+    siguiente.orden = mover.orden;
+  }
+  const seLleva = subarbol(lista(), moverId);
+  if (seLleva.has(destinoId)) throw new Error('No se puede poner dentro de lo que cuelga de él mismo.');
+  // Mientras se calcula el nuevo lugar no debe contar en su sitio viejo.
+  trabajo.delete(moverId);
+
+  // 2. Lugar nuevo, como si se capturara ahí.
+  const destinoActual = trabajo.get(destinoId) as Elemento;
+  let lugar: Lugar;
+  if (modo === 'despues') lugar = lugarDespuesDe(lista(), destinoActual);
+  else if (modo === 'antes') lugar = lugarAntesDe(lista(), destinoActual);
+  else lugar = lugarColgandoDe(lista(), destinoActual);
+
+  const movido: Elemento = { ...mover, padre_id: lugar.padreId, orden: ordenEntre(lugar.ordenAntes, lugar.ordenDespues) };
+  trabajo.set(moverId, movido);
+  for (const id of lugar.adoptar || []) {
+    if (id === moverId) continue;
+    const adoptado = trabajo.get(id);
+    if (adoptado) adoptado.padre_id = moverId;
+  }
+
+  // 3. Solo lo que cambió.
+  const cambios: Elemento[] = [];
+  for (const e of trabajo.values()) {
+    const antes = original.get(e.id) as Elemento;
+    if (antes.padre_id !== e.padre_id || antes.orden !== e.orden) cambios.push(e);
+  }
+  return cambios;
+}

@@ -4,7 +4,7 @@ import {
 } from './pdfBranding';
 import { MARCA } from './marca';
 import {
-  Elemento, Lazo, NOMBRE_CIRCUITO, direccionVisible, enOrdenDeRecorrido, hijosDe, lineaPrincipal, posiciones, tipoDispositivo,
+  Elemento, Lazo, NOMBRE_CIRCUITO, armarDiagrama, colgantesEnLinea, cuantosEnRama, direccionVisible, enOrdenDeRecorrido, hijosDe, posiciones, tipoDispositivo,
 } from './lazos';
 
 // PDF del diagrama unifilar de un lazo, dibujado en vectores (se ve nítido
@@ -12,6 +12,8 @@ import {
 // la línea principal corre a lo ancho, hasta 10 dispositivos por renglón,
 // y al terminar un renglón la línea baja por la derecha y regresa al
 // siguiente; lo que cuelga va debajo y las ramas en estrella lado a lado.
+// Las ramas largas (armarDiagrama) se dibujan después como su propia línea
+// («Rama A · sale de …»), así ningún renglón es más alto que la hoja.
 // Después del diagrama va la lista de dispositivos en orden.
 
 // Hoja carta horizontal.
@@ -150,24 +152,39 @@ export async function generateLazoPdf(lazo: Lazo, elementos: Elemento[], cliente
     page.drawLine({ start: { x: x1, y: y1 }, end: { x: x2, y: y2 }, thickness: 0.9, color: LINEA });
   }
 
-  // ---------- Medidas de cada rama ----------
+  // ---------- Acomodo: línea principal y ramas largas aparte ----------
 
-  // Cuántas columnas ocupa un dispositivo con todo lo que cuelga de él: las
-  // ramas en estrella se ponen lado a lado; lo que va en serie, debajo.
-  const unidades = new Map<string, number>();
-  const niveles = new Map<string, number>();
-  function medir(e: Elemento, vueltas = 0): void {
-    const hijos = vueltas > 50 ? [] : hijosDe(elementos, e.id);
-    hijos.forEach((h) => medir(h, vueltas + 1));
-    const suma = hijos.reduce((s, h) => s + (unidades.get(h.id) || 1), 0);
-    unidades.set(e.id, Math.max(1, suma));
-    niveles.set(e.id, 1 + Math.max(0, ...hijos.map((h) => niveles.get(h.id) || 1)));
+  const acomodo = armarDiagrama(elementos);
+  const principal = acomodo.principal;
+  const letraDe = (e: Elemento) => acomodo.letraDeRama.get(e.id);
+
+  // Cuántas columnas y niveles ocupa una rama colgada (las ramas en estrella
+  // lado a lado, lo que va en serie debajo). Una rama larga solo ocupa su
+  // etiqueta: se dibuja aparte.
+  function unidadesDe(lista: Elemento[], vueltas = 0): number {
+    let suma = 0;
+    for (const h of lista) suma += letraDe(h) || vueltas > 50 ? 1 : unidadesDe(hijosDe(elementos, h.id), vueltas + 1);
+    return Math.max(1, suma);
   }
-  const principal = lineaPrincipal(elementos);
-  principal.forEach((e) => medir(e));
+  function nivelesDe(lista: Elemento[], vueltas = 0): number {
+    let mayor = 0;
+    for (const h of lista) {
+      const n = letraDe(h) || vueltas > 50 ? 1 : 1 + nivelesDe(hijosDe(elementos, h.id), vueltas + 1);
+      mayor = Math.max(mayor, n);
+    }
+    return mayor;
+  }
 
-  // Un dispositivo y lo que cuelga, en la franja [x, x + ancho].
-  function nodo(e: Elemento, x: number, ancho: number, arriba: number, columna: number, vueltas = 0) {
+  // Etiqueta de una rama que se dibuja aparte.
+  function etiquetaRama(letra: string, cx: number, arriba: number) {
+    const texto = `Rama ${letra}`;
+    const ancho = bold.widthOfTextAtSize(texto, 7) + 10;
+    page.drawRectangle({ x: cx - ancho / 2, y: arriba - 14, width: ancho, height: 13, borderColor: NAVY, borderWidth: 0.9, color: rgb(0.9, 0.97, 0.95) });
+    page.drawText(texto, { x: cx - bold.widthOfTextAtSize(texto, 7) / 2, y: arriba - 10, size: 7, font: bold, color: NAVY });
+  }
+
+  // Un dispositivo y lo que cuelga (`colgantes`), en la franja [x, x + ancho].
+  function nodo(e: Elemento, colgantes: Elemento[], x: number, ancho: number, arriba: number, columna: number, vueltas = 0) {
     const cx = x + ancho / 2;
     linea(cx, arriba, cx, arriba - BAJADA);
     simbolo(e.tipo, cx, arriba - BAJADA);
@@ -178,44 +195,85 @@ export async function generateLazoPdf(lazo: Lazo, elementos: Elemento[], cliente
     if (direccion) {
       page.drawText(direccion, { x: cx - font.widthOfTextAtSize(direccion, 6.5) / 2, y: arriba - 47.5, size: 6.5, font, color: GRAY_TEXT });
     }
+    if (colgantes.length === 0 || vueltas > 50) return;
 
-    const hijos = vueltas > 50 ? [] : hijosDe(elementos, e.id);
-    if (hijos.length === 0) return;
     const fondo = arriba - ALTO_NODO;
-    if (hijos.length === 1) {
-      linea(cx, fondo, cx, arriba - ALTO_NIVEL);
-      nodo(hijos[0], x, ancho, arriba - ALTO_NIVEL, columna, vueltas + 1);
-      return;
-    }
-    // Estrella: barra horizontal y cada rama en su franja.
-    const barra = arriba - ALTO_NIVEL + 2;
+    const anchoUnidad = ancho / unidadesDe(colgantes);
+    // Una sola rama baja directo; varias (estrella) salen de una barra.
+    const barra = colgantes.length === 1 ? arriba - ALTO_NIVEL : arriba - ALTO_NIVEL + 2;
     linea(cx, fondo, cx, barra);
-    const anchoUnidad = ancho / (unidades.get(e.id) || 1);
     let xHijo = x;
     const centros: number[] = [];
-    for (const h of hijos) {
-      const anchoHijo = (unidades.get(h.id) || 1) * anchoUnidad;
-      centros.push(xHijo + anchoHijo / 2);
-      nodo(h, xHijo, anchoHijo, barra, columna, vueltas + 1);
+    for (const h of colgantes) {
+      const letra = letraDe(h);
+      const anchoHijo = (letra ? 1 : unidadesDe(hijosDe(elementos, h.id))) * anchoUnidad;
+      const centro = xHijo + anchoHijo / 2;
+      centros.push(centro);
+      if (letra) {
+        linea(centro, barra, centro, barra - 4);
+        etiquetaRama(letra, centro, barra - 4);
+      } else {
+        nodo(h, hijosDe(elementos, h.id), xHijo, anchoHijo, barra, columna, vueltas + 1);
+      }
       xHijo += anchoHijo;
     }
-    linea(centros[0], barra, centros[centros.length - 1], barra);
+    if (centros.length > 1) linea(centros[0], barra, centros[centros.length - 1], barra);
   }
 
-  // ---------- Renglones de la línea principal ----------
+  // Una línea (la principal o una rama larga) en renglones; cambia de hoja
+  // entre renglones cuando ya no cabe el siguiente.
+  function dibujarLinea(lista: Elemento[], rotulo: string) {
+    type Renglon = { elementos: Elemento[]; colgantes: Elemento[][]; columnas: number };
+    const renglones: Renglon[] = [];
+    lista.forEach((e, i) => {
+      const colg = colgantesEnLinea(elementos, lista, i);
+      const u = colg.length ? unidadesDe(colg) : 1;
+      const actual = renglones[renglones.length - 1];
+      // Renglón nuevo si ya hay 10 o si sus ramas ya no caben a lo ancho.
+      const lleno = !actual || actual.elementos.length >= POR_RENGLON || actual.columnas + u > POR_RENGLON;
+      if (lleno) renglones.push({ elementos: [e], colgantes: [colg], columnas: u });
+      else {
+        actual.elementos.push(e);
+        actual.colgantes.push(colg);
+        actual.columnas += u;
+      }
+    });
 
-  type Renglon = { elementos: Elemento[]; columnas: number };
-  const renglones: Renglon[] = [];
-  for (const e of principal) {
-    const u = unidades.get(e.id) || 1;
-    const actual = renglones[renglones.length - 1];
-    // Renglón nuevo si ya hay 10 o si sus ramas ya no caben a lo ancho.
-    const lleno = !actual || actual.elementos.length >= POR_RENGLON || actual.columnas + u > POR_RENGLON;
-    if (lleno) renglones.push({ elementos: [e], columnas: u });
-    else {
-      actual.elementos.push(e);
-      actual.columnas += u;
-    }
+    renglones.forEach((r, i) => {
+      const columna = r.columnas > POR_RENGLON ? ANCHO_UTIL / r.columnas : COLUMNA;
+      const nivelesRenglon = 1 + Math.max(0, ...r.colgantes.map((c) => nivelesDe(c)));
+      const alto = 14 + ALTO_NODO + (nivelesRenglon - 1) * ALTO_NIVEL + 12;
+      if (y - alto < ABAJO) {
+        // Aviso de que la línea sigue en la otra hoja.
+        page.drawText('La línea continúa en la siguiente hoja', { x: X_ENTRADA + 4, y: y - 10, size: 7, font, color: GRAY_TEXT });
+        hojaNueva(rotulo);
+        page.drawText('Viene de la hoja anterior', { x: X_ENTRADA + 4, y: y - 2, size: 7, font, color: GRAY_TEXT });
+        y -= 6;
+      }
+      const yLinea = y - 14;
+      const xFin = X_INICIO + r.columnas * columna;
+      // Entrada al renglón (del PCI, del origen de la rama o del regreso del renglón anterior).
+      linea(X_ENTRADA, y, X_ENTRADA, yLinea);
+      linea(X_ENTRADA, yLinea, xFin, yLinea);
+
+      let x = X_INICIO;
+      r.elementos.forEach((e, k) => {
+        const colg = r.colgantes[k];
+        const ancho = (colg.length ? unidadesDe(colg) : 1) * columna;
+        nodo(e, colg, x, ancho, yLinea, columna);
+        x += ancho;
+      });
+
+      const fondo = y - alto;
+      if (i < renglones.length - 1) {
+        // Salto de renglón: baja por la derecha y regresa por abajo, para que
+        // se lea en serie y no como otra salida del panel.
+        linea(xFin + 6, yLinea, xFin + 6, fondo);
+        linea(xFin, yLinea, xFin + 6, yLinea);
+        linea(X_ENTRADA, fondo, xFin + 6, fondo);
+      }
+      y = fondo;
+    });
   }
 
   encabezado(true, 'DIAGRAMA UNIFILAR');
@@ -246,41 +304,25 @@ export async function generateLazoPdf(lazo: Lazo, elementos: Elemento[], cliente
   if (principal.length === 0) {
     page.drawText('Todavía no hay dispositivos capturados en este lazo.', { x: MARGIN, y: y - 20, size: 9, font, color: GRAY_TEXT });
   }
+  dibujarLinea(principal, 'DIAGRAMA UNIFILAR');
 
-  renglones.forEach((r, i) => {
-    const columna = r.columnas > POR_RENGLON ? ANCHO_UTIL / r.columnas : COLUMNA;
-    const nivelesRenglon = Math.max(...r.elementos.map((e) => niveles.get(e.id) || 1));
-    const alto = 14 + ALTO_NODO + (nivelesRenglon - 1) * ALTO_NIVEL + 12;
-    if (y - alto < ABAJO) {
-      // Aviso de que la línea sigue en la otra hoja.
-      page.drawText('La línea continúa en la siguiente hoja', { x: X_ENTRADA + 4, y: y - 10, size: 7, font, color: GRAY_TEXT });
-      hojaNueva('DIAGRAMA UNIFILAR');
-      page.drawText('Viene de la hoja anterior', { x: X_ENTRADA + 4, y: y - 2, size: 7, font, color: GRAY_TEXT });
-      y -= 6;
-    }
-    const yLinea = y - 14;
-    const xFin = X_INICIO + r.columnas * columna;
-    // Entrada al renglón (del PCI o del regreso del renglón anterior).
-    linea(X_ENTRADA, y, X_ENTRADA, yLinea);
-    linea(X_ENTRADA, yLinea, xFin, yLinea);
-
-    let x = X_INICIO;
-    for (const e of r.elementos) {
-      const ancho = (unidades.get(e.id) || 1) * columna;
-      nodo(e, x, ancho, yLinea, columna);
-      x += ancho;
-    }
-
-    const fondo = y - alto;
-    if (i < renglones.length - 1) {
-      // Salto de renglón: baja por la derecha y regresa por abajo, para que
-      // se lea en serie y no como otra salida del panel.
-      linea(xFin + 6, yLinea, xFin + 6, fondo);
-      linea(xFin, yLinea, xFin + 6, yLinea);
-      linea(X_ENTRADA, fondo, xFin + 6, fondo);
-    }
-    y = fondo;
-  });
+  // Cada rama larga: su título y su línea. Si el título y el primer
+  // renglón no caben, empieza en otra hoja.
+  for (const bloque of acomodo.bloques) {
+    const rotulo = `RAMA ${bloque.letra}`;
+    if (y - 110 < ABAJO) hojaNueva('DIAGRAMA UNIFILAR');
+    y -= 16;
+    page.drawLine({ start: { x: MARGIN, y: y + 6 }, end: { x: ANCHO - MARGIN, y: y + 6 }, thickness: 0.5, color: GRAY_LINE, dashArray: [3, 2] });
+    const etiqueta = `Rama ${bloque.letra}`;
+    const anchoEtiqueta = bold.widthOfTextAtSize(etiqueta, 8) + 12;
+    page.drawRectangle({ x: MARGIN, y: y - 18, width: anchoEtiqueta, height: 16, color: NAVY });
+    page.drawText(etiqueta, { x: MARGIN + 6, y: y - 13, size: 8, font: bold, color: WHITE });
+    const direccion = direccionVisible(bloque.origen.direccion, lazo.numero);
+    const detalle = t(`sale de ${bloque.origen.nombre}${direccion ? ` (${direccion})` : ''} · ${cuantosEnRama(elementos, bloque.linea[0].id)} dispositivos`);
+    page.drawText(detalle, { x: MARGIN + anchoEtiqueta + 8, y: y - 13, size: 7.5, font, color: GRAY_TEXT });
+    y -= 18;
+    dibujarLinea(bloque.linea, `DIAGRAMA UNIFILAR · ${rotulo}`);
+  }
 
   // ---------- Lista de dispositivos ----------
 

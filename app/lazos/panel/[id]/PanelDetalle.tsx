@@ -11,12 +11,15 @@ import PanelLazos from '@/components/lazos/PanelLazos';
 import { NuevoLazo } from '@/app/lazos/LazosList';
 import { catalogoEnCache, listarCatalogoClientes } from '@/lib/clientesCatalogo';
 import { NOMBRE_CIRCUITO, Panel, SALIDA_CIRCUITO, TipoCircuito, ordenarCircuitos, siguienteNumeroDeLazo } from '@/lib/lazos';
+import { useEsAncho } from '@/lib/useEsAncho';
 import { LazoResumen, asignarPanel, listarLazos, listarPaneles, nombreCompletoPanel, textoDePanel } from '@/lib/lazosDatos';
 
 type Vista = 'circuitos' | 'diagrama';
 
 export default function PanelDetalle({ panelId, esSupervisor }: { panelId: string; esSupervisor: boolean }) {
   const [panel, setPanel] = useState<Panel | null>(null);
+  // Computadora: circuitos y diagrama lado a lado, sin pestañas.
+  const esAncho = useEsAncho();
   const [lazos, setLazos] = useState<LazoResumen[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -90,7 +93,7 @@ export default function PanelDetalle({ panelId, esSupervisor }: { panelId: strin
   ];
 
   return (
-    <div className="max-w-3xl mx-auto pb-28">
+    <div className="max-w-3xl lg:max-w-[1500px] mx-auto pb-28">
       <div className="sticky top-0 z-20 glass-strong px-4 py-3" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}>
         <div className="flex items-center gap-2">
           <Link href={`/lazos?cliente=${panel.cliente_id}`} aria-label="Volver a los lazos del cliente" className="shrink-0 w-11 h-11 -ml-1.5 rounded-full flex items-center justify-center active:scale-90 transition-transform">
@@ -104,7 +107,7 @@ export default function PanelDetalle({ panelId, esSupervisor }: { panelId: strin
             <Settings2 size={20} strokeWidth={2.2} />
           </button>
         </div>
-        <div className="grid grid-cols-2 gap-1 rounded-xl bg-surface border border-line p-1 mt-2.5" role="tablist">
+        <div className="grid grid-cols-2 gap-1 rounded-xl bg-surface border border-line p-1 mt-2.5 lg:hidden" role="tablist">
           {pestanas.map((p) => (
             <button key={p.k} type="button" role="tab" aria-selected={vista === p.k} onClick={() => setVista(p.k)}
               className={`min-h-[38px] rounded-lg text-[13px] font-semibold ${vista === p.k ? 'bg-teal text-inkOnAccent' : 'text-muted'}`}>
@@ -121,6 +124,8 @@ export default function PanelDetalle({ panelId, esSupervisor }: { panelId: strin
           </p>
         )}
 
+        <div className={esAncho ? 'grid grid-cols-[minmax(360px,440px)_minmax(0,1fr)] gap-5 items-start' : ''}>
+        <div>
         {/* Ficha del panel, como la placa del equipo. */}
         <section className="rounded-2xl border border-line bg-surface p-4 mb-4 relative overflow-hidden">
           <div className="absolute -right-6 -top-6 w-28 h-28 rounded-full bg-teal/10" aria-hidden="true" />
@@ -151,7 +156,7 @@ export default function PanelDetalle({ panelId, esSupervisor }: { panelId: strin
           </dl>
         </section>
 
-        {vista === 'circuitos' && (
+        {(vista === 'circuitos' || esAncho) && (
           <>
             <FrentePanel circuitos={circuitos} />
 
@@ -178,19 +183,23 @@ export default function PanelDetalle({ panelId, esSupervisor }: { panelId: strin
           </>
         )}
 
-        {vista === 'diagrama' && (
-          circuitos.length === 0 ? (
+        </div>
+        {(vista === 'diagrama' || esAncho) && (
+          <div className={esAncho ? 'sticky top-[110px] max-h-[calc(100vh-130px)] overflow-y-auto pb-20' : ''}>
+          {circuitos.length === 0 ? (
             <p className="flex items-center gap-2 text-[14px] text-muted py-6">
               <AlertTriangle size={16} strokeWidth={2.4} /> Todavía no hay circuitos capturados en este panel.
             </p>
           ) : (
             <PanelLazos lazos={circuitos} nombrePanel={nombreCompletoPanel(panel)} />
-          )
+          )}
+          </div>
         )}
+        </div>
       </div>
 
       {/* pr-20: deja libre el botón flotante del asistente. */}
-      {vista === 'circuitos' && (
+      {(vista === 'circuitos' || esAncho) && (
         <div className="fixed bottom-0 inset-x-0 z-10 bg-bg/95 border-t border-line pl-4 pr-20 sm:pr-4 pt-3" style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}>
           <button type="button" onClick={() => setEligiendoTipo(true)}
             className="w-full max-w-3xl mx-auto min-h-[52px] rounded-xl bg-teal text-inkOnAccent font-semibold text-[15.5px] flex items-center justify-center gap-2">

@@ -10,21 +10,17 @@ import {
   nombreSugerido, normalizarDireccion, ordenEntre, partesDe, prefijoLazo, siguienteDireccion, tipoDispositivo, sugerenciaPara, valoresUsados,
 } from '@/lib/lazos';
 import { guardarElemento, subirFotoElemento } from '@/lib/lazosDatos';
+import { Lugar, lugarColgandoDe, lugarDespuesDe, raizDe } from '@/lib/lazos';
+
+// Los lugares (dónde va un dispositivo) viven en lib/lazos.ts; se reexportan
+// para quien ya los importaba de aquí.
+export type { Lugar } from '@/lib/lazos';
+export { lugarAlFinal, lugarAntesDe, lugarColgandoDe, lugarDespuesDe } from '@/lib/lazos';
 
 // Hoja para capturar un dispositivo mientras se cablea. «Guardar y
 // siguiente» deja la hoja abierta con el siguiente lugar del lazo, el mismo
 // tipo y la siguiente dirección libre, para capturar uno tras otro sin
 // regresar a la lista.
-
-// Dónde va el dispositivo: colgando de quién (o en la línea principal) y
-// entre qué números de orden.
-//
-// En la línea principal los dispositivos van uno tras otro con `orden`.
-// Lo que cuelga directo de un dispositivo es una RAMA aparte (varias = una
-// estrella); dentro de una rama, lo que sigue en serie cuelga del anterior.
-// `adoptar`: dispositivos que pasan a colgar del nuevo (al insertar en medio
-// de una rama, lo que seguía queda después del nuevo).
-export type Lugar = { padreId: string | null; ordenAntes: number | null; ordenDespues: number | null; adoptar?: string[] };
 
 const CAMPO = 'w-full px-3 min-h-[46px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]';
 
@@ -90,55 +86,6 @@ function CampoConSugerencias({ id, etiqueta, valor, onCambiar, sugerencias, plac
       )}
     </div>
   );
-}
-
-// Lugar al final de la línea principal.
-export function lugarAlFinal(elementos: Elemento[]): Lugar {
-  const principal = lineaPrincipal(elementos);
-  const ultimo = principal[principal.length - 1];
-  return { padreId: null, ordenAntes: ultimo ? ultimo.orden : null, ordenDespues: null };
-}
-
-// Lugar justo después de un dispositivo. En una rama: en serie después de
-// él, y lo que seguía pasa a seguir al nuevo.
-export function lugarDespuesDe(elementos: Elemento[], elemento: Elemento): Lugar {
-  if (elemento.padre_id) {
-    return { padreId: elemento.id, ordenAntes: null, ordenDespues: null, adoptar: hijosDe(elementos, elemento.id).map((h) => h.id) };
-  }
-  const hermanos = elemento.padre_id ? hijosDe(elementos, elemento.padre_id) : lineaPrincipal(elementos);
-  const i = hermanos.findIndex((h) => h.id === elemento.id);
-  const siguiente = hermanos[i + 1];
-  return { padreId: elemento.padre_id, ordenAntes: elemento.orden, ordenDespues: siguiente ? siguiente.orden : null };
-}
-
-// Lugar justo antes de un dispositivo. En una rama, el nuevo toma su lugar
-// y él pasa a colgar del nuevo.
-export function lugarAntesDe(elementos: Elemento[], elemento: Elemento): Lugar {
-  const hermanos = elemento.padre_id ? hijosDe(elementos, elemento.padre_id) : lineaPrincipal(elementos);
-  const i = hermanos.findIndex((h) => h.id === elemento.id);
-  const anterior = hermanos[i - 1];
-  const adoptar = elemento.padre_id ? [elemento.id] : undefined;
-  return { padreId: elemento.padre_id, ordenAntes: anterior ? anterior.orden : null, ordenDespues: elemento.orden, adoptar };
-}
-
-// Una rama nueva desde un dispositivo, a la derecha de las que ya tiene.
-export function lugarColgandoDe(elementos: Elemento[], padre: Elemento): Lugar {
-  const hijos = hijosDe(elementos, padre.id);
-  const ultimo = hijos[hijos.length - 1];
-  return { padreId: padre.id, ordenAntes: ultimo ? ultimo.orden : null, ordenDespues: null };
-}
-
-// El dispositivo de la línea principal del que cuelga (o él mismo).
-function raizDe(elementos: Elemento[], elemento: Elemento): Elemento {
-  let actual = elemento;
-  let vueltas = 0;
-  while (actual.padre_id && vueltas < 50) {
-    const padre = elementos.find((e) => e.id === actual.padre_id);
-    if (!padre) break;
-    actual = padre;
-    vueltas++;
-  }
-  return actual;
 }
 
 type Errores = Partial<Record<'direccion' | 'nombre' | 'ubicacion' | 'general', string>>;

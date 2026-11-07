@@ -78,7 +78,7 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
   const grupos = [...porCliente.entries()].sort((a, b) => nombreCliente(a[0]).localeCompare(nombreCliente(b[0]), 'es'));
 
   return (
-    <div className={`max-w-2xl mx-auto pb-16 ${esSupervisor ? "" : "lg:max-w-none lg:px-6"}`}>
+    <div className={`max-w-2xl mx-auto pb-16 ${esSupervisor ? "lg:max-w-6xl" : "lg:max-w-none lg:px-6"}`}>
       {/* Técnicos: una sección más, con sus pestañas. Supervisión llega desde
           la ficha del cliente y regresa a ella. */}
       {esSupervisor ? (
@@ -162,7 +162,8 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
           return (
           <section key={clienteId} className="mb-6">
             <RotuloGrupo cuenta={panelesDelCliente.length + sueltos.length}>{nombreCliente(clienteId)}</RotuloGrupo>
-            <div className="flex flex-col gap-2.5">
+            {/* En computadora las tarjetas van en rejilla. */}
+            <div className="grid gap-2.5 lg:grid-cols-2 xl:grid-cols-3 items-start">
               {panelesDelCliente.map((panel) => {
                 const circuitos = lista.filter((l) => l.panel_id === panel.id);
                 const dispositivos = circuitos.reduce((suma, l) => suma + l.dispositivos, 0);
@@ -195,7 +196,7 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
                 );
               })}
               {panelesDelCliente.length > 0 && sueltos.length > 0 && (
-                <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-faint mt-2">Sin panel</p>
+                <p className="col-span-full text-[12px] font-semibold uppercase tracking-[0.08em] text-faint mt-2">Sin panel</p>
               )}
               {sueltos.map((lazo) => (
                 <Link key={lazo.id} href={`/lazos/${lazo.id}`} className={`block rounded-2xl bg-surface border p-3.5 transition-colors hover:border-teal/60 ${lazo.fallaAbierta ? 'border-amber/60' : 'border-line'}`}>

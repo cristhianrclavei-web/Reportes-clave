@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  Cambio, Elemento, corteSugerido, describirCambio, cortesRestantes, direccionOcupada, direccionVisible, enOrdenDeRecorrido, lineaPrincipal,
+  Cambio, Elemento, armarDiagrama, planDeMovimiento, corteSugerido, describirCambio, cortesRestantes, direccionOcupada, direccionVisible, enOrdenDeRecorrido, lineaPrincipal,
   armarUbicacion, conteoPorNivel, conteoPorTipo, lazosDelMismoPanel, sugerenciaPara, partesDe, valoresUsados, nombreSugerido, siguienteNumeroDeLazo, sinDireccion, normalizarDireccion, ordenEntre, posiciones, siguienteDireccion, zonaConFalla,
 } from './lazos';
 
@@ -214,5 +214,79 @@ describe('sugerenciaPara', () => {
   it('nada si no hay texto o nada coincide', () => {
     expect(sugerenciaPara('', usados)).toBeNull();
     expect(sugerenciaPara('cocina', usados)).toBeNull();
+  });
+});
+
+describe('acomodo del diagrama', () => {
+  // A B C en la línea; de B cuelga una rama chica (b1) y una larga (r1→r2→r3→r4→r5).
+  const els = [
+    el('A', 1), el('B', 2), el('C', 3),
+    el('b1', 1, { padre_id: 'B' }),
+    el('r1', 2, { padre_id: 'B' }), el('r2', 1, { padre_id: 'r1' }), el('r3', 1, { padre_id: 'r2' }),
+    el('r4', 1, { padre_id: 'r3' }), el('r5', 1, { padre_id: 'r4' }),
+  ];
+  it('aparta las ramas largas como su propia línea y deja colgadas las chicas', () => {
+    const a = armarDiagrama(els);
+    expect(a.principal.map((e) => e.id)).toEqual(['A', 'B', 'C']);
+    expect(a.bloques).toHaveLength(1);
+    expect(a.bloques[0].letra).toBe('A');
+    expect(a.bloques[0].origen.id).toBe('B');
+    expect(a.bloques[0].linea.map((e) => e.id)).toEqual(['r1', 'r2', 'r3', 'r4', 'r5']);
+    expect(a.letraDeRama.get('r1')).toBe('A');
+    expect(a.letraDeRama.has('b1')).toBe(false);
+  });
+});
+
+describe('mover un dispositivo', () => {
+  function aplicar(base: Elemento[], cambios: Elemento[]): Elemento[] {
+    const porId = new Map(cambios.map((c) => [c.id, c]));
+    return base.map((e) => porId.get(e.id) || e);
+  }
+  function rama(lista: Elemento[], inicio: string): string[] {
+    const ids = [inicio];
+    let actual = inicio;
+    for (;;) {
+      const hijos = lista.filter((e) => e.padre_id === actual);
+      if (hijos.length !== 1) break;
+      actual = hijos[0].id;
+      ids.push(actual);
+    }
+    return ids;
+  }
+
+  it('en la línea principal: lo pone después del destino', () => {
+    const base = [el('A', 1), el('B', 2), el('C', 3)];
+    const final = aplicar(base, planDeMovimiento(base, 'A', 'C', 'despues'));
+    expect(lineaPrincipal(final).map((e) => e.id)).toEqual(['B', 'C', 'A']);
+  });
+
+  it('antes de un dispositivo de la línea', () => {
+    const base = [el('A', 1), el('B', 2), el('C', 3)];
+    const final = aplicar(base, planDeMovimiento(base, 'C', 'A', 'antes'));
+    expect(lineaPrincipal(final).map((e) => e.id)).toEqual(['C', 'A', 'B']);
+  });
+
+  it('sacarlo de una rama cierra el hueco y meterlo en otra respeta la serie', () => {
+    // A ─ r1 → r2 → r3 ; B
+    const base = [el('A', 1), el('B', 2), el('r1', 1, { padre_id: 'A' }), el('r2', 1, { padre_id: 'r1' }), el('r3', 1, { padre_id: 'r2' })];
+    const final = aplicar(base, planDeMovimiento(base, 'r2', 'B', 'colgar'));
+    expect(rama(final, 'r1')).toEqual(['r1', 'r3']);
+    expect(final.find((e) => e.id === 'r2')?.padre_id).toBe('B');
+  });
+
+  it('después de uno en medio de una rama: lo que seguía queda detrás del movido', () => {
+    const base = [el('A', 1), el('X', 2), el('r1', 1, { padre_id: 'A' }), el('r2', 1, { padre_id: 'r1' })];
+    const final = aplicar(base, planDeMovimiento(base, 'X', 'r1', 'despues'));
+    expect(lineaPrincipal(final).map((e) => e.id)).toEqual(['A']);
+    expect(rama(final, 'r1')).toEqual(['r1', 'X', 'r2']);
+  });
+
+  it('se lleva sus ramas y no deja ponerlo dentro de ellas', () => {
+    const base = [el('A', 1), el('B', 2), el('b1', 1, { padre_id: 'B' }), el('b2', 2, { padre_id: 'B' })];
+    const final = aplicar(base, planDeMovimiento(base, 'B', 'A', 'antes'));
+    expect(lineaPrincipal(final).map((e) => e.id)).toEqual(['B', 'A']);
+    expect(final.filter((e) => e.padre_id === 'B').map((e) => e.id).sort()).toEqual(['b1', 'b2']);
+    expect(() => planDeMovimiento(base, 'B', 'b1', 'despues')).toThrow();
+    expect(() => planDeMovimiento(base, 'B', 'B', 'despues')).toThrow();
   });
 });

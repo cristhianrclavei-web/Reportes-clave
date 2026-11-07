@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, ChevronLeft, CloudUpload, FileDown, History, Plus, Settings2, WifiOff } from 'lucide-react';
+import { AlertTriangle, ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ChevronLeft, CloudUpload, FileDown, History, Move, Plus, Settings2, Undo2, WifiOff, X } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
 import DiagramaLazo from '@/components/lazos/DiagramaLazo';
@@ -15,7 +15,8 @@ import HojaCaptura, { Lugar, lugarAlFinal, lugarAntesDe, lugarColgandoDe, lugarD
 import FichaElemento, { fechaHora } from '@/components/lazos/FichaElemento';
 import BusquedaFalla from '@/components/lazos/BusquedaFalla';
 import { confirmar } from '@/lib/dialogos';
-import { Cambio, Corte, Elemento, Falla, NOMBRE_CIRCUITO, Panel, describirCambio, etiquetaSalida, hijosDe, lazosDelMismoPanel, lineaPrincipal, siguienteNumeroDeLazo } from '@/lib/lazos';
+import { useEsAncho } from '@/lib/useEsAncho';
+import { Cambio, Corte, Elemento, Falla, ModoMover, NOMBRE_CIRCUITO, Panel, describirCambio, etiquetaSalida, hijosDe, lazosDelMismoPanel, lineaPrincipal, planDeMovimiento, siguienteNumeroDeLazo } from '@/lib/lazos';
 import {
   DatosLazo, LazoResumen, ResultadoGuardar, actualizarLazo, borrarElemento, borrarLazo, descartarPrimerPendiente,
   fallasResueltas, guardarCopiaLazo, guardarElemento, historialDeLazo, listarLazos, listarPaneles, obtenerLazo, asignarPanel, nombreCompletoPanel, textoDePanel, pendientesDeLazo, subirPendientes,
@@ -54,6 +55,15 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
   const [paneles, setPaneles] = useState<Panel[]>([]);
   const [verPanel, setVerPanel] = useState(true);
   const [agregandoLazo, setAgregandoLazo] = useState(false);
+  const esAncho = useEsAncho();
+  // Modo mover del diagrama: se elige uno (tocándolo o arrastrándolo) y
+  // luego a dónde va respecto a otro.
+  const [moviendo, setMoviendo] = useState(false);
+  const [seleccionMover, setSeleccionMover] = useState<string | null>(null);
+  const [destinoMover, setDestinoMover] = useState<{ mover: Elemento; destino: Elemento } | null>(null);
+  const [aplicandoMover, setAplicandoMover] = useState(false);
+  // Cómo estaban los que cambiaron en el último movimiento, para deshacerlo.
+  const [deshacer, setDeshacer] = useState<{ texto: string; antes: Elemento[] } | null>(null);
 
   // El PDF se arma en el servidor y se descarga con un enlace firmado de
   // Storage (ver app/api/lazos/[id]/pdf): abrir el PDF directo no funciona
@@ -173,6 +183,73 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
     }
   }
 
+  // En modo mover, tocar elige el que se mueve y luego el destino.
+  function tocarEnDiagrama(elemento: Elemento) {
+    if (!moviendo) { abrirFicha(elemento); return; }
+    if (!seleccionMover) { setSeleccionMover(elemento.id); return; }
+    if (seleccionMover === elemento.id) { setSeleccionMover(null); return; }
+    const mover = datos?.elementos.find((e) => e.id === seleccionMover);
+    if (mover) setDestinoMover({ mover, destino: elemento });
+  }
+
+  function soltarEnDiagrama(moverId: string, destino: Elemento) {
+    const mover = datos?.elementos.find((e) => e.id === moverId);
+    if (mover) setDestinoMover({ mover, destino });
+  }
+
+  // Guarda uno por uno (cada uno va a la cola si no hay señal).
+  async function guardarVarios(lista: Elemento[], base: Elemento[]): Promise<Elemento[]> {
+    let elementos = base;
+    let pendiente = false;
+    for (const elemento of lista) {
+      const resultado = await guardarElemento(elemento);
+      pendiente = pendiente || resultado.pendiente;
+      elementos = elementos.map((e) => (e.id === elemento.id ? elemento : e));
+    }
+    despuesDeGuardar({ pendiente });
+    return elementos;
+  }
+
+  async function aplicarMovimiento(modo: ModoMover) {
+    if (!datos || !destinoMover) return;
+    const { mover, destino } = destinoMover;
+    let cambios: Elemento[];
+    try {
+      cambios = planDeMovimiento(datos.elementos, mover.id, destino.id, modo);
+    } catch (e: any) {
+      showToast(e?.message || 'No se puede mover ahí.', 'error');
+      return;
+    }
+    if (cambios.length === 0) { setDestinoMover(null); setSeleccionMover(null); return; }
+    setAplicandoMover(true);
+    const antes = cambios.map((c) => datos.elementos.find((e) => e.id === c.id) as Elemento);
+    try {
+      const elementos = await guardarVarios(cambios, datos.elementos);
+      actualizar({ ...datos, elementos });
+      const donde = modo === 'despues' ? 'después de' : modo === 'antes' ? 'antes de' : 'colgando de';
+      setDeshacer({ texto: `${mover.nombre} quedó ${donde} ${destino.nombre}`, antes });
+    } catch (e: any) {
+      showToast(e?.message || 'No se pudo mover el dispositivo.', 'error');
+    }
+    setAplicandoMover(false);
+    setDestinoMover(null);
+    setSeleccionMover(null);
+  }
+
+  async function deshacerMovimiento() {
+    if (!datos || !deshacer) return;
+    setAplicandoMover(true);
+    try {
+      const elementos = await guardarVarios(deshacer.antes, datos.elementos);
+      actualizar({ ...datos, elementos });
+      showToast('Movimiento deshecho');
+      setDeshacer(null);
+    } catch (e: any) {
+      showToast(e?.message || 'No se pudo deshacer.', 'error');
+    }
+    setAplicandoMover(false);
+  }
+
   function alCambiarFalla(cambio: { falla?: Falla | null; corte?: Corte; corteBorrado?: string }, resultado: ResultadoGuardar) {
     if (!datos) return;
     let { falla, cortes } = datos;
@@ -227,14 +304,16 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
   const nombrePanel = panelDelLazo ? nombreCompletoPanel(panelDelLazo) : lazo.panel || 'Panel';
   const hayVariosLazos = delPanel.length > 1;
 
-  const pestanas: { k: Vista; label: string }[] = [
-    { k: 'lista', label: 'Lista en orden' },
-    { k: 'diagrama', label: 'Diagrama' },
-    { k: 'falla', label: 'Falla a tierra' },
-  ];
+  const pestanas: { k: Vista; label: string }[] = esAncho
+    ? [{ k: 'lista', label: 'Dispositivos y diagrama' }, { k: 'falla', label: 'Falla a tierra' }]
+    : [{ k: 'lista', label: 'Lista en orden' }, { k: 'diagrama', label: 'Diagrama' }, { k: 'falla', label: 'Falla a tierra' }];
+  // En pantalla ancha «Diagrama» no es pestaña aparte: va junto a la lista.
+  const vistaActiva: Vista = esAncho && vista === 'diagrama' ? 'lista' : vista;
+  const verLista = vistaActiva === 'lista';
+  const verDiagrama = vistaActiva === 'diagrama' || (esAncho && vistaActiva === 'lista');
 
   return (
-    <div className="max-w-3xl mx-auto pb-28">
+    <div className="max-w-3xl lg:max-w-[1500px] mx-auto pb-28">
       <div className="sticky top-0 z-20 glass-strong px-4 py-3" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}>
         <div className="flex items-center gap-2">
           <Link href={panelDelLazo ? `/lazos/panel/${panelDelLazo.id}` : `/lazos?cliente=${lazo.cliente_id}`} aria-label={panelDelLazo ? `Volver al ${panelDelLazo.nombre}` : 'Volver a los lazos'} className="shrink-0 w-11 h-11 -ml-1.5 rounded-full flex items-center justify-center active:scale-90 transition-transform">
@@ -255,10 +334,10 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
             <Settings2 size={20} strokeWidth={2.2} />
           </button>
         </div>
-        <div className="grid grid-cols-3 gap-1 rounded-xl bg-surface border border-line p-1 mt-2.5" role="tablist">
+        <div className={`grid ${pestanas.length === 3 ? 'grid-cols-3' : 'grid-cols-2 lg:max-w-xl'} gap-1 rounded-xl bg-surface border border-line p-1 mt-2.5`} role="tablist">
           {pestanas.map((p) => (
-            <button key={p.k} type="button" role="tab" aria-selected={vista === p.k} onClick={() => setVista(p.k)}
-              className={`relative min-h-[38px] rounded-lg text-[13px] font-semibold ${vista === p.k ? 'bg-teal text-inkOnAccent' : 'text-muted'}`}>
+            <button key={p.k} type="button" role="tab" aria-selected={vistaActiva === p.k} onClick={() => setVista(p.k)}
+              className={`relative min-h-[38px] rounded-lg text-[13px] font-semibold ${vistaActiva === p.k ? 'bg-teal text-inkOnAccent' : 'text-muted'}`}>
               {p.label}
               {p.k === 'falla' && datos.falla && <span className="absolute top-1.5 right-2 w-2 h-2 rounded-full bg-amber" aria-label="búsqueda abierta" />}
             </button>
@@ -288,10 +367,14 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
           </div>
         )}
 
-        {vista === 'lista' && <ListaEnOrden lazo={lazo} elementos={elementos} onTocar={abrirFicha} />}
-
-        {vista === 'diagrama' && (
-          <>
+        <div className={esAncho && verLista ? 'grid grid-cols-[minmax(340px,400px)_minmax(0,1fr)] gap-5 items-start' : ''}>
+          {verLista && (
+            <div className={esAncho ? 'rounded-2xl bg-surface/60 border border-line p-3' : ''}>
+              <ListaEnOrden lazo={lazo} elementos={elementos} onTocar={abrirFicha} />
+            </div>
+          )}
+          {verDiagrama && (
+            <div className={esAncho ? 'sticky top-[150px] max-h-[calc(100vh-170px)] overflow-y-auto pb-20' : ''}>
             <div className="flex flex-wrap items-center justify-end gap-2 mb-2">
               {hayVariosLazos && (
                 <div className="mr-auto grid grid-cols-2 gap-0.5 rounded-xl bg-surface border border-line p-0.5" role="radiogroup" aria-label="Qué ver en el diagrama">
@@ -309,6 +392,12 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
                   <Plus size={16} strokeWidth={2.6} /> Lazo {siguienteNumeroDeLazo(delPanel.length ? delPanel : [lazo])}
                 </button>
               )}
+              {!(hayVariosLazos && verPanel) && principal.length > 1 && (
+                <button type="button" onClick={() => { setMoviendo((m) => !m); setSeleccionMover(null); }} aria-pressed={moviendo}
+                  className={`min-h-[42px] px-3.5 rounded-xl border text-[13.5px] font-semibold flex items-center gap-1.5 ${moviendo ? 'border-teal bg-teal text-inkOnAccent' : 'border-line bg-surface-2'}`}>
+                  {moviendo ? <X size={16} strokeWidth={2.4} /> : <Move size={16} strokeWidth={2.2} />} {moviendo ? 'Listo' : 'Mover'}
+                </button>
+              )}
               <button type="button" onClick={exportarPdf} disabled={exportando}
                 className="min-h-[42px] px-3.5 rounded-xl border border-line bg-surface-2 text-[13.5px] font-semibold flex items-center gap-1.5 disabled:opacity-60">
                 <FileDown size={16} strokeWidth={2.2} /> {exportando ? 'Generando…' : 'PDF'}
@@ -318,8 +407,28 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
               <PanelLazos actual={lazo} elementosActual={elementos} lazos={delPanel} nombrePanel={nombrePanel} onTocar={abrirFicha} onAgregarLazo={() => setAgregandoLazo(true)} />
             ) : (
               <>
-                <div className="rounded-2xl bg-surface border border-line p-3 overflow-x-auto">
-                  <DiagramaLazo lazo={lazo} elementos={elementos} onTocar={abrirFicha} />
+                {moviendo && (
+                  <p className="rounded-xl bg-teal/10 border border-teal/40 text-[13px] px-3 py-2 mb-2 flex items-start gap-2">
+                    <Move size={16} strokeWidth={2.4} className="text-teal shrink-0 mt-px" />
+                    <span>
+                      {seleccionMover
+                        ? <>Ahora toca el dispositivo junto al que va <b className="font-mono">{elementos.find((e) => e.id === seleccionMover)?.nombre}</b>.</>
+                        : esAncho ? 'Arrastra un dispositivo y suéltalo sobre otro, o toca uno y luego el destino.' : 'Toca el dispositivo que quieres mover y luego el destino.'}
+                    </span>
+                  </p>
+                )}
+                {deshacer && (
+                  <div className="rounded-xl bg-surface-2 border border-line text-[13px] px-3 py-2 mb-2 flex items-center gap-2">
+                    <span className="flex-1 min-w-0">{deshacer.texto}.</span>
+                    <button type="button" onClick={deshacerMovimiento} disabled={aplicandoMover} className="font-semibold text-teal flex items-center gap-1 min-h-[34px] disabled:opacity-60">
+                      <Undo2 size={15} strokeWidth={2.4} /> Deshacer
+                    </button>
+                    <button type="button" onClick={() => setDeshacer(null)} aria-label="Cerrar aviso" className="w-8 h-8 rounded-full flex items-center justify-center text-muted"><X size={15} /></button>
+                  </div>
+                )}
+                <div className={`rounded-2xl bg-surface border p-3 overflow-x-auto ${moviendo ? 'border-teal/50' : 'border-line'}`}>
+                  <DiagramaLazo lazo={lazo} elementos={elementos} onTocar={tocarEnDiagrama}
+                    mover={moviendo ? { seleccionado: seleccionMover, onSoltar: soltarEnDiagrama } : undefined} />
                 </div>
                 {lazo.tipo === 'deteccion' && !hayVariosLazos && (
                   <button type="button" onClick={() => setAgregandoLazo(true)}
@@ -333,10 +442,11 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
                 )}
               </>
             )}
-          </>
-        )}
+            </div>
+          )}
+        </div>
 
-        {vista === 'falla' && (
+        {vistaActiva === 'falla' && (
           <BusquedaFalla lazo={lazo} elementos={elementos} falla={datos.falla} cortes={datos.cortes} resueltas={historial} onCambio={alCambiarFalla} onTocar={abrirFicha} />
         )}
       </div>
@@ -377,6 +487,34 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
           onColgar={() => { setHoja({ lugar: lugarColgandoDe(elementos, ficha), editando: null }); setFicha(null); }}
           onBorrar={() => alBorrarElemento(ficha)}
         />
+      )}
+
+      {destinoMover && (
+        <ModalOverlay onClose={() => !aplicandoMover && setDestinoMover(null)}>
+          <div className="glass-strong rounded-3xl max-w-sm w-full p-4">
+            <h2 className="font-display font-bold text-[20px]">Mover <span className="font-mono text-teal text-[17px]">{destinoMover.mover.nombre}</span></h2>
+            <p className="text-[13px] text-muted mb-3">¿Dónde va respecto a <b className="font-mono text-ink">{destinoMover.destino.nombre}</b>?</p>
+            <div className="flex flex-col gap-2">
+              {([
+                { modo: 'despues', texto: 'Después', detalle: 'Sigue en serie detrás de él', Icono: ArrowRightToLine },
+                { modo: 'antes', texto: 'Antes', detalle: 'Va en serie delante de él', Icono: ArrowLeftToLine },
+                { modo: 'colgar', texto: 'Colgando (rama nueva)', detalle: 'Sale de él como derivación', Icono: ArrowDownToLine },
+              ] as const).map(({ modo, texto, detalle, Icono }) => (
+                <button key={modo} type="button" onClick={() => aplicarMovimiento(modo)} disabled={aplicandoMover}
+                  className="min-h-[56px] rounded-xl border border-line bg-surface-2 hover:border-teal/60 px-3 flex items-center gap-3 text-left disabled:opacity-60">
+                  <span className="w-9 h-9 rounded-lg bg-teal/15 text-teal flex items-center justify-center shrink-0"><Icono size={18} strokeWidth={2.4} /></span>
+                  <span>
+                    <span className="block text-[14.5px] font-semibold">{texto}</span>
+                    <span className="block text-[12.5px] text-muted">{detalle}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+            <button type="button" onClick={() => setDestinoMover(null)} disabled={aplicandoMover} className="w-full mt-3 min-h-[44px] rounded-xl text-[14px] font-semibold text-muted">
+              {aplicandoMover ? 'Guardando…' : 'Cancelar'}
+            </button>
+          </div>
+        </ModalOverlay>
       )}
 
       {verHistorial && (
