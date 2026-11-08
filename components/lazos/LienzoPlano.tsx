@@ -34,7 +34,7 @@ const RADIO_TOQUE = 22;
 
 export default function LienzoPlano({
   imagenUrl, ancho, alto, sembrado, etiquetaDe, seleccion, trazo, colorTrazo, medida,
-  puedeArrastrar, ajustarPunto, onTocar, onDobleToque, onArrastreInicio, onArrastre, onArrastreFin,
+  ajustarPunto, onTocar, onDobleToque, onArrastreInicio, onArrastre, onArrastreFin,
   conexiones, colorPorLazo, resaltado, ayudaPuntero, guiasArrastre, nodos,
 }: {
   imagenUrl: string | null;
@@ -46,7 +46,6 @@ export default function LienzoPlano({
   trazo: Punto[];
   colorTrazo: string;
   medida: Punto[];
-  puedeArrastrar: boolean;
   // Cómo queda el siguiente toque de la tubería (a 90°, con codo, alineado).
   ajustarPunto: (p: Punto) => Ajuste;
   onTocar: (p: Punto, equipo: EquipoPlano | null, tuberia: TuberiaPlano | null) => void;
@@ -145,11 +144,10 @@ export default function LienzoPlano({
     const p = enMarco(ev);
     punteros.current.set(ev.pointerId, p);
     if (punteros.current.size === 1) {
-      let equipoId: string | null = null;
-      if (puedeArrastrar) {
-        const tocado = equipoEn(sembrado, aHoja(p.x, p.y), radioEnHoja(), r);
-        equipoId = tocado?.id || null;
-      }
+      // Si empieza sobre un equipo y el dedo se mueve, se arrastra el equipo
+      // (con cualquier herramienta); si no, se recorre el plano.
+      const tocado = equipoEn(sembrado, aHoja(p.x, p.y), radioEnHoja(), r);
+      const equipoId = tocado?.id || null;
       gesto.current = { tipo: 'posible', x: p.x, y: p.y, vista: vistaRef.current, equipoId };
       return;
     }

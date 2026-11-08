@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
-  Check, ChevronLeft, CloudOff, FileDown, Hand, Map as IconoPlano, Link2, Link2Off, Loader2, Minus, MoreVertical, Plus, RotateCcw, RotateCw, MousePointer2, PenLine, Ruler, Spline, Trash2, Undo2, Waypoints, X,
+  Check, ChevronLeft, CloudOff, FileDown, Hand, Map as IconoPlano, Link2, Link2Off, Loader2, Minus, MoreVertical, Plus, RotateCcw, RotateCw, MousePointer2, PenLine, Ruler, Spline, Redo2, Trash2, Undo2, Waypoints, X,
 } from 'lucide-react';
 import HojaCaptura from '@/components/lazos/HojaCaptura';
 import LienzoPlano, { type Seleccion } from '@/components/lazos/LienzoPlano';
@@ -83,6 +83,8 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   const estadoRef = useRef(estado);
   estadoRef.current = estado;
   const [historial, setHistorial] = useState<Estado[]>([]);
+  // Lo que se deshizo, para «Rehacer».
+  const [rehacer, setRehacer] = useState<Estado[]>([]);
   const [cambios, setCambios] = useState(0);
   const [guardado, setGuardado] = useState<EstadoGuardado>('guardado');
   const [errorGuardar, setErrorGuardar] = useState<string | null>(null);
@@ -217,11 +219,17 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     return () => window.removeEventListener('online', sincronizarLazos);
   }, [sincronizarLazos]);
 
-  function cambiar(nuevo: Estado) {
-    // El estado de antes se toma aquí, no dentro de setHistorial: React
-    // puede correr esa función ya con el estado nuevo y «Deshacer» no regresaría nada.
+  // Anota el estado actual para «Deshacer». Un cambio nuevo borra lo que se
+  // podía «Rehacer». El estado de antes se toma aquí, no dentro de
+  // setHistorial: React puede correr esa función ya con el estado nuevo.
+  function anotarEnHistorial() {
     const antes = estadoRef.current;
     setHistorial((h) => [...h.slice(-(HISTORIAL_MAXIMO - 1)), antes]);
+    setRehacer([]);
+  }
+
+  function cambiar(nuevo: Estado) {
+    anotarEnHistorial();
     setEstado(nuevo);
     setCambios((n) => n + 1);
   }
@@ -233,11 +241,46 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   function deshacer() {
     const anterior = historial[historial.length - 1];
     if (!anterior) return;
+    const actual = estadoRef.current;
     setHistorial((h) => h.slice(0, -1));
+    setRehacer((r) => [...r, actual]);
     setEstado(anterior);
     setSeleccion(null);
     setCambios((n) => n + 1);
   }
+
+  function rehacerCambio() {
+    const siguiente = rehacer[rehacer.length - 1];
+    if (!siguiente) return;
+    const actual = estadoRef.current;
+    setRehacer((r) => r.slice(0, -1));
+    setHistorial((h) => [...h.slice(-(HISTORIAL_MAXIMO - 1)), actual]);
+    setEstado(siguiente);
+    setSeleccion(null);
+    setCambios((n) => n + 1);
+  }
+
+  // Atajos: Ctrl+Z deshace; Ctrl+Y (o Ctrl+Shift+Z) rehace. En Mac, Cmd.
+  // No cuando se escribe en un campo (ahí el navegador deshace el texto).
+  const atajos = useRef({ deshacer, rehacerCambio });
+  atajos.current = { deshacer, rehacerCambio };
+  useEffect(() => {
+    function alTeclear(ev: KeyboardEvent) {
+      if (!(ev.ctrlKey || ev.metaKey) || ev.altKey) return;
+      const destino = ev.target as HTMLElement | null;
+      if (destino && (destino.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(destino.tagName))) return;
+      const tecla = ev.key.toLowerCase();
+      if (tecla === 'z' && !ev.shiftKey) {
+        ev.preventDefault();
+        atajos.current.deshacer();
+      } else if (tecla === 'y' || (tecla === 'z' && ev.shiftKey)) {
+        ev.preventDefault();
+        atajos.current.rehacerCambio();
+      }
+    }
+    window.addEventListener('keydown', alTeclear);
+    return () => window.removeEventListener('keydown', alTeclear);
+  }, []);
 
   // ---------- Dispositivos de los lazos ----------
 
@@ -593,10 +636,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   // Al arrastrar un equipo: se anota el estado de antes una sola vez para
   // que «Deshacer» lo regrese a donde estaba.
   function arrastreInicio(id: string) {
-    // El estado de antes se toma aquí, no dentro de setHistorial: React
-    // puede correr esa función ya con el estado nuevo y «Deshacer» no regresaría nada.
-    const antes = estadoRef.current;
-    setHistorial((h) => [...h.slice(-(HISTORIAL_MAXIMO - 1)), antes]);
+    anotarEnHistorial();
     setSeleccion({ tipo: 'equipo', id });
   }
 
@@ -796,9 +836,13 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
             ? <p className="text-[12px] text-amber flex items-center gap-1"><CloudOff size={12} /> Sin señal: copia guardada en este teléfono</p>
             : <EstadoDeGuardado estado={guardado} error={errorGuardar} onReintentar={subir} />}
         </div>
-        <button type="button" onClick={deshacer} disabled={historial.length === 0} aria-label="Deshacer" title="Deshacer"
+        <button type="button" onClick={deshacer} disabled={historial.length === 0} aria-label="Deshacer" title="Deshacer (Ctrl+Z)"
           className="w-11 h-11 rounded-xl border border-line bg-surface-2 flex items-center justify-center disabled:opacity-40">
           <Undo2 size={18} strokeWidth={2.4} />
+        </button>
+        <button type="button" onClick={rehacerCambio} disabled={rehacer.length === 0} aria-label="Rehacer" title="Rehacer (Ctrl+Y)"
+          className="w-11 h-11 rounded-xl border border-line bg-surface-2 flex items-center justify-center disabled:opacity-40">
+          <Redo2 size={18} strokeWidth={2.4} />
         </button>
         <button type="button" onClick={exportar} disabled={exportando}
           className="min-h-[44px] px-3.5 rounded-xl bg-teal text-inkOnAccent font-semibold text-[14px] flex items-center gap-1.5 disabled:opacity-60">
@@ -836,7 +880,6 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
             trazo={trazo}
             colorTrazo={colorTuberia(diametro)}
             medida={medida}
-            puedeArrastrar={herramienta === 'ver'}
             ajustarPunto={herramienta === 'tuberia' ? ajustarPunto : alinearEquipo}
             onTocar={alTocar}
             onDobleToque={() => { if (herramienta === 'tuberia' && trazo.length >= 2) terminarTramo(); }}
