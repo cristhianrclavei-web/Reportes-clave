@@ -1,18 +1,25 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { FileUp, Loader2 } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
 import { abrirPdf, miniaturaHoja, renderizarHoja, type PdfAbierto } from '@/lib/leerPlanoPdf';
 import { crearPlano } from '@/lib/planosDatos';
 import { escalaDesdeProporcion, nombrePlanoSchema } from '@/lib/planos';
+import {
+  UNIDADES, cajaDe, capaQueEstorba, cuentaPorCapa, decodificarDxf, leerDxf, primitivasDe, unidadProbable, type Primitiva,
+} from '@/lib/leerDxf';
+import { renderizarDxf, vistaPreviaDxf } from '@/lib/dibujarDxf';
 
 const CAMPO = 'w-full px-3.5 min-h-[46px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]';
 // Los planos de AutoCAD rara vez pasan de 20 MB; el bucket acepta 50.
 const PESO_MAXIMO = 40 * 1024 * 1024;
 
 type Errores = Partial<Record<'cliente' | 'nombre' | 'archivo' | 'escala', string>>;
+
+// Un DXF ya leído: lo que se dibuja, sus capas y las unidades.
+type DxfAbierto = { primitivas: Primitiva[]; capas: { nombre: string; cuantos: number }[]; unidadDetectada: number };
 
 // Subir un plano: el PDF exportado de AutoCAD, la hoja (si trae varias) y,
 // si se sabe, la escala a la que se imprimió.
@@ -28,6 +35,9 @@ export default function NuevoPlano({ clienteInicial, onCerrar, onCreado }: {
   const [pdf, setPdf] = useState<PdfAbierto | null>(null);
   const [miniaturas, setMiniaturas] = useState<string[]>([]);
   const [pagina, setPagina] = useState(1);
+  const [dxf, setDxf] = useState<DxfAbierto | null>(null);
+  const [ocultas, setOcultas] = useState<Set<string>>(new Set());
+  const [unidad, setUnidad] = useState(1);
   const [escala, setEscala] = useState('');
   const [leyendo, setLeyendo] = useState(false);
   const [guardando, setGuardando] = useState<string | null>(null);
@@ -39,8 +49,17 @@ export default function NuevoPlano({ clienteInicial, onCerrar, onCreado }: {
     if (!nuevo) return;
     setErrores({});
     setErrorGeneral(null);
-    if (nuevo.type !== 'application/pdf' && !nuevo.name.toLowerCase().endsWith('.pdf')) {
-      setErrores({ archivo: 'Elige un PDF. Desde AutoCAD: Imprimir → «DWG To PDF.pc3».' });
+    const nombreArchivo = nuevo.name.toLowerCase();
+    if (nombreArchivo.endsWith('.dwg')) {
+      setErrores({ archivo: 'El DWG no se puede leer directo. En AutoCAD: Guardar como → «AutoCAD DXF» y sube ese archivo.' });
+      return;
+    }
+    if (nombreArchivo.endsWith('.dxf')) {
+      await elegirDxf(nuevo);
+      return;
+    }
+    if (nuevo.type !== 'application/pdf' && !nombreArchivo.endsWith('.pdf')) {
+      setErrores({ archivo: 'Elige un PDF o un DXF. Desde AutoCAD: Imprimir → «DWG To PDF.pc3», o Guardar como → DXF.' });
       return;
     }
     if (nuevo.size > PESO_MAXIMO) {
@@ -51,6 +70,7 @@ export default function NuevoPlano({ clienteInicial, onCerrar, onCreado }: {
     try {
       const abierto = await abrirPdf(nuevo);
       setArchivo(nuevo);
+      setDxf(null);
       setPdf(abierto);
       setPagina(1);
       if (!nombre.trim()) setNombre(nuevo.name.replace(/\.pdf$/i, '').slice(0, 80));
@@ -65,12 +85,53 @@ export default function NuevoPlano({ clienteInicial, onCerrar, onCreado }: {
     setLeyendo(false);
   }
 
+  // DXF: se lee aquí mismo; se proponen unidades y capas a apagar.
+  async function elegirDxf(nuevo: File) {
+    if (nuevo.size > PESO_MAXIMO) {
+      setErrores({ archivo: 'El DXF pesa más de 40 MB. En AutoCAD purga el dibujo (PURGE) y quita referencias externas.' });
+      return;
+    }
+    setLeyendo(true);
+    // Deja que se pinte «Leyendo…» antes de trabajar.
+    await new Promise((r) => setTimeout(r, 30));
+    try {
+      const leido = leerDxf(decodificarDxf(await nuevo.arrayBuffer()));
+      const primitivas = primitivasDe(leido);
+      const caja = cajaDe(primitivas, new Set());
+      if (!caja) throw new Error('El DXF no trae nada que dibujar en el espacio modelo.');
+      const capas = [...cuentaPorCapa(primitivas)].map(([nombre, cuantos]) => ({ nombre, cuantos })).sort((a, b) => b.cuantos - a.cuantos);
+      const apagar = new Set(capas.filter((c) => leido.capas.get(c.nombre)?.apagada || capaQueEstorba(c.nombre)).map((c) => c.nombre));
+      const detectada = unidadProbable(leido.insunits, caja.maxX - caja.minX);
+      setArchivo(nuevo);
+      setPdf(null);
+      setMiniaturas([]);
+      setPagina(1);
+      setDxf({ primitivas, capas, unidadDetectada: detectada });
+      setOcultas(apagar);
+      setUnidad(detectada);
+      if (!nombre.trim()) setNombre(nuevo.name.replace(/\.dxf$/i, '').slice(0, 80));
+    } catch (e: any) {
+      setErrores({ archivo: e?.message || 'No se pudo leer el DXF. Guárdalo de nuevo desde AutoCAD como DXF.' });
+    }
+    setLeyendo(false);
+  }
+
+  function alternarCapa(capa: string) {
+    const nuevas = new Set(ocultas);
+    if (nuevas.has(capa)) nuevas.delete(capa);
+    else nuevas.add(capa);
+    setOcultas(nuevas);
+  }
+
+  const vistaDxf = useMemo(() => (dxf ? vistaPreviaDxf(dxf.primitivas, ocultas) : null), [dxf, ocultas]);
+
   function validar(): Errores {
     const e: Errores = {};
     if (!clienteId) e.cliente = 'Elige el cliente de la lista.';
     const n = nombrePlanoSchema.safeParse(nombre);
     if (!n.success) e.nombre = n.error.issues[0].message;
-    if (!archivo || !pdf) e.archivo = 'Elige el PDF del plano.';
+    if (!archivo || (!pdf && !dxf)) e.archivo = 'Elige el PDF o el DXF del plano.';
+    if (dxf && !vistaDxf) e.archivo = 'Con esas capas apagadas no queda nada que dibujar.';
     if (escala.trim() && !escalaDesdeProporcion(Number(escala))) e.escala = 'Escribe solo el número: para 1:100 pon 100.';
     return e;
   }
@@ -79,7 +140,12 @@ export default function NuevoPlano({ clienteInicial, onCerrar, onCreado }: {
     const e = validar();
     setErrores(e);
     setErrorGeneral(null);
-    if (Object.keys(e).length > 0 || !archivo || !pdf || !clienteId) return;
+    if (Object.keys(e).length > 0 || !archivo || !clienteId) return;
+    if (dxf) {
+      await guardarDxf(dxf);
+      return;
+    }
+    if (!pdf) return;
     try {
       setGuardando('Preparando el plano…');
       const hoja = await renderizarHoja(pdf, pagina);
@@ -101,11 +167,37 @@ export default function NuevoPlano({ clienteInicial, onCerrar, onCreado }: {
     }
   }
 
+  // El DXF se dibuja con las capas elegidas; la escala sale de sus unidades.
+  async function guardarDxf(abierto: DxfAbierto) {
+    if (!archivo || !clienteId) return;
+    try {
+      setGuardando('Dibujando el plano…');
+      await new Promise((r) => setTimeout(r, 30));
+      const hoja = await renderizarDxf(abierto.primitivas, ocultas);
+      setGuardando('Subiendo…');
+      const id = await crearPlano({
+        clienteId,
+        nombre: nombre.trim(),
+        pdf: archivo,
+        pagina: 1,
+        imagen: hoja.imagen,
+        ancho: hoja.ancho,
+        alto: hoja.alto,
+        metrosPorUnidad: hoja.transformacion.k * unidad,
+        dxf: { ...hoja.transformacion, unidad },
+      });
+      onCreado(id);
+    } catch (err: any) {
+      setErrorGeneral(err?.message || 'No se pudo subir el plano. Revisa tu señal e intenta de nuevo.');
+      setGuardando(null);
+    }
+  }
+
   return (
     <ModalOverlay onClose={() => !guardando && onCerrar()}>
       <div className="glass-strong rounded-3xl max-w-lg w-full p-5 max-h-[88vh] overflow-y-auto">
         <h2 className="font-display font-bold text-[22px]">Nuevo plano</h2>
-        <p className="text-[13px] text-muted mt-1 mb-4">Exporta desde AutoCAD a PDF con «DWG To PDF.pc3», una hoja por nivel, en gris y sin cotas ni mobiliario.</p>
+        <p className="text-[13px] text-muted mt-1 mb-4">Sube el <b>DXF</b> (AutoCAD: Guardar como → DXF; el sembrado regresa a AutoCAD en su lugar exacto) o un PDF exportado con «DWG To PDF.pc3», una hoja por nivel.</p>
 
         {!clienteInicial && (
           <>
@@ -115,12 +207,12 @@ export default function NuevoPlano({ clienteInicial, onCerrar, onCreado }: {
           </>
         )}
 
-        <span className="block text-[13px] text-muted mt-4 mb-1.5">PDF del plano</span>
-        <input ref={entrada} type="file" accept="application/pdf,.pdf" className="hidden" onChange={(ev) => elegirArchivo(ev.target.files?.[0])} />
+        <span className="block text-[13px] text-muted mt-4 mb-1.5">Plano (DXF o PDF)</span>
+        <input ref={entrada} type="file" accept=".dxf,application/dxf,image/vnd.dxf,application/pdf,.pdf" className="hidden" onChange={(ev) => elegirArchivo(ev.target.files?.[0])} />
         <button type="button" onClick={() => entrada.current?.click()} disabled={leyendo || !!guardando}
           className="w-full min-h-[64px] rounded-2xl border-2 border-dashed border-line hover:border-teal/60 bg-surface-2 flex items-center justify-center gap-2.5 text-[14.5px] font-semibold">
           {leyendo ? <Loader2 size={20} className="animate-spin" /> : <FileUp size={20} strokeWidth={2.2} />}
-          {leyendo ? 'Leyendo el PDF…' : archivo ? archivo.name : 'Elegir PDF'}
+          {leyendo ? 'Leyendo el plano…' : archivo ? archivo.name : 'Elegir DXF o PDF'}
         </button>
         {errores.archivo && <p className="text-red font-semibold text-[13px] mt-1">{errores.archivo}</p>}
 
@@ -146,10 +238,43 @@ export default function NuevoPlano({ clienteInicial, onCerrar, onCreado }: {
           </>
         )}
 
+ {dxf && (
+          <>
+            <span className="block text-[13px] text-muted mt-4 mb-1.5">Así se verá (sin las capas apagadas)</span>
+            <div className="rounded-xl border border-line bg-white p-1">
+              {vistaDxf
+                // eslint-disable-next-line @next/next/no-img-element
+                ? <img src={vistaDxf} alt="Vista previa del plano" className="w-full max-h-[220px] object-contain" />
+                : <p className="text-[13px] text-slate-600 p-4 text-center">Con esas capas apagadas no queda nada.</p>}
+            </div>
+
+            <label htmlFor="plano-unidad" className="block text-[13px] text-muted mt-4 mb-1.5">Unidades del dibujo</label>
+            <select id="plano-unidad" value={unidad} onChange={(ev) => setUnidad(Number(ev.target.value))} className={CAMPO}>
+              {UNIDADES.map((u) => (
+                <option key={u.nombre} value={u.metros}>{u.nombre}{u.metros === dxf.unidadDetectada ? ' (detectado)' : ''}</option>
+              ))}
+            </select>
+            <p className="text-[12px] text-faint mt-1.5">Con esto la app ya sabe la escala: no hay que calibrar.</p>
+
+            <span className="block text-[13px] text-muted mt-4 mb-1.5">Capas ({dxf.capas.length - ocultas.size} de {dxf.capas.length} encendidas)</span>
+            <div className="rounded-xl border border-line bg-surface-2 max-h-[200px] overflow-y-auto divide-y divide-line">
+              {dxf.capas.map((c) => (
+                <label key={c.nombre} className="flex items-center gap-2.5 px-3 min-h-[42px] text-[13.5px]">
+                  <input type="checkbox" checked={!ocultas.has(c.nombre)} onChange={() => alternarCapa(c.nombre)} className="w-5 h-5 accent-teal" />
+                  <span className="flex-1 min-w-0 truncate">{c.nombre}</span>
+                  <span className="text-[12px] text-faint font-mono">{c.cuantos}</span>
+                </label>
+              ))}
+            </div>
+            <p className="text-[12px] text-faint mt-1.5">Ya vienen apagadas cotas, mobiliario y vegetación; enciende o apaga lo que necesites.</p>
+          </>
+        )}
+
         <label htmlFor="plano-nombre" className="block text-[13px] text-muted mt-4 mb-1.5">Nombre</label>
         <input id="plano-nombre" value={nombre} onChange={(ev) => setNombre(ev.target.value)} maxLength={80} placeholder="Planta baja" className={CAMPO} />
         {errores.nombre && <p className="text-red font-semibold text-[13px] mt-1">{errores.nombre}</p>}
 
+        {!dxf && (<>
         <label htmlFor="plano-escala" className="block text-[13px] text-muted mt-4 mb-1.5">Escala de impresión (opcional)</label>
         <div className="flex items-center gap-2">
           <span className="font-mono text-[15px] whitespace-nowrap shrink-0">1 :</span>
@@ -157,6 +282,7 @@ export default function NuevoPlano({ clienteInicial, onCerrar, onCreado }: {
         </div>
         <p className="text-[12px] text-faint mt-1.5">Si no la sabes, déjala vacía: en el plano la calibras marcando una medida real.</p>
         {errores.escala && <p className="text-red font-semibold text-[13px] mt-1">{errores.escala}</p>}
+        </>)}
 
         {errorGeneral && <p className="text-red font-semibold text-[13px] mt-3">{errorGeneral}</p>}
 

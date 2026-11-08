@@ -19,6 +19,7 @@ import {
 } from '@/lib/lazos';
 import { guardarElemento, listarPaneles, pendientesDeLazo, subirPendientes } from '@/lib/lazosDatos';
 import { alinear, arrastrarNodo, enderezar, insertarNodo, siguientesPuntos, type Union, type Ajuste, type Guias, type ModoTrazo } from '@/lib/trazoRecto';
+import type { LineaConexion, MarcaConexion } from '@/lib/conexionesPlano';
 import { colorDeLazo, conectarTramo, conexionesEnPlano, lugarParaConectar, lugarTramoSinConectar, revisarLazo, tieneSiguiente } from '@/lib/conexionesPlano';
 import {
   DIAMETROS, TIPOS_TUBERIA, cantidadesDeEquipos, cantidadesDeTuberia, colorTuberia, distancia,
@@ -127,6 +128,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   const [tipoNuevo, setTipoNuevo] = useState<string | null>(null);
   const [hoja, setHoja] = useState<HojaPlano | null>(null);
   const [borrando, setBorrando] = useState(false);
+  const [exportandoDxf, setExportandoDxf] = useState(false);
 
   // ---------- Carga ----------
 
@@ -877,7 +879,13 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     }
     setExportando(true);
     try {
-      const [{ exportarPlanoPdf }, original] = await Promise.all([import('@/lib/exportarPlanoPdf'), descargarPdfOriginal(plano.pdf_path)]);
+      // Plano en DXF: el fondo es su imagen (en PNG, que es lo que acepta el PDF).
+      const esDxf = plano.formato === 'dxf';
+      const [{ exportarPlanoPdf }, original] = await Promise.all([
+        import('@/lib/exportarPlanoPdf'),
+        descargarPdfOriginal(esDxf ? plano.imagen_path : plano.pdf_path),
+      ]);
+      const fondoPng = esDxf ? await aPng(original) : null;
       let clientes = catalogoEnCache();
       if (!clientes.some((c) => c.id === plano.cliente_id)) clientes = await listarCatalogoClientes().catch(() => clientes);
       const cliente = clientes.find((c) => c.id === plano.cliente_id)?.nombre || 'Cliente';
@@ -885,7 +893,8 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
       for (const [id, { elemento, lazo }] of elementosPorId) etiquetas.set(id, etiquetaDeElemento(elemento, lazo));
       const bytes = await exportarPlanoPdf({
         plano: { ...plano, sembrado: estado.sembrado, metros_por_unidad: estado.metros },
-        pdfOriginal: original,
+        pdfOriginal: esDxf ? null : original,
+        fondoPng,
         cliente,
         etiquetas,
         conexiones,
@@ -990,6 +999,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
           </button>
           {menu && (
             <div className="absolute right-0 top-12 w-52 rounded-2xl bg-surface border border-line shadow-xl p-1.5 z-30">
+              <button type="button" onClick={() => { setMenu(false); setExportandoDxf(true); }} className="w-full text-left min-h-[44px] px-3 rounded-xl hover:bg-surface-2 flex items-center gap-2 text-[14.5px]"><FileDown size={16} /> Exportar a AutoCAD (DXF)</button>
               <button type="button" onClick={renombrar} className="w-full text-left min-h-[44px] px-3 rounded-xl hover:bg-surface-2 flex items-center gap-2 text-[14.5px]"><PenLine size={16} /> Cambiar nombre</button>
             </div>
           )}
@@ -1175,6 +1185,19 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
         </aside>
       </div>
 
+      {exportandoDxf && (
+        <ExportarDxf
+          plano={{ ...plano, sembrado: estado.sembrado, metros_por_unidad: estado.metros }}
+          etiquetaDe={(id) => {
+            const equipo = estado.sembrado.equipos.find((e) => e.id === id);
+            return equipo ? etiquetaDe(equipo) : '';
+          }}
+          conexiones={conexiones}
+          lazos={lazos.map((l) => ({ id: l.id, codigo: l.codigo }))}
+          onCerrar={() => setExportandoDxf(false)}
+        />
+      )}
+
       {borrando && (
         <ConfirmarBorrarPlano
           nombre={plano.nombre}
@@ -1203,7 +1226,122 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   );
 }
 
+// La imagen del plano (WebP) convertida a PNG para meterla al PDF.
+async function aPng(bytes: ArrayBuffer): Promise<Uint8Array> {
+  const mapa = await createImageBitmap(new Blob([bytes]));
+  const lienzo = document.createElement('canvas');
+  lienzo.width = mapa.width;
+  lienzo.height = mapa.height;
+  lienzo.getContext('2d')?.drawImage(mapa, 0, 0);
+  const png = await new Promise<Blob>((resolver, rechazar) => lienzo.toBlob((b) => (b ? resolver(b) : rechazar(new Error('No se pudo preparar la imagen del plano.'))), 'image/png'));
+  lienzo.width = 0;
+  lienzo.height = 0;
+  return new Uint8Array(await png.arrayBuffer());
+}
+
 // ---------- Piezas ----------
+
+// Exportar a AutoCAD: plano DXF → coordenadas reales; plano PDF → a escala
+// real en las unidades que use su dibujo (luego se acomoda con ALINEAR).
+const UNIDADES_DESTINO = [
+  { nombre: 'Metros', metros: 1 },
+  { nombre: 'Centímetros', metros: 0.01 },
+  { nombre: 'Milímetros', metros: 0.001 },
+];
+
+function ExportarDxf({ plano, etiquetaDe, conexiones, lazos, onCerrar }: {
+  plano: Plano;
+  etiquetaDe: (equipoId: string) => string;
+  conexiones: { lineas: LineaConexion[]; marcas: MarcaConexion[] };
+  lazos: { id: string; codigo: string }[];
+  onCerrar: () => void;
+}) {
+  const esDxf = plano.formato === 'dxf' && Boolean(plano.dxf);
+  const [unidad, setUnidad] = useState(() => {
+    try {
+      return Number(localStorage.getItem('unidadAutocad')) || 1;
+    } catch {
+      return 1;
+    }
+  });
+  const [trabajando, setTrabajando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function exportar() {
+    if (!navigator.onLine) {
+      setError('Descargar el DXF necesita señal. Intenta cuando tengas conexión.');
+      return;
+    }
+    setTrabajando(true);
+    setError(null);
+    try {
+      try {
+        localStorage.setItem('unidadAutocad', String(unidad));
+      } catch {
+        // Sin localStorage: la próxima vez se vuelve a elegir.
+      }
+      const { exportarPlanoDxf, colocacionDe } = await import('@/lib/exportarPlanoDxf');
+      const bytes = exportarPlanoDxf({ plano, colocacion: colocacionDe(plano, unidad), etiquetaDe, conexiones, lazos });
+      const nombre = `sembrado-${plano.nombre}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/gi, '-');
+      const url = await entregarPdf(plano.id, bytes, nombre, 'dxf');
+      window.location.assign(url);
+      onCerrar();
+    } catch (e: any) {
+      setError(e?.message || 'No se pudo generar el DXF. Intenta de nuevo.');
+      setTrabajando(false);
+    }
+  }
+
+  return (
+    <ModalOverlay onClose={() => !trabajando && onCerrar()}>
+      <div className="glass-strong rounded-3xl max-w-md w-full p-5">
+        <h2 className="font-display font-bold text-[21px]">Exportar a AutoCAD</h2>
+        <p className="text-[13px] text-muted mt-1">
+          Un DXF con los equipos como bloques (FA_SH, FA_EMA…), la tubería por tipo y diámetro y las conexiones de cada lazo, cada cosa en su capa FA-*.
+        </p>
+
+        {esDxf ? (
+          <div className="mt-4 rounded-xl border border-teal/40 bg-teal/10 p-3 text-[13.5px]">
+            <p className="font-semibold">Coordenadas reales del dibujo</p>
+            <p className="mt-1 text-muted">Este plano se subió en DXF: todo cae en su lugar exacto. En AutoCAD, en tu DWG:</p>
+            <ol className="mt-1.5 list-decimal pl-5 flex flex-col gap-0.5">
+              <li>Insertar → Bloque → «Examinar» y elige el DXF.</li>
+              <li>Punto de inserción <b>0,0</b>, escala <b>1</b>, giro <b>0</b> (sin «Especificar en pantalla»).</li>
+              <li>Descompón (DESCOMP / EXPLODE) si quieres los bloques sueltos.</li>
+            </ol>
+          </div>
+        ) : (
+          <>
+            <label htmlFor="dxf-unidad" className="block text-[13px] text-muted mt-4 mb-1.5">¿En qué unidades está dibujado tu plano de AutoCAD?</label>
+            <select id="dxf-unidad" value={unidad} onChange={(ev) => setUnidad(Number(ev.target.value))}
+              className="w-full px-3.5 min-h-[46px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]">
+              {UNIDADES_DESTINO.map((u) => <option key={u.metros} value={u.metros}>{u.nombre}</option>)}
+            </select>
+            {!plano.metros_por_unidad && (
+              <p className="mt-2 text-[12.5px] text-amber font-semibold">Este plano no tiene escala: el DXF no saldrá a tamaño real. Ponla en «Escala» antes de exportar.</p>
+            )}
+            <div className="mt-3 rounded-xl border border-line bg-surface-2 p-3 text-[13px]">
+              <p className="font-semibold">Este plano se subió en PDF</p>
+              <p className="mt-1 text-muted">Sale a escala real, pero hay que acomodarlo: inserta el DXF en tu DWG y usa <b>ALINEAR</b> (ALIGN) con dos puntos que reconozcas (dos esquinas de muro). Para que caiga solo en su lugar, sube el plano en DXF.</p>
+            </div>
+          </>
+        )}
+
+        {error && <p className="mt-3 rounded-xl bg-red/10 text-red text-[13px] font-semibold px-3 py-2">{error}</p>}
+
+        <div className="flex gap-2 mt-5">
+          <button type="button" onClick={onCerrar} disabled={trabajando}
+            className="flex-1 min-h-[48px] rounded-xl bg-surface-2 border border-line font-semibold text-[14.5px] disabled:opacity-50">Cancelar</button>
+          <button type="button" onClick={exportar} disabled={trabajando}
+            className="flex-[1.4] min-h-[48px] rounded-xl bg-teal text-inkOnAccent font-semibold text-[14.5px] flex items-center justify-center gap-2 disabled:opacity-60">
+            {trabajando ? <Loader2 size={17} className="animate-spin" /> : <FileDown size={17} strokeWidth={2.4} />}
+            {trabajando ? 'Preparando…' : 'Descargar DXF'}
+          </button>
+        </div>
+      </div>
+    </ModalOverlay>
+  );
+}
 
 // Confirmación para eliminar el plano: qué se borra, qué no, y que no se
 // puede deshacer. Mientras borra no se puede cerrar.

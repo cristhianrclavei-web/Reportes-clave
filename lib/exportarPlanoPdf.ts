@@ -50,7 +50,10 @@ function dibujarSimbolo(hoja: PDFPage, fuente: PDFFont, tipo: string, cx: number
 
 export type DatosExportar = {
   plano: Plano;
-  pdfOriginal: ArrayBuffer | Uint8Array;
+  // El fondo: la hoja del PDF original (vectorial) o, si el plano vino en
+  // DXF, su imagen en PNG.
+  pdfOriginal: ArrayBuffer | Uint8Array | null;
+  fondoPng?: Uint8Array | null;
   cliente: string;
   // Texto junto a cada equipo ligado a un dispositivo (dirección o nombre).
   etiquetas: Map<string, string>;
@@ -82,12 +85,7 @@ function dibujarConexion(hoja: PDFPage, desde: { x: number; y: number }, hasta: 
   hoja.drawSvgPath(camino, { x: (desde.x + hasta.x) / 2, y: (desde.y + hasta.y) / 2, color: tinta });
 }
 
-export async function exportarPlanoPdf({ plano, pdfOriginal, cliente, etiquetas, conexiones, lazos = [] }: DatosExportar): Promise<Uint8Array> {
-  const original = await PDFDocument.load(pdfOriginal, { ignoreEncryption: true });
-  const paginaOriginal = original.getPage(plano.pagina - 1);
-  const caja = paginaOriginal.getCropBox();
-  const giro = paginaOriginal.getRotation().angle;
-
+export async function exportarPlanoPdf({ plano, pdfOriginal, fondoPng, cliente, etiquetas, conexiones, lazos = [] }: DatosExportar): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
   pdf.setTitle(texto(`Sembrado - ${plano.nombre}`));
   const fuente = await pdf.embedFont(StandardFonts.Helvetica);
@@ -97,9 +95,18 @@ export async function exportarPlanoPdf({ plano, pdfOriginal, cliente, etiquetas,
   const W = plano.ancho;
   const H = plano.alto;
   const hoja = pdf.addPage([W, H]);
-  const embebida = await pdf.embedPage(paginaOriginal, { left: caja.x, bottom: caja.y, right: caja.x + caja.width, top: caja.y + caja.height });
-  const lugar = colocacionDePagina(giro, caja.width, caja.height);
-  hoja.drawPage(embebida, { x: lugar.x, y: lugar.y, rotate: degrees(lugar.giro) });
+  if (pdfOriginal) {
+    const original = await PDFDocument.load(pdfOriginal, { ignoreEncryption: true });
+    const paginaOriginal = original.getPage(plano.pagina - 1);
+    const caja = paginaOriginal.getCropBox();
+    const giro = paginaOriginal.getRotation().angle;
+    const embebida = await pdf.embedPage(paginaOriginal, { left: caja.x, bottom: caja.y, right: caja.x + caja.width, top: caja.y + caja.height });
+    const lugar = colocacionDePagina(giro, caja.width, caja.height);
+    hoja.drawPage(embebida, { x: lugar.x, y: lugar.y, rotate: degrees(lugar.giro) });
+  } else if (fondoPng) {
+    const imagen = await pdf.embedPng(fondoPng);
+    hoja.drawImage(imagen, { x: 0, y: 0, width: W, height: H });
+  }
 
   const rNormal = tamanoSimbolo(W, H) / 2;
   for (const t of plano.sembrado.tuberias) {

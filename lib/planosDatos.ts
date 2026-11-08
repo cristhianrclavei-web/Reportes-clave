@@ -142,7 +142,9 @@ export async function otrosPlanosDelCliente(clienteId: string, planoId: string):
 export type NuevoPlano = {
   clienteId: string;
   nombre: string;
+  // El archivo original: PDF, o DXF de AutoCAD (con `dxf`).
   pdf: File;
+  dxf?: { x0: number; y1: number; k: number; unidad: number } | null;
   pagina: number;
   imagen: Blob;
   ancho: number;
@@ -156,11 +158,12 @@ export async function crearPlano(datos: NuevoPlano): Promise<string> {
   const id = crypto.randomUUID();
   const carpeta = `lazos/planos/${id}`;
   const extension = datos.imagen.type === 'image/webp' ? 'webp' : 'png';
-  const pdfPath = `${carpeta}/plano.pdf`;
+  const esDxf = Boolean(datos.dxf);
+  const pdfPath = `${carpeta}/${esDxf ? 'plano.dxf' : 'plano.pdf'}`;
   const imagenPath = `${carpeta}/hoja-${datos.pagina}.${extension}`;
 
-  const subidaPdf = await supabase.storage.from('evidencias').upload(pdfPath, datos.pdf, { contentType: 'application/pdf' });
-  if (subidaPdf.error) throw new Error(mensajeError(subidaPdf.error, 'subir el PDF del plano'));
+  const subidaPdf = await supabase.storage.from('evidencias').upload(pdfPath, datos.pdf, { contentType: esDxf ? 'application/dxf' : 'application/pdf' });
+  if (subidaPdf.error) throw new Error(mensajeError(subidaPdf.error, esDxf ? 'subir el DXF del plano' : 'subir el PDF del plano'));
   const subidaImagen = await supabase.storage.from('evidencias').upload(imagenPath, datos.imagen, { contentType: datos.imagen.type });
   if (subidaImagen.error) throw new Error(mensajeError(subidaImagen.error, 'subir la imagen del plano'));
 
@@ -174,6 +177,8 @@ export async function crearPlano(datos: NuevoPlano): Promise<string> {
     ancho: datos.ancho,
     alto: datos.alto,
     metros_por_unidad: datos.metrosPorUnidad,
+    // Solo los DXF llevan estas columnas: así un PDF se sube aunque falte el patch.
+    ...(esDxf ? { formato: 'dxf', dxf: datos.dxf } : {}),
   });
   // shortcut: si falla aquí los archivos quedan huérfanos en Storage (no hay política de borrado en lazos/); limpiar a mano si pasa seguido.
   if (error) throw new Error(mensajeError(error, 'guardar el plano'));
@@ -289,15 +294,17 @@ export async function descargarPdfOriginal(path: string): Promise<ArrayBuffer> {
   return data.arrayBuffer();
 }
 
-// El PDF exportado se sube y se abre con un enlace firmado de otro dominio:
-// así también funciona en la app de Android (su visor no abre blobs).
-export async function entregarPdf(planoId: string, bytes: Uint8Array, nombreArchivo: string): Promise<string> {
+// El PDF (o DXF) exportado se sube y se abre con un enlace firmado de otro
+// dominio: así también funciona en la app de Android (su visor no abre blobs).
+export async function entregarPdf(planoId: string, bytes: Uint8Array, nombreArchivo: string, extension: 'pdf' | 'dxf' = 'pdf'): Promise<string> {
   const supabase = createClient();
+  const tipo = extension === 'pdf' ? 'application/pdf' : 'application/dxf';
+  const que = extension === 'pdf' ? 'el PDF' : 'el DXF';
   // shortcut: cada exportación deja un archivo en lazos/planos/<id>/pdf/; limpiar con un cron si llegan a pesar.
-  const ruta = `lazos/planos/${planoId}/pdf/${nombreArchivo}-${Date.now()}.pdf`;
-  const subida = await supabase.storage.from('evidencias').upload(ruta, new Blob([bytes as BlobPart], { type: 'application/pdf' }), { contentType: 'application/pdf' });
-  if (subida.error) throw new Error(mensajeError(subida.error, 'preparar el PDF para descargar'));
-  const firmado = await supabase.storage.from('evidencias').createSignedUrl(ruta, 600, { download: `${nombreArchivo}.pdf` });
-  if (firmado.error || !firmado.data) throw new Error(mensajeError(firmado.error, 'preparar el enlace del PDF'));
+  const ruta = `lazos/planos/${planoId}/pdf/${nombreArchivo}-${Date.now()}.${extension}`;
+  const subida = await supabase.storage.from('evidencias').upload(ruta, new Blob([bytes as BlobPart], { type: tipo }), { contentType: tipo });
+  if (subida.error) throw new Error(mensajeError(subida.error, `preparar ${que} para descargar`));
+  const firmado = await supabase.storage.from('evidencias').createSignedUrl(ruta, 600, { download: `${nombreArchivo}.${extension}` });
+  if (firmado.error || !firmado.data) throw new Error(mensajeError(firmado.error, `preparar el enlace del ${extension.toUpperCase()}`));
   return firmado.data.signedUrl;
 }

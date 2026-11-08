@@ -48,6 +48,10 @@ export type Plano = {
   ancho: number;
   alto: number;
   metros_por_unidad: number | null;
+  // 'dxf' (patch_lazos_planos_dxf.sql): el original es un DXF y `dxf` dice
+  // cómo volver a sus coordenadas: X = x0 + x·k ; Y = y1 − y·k.
+  formato?: 'pdf' | 'dxf';
+  dxf?: { x0: number; y1: number; k: number; unidad: number } | null;
   sembrado: Sembrado;
   creado_en: string;
   actualizado_en: string;
