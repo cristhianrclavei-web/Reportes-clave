@@ -309,16 +309,22 @@ export async function generateLazoPdf(lazo: Lazo, elementos: Elemento[], cliente
   // Cada rama larga: su título y su línea. Si el título y el primer
   // renglón no caben, empieza en otra hoja.
   for (const bloque of acomodo.bloques) {
-    const rotulo = `RAMA ${bloque.letra}`;
+    const rotulo = bloque.origen ? `RAMA ${bloque.letra}` : 'SIN CONECTAR';
     if (y - 110 < ABAJO) hojaNueva('DIAGRAMA UNIFILAR');
     y -= 16;
     page.drawLine({ start: { x: MARGIN, y: y + 6 }, end: { x: ANCHO - MARGIN, y: y + 6 }, thickness: 0.5, color: GRAY_LINE, dashArray: [3, 2] });
-    const etiqueta = `Rama ${bloque.letra}`;
+    const etiqueta = bloque.origen ? `Rama ${bloque.letra}` : 'Sin conectar';
     const anchoEtiqueta = bold.widthOfTextAtSize(etiqueta, 8) + 12;
     page.drawRectangle({ x: MARGIN, y: y - 18, width: anchoEtiqueta, height: 16, color: NAVY });
     page.drawText(etiqueta, { x: MARGIN + 6, y: y - 13, size: 8, font: bold, color: WHITE });
-    const direccion = direccionVisible(bloque.origen.direccion, lazo.numero);
-    const detalle = t(`sale de ${bloque.origen.nombre}${direccion ? ` (${direccion})` : ''} · ${cuantosEnRama(elementos, bloque.linea[0].id)} dispositivos`);
+    const cuantos = cuantosEnRama(elementos, bloque.linea[0].id);
+    let detalle: string;
+    if (bloque.origen) {
+      const direccion = direccionVisible(bloque.origen.direccion, lazo.numero);
+      detalle = t(`sale de ${bloque.origen.nombre}${direccion ? ` (${direccion})` : ''} · ${cuantos} dispositivos`);
+    } else {
+      detalle = t(`falta unirlo al lazo · ${cuantos} dispositivos`);
+    }
     page.drawText(detalle, { x: MARGIN + anchoEtiqueta + 8, y: y - 13, size: 7.5, font, color: GRAY_TEXT });
     y -= 18;
     dibujarLinea(bloque.linea, `DIAGRAMA UNIFILAR · ${rotulo}`);

@@ -200,6 +200,7 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
       nivel: partes.nivel.trim() || null,
       referencia: partes.referencia.trim() || null,
       foto_path: editando?.foto_path || null,
+      sin_conectar: editando ? Boolean(editando.sin_conectar) : Boolean(lugar.sinConectar),
       creado_por: editando?.creado_por,
       creado_en: editando?.creado_en,
     };
@@ -234,7 +235,7 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
       }
       // Siguiente: en la línea principal, después del que se guardó; en una
       // rama, en serie colgando de él (y lo que seguía, después del siguiente).
-      if (elemento.padre_id) {
+      if (elemento.padre_id || elemento.sin_conectar) {
         setLugar({ padreId: elemento.id, ordenAntes: null, ordenDespues: null, adoptar: lugar.adoptar });
       } else {
         setLugar({ padreId: null, ordenAntes: elemento.orden, ordenDespues: lugar.ordenDespues });
@@ -278,7 +279,7 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
   }
 
   const titulo = editando ? `Corregir ${editando.nombre}` : `Agregar dispositivo${capturados ? ` · ${capturados} capturados` : ''}`;
-  const anterior = editando || lugar.padreId ? null : elementos.find((x) => x.orden === lugar.ordenAntes && !x.padre_id) || null;
+  const anterior = editando || lugar.padreId || lugar.sinConectar ? null : elementos.find((x) => x.orden === lugar.ordenAntes && !x.padre_id) || null;
   const siguienteEnRama = lugar.adoptar?.length ? elementos.find((x) => x.id === lugar.adoptar?.[0]) || null : null;
   const ramaNueva = Boolean(padre && !siguienteEnRama && hijosDe(elementos, padre.id).length > 0);
 
@@ -290,10 +291,10 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
         </div>
         {!editando && (
           <p className="text-[12.5px] text-muted mb-3">
-            {padre ? <>Cuelga de <span className="font-mono">{etiqueta(padre)}</span></> : 'Línea principal'}
+            {padre ? <>Cuelga de <span className="font-mono">{etiqueta(padre)}</span></> : lugar.sinConectar ? 'Tramo sin conectar (se une al lazo después)' : 'Línea principal'}
             {ramaNueva && ' · rama nueva'}
             {siguienteEnRama && <> · antes de <span className="font-mono">{etiqueta(siguienteEnRama)}</span></>}
-            {anterior ? <> · después de <span className="font-mono">{etiqueta(anterior)}</span></> : padre ? '' : ' · al inicio'}
+            {anterior ? <> · después de <span className="font-mono">{etiqueta(anterior)}</span></> : padre || lugar.sinConectar ? '' : ' · al inicio'}
           </p>
         )}
 

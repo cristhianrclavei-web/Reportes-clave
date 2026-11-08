@@ -354,9 +354,10 @@ async function ejecutar(p: Pendiente) {
   const resultado = await supabase.from(p.tabla).upsert(p.fila);
   // Sin patch_lazos_ubicacion.sql la base no tiene área/nivel/referencia: se
   // guarda sin ellas (no se pierde nada, todo va junto en `ubicacion`).
-  const faltanPartes = p.tabla === 'lazo_elementos' && /\b(area|nivel|referencia)\b/.test(resultado.error?.message || '');
+  const faltanPartes = p.tabla === 'lazo_elementos' && /\b(area|nivel|referencia|sin_conectar)\b/.test(resultado.error?.message || '');
   if (!faltanPartes) return resultado;
-  const { area, nivel, referencia, ...sinPartes } = p.fila;
+  // Sin patch_lazos_sin_conectar.sql tampoco existe sin_conectar.
+  const { area, nivel, referencia, sin_conectar, ...sinPartes } = p.fila;
   return supabase.from(p.tabla).upsert(sinPartes);
 }
 

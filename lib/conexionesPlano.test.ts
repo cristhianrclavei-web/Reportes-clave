@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ordenEntre, type Elemento } from './lazos';
-import { anteriorDe, conexionesEnPlano, lugarParaConectar, revisarLazo, tieneSiguiente } from './conexionesPlano';
+import { enOrdenDeRecorrido, lineaPrincipal, ordenEntre, type Elemento } from './lazos';
+import { anteriorDe, conectarTramo, conexionesEnPlano, lugarParaConectar, lugarTramoSinConectar, revisarLazo, tieneSiguiente } from './conexionesPlano';
 
 function el(id: string, orden: number, extra: Partial<Elemento> = {}): Elemento {
   return { id, lazo_id: 'L', padre_id: null, orden, tipo: 'SH', nombre: id, direccion: null, ubicacion: null, foto_path: null, ...extra };
@@ -112,5 +112,45 @@ describe('revisión del lazo', () => {
     const conDirecciones = [el('a', 1, { direccion: 'D1' }), el('b', 2, { direccion: 'D1' }), el('c', 3, { direccion: 'D2' })];
     const avisos = revisarLazo({ tipo: 'deteccion', clase: 'B' }, conDirecciones, new Set(['a']), texto);
     expect(avisos).toEqual(['Dirección repetida: D1.', '2 dispositivos todavía no están en ningún plano.']);
+  });
+});
+
+describe('tramo sin conectar (otro nivel que se une después)', () => {
+  // Línea a → b. Tramo suelto: s1 → s2 → s3 (capturado en otro nivel).
+  const conTramo = [
+    el('a', 1), el('b', 2),
+    el('s1', 1, { sin_conectar: true }), el('s2', 1, { padre_id: 's1' }), el('s3', 1, { padre_id: 's2' }),
+  ];
+  const porId = (id: string) => conTramo.find((e) => e.id === id) as Elemento;
+
+  it('no cuenta en la línea hasta que se une, pero sí en el recorrido (al final)', () => {
+    expect(lineaPrincipal(conTramo).map((e) => e.id)).toEqual(['a', 'b']);
+    expect(enOrdenDeRecorrido(conTramo).map((e) => e.id)).toEqual(['a', 'b', 's1', 's2', 's3']);
+    expect(anteriorDe(conTramo, porId('s1'))).toBeNull();
+  });
+
+  it('un tramo nuevo queda marcado sin conectar y lo siguiente cuelga de él', () => {
+    expect(lugarTramoSinConectar(conTramo).sinConectar).toBe(true);
+    expect(lugarParaConectar(conTramo, porId('s3'), false).padreId).toBe('s3');
+  });
+
+  it('al unirlo después del último, su serie pasa a la línea principal en orden', () => {
+    const cambios = conectarTramo(conTramo, 's1', porId('b'), false);
+    const unido = conTramo.map((e) => cambios.find((c) => c.id === e.id) || e);
+    expect(lineaPrincipal(unido).map((e) => e.id)).toEqual(['a', 'b', 's1', 's2', 's3']);
+    expect(unido.some((e) => e.sin_conectar)).toBe(false);
+  });
+
+  it('si el dispositivo ya tiene siguiente, queda como rama; o en medio si se pide', () => {
+    const rama = conectarTramo(conTramo, 's1', porId('a'), false);
+    expect(rama).toHaveLength(1);
+    expect(rama[0].padre_id).toBe('a');
+    const enMedio = conectarTramo(conTramo, 's1', porId('a'), true);
+    const unido = conTramo.map((e) => enMedio.find((c) => c.id === e.id) || e);
+    expect(lineaPrincipal(unido).map((e) => e.id)).toEqual(['a', 's1', 's2', 's3', 'b']);
+  });
+
+  it('no se une consigo mismo', () => {
+    expect(() => conectarTramo(conTramo, 's1', porId('s3'), false)).toThrow();
   });
 });

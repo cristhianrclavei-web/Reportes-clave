@@ -11,15 +11,15 @@ import SimboloPlano from '@/components/lazos/SimboloPlano';
 import { girar } from '@/lib/simbolosPlano';
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
-import { pedirTexto } from '@/lib/dialogos';
+import { confirmar, pedirTexto } from '@/lib/dialogos';
 import { catalogoEnCache, listarCatalogoClientes } from '@/lib/clientesCatalogo';
 import {
-  PANEL_EN_PLANO, TIPOS_POR_CIRCUITO, direccionVisible, enOrdenDeRecorrido, hijosDe, lineaPrincipal, lugarDespuesDe, tipoDispositivo,
+  PANEL_EN_PLANO, TIPOS_POR_CIRCUITO, cuantosEnRama, direccionVisible, enOrdenDeRecorrido, esInicioSinConectar, idsSinConectar, tramosSinConectar, hijosDe, lineaPrincipal, lugarDespuesDe, tipoDispositivo,
   type Elemento, type Lugar, type Panel,
 } from '@/lib/lazos';
-import { listarPaneles, pendientesDeLazo, subirPendientes } from '@/lib/lazosDatos';
+import { guardarElemento, listarPaneles, pendientesDeLazo, subirPendientes } from '@/lib/lazosDatos';
 import { alinear, arrastrarNodo, enderezar, insertarNodo, siguientesPuntos, type Union, type Ajuste, type Guias, type ModoTrazo } from '@/lib/trazoRecto';
-import { colorDeLazo, conexionesEnPlano, lugarParaConectar, revisarLazo, tieneSiguiente } from '@/lib/conexionesPlano';
+import { colorDeLazo, conectarTramo, conexionesEnPlano, lugarParaConectar, lugarTramoSinConectar, revisarLazo, tieneSiguiente } from '@/lib/conexionesPlano';
 import {
   DIAMETROS, TIPOS_TUBERIA, cantidadesDeEquipos, cantidadesDeTuberia, colorTuberia, distancia,
   escalaDesdeMedida, escalaDesdeProporcion, formatoMetros, longitudEnHoja, metrosDeTuberia, nombrePlanoSchema,
@@ -37,7 +37,8 @@ type EstadoGuardado = 'guardado' | 'guardando' | 'pendiente' | 'error';
 type PorColocar = { tipo: string; elementoId: string | null; panelId?: string | null };
 type Estado = { sembrado: Sembrado; metros: number | null };
 // De dónde sale el siguiente al conectar: el panel o un dispositivo.
-type Desde = 'panel' | string;
+// 'suelto': un tramo nuevo que todavía no se une al lazo (otro nivel).
+type Desde = 'panel' | 'suelto' | string;
 // Hoja de captura abierta desde el plano: un dispositivo nuevo (en un equipo
 // suelto o en un punto vacío) o corregir uno ya ligado.
 type HojaPlano = {
@@ -406,7 +407,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
 
   // Al conectar: tocar un dispositivo del lazo = seguir desde él; tocar un
   // equipo suelto o un punto vacío = capturar el siguiente ahí.
-  function tocarAlConectar(p: Punto, equipo: EquipoPlano | null) {
+  async function tocarAlConectar(p: Punto, equipo: EquipoPlano | null) {
     if (!lazoActivo) {
       showToast('Elige abajo el lazo que vas a conectar', 'error');
       setPanelAbierto(true);
@@ -427,6 +428,18 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
         showToast(`Ese es de ${ligado.lazo.codigo}. Cámbiate a ese lazo abajo para seguir desde él.`, 'error');
         return;
       }
+      // El primero de un tramo sin conectar, tocado con un origen ya elegido:
+      // se ofrece unir el tramo ahí.
+      if (esInicioSinConectar(ligado.elemento) && desde && desde !== 'suelto' && desde !== ligado.elemento.id) {
+        const origenTexto = desde === 'panel' ? 'el panel' : elementoDesde ? textoDeElemento(elementoDesde, lazoActivo) : '';
+        const unir = await confirmar(`¿Unir el tramo de ${ligado.elemento.nombre} después de ${origenTexto}?`, {
+          detalle: `Son ${cuantosEnRama(lazoActivo.elementos, ligado.elemento.id)} dispositivos que hoy están sin conectar. Si solo quieres seguir trazando desde él, cancela.`,
+        });
+        if (unir) {
+          await unirTramo(ligado.elemento.id);
+          return;
+        }
+      }
       elegirDesde(ligado.elemento.id);
       return;
     }
@@ -435,7 +448,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
       setPanelAbierto(true);
       return;
     }
-    const origen = desde === 'panel' ? 'panel' : lazoActivo.elementos.find((e) => e.id === desde);
+    const origen = desde === 'panel' || desde === 'suelto' ? desde : lazoActivo.elementos.find((e) => e.id === desde);
     if (!origen) {
       setDesde(null);
       showToast('Ese dispositivo ya no está en el lazo. Toca de dónde sale el cable.', 'error');
@@ -448,12 +461,40 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     }
     setHoja({
       lazo: lazoActivo,
-      lugar: lugarParaConectar(lazoActivo.elementos, origen, enMedio),
+      lugar: origen === 'suelto' ? lugarTramoSinConectar(lazoActivo.elementos) : lugarParaConectar(lazoActivo.elementos, origen, enMedio),
       editando: null,
       equipoId: equipo ? equipo.id : null,
       punto: equipo ? null : alinearEquipo(p).puntos[0],
       tipo,
     });
+  }
+
+  // Une un tramo sin conectar después de lo elegido en «Sale de». Cada
+  // dispositivo que cambia se guarda (sin señal, a la cola del lazo).
+  async function unirTramo(inicioId: string) {
+    if (!lazoActivo || !desde || desde === 'suelto') {
+      showToast('Primero elige de dónde sale: el último del otro nivel, un dispositivo o el panel.', 'error');
+      return;
+    }
+    const origen = desde === 'panel' ? 'panel' : lazoActivo.elementos.find((e) => e.id === desde);
+    if (!origen) return;
+    try {
+      const cambios = conectarTramo(lazoActivo.elementos, inicioId, origen, enMedio);
+      let pendiente = false;
+      for (const elemento of cambios) {
+        const resultado = await guardarElemento(elemento);
+        pendiente = pendiente || resultado.pendiente;
+        ponerElementoEnLazos(elemento);
+      }
+      setPendientesLazos(contarPendientesLazos());
+      if (pendiente && navigator.onLine) sincronizarLazos();
+      // Lo siguiente sale del último del tramo que se unió.
+      const ultimoUnido = cambios.length > 1 ? cambios[cambios.length - 1] : null;
+      if (ultimoUnido) setDesde(ultimoUnido.id);
+      showToast(pendiente ? 'Tramo unido en el teléfono; sube al tener señal' : 'Tramo unido al lazo');
+    } catch (e: any) {
+      showToast(e?.message || 'No se pudo unir el tramo.', 'error');
+    }
   }
 
   // El lazo cambió (se capturó o corrigió un dispositivo): se actualiza aquí
@@ -985,7 +1026,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
             onNodoFin={nodoFin}
           />
           <AyudaFlotante herramienta={herramienta} porColocar={porColocar} trazo={trazo.length} medida={medida.length}
-            desde={desde === 'panel' ? 'el panel' : elementoDesde && lazoActivo ? textoDeElemento(elementoDesde, lazoActivo) : null}
+            desde={desde === 'panel' ? 'el panel' : desde === 'suelto' ? 'un tramo sin conectar' : elementoDesde && lazoActivo ? textoDeElemento(elementoDesde, lazoActivo) : null}
             etiqueta={porColocar?.elementoId ? (() => {
             const l = elementosPorId.get(porColocar.elementoId!);
             return l ? `${l.elemento.nombre}${l.elemento.direccion ? ` · ${etiquetaDeElemento(l.elemento, l.lazo)}` : ''}` : '';
@@ -1069,6 +1110,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
                   desde={desde}
                   elementoDesde={elementoDesde}
                   onDesde={elegirDesde}
+                  onUnirTramo={unirTramo}
                   enMedio={enMedio}
                   onEnMedio={setEnMedio}
                   tipoNuevo={tipoNuevo}
@@ -1406,7 +1448,7 @@ function PanelEquipos({ paneles, panelDondeEsta, faltantesPorLazo, porColocar, o
 }
 
 function PanelConectar({
-  lazos, lazoActivo, colorPorLazo, onElegirLazo, desde, elementoDesde, onDesde, enMedio, onEnMedio, tipoNuevo, onTipoNuevo,
+  lazos, lazoActivo, colorPorLazo, onElegirLazo, desde, elementoDesde, onDesde, onUnirTramo, enMedio, onEnMedio, tipoNuevo, onTipoNuevo,
   textoDe, planoDe, sembrados, pendientes, rechazo, clienteId,
 }: {
   lazos: LazoConElementos[];
@@ -1416,6 +1458,7 @@ function PanelConectar({
   desde: Desde | null;
   elementoDesde: Elemento | null;
   onDesde: (d: Desde) => void;
+  onUnirTramo: (inicioId: string) => void;
   enMedio: boolean;
   onEnMedio: (v: boolean) => void;
   tipoNuevo: string | null;
@@ -1437,12 +1480,16 @@ function PanelConectar({
   }
 
   // El último del recorrido, por si el lazo sigue desde otro plano.
-  const recorrido = lazoActivo ? enOrdenDeRecorrido(lazoActivo.elementos) : [];
+  // El último ya conectado del recorrido, por si el lazo sigue desde otro plano.
+  const sueltosDelLazo = lazoActivo ? idsSinConectar(lazoActivo.elementos) : new Set<string>();
+  const recorrido = lazoActivo ? enOrdenDeRecorrido(lazoActivo.elementos).filter((e) => !sueltosDelLazo.has(e.id)) : [];
   const ultimo = recorrido[recorrido.length - 1] || null;
+  const tramos = lazoActivo ? tramosSinConectar(lazoActivo.elementos) : [];
+  const textoDesde = desde === 'panel' ? 'el panel' : elementoDesde && lazoActivo ? textoDe(elementoDesde, lazoActivo) : null;
   // Qué le sigue a `desde` hoy (para ofrecer rama o en medio).
   let siguiente: Elemento | null = null;
   if (lazoActivo && elementoDesde && tieneSiguiente(lazoActivo.elementos, elementoDesde)) {
-    if (elementoDesde.padre_id) {
+    if (elementoDesde.padre_id || esInicioSinConectar(elementoDesde)) {
       siguiente = hijosDe(lazoActivo.elementos, elementoDesde.id)[0] || null;
     } else {
       const principal = lineaPrincipal(lazoActivo.elementos);
@@ -1476,12 +1523,14 @@ function PanelConectar({
         <>
           <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-faint mt-4 mb-1.5">Sale de</p>
           <p className="text-[14px] font-semibold">
-            {desde === 'panel' ? 'El panel' : elementoDesde ? textoDe(elementoDesde, lazoActivo) : <span className="text-muted font-normal">Toca en el plano el dispositivo del que sale el cable.</span>}
+            {desde === 'panel' ? 'El panel' : desde === 'suelto' ? 'Tramo nuevo sin conectar (lo unes después)' : elementoDesde ? textoDe(elementoDesde, lazoActivo) : <span className="text-muted font-normal">Toca en el plano el dispositivo del que sale el cable.</span>}
             {elementoDesde && planoDe.has(elementoDesde.id) && <span className="text-muted font-normal"> (en {planoDe.get(elementoDesde.id)})</span>}
           </p>
           <div className="flex flex-wrap gap-1.5 mt-2">
             <button type="button" onClick={() => onDesde('panel')} aria-pressed={desde === 'panel'}
               className={`min-h-[38px] px-3 rounded-lg border text-[13px] ${desde === 'panel' ? 'border-teal bg-teal/15' : 'border-line bg-surface-2'}`}>Desde el panel</button>
+            <button type="button" onClick={() => onDesde('suelto')} aria-pressed={desde === 'suelto'}
+              className={`min-h-[38px] px-3 rounded-lg border text-[13px] ${desde === 'suelto' ? 'border-amber bg-amber/15' : 'border-line bg-surface-2'}`}>Tramo sin conectar</button>
             {ultimo && ultimo.id !== desde && (
               <button type="button" onClick={() => onDesde(ultimo.id)}
                 className="min-h-[38px] px-3 rounded-lg border border-line bg-surface-2 text-[13px] text-left">
@@ -1500,6 +1549,40 @@ function PanelConectar({
                 <input type="radio" checked={enMedio} onChange={() => onEnMedio(true)} className="w-4 h-4 accent-teal" />
                 En medio, antes de <span className="font-mono">{textoDe(siguiente, lazoActivo)}</span>
               </label>
+            </div>
+          )}
+
+          {desde === 'suelto' && (
+            <p className="mt-2 text-[12.5px] text-muted">El primero que pongas queda «Sin conectar» y los siguientes se conectan a él. Cuando termines el otro nivel, únelo desde aquí abajo.</p>
+          )}
+
+          {tramos.length > 0 && (
+            <div className="mt-4 rounded-xl border border-amber/50 bg-amber/10 p-3">
+              <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-amber mb-1.5">Tramos sin conectar</p>
+              <div className="flex flex-col gap-2">
+                {tramos.map((inicio) => {
+                  const cuantos = cuantosEnRama(lazoActivo.elementos, inicio.id);
+                  const donde = planoDe.get(inicio.id) || (sembrados.has(inicio.id) ? 'este plano' : null);
+                  const puedeUnir = Boolean(textoDesde) && desde !== inicio.id;
+                  return (
+                    <div key={inicio.id} className="flex items-center gap-2">
+                      <span className="flex-1 min-w-0 text-[13px]">
+                        <span className="font-mono font-semibold">{textoDe(inicio, lazoActivo)}</span>
+                        <span className="text-muted"> · {cuantos} {cuantos === 1 ? 'dispositivo' : 'dispositivos'}{donde ? ` · ${donde}` : ''}</span>
+                      </span>
+                      <button type="button" onClick={() => onUnirTramo(inicio.id)} disabled={!puedeUnir}
+                        className="shrink-0 min-h-[38px] px-3 rounded-lg bg-teal text-inkOnAccent text-[12.5px] font-semibold disabled:opacity-40">
+                        Unir aquí
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-[12px] text-muted mt-2">
+                {textoDesde
+                  ? <>«Unir aquí» lo conecta después de <span className="font-mono">{textoDesde}</span>.</>
+                  : 'Elige en «Sale de» dónde se conecta (por ejemplo «Seguir desde el último» del otro nivel) y toca «Unir aquí».'}
+              </p>
             </div>
           )}
 

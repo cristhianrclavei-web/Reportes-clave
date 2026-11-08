@@ -8,7 +8,7 @@
 // que se conecta en el plano aparece en el unifilar y al revés.
 
 import {
-  hijosDe, lineaPrincipal, lugarAlFinal, lugarAntesDe, lugarColgandoDe, lugarDespuesDe,
+  esInicioSinConectar, hijosDe, lineaPrincipal, ordenEntre, tramosSinConectar, lugarAlFinal, lugarAntesDe, lugarColgandoDe, lugarDespuesDe,
   type Elemento, type Lazo, type Lugar,
 } from './lazos';
 import type { Punto, Sembrado } from './planos';
@@ -19,6 +19,8 @@ import type { Punto, Sembrado } from './planos';
 // dispositivo anterior en la línea, o del que cuelga (en una rama).
 export function anteriorDe(elementos: Elemento[], elemento: Elemento): 'panel' | Elemento | null {
   if (elemento.padre_id) return elementos.find((e) => e.id === elemento.padre_id) || null;
+  // Primero de un tramo sin conectar: todavía no le llega de ningún lado.
+  if (esInicioSinConectar(elemento)) return null;
   const principal = lineaPrincipal(elementos);
   const i = principal.findIndex((e) => e.id === elemento.id);
   if (i <= 0) return 'panel';
@@ -28,7 +30,7 @@ export function anteriorDe(elementos: Elemento[], elemento: Elemento): 'panel' |
 // ¿Ya sale algo de él? En la línea principal: el siguiente de la línea.
 // En una rama: lo que cuelga de él.
 export function tieneSiguiente(elementos: Elemento[], elemento: Elemento): boolean {
-  if (elemento.padre_id) return hijosDe(elementos, elemento.id).length > 0;
+  if (elemento.padre_id || esInicioSinConectar(elemento)) return hijosDe(elementos, elemento.id).length > 0;
   const principal = lineaPrincipal(elementos);
   const i = principal.findIndex((e) => e.id === elemento.id);
   return i >= 0 && i < principal.length - 1;
@@ -46,6 +48,73 @@ export function lugarParaConectar(elementos: Elemento[], desde: 'panel' | Elemen
   }
   if (tieneSiguiente(elementos, desde) && !enMedio) return lugarColgandoDe(elementos, desde);
   return lugarDespuesDe(elementos, desde);
+}
+
+// Un tramo nuevo que todavía no se une al lazo (otro nivel, por ejemplo):
+// se arma y se conecta después con conectarTramo.
+export function lugarTramoSinConectar(elementos: Elemento[]): Lugar {
+  const tramos = tramosSinConectar(elementos);
+  const ultimo = tramos[tramos.length - 1];
+  return { padreId: null, ordenAntes: ultimo ? ultimo.orden : null, ordenDespues: null, sinConectar: true };
+}
+
+// Une un tramo sin conectar (el que empieza en `inicioId`) después de
+// `desde`. Si queda al final de la línea principal (o en medio, si se pide),
+// el tramo en serie pasa a ser parte de la línea; si `desde` ya tiene
+// siguiente, el tramo cuelga de él como rama. Devuelve los que cambian.
+export function conectarTramo(elementos: Elemento[], inicioId: string, desde: 'panel' | Elemento, enMedio: boolean): Elemento[] {
+  const inicio = elementos.find((e) => e.id === inicioId);
+  if (!inicio || !esInicioSinConectar(inicio)) throw new Error('Ese tramo ya está conectado.');
+  if (desde !== 'panel' && enSuTramo(elementos, inicio, desde)) throw new Error('No se puede unir un tramo consigo mismo.');
+
+  // En una rama, o si ya sale algo y no se pidió en medio: cuelga como rama.
+  const comoRama = desde !== 'panel' && (Boolean(desde.padre_id) || (tieneSiguiente(elementos, desde) && !enMedio));
+  if (desde !== 'panel' && comoRama) {
+    const hijos = hijosDe(elementos, desde.id);
+    const ultimoHijo = hijos[hijos.length - 1];
+    return [{ ...inicio, padre_id: desde.id, orden: ordenEntre(ultimoHijo ? ultimoHijo.orden : null, null), sin_conectar: false }];
+  }
+
+  // A la línea principal: la serie del tramo, uno tras otro, entre `desde` y el que seguía.
+  const principal = lineaPrincipal(elementos);
+  let antes: number | null;
+  let despues: number | null;
+  if (desde === 'panel') {
+    antes = null;
+    despues = principal[0] ? principal[0].orden : null;
+  } else {
+    const i = principal.findIndex((e) => e.id === desde.id);
+    antes = desde.orden;
+    despues = principal[i + 1] ? principal[i + 1].orden : null;
+  }
+  const serie: Elemento[] = [inicio];
+  while (serie.length < 500) {
+    const hijos = hijosDe(elementos, serie[serie.length - 1].id);
+    if (hijos.length !== 1) break;
+    serie.push(hijos[0]);
+  }
+  const cambios: Elemento[] = [];
+  serie.forEach((e, k) => {
+    let orden: number;
+    if (antes === null && despues === null) orden = k + 1;
+    else if (despues === null) orden = (antes as number) + k + 1;
+    else if (antes === null) orden = despues - (serie.length - k);
+    else orden = antes + ((despues - antes) * (k + 1)) / (serie.length + 1);
+    cambios.push({ ...e, padre_id: null, orden, sin_conectar: false });
+  });
+  return cambios;
+}
+
+// ¿`otro` es parte del tramo que empieza en `inicio`?
+function enSuTramo(elementos: Elemento[], inicio: Elemento, otro: Elemento): boolean {
+  let actual: Elemento | undefined = otro;
+  let vueltas = 0;
+  while (actual && vueltas < 500) {
+    if (actual.id === inicio.id) return true;
+    actual = actual.padre_id ? elementos.find((e) => e.id === actual?.padre_id) : undefined;
+    vueltas++;
+  }
+  return false;
 }
 
 // ---------- Lo que se dibuja ----------
@@ -94,7 +163,10 @@ export function conexionesEnPlano(
     for (const elemento of lazo.elementos) {
       const aqui = posicion.get(elemento.id) || null;
       const anterior = anteriorDe(lazo.elementos, elemento);
-      if (anterior === null) continue;
+      if (anterior === null) {
+        if (aqui && esInicioSinConectar(elemento)) marcar(lazo.id, aqui, '« Sin conectar');
+        continue;
+      }
       if (anterior === 'panel') {
         // El cable sale del panel: línea si el panel está sembrado aquí.
         const panelAqui = lazo.panel_id ? posicion.get(lazo.panel_id) || null : panelSinRegistro;
@@ -141,6 +213,9 @@ export function revisarLazo(
   for (const e of elementos) if (e.direccion) porDireccion.set(e.direccion, (porDireccion.get(e.direccion) || 0) + 1);
   const repetidas = [...porDireccion].filter(([, cuantos]) => cuantos > 1).map(([direccion]) => textoDireccion(direccion));
   if (repetidas.length > 0) avisos.push(`Dirección repetida: ${repetidas.join(', ')}.`);
+
+  const sueltos = tramosSinConectar(elementos).length;
+  if (sueltos > 0) avisos.push(`${sueltos} ${sueltos === 1 ? 'tramo sin conectar' : 'tramos sin conectar'}: falta unirlo al lazo.`);
 
   const sinPlano = elementos.filter((e) => !enAlgunPlano.has(e.id)).length;
   if (sinPlano > 0) avisos.push(`${sinPlano} ${sinPlano === 1 ? 'dispositivo todavía no está' : 'dispositivos todavía no están'} en ningún plano.`);

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import { Simbolo } from '@/components/lazos/DiagramaLazo';
-import { Elemento, Lazo, conteoPorNivel, conteoPorTipo, direccionVisible, hijosDe, lineaPrincipal, sinDireccion, tipoDispositivo } from '@/lib/lazos';
+import { Elemento, Lazo, conteoPorNivel, conteoPorTipo, direccionVisible, hijosDe, idsSinConectar, lineaPrincipal, sinDireccion, tipoDispositivo, tramosSinConectar } from '@/lib/lazos';
 
 // Pestaña «Lista en orden»: arriba el resumen del lazo (cuántos hay y de qué
 // tipo) y abajo los dispositivos en el orden del cable. Lo que cuelga de un
@@ -17,7 +17,8 @@ function cuantosCuelgan(elementos: Elemento[], id: string): number {
 
 function ResumenLazo({ lazo, elementos }: { lazo: Lazo; elementos: Elemento[] }) {
   const enLinea = lineaPrincipal(elementos).length;
-  const enRamas = elementos.length - enLinea;
+  const sinConectar = idsSinConectar(elementos).size;
+  const enRamas = elementos.length - enLinea - sinConectar;
   const tipos = conteoPorTipo(elementos);
   const faltan = sinDireccion(elementos);
   const porNivel = conteoPorNivel(elementos);
@@ -41,8 +42,8 @@ function ResumenLazo({ lazo, elementos }: { lazo: Lazo; elementos: Elemento[] })
             <dd className="font-semibold text-[14px]">{enLinea}</dd>
           </div>
           <div className="rounded-lg bg-surface-2 px-2 py-1.5">
-            <dt className="text-faint">En ramas</dt>
-            <dd className="font-semibold text-[14px]">{enRamas}</dd>
+            <dt className="text-faint">{sinConectar > 0 ? 'En ramas · sin conectar' : 'En ramas'}</dt>
+            <dd className="font-semibold text-[14px]">{enRamas}{sinConectar > 0 && <span className="text-amber"> · {sinConectar}</span>}</dd>
           </div>
           {lazo.tipo === 'deteccion' && (
             <>
@@ -186,6 +187,16 @@ export default function ListaEnOrden({ lazo, elementos, onTocar }: {
       {principal.length === 0
         ? <p className="text-[14px] text-muted py-6">Todavía no hay dispositivos. Toca «Agregar dispositivo» y captura en el orden en que corre el cable.</p>
         : <ol className="divide-y divide-line">{renglones(principal, 0, false)}</ol>}
+      {/* Capturados en otro nivel que todavía no se unen al lazo. */}
+      {tramosSinConectar(elementos).map((inicio) => (
+        <section key={inicio.id} className="mt-4 pt-3 border-t border-dashed border-line-strong">
+          <p className="flex items-center gap-2 text-[12.5px] text-muted mb-1">
+            <span className="rounded-md bg-amber text-black font-mono text-[11.5px] font-bold px-2 py-0.5">Sin conectar</span>
+            Falta unirlo al lazo
+          </p>
+          <ol className="ml-[13px] pl-2.5 border-l-2 border-amber/50">{renglones([inicio], 1, true)}</ol>
+        </section>
+      ))}
     </>
   );
 }

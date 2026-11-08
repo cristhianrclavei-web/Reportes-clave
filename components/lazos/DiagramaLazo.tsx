@@ -261,15 +261,20 @@ export default function DiagramaLazo({
         {dibujarLinea(acomodo.principal)}
 
         {acomodo.bloques.map((bloque) => {
-          const direccion = direccionVisible(bloque.origen.direccion, lazo.numero);
+          const { origen } = bloque;
+          const direccion = origen ? direccionVisible(origen.direccion, lazo.numero) : '';
           const total = bloque.linea.length + bloque.linea.reduce((s, e, i) => s + colgantesEnLinea(elementos, bloque.linea, i).reduce((t, c) => t + 1 + contarDebajo(c.id), 0), 0);
           return (
-            <section key={bloque.letra} id={idBloque(bloque.letra)} className="mt-5 pt-3 border-t border-dashed border-line-strong scroll-mt-28" aria-label={`Rama ${bloque.letra}`}>
+            <section key={bloque.letra} id={idBloque(bloque.letra)} className="mt-5 pt-3 border-t border-dashed border-line-strong scroll-mt-28" aria-label={origen ? `Rama ${bloque.letra}` : 'Tramo sin conectar'}>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="rounded-md bg-teal text-inkOnAccent font-mono text-[12px] font-bold px-2 py-0.5">Rama {bloque.letra}</span>
+                {origen
+                  ? <span className="rounded-md bg-teal text-inkOnAccent font-mono text-[12px] font-bold px-2 py-0.5">Rama {bloque.letra}</span>
+                  : <span className="rounded-md bg-amber text-black font-mono text-[12px] font-bold px-2 py-0.5">Sin conectar</span>}
                 <span className="text-[12px] text-muted flex items-center gap-1">
                   <CornerDownRight size={13} strokeWidth={2.4} aria-hidden="true" />
-                  sale de <button type="button" onClick={() => onTocar?.(bloque.origen)} className="font-mono text-ink hover:underline">{bloque.origen.nombre}</button>
+                  {origen
+                    ? <>sale de <button type="button" onClick={() => onTocar?.(origen)} className="font-mono text-ink hover:underline">{origen.nombre}</button></>
+                    : 'falta unirlo al lazo'}
                   {direccion && <span className="font-mono text-faint">{direccion}</span>}
                   <span className="text-faint">· {total} {total === 1 ? 'dispositivo' : 'dispositivos'}</span>
                 </span>

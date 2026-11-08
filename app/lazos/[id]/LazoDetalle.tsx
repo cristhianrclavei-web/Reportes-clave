@@ -171,6 +171,20 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
           await guardarElemento(movido);
           elementos = elementos.map((e) => (e.id === hijo.id ? movido : e));
         }
+      } else if (elemento.sin_conectar) {
+        // Primero de un tramo sin conectar: el siguiente pasa a ser el primero
+        // (y lo demás que colgaba, de él), para no borrar todo el tramo.
+        const [nuevoPrimero, ...otros] = hijosDe(elementos, elemento.id);
+        if (nuevoPrimero) {
+          const primero = { ...nuevoPrimero, padre_id: null, orden: elemento.orden, sin_conectar: true };
+          await guardarElemento(primero);
+          elementos = elementos.map((e) => (e.id === primero.id ? primero : e));
+          for (const hijo of otros) {
+            const movido = { ...hijo, padre_id: primero.id };
+            await guardarElemento(movido);
+            elementos = elementos.map((e) => (e.id === hijo.id ? movido : e));
+          }
+        }
       }
       const resultado = await borrarElemento(lazoId, elemento.id);
       const quitar = new Set([elemento.id, ...descendientes(elementos, elemento.id)]);

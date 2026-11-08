@@ -49,6 +49,9 @@ export type Elemento = {
   nivel?: string | null;
   referencia?: string | null;
   foto_path: string | null;
+  // Primero de un tramo que todavía no se une al lazo (patch_lazos_sin_conectar.sql):
+  // se captura un nivel antes de saber dónde se conecta. Solo cuenta sin padre.
+  sin_conectar?: boolean;
   creado_por?: string;
   creado_en?: string;
 };
@@ -163,7 +166,24 @@ function porOrden(a: Elemento, b: Elemento): number {
 
 // Dispositivos de la línea principal, del panel al final.
 export function lineaPrincipal(elementos: Elemento[]): Elemento[] {
-  return elementos.filter((e) => !e.padre_id).sort(porOrden);
+  return elementos.filter((e) => !e.padre_id && !e.sin_conectar).sort(porOrden);
+}
+
+// ¿Es el primero de un tramo sin conectar?
+export function esInicioSinConectar(e: Elemento): boolean {
+  return !e.padre_id && Boolean(e.sin_conectar);
+}
+
+// Primeros de los tramos sin conectar, en el orden en que se crearon.
+export function tramosSinConectar(elementos: Elemento[]): Elemento[] {
+  return elementos.filter(esInicioSinConectar).sort(porOrden);
+}
+
+// Todos los que están en un tramo sin conectar (el primero y lo que cuelga).
+export function idsSinConectar(elementos: Elemento[]): Set<string> {
+  const ids = new Set<string>();
+  for (const inicio of tramosSinConectar(elementos)) for (const id of subarbol(elementos, inicio.id)) ids.add(id);
+  return ids;
 }
 
 // Lo que cuelga de un dispositivo, en su orden.
@@ -383,6 +403,8 @@ export function enOrdenDeRecorrido(elementos: Elemento[]): Elemento[] {
     for (const hijo of hijosDe(elementos, e.id)) agregar(hijo, vueltas + 1);
   }
   for (const e of lineaPrincipal(elementos)) agregar(e, 0);
+  // Al final, lo que falta unir al lazo.
+  for (const e of tramosSinConectar(elementos)) agregar(e, 0);
   return resultado;
 }
 
@@ -563,7 +585,8 @@ export function describirCambio(c: Cambio, numeroLazo: number | null, nombreDe: 
 // estrella); dentro de una rama, lo que sigue en serie cuelga del anterior.
 // `adoptar`: dispositivos que pasan a colgar del nuevo (al insertar en medio
 // de una rama, lo que seguía queda después del nuevo).
-export type Lugar = { padreId: string | null; ordenAntes: number | null; ordenDespues: number | null; adoptar?: string[] };
+// `sinConectar`: el nuevo es el primero de un tramo que todavía no se une al lazo.
+export type Lugar = { padreId: string | null; ordenAntes: number | null; ordenDespues: number | null; adoptar?: string[]; sinConectar?: boolean };
 
 // Lugar al final de la línea principal.
 export function lugarAlFinal(elementos: Elemento[]): Lugar {
@@ -575,7 +598,8 @@ export function lugarAlFinal(elementos: Elemento[]): Lugar {
 // Lugar justo después de un dispositivo. En una rama: en serie después de
 // él, y lo que seguía pasa a seguir al nuevo.
 export function lugarDespuesDe(elementos: Elemento[], elemento: Elemento): Lugar {
-  if (elemento.padre_id) {
+  // En una rama o en un tramo sin conectar, lo que sigue cuelga de él.
+  if (elemento.padre_id || esInicioSinConectar(elemento)) {
     return { padreId: elemento.id, ordenAntes: null, ordenDespues: null, adoptar: hijosDe(elementos, elemento.id).map((h) => h.id) };
   }
   const hermanos = elemento.padre_id ? hijosDe(elementos, elemento.padre_id) : lineaPrincipal(elementos);
@@ -587,6 +611,10 @@ export function lugarDespuesDe(elementos: Elemento[], elemento: Elemento): Lugar
 // Lugar justo antes de un dispositivo. En una rama, el nuevo toma su lugar
 // y él pasa a colgar del nuevo.
 export function lugarAntesDe(elementos: Elemento[], elemento: Elemento): Lugar {
+  // Antes del primero de un tramo sin conectar: el nuevo pasa a ser el primero.
+  if (esInicioSinConectar(elemento)) {
+    return { padreId: null, ordenAntes: null, ordenDespues: elemento.orden, adoptar: [elemento.id], sinConectar: true };
+  }
   const hermanos = elemento.padre_id ? hijosDe(elementos, elemento.padre_id) : lineaPrincipal(elementos);
   const i = hermanos.findIndex((h) => h.id === elemento.id);
   const anterior = hermanos[i - 1];
@@ -625,8 +653,8 @@ export const MAXIMO_RAMA_COLGADA = 4;
 
 export type BloqueRama = {
   letra: string;
-  // Dispositivo del que sale la rama.
-  origen: Elemento;
+  // Dispositivo del que sale la rama (null: tramo sin conectar al lazo).
+  origen: Elemento | null;
   // La rama en serie: el primero y lo que sigue colgando uno de otro.
   linea: Elemento[];
 };
@@ -694,6 +722,12 @@ export function armarDiagrama(elementos: Elemento[]): AcomodoDiagrama {
     });
   }
   revisar(principal);
+  // Tramos sin conectar: cada uno aparte, al final.
+  for (const inicio of tramosSinConectar(elementos)) {
+    const bloque: BloqueRama = { letra: letraNumero(bloques.length), origen: null, linea: cadenaDesde(elementos, inicio) };
+    bloques.push(bloque);
+    revisar(bloque.linea);
+  }
   return { principal, bloques, letraDeRama };
 }
 
@@ -749,7 +783,8 @@ export function planDeMovimiento(elementos: Elemento[], moverId: string, destino
   else if (modo === 'antes') lugar = lugarAntesDe(lista(), destinoActual);
   else lugar = lugarColgandoDe(lista(), destinoActual);
 
-  const movido: Elemento = { ...mover, padre_id: lugar.padreId, orden: ordenEntre(lugar.ordenAntes, lugar.ordenDespues) };
+  // Si estaba sin conectar y se pone en el lazo, ya queda conectado.
+  const movido: Elemento = { ...mover, padre_id: lugar.padreId, orden: ordenEntre(lugar.ordenAntes, lugar.ordenDespues), sin_conectar: Boolean(lugar.sinConectar) };
   trabajo.set(moverId, movido);
   for (const id of lugar.adoptar || []) {
     if (id === moverId) continue;
@@ -761,7 +796,7 @@ export function planDeMovimiento(elementos: Elemento[], moverId: string, destino
   const cambios: Elemento[] = [];
   for (const e of trabajo.values()) {
     const antes = original.get(e.id) as Elemento;
-    if (antes.padre_id !== e.padre_id || antes.orden !== e.orden) cambios.push(e);
+    if (antes.padre_id !== e.padre_id || antes.orden !== e.orden || Boolean(antes.sin_conectar) !== Boolean(e.sin_conectar)) cambios.push(e);
   }
   return cambios;
 }

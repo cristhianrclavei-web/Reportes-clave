@@ -230,7 +230,7 @@ describe('acomodo del diagrama', () => {
     expect(a.principal.map((e) => e.id)).toEqual(['A', 'B', 'C']);
     expect(a.bloques).toHaveLength(1);
     expect(a.bloques[0].letra).toBe('A');
-    expect(a.bloques[0].origen.id).toBe('B');
+    expect(a.bloques[0].origen?.id).toBe('B');
     expect(a.bloques[0].linea.map((e) => e.id)).toEqual(['r1', 'r2', 'r3', 'r4', 'r5']);
     expect(a.letraDeRama.get('r1')).toBe('A');
     expect(a.letraDeRama.has('b1')).toBe(false);

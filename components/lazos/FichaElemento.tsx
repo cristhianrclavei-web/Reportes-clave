@@ -56,7 +56,10 @@ export default function FichaElemento({ lazo, elementos, elemento, fallas, cambi
   // En una rama se viene del que cuelga y se sigue a lo que cuelga de él.
   let vieneDe: string;
   let sigueA: string;
-  if (padre) {
+  if (!padre && elemento.sin_conectar) {
+    vieneDe = 'Sin conectar (falta unirlo al lazo)';
+    sigueA = cuelgan.length === 0 ? 'Fin del tramo' : cuelgan.length === 1 ? cuelgan[0].nombre : `${cuelgan.length} ramas`;
+  } else if (padre) {
     vieneDe = padre.nombre;
     sigueA = cuelgan.length === 0 ? 'Fin de la rama' : cuelgan.length === 1 ? cuelgan[0].nombre : `${cuelgan.length} ramas`;
   } else {
