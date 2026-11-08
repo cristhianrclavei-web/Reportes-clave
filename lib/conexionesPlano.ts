@@ -12,7 +12,7 @@ import {
   type Elemento, type Lazo, type Lugar,
 } from './lazos';
 import type { Punto, Sembrado } from './planos';
-import { redDeTuberias } from './rutaTuberia';
+import { carrilesDe, desplazarCamino, redDeTuberias } from './rutaTuberia';
 
 // ---------- Recorrido ----------
 
@@ -199,7 +199,19 @@ export function conexionesEnPlano(
       }
     }
   }
+  if (alcance > 0) separarEnCarriles(lineas, alcance);
   return { lineas, marcas };
+}
+
+// Cada conexión va un poco a su derecha de la tubería: la ida y el regreso
+// del lazo por la misma tubería se ven en lados opuestos, y dos que van en
+// el mismo sentido por el mismo tramo toman carriles distintos.
+function separarEnCarriles(lineas: LineaConexion[], alcance: number) {
+  const ancho = alcance * 0.26;
+  const carriles = carrilesDe(lineas.map((l) => l.camino), alcance * 0.08);
+  lineas.forEach((l, i) => {
+    l.camino = desplazarCamino(l.camino, (carriles[i] + 0.5) * ancho);
+  });
 }
 
 // ---------- Revisión ----------

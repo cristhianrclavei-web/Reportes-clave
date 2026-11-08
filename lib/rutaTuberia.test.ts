@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { puntasDeFlecha, rutaPorTuberia, trazoDeConexion } from './rutaTuberia';
+import { carrilesDe, desplazarCamino, puntasDeFlecha, rutaPorTuberia, trazoDeConexion } from './rutaTuberia';
 import type { TuberiaPlano } from './planos';
 
 function tubo(id: string, puntos: [number, number][]): TuberiaPlano {
@@ -57,5 +57,33 @@ describe('trazo de la conexión', () => {
     const puntas = puntasDeFlecha({ punto: [0, 0], ux: 1, uy: 0 }, 10);
     expect(puntas[0]).toEqual([5, 0]);
     expect(puntas[1][0]).toBeLessThan(0);
+  });
+});
+
+describe('carriles: ida y regreso por la misma tubería', () => {
+  it('la ida y el regreso quedan en lados opuestos de la tubería', () => {
+    // Ida de x=0 a x=100 y regreso de x=100 a x=0, por la misma recta.
+    const ida = desplazarCamino([[0, 0], [100, 0]], 2);
+    const regreso = desplazarCamino([[100, 0], [0, 0]], 2);
+    expect(ida[0][1]).toBe(2);
+    expect(regreso[0][1]).toBe(-2);
+  });
+
+  it('dos que van en el mismo sentido por el mismo tramo toman carriles distintos', () => {
+    // El panel llega hasta el 5 pasando por la tubería y regresa 5→4→3.
+    const caminos: [number, number][][] = [
+      [[0, 0], [100, 0]], // ida larga
+      [[100, 0], [75, 0]], // 5 → 4 (sentido contrario: no estorba)
+      [[75, 0], [50, 0]], // 4 → 3
+      [[20, 0], [80, 0]], // otro lazo, mismo sentido que la ida
+    ];
+    expect(carrilesDe(caminos, 0.5)).toEqual([0, 0, 0, 1]);
+  });
+
+  it('en un quiebre las dos rectas corridas se juntan en esquina', () => {
+    // A la derecha, luego hacia abajo (y crece hacia abajo).
+    const corrido = desplazarCamino([[0, 0], [100, 0], [100, 100]], 2);
+    expect(corrido[1][0]).toBeCloseTo(98);
+    expect(corrido[1][1]).toBeCloseTo(2);
   });
 });

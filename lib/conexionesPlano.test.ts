@@ -90,9 +90,15 @@ describe('lo que se dibuja', () => {
     // De a (0,0) sube a y=-5, corre a x=10 y baja a b (10,0).
     const conTubo = { ...sembrado, tuberias: [{ id: 't', tipo: 'conduit', diametro: '3/4', puntos: [[0, 0], [0, -5], [10, -5], [10, 0]] as [number, number][] }] };
     const { lineas } = conexionesEnPlano([{ id: 'L', elementos: lazo }], conTubo, new Map(), 2);
-    expect(lineas[0].camino).toEqual([[0, 0], [0, -5], [10, -5], [10, 0]]);
-    // r1 no está junto a la tubería: línea directa.
-    expect(lineas[1].camino).toEqual([[10, 0], [10, 10]]);
+    // Va por la tubería, corrida un poco a su derecha (carril).
+    const original = [[0, 0], [0, -5], [10, -5], [10, 0]];
+    expect(lineas[0].camino).toHaveLength(4);
+    lineas[0].camino.forEach((p, i) => {
+      expect(Math.hypot(p[0] - original[i][0], p[1] - original[i][1])).toBeLessThan(0.5);
+    });
+    // r1 no está junto a la tubería: línea directa (también en su carril).
+    expect(lineas[1].camino).toHaveLength(2);
+    expect(lineas[1].camino[1][1]).toBeCloseTo(10);
   });
 
   it('si el panel está en otro plano, lo dice', () => {

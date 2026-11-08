@@ -252,3 +252,94 @@ export function puntasDeFlecha(f: Flecha, p: number): Punto[] {
     [px - ux * atras - nx * ancho, py - uy * atras - ny * ancho],
   ];
 }
+
+// ---------- Carriles: ida y regreso por la misma tubería ----------
+
+// Cada conexión se dibuja corrida a SU DERECHA (según hacia dónde avanza),
+// como carriles de una calle: la ida y el regreso por la misma tubería
+// quedan en lados opuestos, cada uno con sus flechas. Si dos conexiones van
+// en el mismo sentido por el mismo tramo (dos lazos, por ejemplo), la
+// segunda toma el siguiente carril, más afuera.
+
+type Tramo = { a: Punto; b: Punto; ux: number; uy: number; largo: number };
+
+function tramosDe(camino: Punto[]): Tramo[] {
+  const tramos: Tramo[] = [];
+  for (let i = 0; i + 1 < camino.length; i++) {
+    const a = camino[i];
+    const b = camino[i + 1];
+    const largo = distancia(a, b);
+    if (largo === 0) continue;
+    tramos.push({ a, b, ux: (b[0] - a[0]) / largo, uy: (b[1] - a[1]) / largo, largo });
+  }
+  return tramos;
+}
+
+// ¿Los dos tramos van sobre la misma línea, se enciman en un pedazo y van
+// en el mismo sentido?
+function encimadosMismoSentido(t1: Tramo, t2: Tramo, tolerancia: number): boolean {
+  if (t1.ux * t2.ux + t1.uy * t2.uy <= 0) return false;
+  // Qué tan lejos queda un punto de la línea de t1, y dónde cae a lo largo de ella.
+  const separacion = (p: Punto) => Math.abs((p[0] - t1.a[0]) * -t1.uy + (p[1] - t1.a[1]) * t1.ux);
+  const avance = (p: Punto) => (p[0] - t1.a[0]) * t1.ux + (p[1] - t1.a[1]) * t1.uy;
+  if (separacion(t2.a) > tolerancia || separacion(t2.b) > tolerancia) return false;
+  const desde = Math.max(0, Math.min(avance(t2.a), avance(t2.b)));
+  const hasta = Math.min(t1.largo, Math.max(avance(t2.a), avance(t2.b)));
+  return hasta - desde > tolerancia;
+}
+
+function compartenTramo(c1: Tramo[], c2: Tramo[], tolerancia: number): boolean {
+  return c1.some((t1) => c2.some((t2) => encimadosMismoSentido(t1, t2, tolerancia)));
+}
+
+// Carril de cada camino (0 = el más cercano a la tubería). Dos caminos que
+// van en el mismo sentido por el mismo tramo no comparten carril.
+export function carrilesDe(caminos: Punto[][], tolerancia: number): number[] {
+  const tramos = caminos.map(tramosDe);
+  const carriles: number[] = [];
+  tramos.forEach((propios, i) => {
+    const ocupados = new Set<number>();
+    for (let j = 0; j < i; j++) {
+      if (compartenTramo(propios, tramos[j], tolerancia)) ocupados.add(carriles[j]);
+    }
+    let carril = 0;
+    while (ocupados.has(carril)) carril++;
+    carriles.push(carril);
+  });
+  return carriles;
+}
+
+// El camino corrido `d` a su derecha (en la hoja, con y hacia abajo). En
+// cada quiebre las dos rectas corridas se juntan en esquina, sin picos
+// exagerados en vueltas muy cerradas.
+export function desplazarCamino(camino: Punto[], d: number): Punto[] {
+  const tramos = tramosDe(camino);
+  if (tramos.length === 0 || d === 0) return camino;
+  // Derecha del sentido de avance con y hacia abajo: (−uy, ux).
+  const normal = (t: Tramo): Punto => [-t.uy, t.ux];
+  const resultado: Punto[] = [];
+  const primero = normal(tramos[0]);
+  resultado.push([tramos[0].a[0] + primero[0] * d, tramos[0].a[1] + primero[1] * d]);
+  for (let i = 0; i + 1 < tramos.length; i++) {
+    const n1 = normal(tramos[i]);
+    const n2 = normal(tramos[i + 1]);
+    let mx = n1[0] + n2[0];
+    let my = n1[1] + n2[1];
+    const largo = Math.hypot(mx, my);
+    const esquina = tramos[i].b;
+    if (largo < 1e-6) {
+      // Media vuelta: se queda del lado del primer tramo.
+      resultado.push([esquina[0] + n1[0] * d, esquina[1] + n1[1] * d]);
+      continue;
+    }
+    mx /= largo;
+    my /= largo;
+    // Para que las dos rectas corridas se junten, la esquina se aleja d / cos.
+    const coseno = Math.max(0.35, mx * n1[0] + my * n1[1]);
+    resultado.push([esquina[0] + (mx * d) / coseno, esquina[1] + (my * d) / coseno]);
+  }
+  const ultimo = tramos[tramos.length - 1];
+  const nU = normal(ultimo);
+  resultado.push([ultimo.b[0] + nU[0] * d, ultimo.b[1] + nU[1] * d]);
+  return resultado;
+}
