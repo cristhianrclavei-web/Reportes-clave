@@ -23,6 +23,19 @@ function decodificar(bytes: Uint8Array): string {
 }
 
 describe('exportar el sembrado a AutoCAD', () => {
+  it('la conexión del lazo sale por la tubería, con sus flechas', () => {
+    // De (100,200) por la tubería en L hasta (400,300).
+    const camino: [number, number][] = [[100, 200], [400, 200], [400, 300]];
+    const conexiones = { lineas: [{ lazoId: 'L', desde: camino[0], hasta: camino[2], camino }], marcas: [] };
+    const bytes = exportarPlanoDxf({ plano, colocacion: colocacionDe(plano, 1), etiquetaDe: () => '', conexiones, lazos: [{ id: 'L', codigo: 'LZ1' }] });
+    const texto = decodificar(bytes);
+    const leido = leerDxf(texto);
+    const delLazo = primitivasDe(leido).filter((p) => p.tipo === 'trazo' && p.capas.includes('FA-LAZO-LZ1'));
+    // La línea lleva el quiebre de la tubería (3 puntos) y hay al menos una flecha.
+    expect(delLazo.some((p) => p.tipo === 'trazo' && p.puntos.length === 3)).toBe(true);
+    expect(delLazo.length).toBeGreaterThanOrEqual(2);
+  });
+
   it('un plano DXF vuelve a sus coordenadas reales', () => {
     expect(colocacionDe(plano, 1)).toEqual({ ox: 2100, oy: 970, f: 0.1 });
     const bytes = exportarPlanoDxf({ plano, colocacion: colocacionDe(plano, 1), etiquetaDe: (id) => (id === 'e1' ? 'L01D001' : '') });

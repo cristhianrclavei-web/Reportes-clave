@@ -5,6 +5,7 @@ import { Maximize, Minus, Plus } from 'lucide-react';
 import { figuraDe } from '@/lib/simbolosPlano';
 import { FiguraEnSvg } from '@/components/lazos/SimboloPlano';
 import type { LineaConexion, MarcaConexion } from '@/lib/conexionesPlano';
+import { puntasDeFlecha, trazoDeConexion } from '@/lib/rutaTuberia';
 import type { Ajuste, Guias } from '@/lib/trazoRecto';
 import {
   colorEquipo, colorTuberia, equipoEn, tamanoDe, tamanoSimbolo, tuberiaEn,
@@ -303,7 +304,7 @@ export default function LienzoPlano({
             )}
 
             {conexiones && conexiones.lineas.map((l, i) => (
-              <LineaPunteada key={i} linea={l} color={colorPorLazo.get(l.lazoId) || '#0f766e'} r={r} grosor={grosorTubo * 0.8} />
+              <LineaPunteada key={i} linea={l} color={colorPorLazo.get(l.lazoId) || '#0f766e'} r={r} grosor={grosorTubo * 0.55} />
             ))}
 
             {/* Guías de alineación, como el rastreo de AutoCAD: franja
@@ -371,29 +372,20 @@ function Guia({ x1, y1, x2, y2, s }: { x1: number; y1: number; x2: number; y2: n
   );
 }
 
-// Conexión de un dispositivo al siguiente: punteada, sin tocar los símbolos,
-// con una flecha a la mitad que dice hacia dónde va el cable.
+// Conexión de un dispositivo al siguiente: punteada y fina, por la tubería
+// cuando la hay (ver lib/rutaTuberia), sin tocar los símbolos y con flechas
+// delgadas a lo largo que dicen hacia dónde va el cable.
 function LineaPunteada({ linea, color, r, grosor }: { linea: LineaConexion; color: string; r: number; grosor: number }) {
-  const [x1, y1] = linea.desde;
-  const [x2, y2] = linea.hasta;
-  const largo = Math.hypot(x2 - x1, y2 - y1);
-  if (largo < r * 2.4) return null;
-  const ux = (x2 - x1) / largo;
-  const uy = (y2 - y1) / largo;
-  const separacion = r * 1.2;
-  const mx = (x1 + x2) / 2;
-  const my = (y1 + y2) / 2;
-  const punta = r * 0.75;
-  const flecha = [
-    [mx + ux * punta, my + uy * punta],
-    [mx - ux * punta * 0.6 - uy * punta * 0.7, my - uy * punta * 0.6 + ux * punta * 0.7],
-    [mx - ux * punta * 0.6 + uy * punta * 0.7, my - uy * punta * 0.6 - ux * punta * 0.7],
-  ].map((p) => p.join(',')).join(' ');
+  const trazo = trazoDeConexion(linea.camino, r * 1.2, r * 14);
+  if (!trazo) return null;
+  const puntos = (lista: Punto[]) => lista.map((p) => p.join(',')).join(' ');
   return (
     <g style={{ pointerEvents: 'none' }}>
-      <line x1={x1 + ux * separacion} y1={y1 + uy * separacion} x2={x2 - ux * separacion} y2={y2 - uy * separacion}
-        stroke={color} strokeWidth={grosor} strokeDasharray={`${grosor * 3} ${grosor * 2.2}`} strokeLinecap="round" />
-      <polygon points={flecha} fill={color} />
+      <polyline points={puntos(trazo.linea)} fill="none" stroke={color} strokeWidth={grosor}
+        strokeDasharray={`${grosor * 2.5} ${grosor * 2}`} strokeLinecap="round" strokeLinejoin="round" />
+      {trazo.flechas.map((f, i) => (
+        <polygon key={i} points={puntos(puntasDeFlecha(f, r * 1.05))} fill={color} stroke="#fff" strokeWidth={grosor * 0.35} strokeLinejoin="round" paintOrder="stroke" />
+      ))}
     </g>
   );
 }

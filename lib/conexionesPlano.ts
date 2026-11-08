@@ -12,6 +12,7 @@ import {
   type Elemento, type Lazo, type Lugar,
 } from './lazos';
 import type { Punto, Sembrado } from './planos';
+import { redDeTuberias } from './rutaTuberia';
 
 // ---------- Recorrido ----------
 
@@ -119,7 +120,9 @@ function enSuTramo(elementos: Elemento[], inicio: Elemento, otro: Elemento): boo
 
 // ---------- Lo que se dibuja ----------
 
-export type LineaConexion = { lazoId: string; desde: Punto; hasta: Punto };
+// `camino`: por dónde se dibuja; sigue la tubería si los dos están junto a
+// una tubería que los une, si no es la línea directa [desde, hasta].
+export type LineaConexion = { lazoId: string; desde: Punto; hasta: Punto; camino: Punto[] };
 export type MarcaConexion = { lazoId: string; en: Punto; texto: string };
 
 // Un color por lazo (distinto de los de la tubería), por su lugar en la lista.
@@ -133,11 +136,20 @@ export function colorDeLazo(indice: number): string {
 // cable llega del panel, viene de otro plano o sigue en otro plano.
 // `planoDe`: en qué otro plano está sembrado cada dispositivo.
 // `planoDe` y la posición se buscan igual para dispositivos y paneles (por id).
+// `alcance`: qué tan lejos de una tubería puede estar un equipo para que el
+// cable se dibuje por ella (0 = siempre línea directa).
 export function conexionesEnPlano(
   lazos: { id: string; panel_id?: string | null; elementos: Elemento[] }[],
   sembrado: Sembrado,
   planoDe: Map<string, string>,
+  alcance = 0,
 ): { lineas: LineaConexion[]; marcas: MarcaConexion[] } {
+  const red = alcance > 0 ? redDeTuberias(sembrado.tuberias, alcance) : null;
+  function linea(lazoId: string, desde: Punto, hasta: Punto): LineaConexion {
+    const camino = (red && red.ruta(desde, hasta)) || [desde, hasta];
+    return { lazoId, desde, hasta, camino };
+  }
+
   const posicion = new Map<string, Punto>();
   for (const e of sembrado.equipos) {
     if (e.elementoId) posicion.set(e.elementoId, [e.x, e.y]);
@@ -171,7 +183,7 @@ export function conexionesEnPlano(
         // El cable sale del panel: línea si el panel está sembrado aquí.
         const panelAqui = lazo.panel_id ? posicion.get(lazo.panel_id) || null : panelSinRegistro;
         const panelEn = lazo.panel_id ? planoDe.get(lazo.panel_id) : undefined;
-        if (aqui && panelAqui) lineas.push({ lazoId: lazo.id, desde: panelAqui, hasta: aqui });
+        if (aqui && panelAqui) lineas.push(linea(lazo.id, panelAqui, aqui));
         else if (aqui && panelEn) marcar(lazo.id, aqui, `« Panel en ${panelEn}`);
         else if (aqui) marcar(lazo.id, aqui, '« Panel');
         else if (panelAqui && planoDe.has(elemento.id)) marcar(lazo.id, panelAqui, `Sigue en ${planoDe.get(elemento.id)} »`);
@@ -179,7 +191,7 @@ export function conexionesEnPlano(
       }
       const alla = posicion.get(anterior.id) || null;
       if (aqui && alla) {
-        lineas.push({ lazoId: lazo.id, desde: alla, hasta: aqui });
+        lineas.push(linea(lazo.id, alla, aqui));
       } else if (aqui && planoDe.has(anterior.id)) {
         marcar(lazo.id, aqui, `« Viene de ${planoDe.get(anterior.id)}`);
       } else if (alla && planoDe.has(elemento.id)) {

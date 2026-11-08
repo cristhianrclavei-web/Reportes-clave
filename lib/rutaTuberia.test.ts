@@ -1,0 +1,61 @@
+import { describe, expect, it } from 'vitest';
+import { puntasDeFlecha, rutaPorTuberia, trazoDeConexion } from './rutaTuberia';
+import type { TuberiaPlano } from './planos';
+
+function tubo(id: string, puntos: [number, number][]): TuberiaPlano {
+  return { id, tipo: 'conduit', diametro: '3/4', puntos };
+}
+
+describe('ruta del cable por la tubería', () => {
+  // Tubería en L: de (0,0) a (100,0) y baja a (100,100).
+  const enL = [tubo('t1', [[0, 0], [100, 0], [100, 100]])];
+
+  it('sigue la tubería en vez de irse en diagonal', () => {
+    const ruta = rutaPorTuberia(enL, [0, 5], [105, 100], 20);
+    expect(ruta).toEqual([[0, 5], [0, 0], [100, 0], [100, 100], [105, 100]]);
+  });
+
+  it('pasa de una tubería a otra que termina sobre ella (en T)', () => {
+    const tuberias = [tubo('a', [[0, 0], [200, 0]]), tubo('b', [[100, 0], [100, 80]])];
+    const ruta = rutaPorTuberia(tuberias, [0, 0], [100, 80], 10);
+    expect(ruta).toEqual([[0, 0], [100, 0], [100, 80]]);
+  });
+
+  it('dos dispositivos en el mismo tramo recto: directo por el tramo', () => {
+    const ruta = rutaPorTuberia([tubo('a', [[0, 0], [200, 0]])], [20, 3], [150, -3], 10);
+    expect(ruta).toEqual([[20, 3], [20, 0], [150, 0], [150, -3]]);
+  });
+
+  it('sin tubería cerca o sin unión entre tuberías: null (línea directa)', () => {
+    expect(rutaPorTuberia(enL, [0, 0], [500, 500], 20)).toBeNull();
+    const sueltas = [tubo('a', [[0, 0], [50, 0]]), tubo('b', [[0, 100], [50, 100]])];
+    expect(rutaPorTuberia(sueltas, [0, 0], [50, 100], 10)).toBeNull();
+    expect(rutaPorTuberia([], [0, 0], [1, 1], 10)).toBeNull();
+  });
+
+  it('tuberías que se cruzan sin unirse no se toman como unidas', () => {
+    const cruz = [tubo('a', [[0, 50], [100, 50]]), tubo('b', [[50, 0], [50, 100]])];
+    expect(rutaPorTuberia(cruz, [0, 50], [50, 0], 5)).toBeNull();
+  });
+});
+
+describe('trazo de la conexión', () => {
+  it('recorta las puntas y reparte flechas a lo largo', () => {
+    const trazo = trazoDeConexion([[0, 0], [100, 0], [100, 100]], 10, 60);
+    expect(trazo?.linea).toEqual([[10, 0], [100, 0], [100, 90]]);
+    expect(trazo?.flechas.length).toBe(3);
+    // La primera va a la derecha, la última hacia abajo.
+    expect(trazo?.flechas[0].ux).toBe(1);
+    expect(trazo?.flechas[2].uy).toBe(1);
+  });
+
+  it('muy corta: no se dibuja', () => {
+    expect(trazoDeConexion([[0, 0], [15, 0]], 10, 60)).toBeNull();
+  });
+
+  it('la flecha apunta hacia donde va', () => {
+    const puntas = puntasDeFlecha({ punto: [0, 0], ux: 1, uy: 0 }, 10);
+    expect(puntas[0]).toEqual([5, 0]);
+    expect(puntas[1][0]).toBeLessThan(0);
+  });
+});

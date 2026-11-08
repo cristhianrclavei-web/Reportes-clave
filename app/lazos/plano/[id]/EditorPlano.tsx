@@ -369,7 +369,10 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   // ---------- Conectar (el lazo se arma desde el plano) ----------
 
   const colorPorLazo = useMemo(() => new Map(lazos.map((l, i) => [l.id, colorDeLazo(i)])), [lazos]);
-  const conexiones = useMemo(() => conexionesEnPlano(lazos, estado.sembrado, otrosPlanos), [lazos, estado.sembrado, otrosPlanos]);
+  // El cable se dibuja por la tubería si el equipo está a menos de dos
+  // símbolos de ella.
+  const alcanceTuberia = plano ? tamanoSimbolo(plano.ancho, plano.alto) * 2 : 0;
+  const conexiones = useMemo(() => conexionesEnPlano(lazos, estado.sembrado, otrosPlanos, alcanceTuberia), [lazos, estado.sembrado, otrosPlanos, alcanceTuberia]);
   const lazoActivo = lazos.find((l) => l.id === lazoActivoId) || null;
   const elementoDesde = desde && desde !== 'panel' ? elementosPorId.get(desde)?.elemento || null : null;
   // El símbolo del que sale el cable, para marcarlo en el plano.

@@ -3,12 +3,13 @@
 // con la simbología y el cuadro de cantidades. Se arma en el navegador: los
 // planos pesan varios MB y una función de Vercel no regresa más de 4.5 MB.
 
-import { PDFDocument, PDFFont, PDFPage, StandardFonts, degrees, rgb } from 'pdf-lib';
+import { LineCapStyle, PDFDocument, PDFFont, PDFPage, StandardFonts, degrees, rgb } from 'pdf-lib';
 import { aHoja, figuraDe } from './simbolosPlano';
 import type { LineaConexion, MarcaConexion } from './conexionesPlano';
+import { puntasDeFlecha, trazoDeConexion } from './rutaTuberia';
 import {
   cantidadesDeEquipos, cantidadesDeTuberia, colocacionDePagina, colorEquipo, colorTuberia, formatoMetros,
-  proporcionDeEscala, tamanoDe, tamanoSimbolo, type Plano,
+  proporcionDeEscala, tamanoDe, tamanoSimbolo, type Plano, type Punto,
 } from './planos';
 
 function color(hex: string) {
@@ -62,27 +63,19 @@ export type DatosExportar = {
   lazos?: { id: string; texto: string; color: string }[];
 };
 
-// Línea punteada con una flecha a la mitad, en coordenadas del PDF.
-function dibujarConexion(hoja: PDFPage, desde: { x: number; y: number }, hasta: { x: number; y: number }, r: number, tinta: ReturnType<typeof rgb>) {
-  const largo = Math.hypot(hasta.x - desde.x, hasta.y - desde.y);
-  if (largo < r * 2.4) return;
-  const ux = (hasta.x - desde.x) / largo;
-  const uy = (hasta.y - desde.y) / largo;
-  const separacion = r * 1.2;
-  const grosor = Math.max(0.5, r / 4.5);
-  hoja.drawLine({
-    start: { x: desde.x + ux * separacion, y: desde.y + uy * separacion },
-    end: { x: hasta.x - ux * separacion, y: hasta.y - uy * separacion },
-    thickness: grosor,
-    color: tinta,
-    dashArray: [grosor * 3, grosor * 2.2],
-  });
-  // drawSvgPath usa y hacia abajo: la flecha se arma con -uy.
-  const p = r * 0.75;
-  const vx = ux;
-  const vy = -uy;
-  const camino = `M ${vx * p} ${vy * p} L ${-vx * p * 0.6 - vy * p * 0.7} ${-vy * p * 0.6 + vx * p * 0.7} L ${-vx * p * 0.6 + vy * p * 0.7} ${-vy * p * 0.6 - vx * p * 0.7} Z`;
-  hoja.drawSvgPath(camino, { x: (desde.x + hasta.x) / 2, y: (desde.y + hasta.y) / 2, color: tinta });
+// Conexión punteada (por la tubería si la hay) con flechas delgadas, como en
+// pantalla. `camino` en puntos de la hoja (y hacia abajo, como el SVG).
+function dibujarConexion(hoja: PDFPage, camino: Punto[], H: number, r: number, tinta: ReturnType<typeof rgb>) {
+  const trazo = trazoDeConexion(camino, r * 1.2, r * 14);
+  if (!trazo) return;
+  const grosor = Math.max(0.4, r / 6.5);
+  // drawSvgPath pone el origen arriba a la izquierda y y hacia abajo: los
+  // puntos de la hoja van tal cual con { x: 0, y: H }.
+  const ruta = (puntos: Punto[], cerrar: boolean) => puntos.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p[0]} ${p[1]}`).join(' ') + (cerrar ? ' Z' : '');
+  hoja.drawSvgPath(ruta(trazo.linea, false), { x: 0, y: H, borderColor: tinta, borderWidth: grosor, borderDashArray: [grosor * 2.5, grosor * 2], borderLineCap: LineCapStyle.Round });
+  for (const f of trazo.flechas) {
+    hoja.drawSvgPath(ruta(puntasDeFlecha(f, r * 1.05), true), { x: 0, y: H, color: tinta });
+  }
 }
 
 export async function exportarPlanoPdf({ plano, pdfOriginal, fondoPng, cliente, etiquetas, conexiones, lazos = [] }: DatosExportar): Promise<Uint8Array> {
@@ -116,7 +109,7 @@ export async function exportarPlanoPdf({ plano, pdfOriginal, fondoPng, cliente, 
   const colorLazo = new Map(lazos.map((l) => [l.id, l.color]));
   for (const l of conexiones?.lineas || []) {
     const tinta = color(colorLazo.get(l.lazoId) || '#0f766e');
-    dibujarConexion(hoja, { x: l.desde[0], y: H - l.desde[1] }, { x: l.hasta[0], y: H - l.hasta[1] }, rNormal, tinta);
+    dibujarConexion(hoja, l.camino, H, rNormal, tinta);
   }
   for (const e of plano.sembrado.equipos) {
     const cx = e.x;

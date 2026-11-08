@@ -11,6 +11,7 @@ import { tipoDispositivo } from './lazos';
 import { colorEquipo, tamanoDe, tamanoSimbolo, type Plano } from './planos';
 import { figuraDe } from './simbolosPlano';
 import type { LineaConexion, MarcaConexion } from './conexionesPlano';
+import { puntasDeFlecha, trazoDeConexion } from './rutaTuberia';
 
 type P = [number, number];
 
@@ -341,23 +342,12 @@ export function exportarPlanoDxf({ plano, colocacion, etiquetaDe, conexiones, la
   if (conexiones) {
     for (const l of conexiones.lineas) {
       const capa = capaLazo.get(l.lazoId) || 'FA-LAZO';
-      const a: P = [X(l.desde[0]), Y(l.desde[1])];
-      const b: P = [X(l.hasta[0]), Y(l.hasta[1])];
-      const largo = Math.hypot(b[0] - a[0], b[1] - a[1]);
-      if (largo < rBase * 2.4) continue;
-      const ux = (b[0] - a[0]) / largo;
-      const uy = (b[1] - a[1]) / largo;
-      const sep = rBase * 1.2;
-      dxf.polilinea(capa, [[a[0] + ux * sep, a[1] + uy * sep], [b[0] - ux * sep, b[1] - uy * sep]], false);
-      // Flecha a la mitad, hacia donde va el cable.
-      const mx = (a[0] + b[0]) / 2;
-      const my = (a[1] + b[1]) / 2;
-      const p = rBase * 0.75;
-      dxf.polilinea(capa, [
-        [mx + ux * p, my + uy * p],
-        [mx - ux * p * 0.6 - uy * p * 0.7, my - uy * p * 0.6 + ux * p * 0.7],
-        [mx - ux * p * 0.6 + uy * p * 0.7, my - uy * p * 0.6 - ux * p * 0.7],
-      ], true, [[6, 'CONTINUOUS']]);
+      // Por la tubería si la hay, con flechas delgadas a lo largo (como en pantalla).
+      const camino = l.camino.map(([x, y]) => [X(x), Y(y)] as P);
+      const trazo = trazoDeConexion(camino, rBase * 1.2, rBase * 14);
+      if (!trazo) continue;
+      dxf.polilinea(capa, trazo.linea, false);
+      for (const f of trazo.flechas) dxf.polilinea(capa, puntasDeFlecha(f, rBase * 1.05), true, [[6, 'CONTINUOUS']]);
     }
     for (const m of conexiones.marcas) {
       dxf.texto(capaLazo.get(m.lazoId) || 'FA-TEXTO', X(m.en[0]), Y(m.en[1]) - rBase * 2.3, rBase * 0.85, m.texto.replace(/[«»]/g, '').trim(), true);

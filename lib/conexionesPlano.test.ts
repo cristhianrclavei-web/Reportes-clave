@@ -76,7 +76,7 @@ describe('lo que se dibuja', () => {
   it('si el panel está sembrado, la línea sale de él', () => {
     const conPanel = { ...sembrado, equipos: [...sembrado.equipos, { id: 'pp', tipo: 'FACP', x: -20, y: 0, panelId: 'P1' }] };
     const { lineas, marcas } = conexionesEnPlano([{ id: 'L', panel_id: 'P1', elementos: lazo }], conPanel, new Map());
-    expect(lineas[0]).toEqual({ lazoId: 'L', desde: [-20, 0], hasta: [0, 0] });
+    expect(lineas[0]).toEqual({ lazoId: 'L', desde: [-20, 0], hasta: [0, 0], camino: [[-20, 0], [0, 0]] });
     expect(marcas.map((m) => m.texto)).not.toContain('« Panel');
   });
 
@@ -84,6 +84,15 @@ describe('lo que se dibuja', () => {
     const conPanel = { ...sembrado, equipos: [...sembrado.equipos, { id: 'pp', tipo: 'FACP', x: -20, y: 0 }] };
     const { lineas } = conexionesEnPlano([{ id: 'L', elementos: lazo }], conPanel, new Map());
     expect(lineas[0].desde).toEqual([-20, 0]);
+  });
+
+  it('con tubería que los une, la conexión va por la tubería', () => {
+    // De a (0,0) sube a y=-5, corre a x=10 y baja a b (10,0).
+    const conTubo = { ...sembrado, tuberias: [{ id: 't', tipo: 'conduit', diametro: '3/4', puntos: [[0, 0], [0, -5], [10, -5], [10, 0]] as [number, number][] }] };
+    const { lineas } = conexionesEnPlano([{ id: 'L', elementos: lazo }], conTubo, new Map(), 2);
+    expect(lineas[0].camino).toEqual([[0, 0], [0, -5], [10, -5], [10, 0]]);
+    // r1 no está junto a la tubería: línea directa.
+    expect(lineas[1].camino).toEqual([[10, 0], [10, 10]]);
   });
 
   it('si el panel está en otro plano, lo dice', () => {
