@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  Cambio, Elemento, armarDiagrama, planDeMovimiento, corteSugerido, describirCambio, cortesRestantes, direccionOcupada, direccionVisible, enOrdenDeRecorrido, lineaPrincipal,
+  Cambio, Elemento, armarDiagrama, planDeMovimiento, planDeMovimientoVarios, corteSugerido, describirCambio, cortesRestantes, direccionOcupada, direccionVisible, enOrdenDeRecorrido, lineaPrincipal,
   armarUbicacion, conteoPorNivel, conteoPorTipo, lazosDelMismoPanel, sugerenciaPara, partesDe, valoresUsados, nombreSugerido, siguienteNumeroDeLazo, sinDireccion, normalizarDireccion, ordenEntre, posiciones, siguienteDireccion, zonaConFalla,
 } from './lazos';
 
@@ -288,5 +288,39 @@ describe('mover un dispositivo', () => {
     expect(final.filter((e) => e.padre_id === 'B').map((e) => e.id).sort()).toEqual(['b1', 'b2']);
     expect(() => planDeMovimiento(base, 'B', 'b1', 'despues')).toThrow();
     expect(() => planDeMovimiento(base, 'B', 'B', 'despues')).toThrow();
+  });
+
+  // A B C D E F G en serie, pero C D E en realidad salen de G.
+  const serie = () => ['A', 'B', 'C', 'D', 'E', 'F', 'G'].map((id, i) => el(id, i + 1));
+
+  it('varios a la vez: colgando quedan en serie como rama nueva, en su orden', () => {
+    const base = serie();
+    const final = aplicar(base, planDeMovimientoVarios(base, ['E', 'C', 'D'], 'G', 'colgar'));
+    expect(lineaPrincipal(final).map((e) => e.id)).toEqual(['A', 'B', 'F', 'G']);
+    expect(rama(final, 'C')).toEqual(['C', 'D', 'E']);
+    expect(final.find((e) => e.id === 'C')?.padre_id).toBe('G');
+  });
+
+  it('varios a la vez en estrella: cada uno sale directo del destino', () => {
+    const base = serie();
+    const final = aplicar(base, planDeMovimientoVarios(base, ['C', 'D', 'E'], 'G', 'estrella'));
+    expect(lineaPrincipal(final).map((e) => e.id)).toEqual(['A', 'B', 'F', 'G']);
+    expect(final.filter((e) => e.padre_id === 'G').sort((a, b) => a.orden - b.orden).map((e) => e.id)).toEqual(['C', 'D', 'E']);
+  });
+
+  it('varios a la vez antes y después de un dispositivo de la línea', () => {
+    const base = serie();
+    const antes = aplicar(base, planDeMovimientoVarios(base, ['F', 'G'], 'B', 'antes'));
+    expect(lineaPrincipal(antes).map((e) => e.id)).toEqual(['A', 'F', 'G', 'B', 'C', 'D', 'E']);
+    const despues = aplicar(base, planDeMovimientoVarios(base, ['A', 'B'], 'E', 'despues'));
+    expect(lineaPrincipal(despues).map((e) => e.id)).toEqual(['C', 'D', 'E', 'A', 'B', 'F', 'G']);
+  });
+
+  it('varios a la vez: de una rama a la línea principal y no al destino mismo', () => {
+    const base = [el('A', 1), el('B', 2), el('r1', 1, { padre_id: 'A' }), el('r2', 1, { padre_id: 'r1' }), el('r3', 1, { padre_id: 'r2' })];
+    const final = aplicar(base, planDeMovimientoVarios(base, ['r1', 'r2'], 'B', 'despues'));
+    expect(lineaPrincipal(final).map((e) => e.id)).toEqual(['A', 'B', 'r1', 'r2']);
+    expect(final.find((e) => e.id === 'r3')?.padre_id).toBe('A');
+    expect(() => planDeMovimientoVarios(base, ['A', 'B'], 'B', 'despues')).toThrow();
   });
 });

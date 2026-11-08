@@ -97,12 +97,19 @@ export default function DiagramaLazo({
   // propio (lo dibuja PanelLazos una sola vez).
   colorLinea?: string;
   conPanel?: boolean;
-  // Modo mover: el seleccionado se resalta y en computadora se puede
-  // arrastrar un dispositivo y soltarlo sobre otro.
-  mover?: { seleccionado: string | null; onSoltar: (moverId: string, destino: Elemento) => void };
+  // Modo mover: los elegidos se resaltan y se puede arrastrar un
+  // dispositivo y soltarlo sobre otro (con el ratón cualquiera; con el dedo
+  // solo los ya elegidos, para que tocar los demás siga deslizando el diagrama).
+  mover?: { seleccionados: string[]; onSoltar: (moverId: string, destino: Elemento) => void };
 }) {
   const [contenedor, porRenglon] = usePorRenglon();
   const [encima, setEncima] = useState<string | null>(null);
+  const [arrastre, setArrastre] = useState<{ id: string; nombre: string; x: number; y: number } | null>(null);
+  // Inicio del arrastre (aún no se mueve) y si se acaba de soltar, para que
+  // el clic que llega al soltar no cuente como un toque.
+  const inicioArrastre = useRef<{ id: string; nombre: string; x: number; y: number } | null>(null);
+  const acabaDeSoltar = useRef(false);
+  const arrastreActivo = useRef(false);
   const linea = { backgroundColor: colorLinea || 'rgb(var(--c-muted) / 0.7)' };
   const acomodo = armarDiagrama(elementos);
   const idBloque = (letra: string) => `rama-${lazo.id}-${letra}`;
@@ -110,25 +117,23 @@ export default function DiagramaLazo({
   function boton(e: Elemento, chico: boolean) {
     const estado = estados?.get(e.id);
     const direccion = direccionVisible(e.direccion, lazo.numero);
-    const seleccionado = mover?.seleccionado === e.id;
+    const seleccionado = Boolean(mover?.seleccionados.includes(e.id));
     let marco = 'hover:bg-surface-2/70';
-    if (mover) marco = 'outline-dashed outline-1 outline-line-strong hover:outline-teal cursor-grab active:cursor-grabbing';
+    if (mover) marco = 'outline-dashed outline-1 outline-line-strong hover:outline-teal cursor-grab active:cursor-grabbing select-none';
     if (mover && encima === e.id) marco = 'outline outline-2 outline-teal bg-teal/10';
-    if (seleccionado) marco = 'outline outline-2 outline-teal bg-teal/15 shadow-glow-teal';
+    if (seleccionado) marco = 'outline outline-2 outline-teal bg-teal/15 shadow-glow-teal touch-none select-none';
     return (
       <button
         type="button"
-        onClick={() => onTocar?.(e)}
-        draggable={Boolean(mover)}
-        onDragStart={(ev) => { ev.dataTransfer.setData('text/plain', e.id); ev.dataTransfer.effectAllowed = 'move'; }}
-        onDragOver={(ev) => { if (!mover) return; ev.preventDefault(); if (encima !== e.id) setEncima(e.id); }}
-        onDragLeave={() => setEncima((actual) => (actual === e.id ? null : actual))}
-        onDrop={(ev) => {
+        data-elemento={e.id}
+        onClick={() => {
+          if (acabaDeSoltar.current) { acabaDeSoltar.current = false; return; }
+          onTocar?.(e);
+        }}
+        onPointerDown={(ev) => {
           if (!mover) return;
-          ev.preventDefault();
-          setEncima(null);
-          const moverId = ev.dataTransfer.getData('text/plain');
-          if (moverId && moverId !== e.id) mover.onSoltar(moverId, e);
+          if (ev.pointerType !== 'mouse' && !seleccionado) return;
+          inicioArrastre.current = { id: e.id, nombre: e.nombre, x: ev.clientX, y: ev.clientY };
         }}
         className={`flex flex-col items-center rounded-lg px-0.5 transition-colors outline-offset-2 ${marco} ${claseEstado(estado)}`}
         aria-label={`${e.nombre}${direccion ? `, dirección ${direccion}` : ''}`}
@@ -140,6 +145,56 @@ export default function DiagramaLazo({
       </button>
     );
   }
+
+  // El arrastre se sigue en toda la ventana: el dedo o el ratón salen del
+  // botón en cuanto se mueven.
+  useEffect(() => {
+    if (!mover) return;
+    const onSoltar = mover.onSoltar;
+    function idBajo(x: number, y: number): string | null {
+      const nodo = document.elementFromPoint(x, y)?.closest('[data-elemento]');
+      return nodo ? nodo.getAttribute('data-elemento') : null;
+    }
+    function alMover(ev: PointerEvent) {
+      const inicio = inicioArrastre.current;
+      if (!inicio) return;
+      const lejos = Math.hypot(ev.clientX - inicio.x, ev.clientY - inicio.y) > 8;
+      if (!lejos && !arrastreActivo.current) return;
+      arrastreActivo.current = true;
+      ev.preventDefault();
+      setArrastre({ id: inicio.id, nombre: inicio.nombre, x: ev.clientX, y: ev.clientY });
+      const debajo = idBajo(ev.clientX, ev.clientY);
+      setEncima(debajo && debajo !== inicio.id ? debajo : null);
+    }
+    function alSoltar(ev: PointerEvent) {
+      const inicio = inicioArrastre.current;
+      inicioArrastre.current = null;
+      if (!inicio || !arrastreActivo.current) return;
+      arrastreActivo.current = false;
+      acabaDeSoltar.current = true;
+      // Si el clic no llega (se soltó fuera de un botón), no debe comerse el siguiente toque.
+      setTimeout(() => { acabaDeSoltar.current = false; }, 0);
+      setArrastre(null);
+      setEncima(null);
+      const destinoId = idBajo(ev.clientX, ev.clientY);
+      const destino = elementos.find((x) => x.id === destinoId);
+      if (destino && destino.id !== inicio.id) onSoltar(inicio.id, destino);
+    }
+    function alCancelar() {
+      inicioArrastre.current = null;
+      arrastreActivo.current = false;
+      setArrastre(null);
+      setEncima(null);
+    }
+    window.addEventListener('pointermove', alMover, { passive: false });
+    window.addEventListener('pointerup', alSoltar);
+    window.addEventListener('pointercancel', alCancelar);
+    return () => {
+      window.removeEventListener('pointermove', alMover);
+      window.removeEventListener('pointerup', alSoltar);
+      window.removeEventListener('pointercancel', alCancelar);
+    };
+  }, [mover, elementos]);
 
   // Etiqueta de una rama que se dibuja aparte; al tocarla baja a ella.
   function etiquetaRama(primero: Elemento, letra: string) {
@@ -244,8 +299,16 @@ export default function DiagramaLazo({
     ));
   }
 
+  const cuantosArrastra = arrastre && mover?.seleccionados.includes(arrastre.id) ? mover.seleccionados.length : 1;
+
   return (
     <div ref={contenedor} className="w-full">
+      {arrastre && (
+        <div className="fixed z-50 pointer-events-none rounded-lg bg-teal text-inkOnAccent font-mono text-[12px] font-semibold px-2 py-1 shadow-lg"
+          style={{ left: arrastre.x + 12, top: arrastre.y + 12 }}>
+          {cuantosArrastra > 1 ? `${cuantosArrastra} dispositivos` : arrastre.nombre}
+        </div>
+      )}
       <div className="w-max min-w-full">
         {conPanel && (
           <div className="flex items-center gap-2">

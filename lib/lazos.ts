@@ -800,3 +800,39 @@ export function planDeMovimiento(elementos: Elemento[], moverId: string, destino
   }
   return cambios;
 }
+
+// Cómo quedan varios dispositivos movidos juntos (p. ej. 5 que se capturaron
+// en serie y en realidad salen de otro). 'estrella': cada uno sale directo
+// del destino como derivación propia; los demás modos los dejan en serie,
+// en el mismo orden en que estaban.
+export type ModoMoverVarios = ModoMover | 'estrella';
+
+export function planDeMovimientoVarios(elementos: Elemento[], ids: string[], destinoId: string, modo: ModoMoverVarios): Elemento[] {
+  if (ids.length === 0) return [];
+  if (ids.includes(destinoId)) throw new Error('El destino no puede ser uno de los que vas a mover.');
+
+  // En el orden del recorrido, no en el orden en que se tocaron.
+  const posicion = new Map(enOrdenDeRecorrido(elementos).map((e, i) => [e.id, i]));
+  const enOrden = [...ids].sort((a, b) => (posicion.get(a) ?? 0) - (posicion.get(b) ?? 0));
+
+  // Uno por uno sobre la copia de trabajo: el primero va respecto al
+  // destino y cada siguiente después del anterior, así quedan en serie.
+  let trabajo = elementos;
+  let anterior: string | null = null;
+  for (const id of enOrden) {
+    let cambios: Elemento[];
+    if (modo === 'estrella') cambios = planDeMovimiento(trabajo, id, destinoId, 'colgar');
+    else if (anterior === null) cambios = planDeMovimiento(trabajo, id, destinoId, modo);
+    else cambios = planDeMovimiento(trabajo, id, anterior, 'despues');
+    const cambiado = new Map(cambios.map((c) => [c.id, c]));
+    trabajo = trabajo.map((e) => cambiado.get(e.id) || e);
+    anterior = id;
+  }
+
+  // Solo lo que quedó distinto a como estaba.
+  const original = new Map(elementos.map((e) => [e.id, e]));
+  return trabajo.filter((e) => {
+    const antes = original.get(e.id) as Elemento;
+    return antes.padre_id !== e.padre_id || antes.orden !== e.orden || Boolean(antes.sin_conectar) !== Boolean(e.sin_conectar);
+  });
+}

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ChevronLeft, CloudUpload, FileDown, History, Move, Plus, Settings2, Undo2, WifiOff, X } from 'lucide-react';
+import { AlertTriangle, ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ChevronLeft, GitFork, CloudUpload, FileDown, History, Move, Plus, Settings2, Undo2, WifiOff, X } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
 import DiagramaLazo from '@/components/lazos/DiagramaLazo';
@@ -16,7 +16,7 @@ import FichaElemento, { fechaHora } from '@/components/lazos/FichaElemento';
 import BusquedaFalla from '@/components/lazos/BusquedaFalla';
 import { confirmar } from '@/lib/dialogos';
 import { useEsAncho } from '@/lib/useEsAncho';
-import { Cambio, Corte, Elemento, Falla, ModoMover, NOMBRE_CIRCUITO, Panel, describirCambio, etiquetaSalida, hijosDe, lazosDelMismoPanel, lineaPrincipal, planDeMovimiento, siguienteNumeroDeLazo } from '@/lib/lazos';
+import { Cambio, Corte, Elemento, Falla, ModoMoverVarios, NOMBRE_CIRCUITO, Panel, describirCambio, etiquetaSalida, hijosDe, lazosDelMismoPanel, lineaPrincipal, planDeMovimientoVarios, siguienteNumeroDeLazo } from '@/lib/lazos';
 import {
   DatosLazo, LazoResumen, ResultadoGuardar, actualizarLazo, borrarElemento, borrarLazo, descartarPrimerPendiente,
   fallasResueltas, guardarCopiaLazo, guardarElemento, historialDeLazo, listarLazos, listarPaneles, obtenerLazo, asignarPanel, nombreCompletoPanel, textoDePanel, pendientesDeLazo, subirPendientes,
@@ -56,11 +56,13 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
   const [verPanel, setVerPanel] = useState(true);
   const [agregandoLazo, setAgregandoLazo] = useState(false);
   const esAncho = useEsAncho();
-  // Modo mover del diagrama: se elige uno (tocándolo o arrastrándolo) y
-  // luego a dónde va respecto a otro.
+  // Modo mover del diagrama: se eligen uno o varios (tocándolos) y luego el
+  // destino; o se arrastra uno (o los elegidos) y se suelta sobre el destino.
   const [moviendo, setMoviendo] = useState(false);
-  const [seleccionMover, setSeleccionMover] = useState<string | null>(null);
-  const [destinoMover, setDestinoMover] = useState<{ mover: Elemento; destino: Elemento } | null>(null);
+  const [seleccionMover, setSeleccionMover] = useState<string[]>([]);
+  // true: ya se eligieron y el siguiente toque es el destino.
+  const [eligiendoDestino, setEligiendoDestino] = useState(false);
+  const [destinoMover, setDestinoMover] = useState<{ ids: string[]; destino: Elemento } | null>(null);
   const [aplicandoMover, setAplicandoMover] = useState(false);
   // Cómo estaban los que cambiaron en el último movimiento, para deshacerlo.
   const [deshacer, setDeshacer] = useState<{ texto: string; antes: Elemento[] } | null>(null);
@@ -197,18 +199,60 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
     }
   }
 
-  // En modo mover, tocar elige el que se mueve y luego el destino.
-  function tocarEnDiagrama(elemento: Elemento) {
-    if (!moviendo) { abrirFicha(elemento); return; }
-    if (!seleccionMover) { setSeleccionMover(elemento.id); return; }
-    if (seleccionMover === elemento.id) { setSeleccionMover(null); return; }
-    const mover = datos?.elementos.find((e) => e.id === seleccionMover);
-    if (mover) setDestinoMover({ mover, destino: elemento });
+  function terminarMover() {
+    setSeleccionMover([]);
+    setEligiendoDestino(false);
+    setDestinoMover(null);
   }
 
+  // En modo mover: primero cada toque elige o quita uno; ya en «Elegir
+  // destino», el toque es el dispositivo junto al que van.
+  function tocarEnDiagrama(elemento: Elemento) {
+    if (!moviendo) { abrirFicha(elemento); return; }
+    if (eligiendoDestino) {
+      if (seleccionMover.includes(elemento.id)) { showToast('Ese es uno de los que vas a mover: toca otro como destino.', 'error'); return; }
+      setDestinoMover({ ids: seleccionMover, destino: elemento });
+      return;
+    }
+    const yaEsta = seleccionMover.includes(elemento.id);
+    setSeleccionMover(yaEsta ? seleccionMover.filter((id) => id !== elemento.id) : [...seleccionMover, elemento.id]);
+  }
+
+  // Arrastrar uno de los elegidos mueve a todos los elegidos; arrastrar
+  // otro mueve solo a ese.
   function soltarEnDiagrama(moverId: string, destino: Elemento) {
-    const mover = datos?.elementos.find((e) => e.id === moverId);
-    if (mover) setDestinoMover({ mover, destino });
+    const ids = seleccionMover.includes(moverId) ? seleccionMover : [moverId];
+    if (ids.includes(destino.id)) return;
+    setDestinoMover({ ids, destino });
+  }
+
+  function nombreDe(id: string): string {
+    return datos?.elementos.find((e) => e.id === id)?.nombre || '';
+  }
+
+  function textoAyudaMover(): React.ReactNode {
+    if (eligiendoDestino) {
+      const cuales = seleccionMover.length === 1 ? nombreDe(seleccionMover[0]) : `los ${seleccionMover.length} elegidos`;
+      return <>Ahora toca el dispositivo junto al que va <b className="font-mono">{cuales}</b>.</>;
+    }
+    if (seleccionMover.length > 0) {
+      const nombres = seleccionMover.map(nombreDe).join(', ');
+      return <><b>{seleccionMover.length} {seleccionMover.length === 1 ? 'elegido' : 'elegidos'}:</b> <span className="font-mono">{nombres}</span>. Toca más o arrástralos sobre el destino.</>;
+    }
+    return 'Toca los dispositivos que quieres mover (uno o varios) y luego «Elegir destino». También puedes arrastrar uno y soltarlo sobre otro.';
+  }
+
+  // Con varios se puede dejarlos en serie (rama nueva) o cada uno saliendo
+  // directo del destino (estrella).
+  function opcionesMover(cuantos: number) {
+    const varios = cuantos > 1;
+    const opciones: { modo: ModoMoverVarios; texto: string; detalle: string; Icono: typeof ArrowRightToLine }[] = [
+      { modo: 'despues', texto: 'Después', detalle: varios ? 'Siguen en serie detrás de él' : 'Sigue en serie detrás de él', Icono: ArrowRightToLine },
+      { modo: 'antes', texto: 'Antes', detalle: varios ? 'Van en serie delante de él' : 'Va en serie delante de él', Icono: ArrowLeftToLine },
+      { modo: 'colgar', texto: varios ? 'Colgando en serie (rama nueva)' : 'Colgando (rama nueva)', detalle: varios ? 'Salen de él como una derivación, uno tras otro' : 'Sale de él como derivación', Icono: ArrowDownToLine },
+    ];
+    if (varios) opciones.push({ modo: 'estrella', texto: 'En estrella', detalle: 'Cada uno sale directo de él', Icono: GitFork });
+    return opciones;
   }
 
   // Guarda uno por uno (cada uno va a la cola si no hay señal).
@@ -224,30 +268,33 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
     return elementos;
   }
 
-  async function aplicarMovimiento(modo: ModoMover) {
+  async function aplicarMovimiento(modo: ModoMoverVarios) {
     if (!datos || !destinoMover) return;
-    const { mover, destino } = destinoMover;
+    const { ids, destino } = destinoMover;
     let cambios: Elemento[];
     try {
-      cambios = planDeMovimiento(datos.elementos, mover.id, destino.id, modo);
+      cambios = planDeMovimientoVarios(datos.elementos, ids, destino.id, modo);
     } catch (e: any) {
       showToast(e?.message || 'No se puede mover ahí.', 'error');
       return;
     }
-    if (cambios.length === 0) { setDestinoMover(null); setSeleccionMover(null); return; }
+    if (cambios.length === 0) { terminarMover(); return; }
     setAplicandoMover(true);
     const antes = cambios.map((c) => datos.elementos.find((e) => e.id === c.id) as Elemento);
     try {
       const elementos = await guardarVarios(cambios, datos.elementos);
       actualizar({ ...datos, elementos });
-      const donde = modo === 'despues' ? 'después de' : modo === 'antes' ? 'antes de' : 'colgando de';
-      setDeshacer({ texto: `${mover.nombre} quedó ${donde} ${destino.nombre}`, antes });
+      let donde = 'colgando de';
+      if (modo === 'despues') donde = 'después de';
+      if (modo === 'antes') donde = 'antes de';
+      if (modo === 'estrella') donde = 'en estrella desde';
+      const quienes = ids.length === 1 ? `${nombreDe(ids[0])} quedó` : `${ids.length} dispositivos quedaron`;
+      setDeshacer({ texto: `${quienes} ${donde} ${destino.nombre}`, antes });
     } catch (e: any) {
       showToast(e?.message || 'No se pudo mover el dispositivo.', 'error');
     }
     setAplicandoMover(false);
-    setDestinoMover(null);
-    setSeleccionMover(null);
+    terminarMover();
   }
 
   async function deshacerMovimiento() {
@@ -328,7 +375,7 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
 
   return (
     <div className="max-w-3xl lg:max-w-[1500px] mx-auto pb-28">
-      <div className="sticky top-0 z-20 glass-strong px-4 py-3" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}>
+      <div className="sticky top-0 z-20 glass-strong px-4 lg:px-8 py-3" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}>
         <div className="flex items-center gap-2">
           <Link href={panelDelLazo ? `/lazos/panel/${panelDelLazo.id}` : `/lazos?cliente=${lazo.cliente_id}`} aria-label={panelDelLazo ? `Volver al ${panelDelLazo.nombre}` : 'Volver a los lazos'} className="shrink-0 w-11 h-11 -ml-1.5 rounded-full flex items-center justify-center active:scale-90 transition-transform">
             <ChevronLeft size={24} strokeWidth={2.4} />
@@ -359,7 +406,7 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
         </div>
       </div>
 
-      <div className="px-4 pt-3">
+      <div className="px-4 lg:px-8 pt-4">
         {(sinConexion || pendientes > 0) && (
           <div className="flex items-center gap-2 rounded-xl bg-amber/10 text-amber text-[13px] px-3 py-2 mb-3">
             {sinConexion ? <WifiOff size={16} strokeWidth={2.4} /> : <CloudUpload size={16} strokeWidth={2.4} />}
@@ -406,8 +453,9 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
                   <Plus size={16} strokeWidth={2.6} /> Lazo {siguienteNumeroDeLazo(delPanel.length ? delPanel : [lazo])}
                 </button>
               )}
-              {!(hayVariosLazos && verPanel) && principal.length > 1 && (
-                <button type="button" onClick={() => { setMoviendo((m) => !m); setSeleccionMover(null); }} aria-pressed={moviendo}
+              {principal.length > 1 && (
+                // En la vista del panel no se puede mover: «Mover» pasa a «Este lazo».
+                <button type="button" onClick={() => { setMoviendo(!moviendo); setVerPanel(false); terminarMover(); }} aria-pressed={moviendo}
                   className={`min-h-[42px] px-3.5 rounded-xl border text-[13.5px] font-semibold flex items-center gap-1.5 ${moviendo ? 'border-teal bg-teal text-inkOnAccent' : 'border-line bg-surface-2'}`}>
                   {moviendo ? <X size={16} strokeWidth={2.4} /> : <Move size={16} strokeWidth={2.2} />} {moviendo ? 'Listo' : 'Mover'}
                 </button>
@@ -424,11 +472,19 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
                 {moviendo && (
                   <p className="rounded-xl bg-teal/10 border border-teal/40 text-[13px] px-3 py-2 mb-2 flex items-start gap-2">
                     <Move size={16} strokeWidth={2.4} className="text-teal shrink-0 mt-px" />
-                    <span>
-                      {seleccionMover
-                        ? <>Ahora toca el dispositivo junto al que va <b className="font-mono">{elementos.find((e) => e.id === seleccionMover)?.nombre}</b>.</>
-                        : esAncho ? 'Arrastra un dispositivo y suéltalo sobre otro, o toca uno y luego el destino.' : 'Toca el dispositivo que quieres mover y luego el destino.'}
-                    </span>
+                    <span className="flex-1 min-w-0">{textoAyudaMover()}</span>
+                    {seleccionMover.length > 0 && !eligiendoDestino && (
+                      <button type="button" onClick={() => setEligiendoDestino(true)}
+                        className="shrink-0 min-h-[34px] px-3 rounded-lg bg-teal text-inkOnAccent font-semibold text-[13px]">
+                        Elegir destino
+                      </button>
+                    )}
+                    {eligiendoDestino && (
+                      <button type="button" onClick={() => setEligiendoDestino(false)} className="shrink-0 min-h-[34px] px-2 font-semibold text-muted">Atrás</button>
+                    )}
+                    {seleccionMover.length > 0 && !eligiendoDestino && (
+                      <button type="button" onClick={terminarMover} className="shrink-0 min-h-[34px] px-2 font-semibold text-muted">Quitar</button>
+                    )}
                   </p>
                 )}
                 {deshacer && (
@@ -442,7 +498,7 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
                 )}
                 <div className={`rounded-2xl bg-surface border p-3 overflow-x-auto ${moviendo ? 'border-teal/50' : 'border-line'}`}>
                   <DiagramaLazo lazo={lazo} elementos={elementos} onTocar={tocarEnDiagrama}
-                    mover={moviendo ? { seleccionado: seleccionMover, onSoltar: soltarEnDiagrama } : undefined} />
+                    mover={moviendo ? { seleccionados: seleccionMover, onSoltar: soltarEnDiagrama } : undefined} />
                 </div>
                 {lazo.tipo === 'deteccion' && !hayVariosLazos && (
                   <button type="button" onClick={() => setAgregandoLazo(true)}
@@ -506,14 +562,12 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
       {destinoMover && (
         <ModalOverlay onClose={() => !aplicandoMover && setDestinoMover(null)}>
           <div className="glass-strong rounded-3xl max-w-sm w-full p-4">
-            <h2 className="font-display font-bold text-[20px]">Mover <span className="font-mono text-teal text-[17px]">{destinoMover.mover.nombre}</span></h2>
-            <p className="text-[13px] text-muted mb-3">¿Dónde va respecto a <b className="font-mono text-ink">{destinoMover.destino.nombre}</b>?</p>
+            <h2 className="font-display font-bold text-[20px]">
+              Mover <span className="font-mono text-teal text-[17px]">{destinoMover.ids.length === 1 ? nombreDe(destinoMover.ids[0]) : `${destinoMover.ids.length} dispositivos`}</span>
+            </h2>
+            <p className="text-[13px] text-muted mb-3">¿Dónde {destinoMover.ids.length === 1 ? 'va' : 'van'} respecto a <b className="font-mono text-ink">{destinoMover.destino.nombre}</b>?</p>
             <div className="flex flex-col gap-2">
-              {([
-                { modo: 'despues', texto: 'Después', detalle: 'Sigue en serie detrás de él', Icono: ArrowRightToLine },
-                { modo: 'antes', texto: 'Antes', detalle: 'Va en serie delante de él', Icono: ArrowLeftToLine },
-                { modo: 'colgar', texto: 'Colgando (rama nueva)', detalle: 'Sale de él como derivación', Icono: ArrowDownToLine },
-              ] as const).map(({ modo, texto, detalle, Icono }) => (
+              {opcionesMover(destinoMover.ids.length).map(({ modo, texto, detalle, Icono }) => (
                 <button key={modo} type="button" onClick={() => aplicarMovimiento(modo)} disabled={aplicandoMover}
                   className="min-h-[56px] rounded-xl border border-line bg-surface-2 hover:border-teal/60 px-3 flex items-center gap-3 text-left disabled:opacity-60">
                   <span className="w-9 h-9 rounded-lg bg-teal/15 text-teal flex items-center justify-center shrink-0"><Icono size={18} strokeWidth={2.4} /></span>

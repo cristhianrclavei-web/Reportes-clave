@@ -94,7 +94,7 @@ export default function PanelDetalle({ panelId, esSupervisor }: { panelId: strin
 
   return (
     <div className="max-w-3xl lg:max-w-[1500px] mx-auto pb-28">
-      <div className="sticky top-0 z-20 glass-strong px-4 py-3" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}>
+      <div className="sticky top-0 z-20 glass-strong px-4 lg:px-8 py-3" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}>
         <div className="flex items-center gap-2">
           <Link href={`/lazos?cliente=${panel.cliente_id}`} aria-label="Volver a los lazos del cliente" className="shrink-0 w-11 h-11 -ml-1.5 rounded-full flex items-center justify-center active:scale-90 transition-transform">
             <ChevronLeft size={24} strokeWidth={2.4} />
@@ -117,7 +117,7 @@ export default function PanelDetalle({ panelId, esSupervisor }: { panelId: strin
         </div>
       </div>
 
-      <div className="px-4 pt-3">
+      <div className="px-4 lg:px-8 pt-4">
         {sinConexion && (
           <p className="flex items-center gap-2 rounded-xl bg-amber/10 text-amber text-[13px] px-3 py-2 mb-3">
             <WifiOff size={16} strokeWidth={2.4} /> Sin señal: es lo último que se cargó en este teléfono.
