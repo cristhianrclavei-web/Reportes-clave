@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { aDireccionPermitida, alinear, conCodo, enderezar, siguientesPuntos } from './trazoRecto';
+import { aDireccionPermitida, alinear, arrastrarNodo, conCodo, enderezar, insertarNodo, siguientesPuntos } from './trazoRecto';
 
 describe('dirección permitida', () => {
   it('a 90° se queda con el eje que más avanza', () => {
@@ -57,5 +57,36 @@ describe('siguiente punto de la tubería', () => {
 describe('enderezar una tubería ya trazada', () => {
   it('cambia los tramos chuecos por codos', () => {
     expect(enderezar([[0, 0], [100, 40], [100, 90]], 'recto', 1)).toEqual([[0, 0], [100, 0], [100, 40], [100, 90]]);
+  });
+});
+
+describe('alargar una tubería arrastrando su punta', () => {
+  // Una horizontal que se quedó corta y una vertical a la derecha.
+  const tuberias = [
+    { id: 'corta', puntos: [[0, 0], [80, 0]] as [number, number][] },
+    { id: 'vertical', puntos: [[100, -50], [100, 50]] as [number, number][] },
+  ];
+  const opciones = { modo: 'recto' as const, equipos: [], tolerancia: 6 };
+
+  it('se alarga derecho hasta cruzar la otra tubería y avisa dónde unirla', () => {
+    const r = arrastrarNodo(tuberias, 'corta', 1, [97, 4], opciones);
+    expect(r.punto[0]).toBeCloseTo(100);
+    expect(r.punto[1]).toBeCloseTo(0);
+    expect(r.union).toEqual({ tuberiaId: 'vertical', segmento: 0 });
+  });
+
+  it('se pega exacto a un nodo', () => {
+    expect(arrastrarNodo(tuberias, 'corta', 1, [98, 47], opciones).punto).toEqual([100, 50]);
+  });
+
+  it('lejos de todo solo se mantiene derecho', () => {
+    const r = arrastrarNodo(tuberias, 'corta', 1, [60, 9], opciones);
+    expect(r.punto).toEqual([60, 0]);
+    expect(r.union).toBeNull();
+  });
+
+  it('la tubería donde llega gana un nodo', () => {
+    expect(insertarNodo([[100, -50], [100, 50]], 0, [100, 0])).toEqual([[100, -50], [100, 0], [100, 50]]);
+    expect(insertarNodo([[100, -50], [100, 50]], 0, [100, 50])).toEqual([[100, -50], [100, 50]]);
   });
 });

@@ -20,11 +20,15 @@ export type Seleccion = { tipo: 'equipo' | 'tuberia'; id: string } | null;
 
 type Vista = { s: number; tx: number; ty: number };
 
+// Un quiebre o punta de una tubería (su lugar en la lista de puntos).
+export type NodoTuberia = { tuberiaId: string; indice: number };
+
 type Gesto =
   | { tipo: 'nada' }
-  | { tipo: 'posible'; x: number; y: number; vista: Vista; equipoId: string | null }
+  | { tipo: 'posible'; x: number; y: number; vista: Vista; equipoId: string | null; nodo: NodoTuberia | null }
   | { tipo: 'pan'; x: number; y: number; vista: Vista }
   | { tipo: 'arrastre'; equipoId: string }
+  | { tipo: 'arrastreNodo'; nodo: NodoTuberia }
   | { tipo: 'pinza'; distancia: number; centro: { x: number; y: number }; vista: Vista };
 
 // Cuánto hay que mover el dedo para que deje de ser un toque.
@@ -35,7 +39,7 @@ const RADIO_TOQUE = 22;
 export default function LienzoPlano({
   imagenUrl, ancho, alto, sembrado, etiquetaDe, seleccion, trazo, colorTrazo, medida,
   ajustarPunto, onTocar, onDobleToque, onArrastreInicio, onArrastre, onArrastreFin,
-  conexiones, colorPorLazo, resaltado, ayudaPuntero, guiasArrastre, nodos,
+  conexiones, colorPorLazo, resaltado, ayudaPuntero, guiasArrastre, verNodos, onNodoInicio, onNodo, onNodoFin,
 }: {
   imagenUrl: string | null;
   ancho: number;
@@ -62,8 +66,11 @@ export default function LienzoPlano({
   ayudaPuntero: boolean;
   // Guías mientras se arrastra un equipo.
   guiasArrastre: Guias | null;
-  // Nodos de tubería (quiebres y puntas) a los que se puede unir el trazo.
-  nodos: Punto[];
+  // Ver los nodos de tubería (quiebres y puntas): se unen y se arrastran.
+  verNodos: boolean;
+  onNodoInicio: (nodo: NodoTuberia) => void;
+  onNodo: (nodo: NodoTuberia, p: Punto) => void;
+  onNodoFin: () => void;
 }) {
   const marco = useRef<HTMLDivElement>(null);
   const [vista, setVista] = useState<Vista>({ s: 0, tx: 0, ty: 0 });
@@ -148,7 +155,9 @@ export default function LienzoPlano({
       // (con cualquier herramienta); si no, se recorre el plano.
       const tocado = equipoEn(sembrado, aHoja(p.x, p.y), radioEnHoja(), r);
       const equipoId = tocado?.id || null;
-      gesto.current = { tipo: 'posible', x: p.x, y: p.y, vista: vistaRef.current, equipoId };
+      // Si no es un equipo y se ven los nodos, puede ser un nodo de tubería.
+      const nodo = !equipoId && verNodos ? nodoEn(aHoja(p.x, p.y), radioEnHoja()) : null;
+      gesto.current = { tipo: 'posible', x: p.x, y: p.y, vista: vistaRef.current, equipoId, nodo };
       return;
     }
     if (punteros.current.size === 2) {
@@ -177,6 +186,9 @@ export default function LienzoPlano({
       if (g.equipoId) {
         gesto.current = { tipo: 'arrastre', equipoId: g.equipoId };
         onArrastreInicio(g.equipoId);
+      } else if (g.nodo) {
+        gesto.current = { tipo: 'arrastreNodo', nodo: g.nodo };
+        onNodoInicio(g.nodo);
       } else {
         gesto.current = { tipo: 'pan', x: g.x, y: g.y, vista: g.vista };
       }
@@ -187,6 +199,8 @@ export default function LienzoPlano({
       setVista({ s: actual.vista.s, tx: actual.vista.tx + p.x - actual.x, ty: actual.vista.ty + p.y - actual.y });
     } else if (actual.tipo === 'arrastre') {
       onArrastre(actual.equipoId, aHoja(p.x, p.y));
+    } else if (actual.tipo === 'arrastreNodo') {
+      onNodo(actual.nodo, aHoja(p.x, p.y));
     } else if (actual.tipo === 'pinza' && punteros.current.size >= 2) {
       const [a, b] = [...punteros.current.values()];
       const distancia = Math.hypot(b.x - a.x, b.y - a.y) || 1;
@@ -208,6 +222,8 @@ export default function LienzoPlano({
       onTocar(p, equipoEn(sembrado, p, radio, r), tuberiaEn(sembrado, p, radio * 0.6));
     } else if (g.tipo === 'arrastre') {
       onArrastreFin(g.equipoId);
+    } else if (g.tipo === 'arrastreNodo') {
+      onNodoFin();
     }
     // Al soltar un dedo de la pinza no se brinca a mover: se espera a soltar todo.
     gesto.current = { tipo: 'nada' };
@@ -216,7 +232,24 @@ export default function LienzoPlano({
   function alCancelar(ev: React.PointerEvent) {
     punteros.current.delete(ev.pointerId);
     if (gesto.current.tipo === 'arrastre') onArrastreFin(gesto.current.equipoId);
+    if (gesto.current.tipo === 'arrastreNodo') onNodoFin();
     gesto.current = { tipo: 'nada' };
+  }
+
+  // El nodo de tubería más cercano a p, dentro del radio.
+  function nodoEn(p: Punto, radio: number): NodoTuberia | null {
+    let mejor: NodoTuberia | null = null;
+    let menor = radio;
+    for (const t of sembrado.tuberias) {
+      t.puntos.forEach((n, indice) => {
+        const d = Math.hypot(n[0] - p[0], n[1] - p[1]);
+        if (d <= menor) {
+          menor = d;
+          mejor = { tuberiaId: t.id, indice };
+        }
+      });
+    }
+    return mejor;
   }
 
   const { s } = vista;
@@ -279,9 +312,9 @@ export default function LienzoPlano({
             {guias?.y != null && <Guia x1={0} y1={guias.y} x2={ancho} y2={guias.y} s={s} />}
 
             {/* Nodos de tubería: puntos donde se puede unir otro tramo. */}
-            {nodos.map((n, i) => (
-              <circle key={`nodo-${i}`} cx={n[0]} cy={n[1]} r={5 / s} fill="#fff" stroke="#0f766e" strokeWidth={1.6 / s} style={{ pointerEvents: 'none' }} />
-            ))}
+            {verNodos && sembrado.tuberias.flatMap((t) => t.puntos.map((n, i) => (
+              <circle key={`nodo-${t.id}-${i}`} cx={n[0]} cy={n[1]} r={5 / s} fill="#fff" stroke={colorTuberia(t.diametro)} strokeWidth={1.8 / s} style={{ pointerEvents: 'none' }} />
+            )))}
             {previa && previa.puntos.length > 0 && (
               <circle cx={previa.puntos[previa.puntos.length - 1][0]} cy={previa.puntos[previa.puntos.length - 1][1]} r={grosorTubo * 1.6}
                 fill="none" stroke="#14b8a6" strokeWidth={1.5 / s} style={{ pointerEvents: 'none' }} />

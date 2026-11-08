@@ -6,7 +6,7 @@ import {
   Check, ChevronLeft, CloudOff, FileDown, Hand, Map as IconoPlano, Link2, Link2Off, Loader2, Minus, MoreVertical, Plus, RotateCcw, RotateCw, MousePointer2, PenLine, Ruler, Spline, Redo2, Trash2, Undo2, Waypoints, X,
 } from 'lucide-react';
 import HojaCaptura from '@/components/lazos/HojaCaptura';
-import LienzoPlano, { type Seleccion } from '@/components/lazos/LienzoPlano';
+import LienzoPlano, { type NodoTuberia, type Seleccion } from '@/components/lazos/LienzoPlano';
 import SimboloPlano from '@/components/lazos/SimboloPlano';
 import { girar } from '@/lib/simbolosPlano';
 import ModalOverlay from '@/components/ModalOverlay';
@@ -18,7 +18,7 @@ import {
   type Elemento, type Lugar, type Panel,
 } from '@/lib/lazos';
 import { listarPaneles, pendientesDeLazo, subirPendientes } from '@/lib/lazosDatos';
-import { alinear, enderezar, siguientesPuntos, type Ajuste, type Guias, type ModoTrazo } from '@/lib/trazoRecto';
+import { alinear, arrastrarNodo, enderezar, insertarNodo, siguientesPuntos, type Union, type Ajuste, type Guias, type ModoTrazo } from '@/lib/trazoRecto';
 import { colorDeLazo, conexionesEnPlano, lugarParaConectar, revisarLazo, tieneSiguiente } from '@/lib/conexionesPlano';
 import {
   DIAMETROS, TIPOS_TUBERIA, cantidadesDeEquipos, cantidadesDeTuberia, colorTuberia, distancia,
@@ -93,16 +93,21 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   const [herramienta, setHerramienta] = useState<Herramienta>('ver');
   const [seleccion, setSeleccion] = useState<Seleccion>(null);
   const [porColocar, setPorColocar] = useState<PorColocar | null>(null);
-  const [trazo, setTrazo] = useState<Punto[]>([]);
+  // Tramo de tubería que se está trazando. Cada toque se guarda en el plano
+  // en ese momento: el tramo ya es una tubería del plano (id) desde el
+  // segundo punto; antes solo se sabe dónde empieza (inicio).
+  const [tramoActivo, setTramoActivo] = useState<{ id: string | null; inicio: Punto | null }>({ id: null, inicio: null });
   const [tipoTubo, setTipoTubo] = useState<string>('EMT');
   const [diametro, setDiametro] = useState<string>('3/4"');
   // Como AutoCAD: a 90° (recto), con diagonales a 45° o libre.
   const [modoTrazo, setModoTrazo] = useState<ModoTrazo>('recto');
-  // Cuántos puntos agregó cada toque (un toque puede meter un codo), para que
-  // «Quitar punto» deshaga el toque completo.
-  const [pasosTrazo, setPasosTrazo] = useState<number[]>([]);
-  // Quiebres y puntas de las tuberías: nodos donde se puede unir otra.
-  const nodosTuberia = useMemo(() => estado.sembrado.tuberias.flatMap((t) => t.puntos), [estado.sembrado.tuberias]);
+  // Los puntos del tramo activo salen del plano mismo: así «Deshacer» y
+  // «Rehacer» también le quitan o regresan quiebres.
+  const tuberiaActiva = tramoActivo.id ? estado.sembrado.tuberias.find((t) => t.id === tramoActivo.id) || null : null;
+  const trazo: Punto[] = useMemo(() => {
+    if (tuberiaActiva) return tuberiaActiva.puntos;
+    return tramoActivo.inicio ? [tramoActivo.inicio] : [];
+  }, [tuberiaActiva, tramoActivo.inicio]);
   // Los equipos nuevos salen del último tamaño que se eligió en una ficha.
   const [tamanoNuevo, setTamanoNuevo] = useState(1);
   // Igual con el giro: si el edificio va en diagonal, todos salen ya girados.
@@ -262,13 +267,17 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
 
   // Atajos: Ctrl+Z deshace; Ctrl+Y (o Ctrl+Shift+Z) rehace. En Mac, Cmd.
   // No cuando se escribe en un campo (ahí el navegador deshace el texto).
-  const atajos = useRef({ deshacer, rehacerCambio });
-  atajos.current = { deshacer, rehacerCambio };
+  const atajos = useRef({ deshacer, rehacerCambio, soltarTramo: () => {} });
   useEffect(() => {
     function alTeclear(ev: KeyboardEvent) {
-      if (!(ev.ctrlKey || ev.metaKey) || ev.altKey) return;
       const destino = ev.target as HTMLElement | null;
       if (destino && (destino.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(destino.tagName))) return;
+      // Esc termina el tramo de tubería, como en AutoCAD.
+      if (ev.key === 'Escape') {
+        atajos.current.soltarTramo();
+        return;
+      }
+      if (!(ev.ctrlKey || ev.metaKey) || ev.altKey) return;
       const tecla = ev.key.toLowerCase();
       if (tecla === 'z' && !ev.shiftKey) {
         ev.preventDefault();
@@ -526,7 +535,9 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
       }
     }
     if (!puntoFijo) {
+      const ultimoDelTramo = trazo[trazo.length - 1];
       for (const nodo of tuberias.flatMap((t) => t.puntos)) {
+        if (nodo === ultimoDelTramo) continue;
         const d = distancia(p, nodo);
         if (d <= radioPegar * 0.8 && d < menor) {
           puntoFijo = nodo;
@@ -601,9 +612,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
       return;
     }
     if (herramienta === 'tuberia') {
-      const { puntos } = ajustarPunto(p);
-      setTrazo((t) => [...t, ...puntos]);
-      setPasosTrazo((pasos) => [...pasos, puntos.length]);
+      agregarATramo(p);
       return;
     }
     if (herramienta === 'escala') {
@@ -616,21 +625,46 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     if (equipo || tuberia) setPanelAbierto(true);
   }
 
-  function quitarUltimoToque() {
-    const ultimo = pasosTrazo[pasosTrazo.length - 1] || 1;
-    setTrazo((t) => t.slice(0, -ultimo));
-    setPasosTrazo((pasos) => pasos.slice(0, -1));
-  }
-
-  function terminarTramo() {
-    if (trazo.length < 2) {
-      showToast('Toca al menos dos puntos para el tramo', 'error');
+  // Cada toque se guarda: el primero marca el inicio, el segundo crea la
+  // tubería en el plano y los demás le agregan quiebres. Tocar otra vez el
+  // último punto termina el tramo.
+  function agregarATramo(p: Punto) {
+    const ultimo = trazo[trazo.length - 1];
+    if (ultimo && distancia(p, ultimo) <= radioPegar * 0.8) {
+      soltarTramo();
       return;
     }
-    const tuberia: TuberiaPlano = { id: nuevoId(), tipo: tipoTubo, diametro, puntos: trazo };
-    cambiarSembrado({ ...estadoRef.current.sembrado, tuberias: [...estadoRef.current.sembrado.tuberias, tuberia] });
-    setTrazo([]);
-    setPasosTrazo([]);
+    const { puntos } = ajustarPunto(p);
+    const { sembrado } = estadoRef.current;
+    if (tuberiaActiva) {
+      cambiarSembrado({
+        ...sembrado,
+        tuberias: sembrado.tuberias.map((t) => (t.id === tuberiaActiva.id ? { ...t, puntos: [...t.puntos, ...puntos] } : t)),
+      });
+      return;
+    }
+    if (tramoActivo.inicio) {
+      const tuberia: TuberiaPlano = { id: nuevoId(), tipo: tipoTubo, diametro, puntos: [tramoActivo.inicio, ...puntos] };
+      cambiarSembrado({ ...sembrado, tuberias: [...sembrado.tuberias, tuberia] });
+      setTramoActivo({ id: tuberia.id, inicio: null });
+      return;
+    }
+    setTramoActivo({ id: null, inicio: puntos[puntos.length - 1] });
+  }
+
+  // Termina el tramo; el siguiente toque empieza otro. (Lo trazado ya está guardado.)
+  function soltarTramo() {
+    setTramoActivo({ id: null, inicio: null });
+  }
+  atajos.current = { deshacer, rehacerCambio, soltarTramo };
+
+  // Cambiar tipo o diámetro a medio trazo: lo que sigue es otro tramo que
+  // arranca donde iba el anterior.
+  function cambiarTuboActual(cambio: { tipo?: string; diametro?: string }) {
+    if (cambio.tipo) setTipoTubo(cambio.tipo);
+    if (cambio.diametro) setDiametro(cambio.diametro);
+    const ultimo = trazo[trazo.length - 1];
+    if (tuberiaActiva && ultimo) setTramoActivo({ id: null, inicio: ultimo });
   }
 
   // Al arrastrar un equipo: se anota el estado de antes una sola vez para
@@ -648,6 +682,61 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
       ...actual,
       sembrado: { ...actual.sembrado, equipos: actual.sembrado.equipos.map((e) => (e.id === id ? { ...e, x: p[0], y: p[1] } : e)) },
     }));
+  }
+
+  // Arrastrar un nodo de tubería: la punta se alarga derecho y, si llega a
+  // otra tubería, se une ahí y esa tubería gana un nodo al soltar.
+  const unionPendiente = useRef<Union | null>(null);
+  const nodoArrastrado = useRef<NodoTuberia | null>(null);
+
+  function nodoInicio(nodo: NodoTuberia) {
+    anotarEnHistorial();
+    unionPendiente.current = null;
+    nodoArrastrado.current = nodo;
+  }
+
+  function moverNodo(nodo: NodoTuberia, dedo: Punto) {
+    const { equipos, tuberias } = estadoRef.current.sembrado;
+    const r = arrastrarNodo(tuberias, nodo.tuberiaId, nodo.indice, dedo, {
+      modo: modoTrazo,
+      equipos: equipos.map((e): Punto => [e.x, e.y]),
+      tolerancia: radioPegar * 0.6,
+    });
+    unionPendiente.current = r.union;
+    setGuiasArrastre(r.guias);
+    setEstado((actual) => ({
+      ...actual,
+      sembrado: {
+        ...actual.sembrado,
+        tuberias: actual.sembrado.tuberias.map((t) => (
+          t.id === nodo.tuberiaId ? { ...t, puntos: t.puntos.map((q, i) => (i === nodo.indice ? r.punto : q)) } : t
+        )),
+      },
+    }));
+  }
+
+  function nodoFin() {
+    const union = unionPendiente.current;
+    const nodo = nodoArrastrado.current;
+    unionPendiente.current = null;
+    nodoArrastrado.current = null;
+    setGuiasArrastre(null);
+    if (union && nodo) {
+      setEstado((actual) => {
+        // El punto donde quedó la punta es el que se le agrega a la otra tubería.
+        const punto = actual.sembrado.tuberias.find((t) => t.id === nodo.tuberiaId)?.puntos[nodo.indice];
+        if (!punto) return actual;
+        return {
+          ...actual,
+          sembrado: {
+            ...actual.sembrado,
+            tuberias: actual.sembrado.tuberias.map((t) => (t.id === union.tuberiaId ? { ...t, puntos: insertarNodo(t.puntos, union.segmento, punto) } : t)),
+          },
+        };
+      });
+      showToast('Tubería unida: se agregó el nodo');
+    }
+    setCambios((n) => n + 1);
   }
 
   function arrastreFin() {
@@ -695,8 +784,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   function elegirHerramienta(h: Herramienta) {
     setHerramienta(h);
     setSeleccion(null);
-    setTrazo([]);
-    setPasosTrazo([]);
+    setTramoActivo({ id: null, inicio: null });
     setMedida([]);
     setErrorEscala(null);
     setPanelAbierto(true);
@@ -882,7 +970,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
             medida={medida}
             ajustarPunto={herramienta === 'tuberia' ? ajustarPunto : alinearEquipo}
             onTocar={alTocar}
-            onDobleToque={() => { if (herramienta === 'tuberia' && trazo.length >= 2) terminarTramo(); }}
+            onDobleToque={() => { if (herramienta === 'tuberia') soltarTramo(); }}
             onArrastreInicio={arrastreInicio}
             onArrastre={arrastre}
             onArrastreFin={arrastreFin}
@@ -891,7 +979,10 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
             resaltado={herramienta === 'conectar' ? equipoResaltado : null}
             ayudaPuntero={herramienta === 'tuberia' || herramienta === 'equipo' || herramienta === 'conectar'}
             guiasArrastre={guiasArrastre}
-            nodos={herramienta === 'tuberia' ? nodosTuberia : []}
+            verNodos={herramienta === 'tuberia' || herramienta === 'ver'}
+            onNodoInicio={nodoInicio}
+            onNodo={moverNodo}
+            onNodoFin={nodoFin}
           />
           <AyudaFlotante herramienta={herramienta} porColocar={porColocar} trazo={trazo.length} medida={medida.length}
             desde={desde === 'panel' ? 'el panel' : elementoDesde && lazoActivo ? textoDeElemento(elementoDesde, lazoActivo) : null}
@@ -993,20 +1084,21 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
 
               {herramienta === 'tuberia' && (
                 <div className="pt-1">
-                  <Opciones titulo="Tipo" opciones={TIPOS_TUBERIA} valor={tipoTubo} onElegir={setTipoTubo} />
-                  <Opciones titulo="Diámetro" opciones={DIAMETROS} valor={diametro} onElegir={setDiametro} color={colorTuberia} />
+                  <Opciones titulo="Tipo" opciones={TIPOS_TUBERIA} valor={tipoTubo} onElegir={(tipo) => cambiarTuboActual({ tipo })} />
+                  <Opciones titulo="Diámetro" opciones={DIAMETROS} valor={diametro} onElegir={(d) => cambiarTuboActual({ diametro: d })} color={colorTuberia} />
                   <ModosTrazo valor={modoTrazo} onElegir={setModoTrazo} />
                   <p className="text-[13px] text-muted mt-3">
-                    {trazo.length === 0 ? 'Toca donde empieza la tubería; cada toque agrega un quiebre. Cerca de un equipo se pega a su centro y, si no está en línea, se hace el codo solo.' : `${trazo.length} puntos${metrosTrazo !== null ? ` · ${formatoMetros(metrosTrazo)}` : ''}`}
+                    {trazo.length === 0
+                      ? 'Toca donde empieza la tubería; cada toque agrega un quiebre y se guarda solo. Cerca de un equipo o de un nodo se pega ahí y, si no está en línea, hace el codo.'
+                      : trazo.length === 1
+                        ? 'Inicio marcado. Toca el siguiente punto.'
+                        : `Tramo guardado: ${trazo.length} puntos${metrosTrazo !== null ? ` · ${formatoMetros(metrosTrazo)}` : ''}. Sigue tocando para alargarlo.`}
                   </p>
-                  <div className="flex gap-2 mt-3">
-                    <button type="button" onClick={quitarUltimoToque} disabled={trazo.length === 0}
-                      className="flex-1 min-h-[46px] rounded-xl bg-surface-2 border border-line font-semibold text-[14px] disabled:opacity-40">Quitar punto</button>
-                    <button type="button" onClick={terminarTramo} disabled={trazo.length < 2}
-                      className="flex-[1.3] min-h-[46px] rounded-xl bg-teal text-inkOnAccent font-semibold text-[14px] flex items-center justify-center gap-1.5 disabled:opacity-40">
-                      <Check size={17} strokeWidth={2.6} /> Terminar tramo
-                    </button>
-                  </div>
+                  <button type="button" onClick={soltarTramo} disabled={trazo.length === 0}
+                    className="mt-3 w-full min-h-[46px] rounded-xl bg-surface-2 border border-line font-semibold text-[14px] flex items-center justify-center gap-1.5 disabled:opacity-40">
+                    <Plus size={17} strokeWidth={2.6} /> Nuevo tramo (terminar este)
+                  </button>
+                  <p className="text-[12px] text-muted mt-2">Para quitar un quiebre usa «Deshacer». Para borrar una tubería, tócala en «Mover» y «Quitar tramo». Para alargarla, arrastra su punta (circulito) hasta la otra tubería.</p>
                   {!metros && <p className="text-[12.5px] text-amber mt-3">Sin escala no se calculan los metros. Ponla en «Escala».</p>}
                 </div>
               )}
@@ -1166,7 +1258,7 @@ function AyudaFlotante({ herramienta, porColocar, trazo, medida, etiqueta, desde
   } else if (herramienta === 'equipo') {
     texto = porColocar ? <>Toca el plano para sembrar <b>{etiqueta}</b></> : 'Elige qué equipo vas a sembrar';
   } else if (herramienta === 'tuberia') {
-    texto = trazo === 0 ? 'Toca donde empieza la tubería' : 'Toca el siguiente quiebre · doble clic o «Terminar tramo»';
+    texto = trazo === 0 ? 'Toca donde empieza la tubería' : 'Se guarda solo · toca otra vez el último punto para terminar';
   } else if (herramienta === 'escala') {
     texto = medida < 2 ? `Toca los extremos de una medida conocida (${medida}/2)` : 'Escribe la medida real y «Calibrar»';
   }
