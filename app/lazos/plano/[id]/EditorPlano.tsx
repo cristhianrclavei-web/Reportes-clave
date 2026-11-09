@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
-  Check, ChevronLeft, CloudOff, FileDown, Hand, Map as IconoPlano, Link2, Link2Off, Loader2, Minus, MoreVertical, Plus, RotateCcw, RotateCw, MousePointer2, PenLine, Ruler, Spline, Redo2, Trash2, Undo2, Waypoints, X,
+  Check, ChevronLeft, CloudOff, Eye, FileDown, Hand, Lock, LockOpen, Network, Map as IconoPlano, Link2, Link2Off, Loader2, Minus, MoreVertical, Plus, RotateCcw, RotateCw, MousePointer2, PenLine, Ruler, Spline, Redo2, Trash2, Undo2, Waypoints, X,
 } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import HojaCaptura from '@/components/lazos/HojaCaptura';
+import DiagramaLazo from '@/components/lazos/DiagramaLazo';
 import LienzoPlano, { type NodoTuberia, type Seleccion } from '@/components/lazos/LienzoPlano';
 import SimboloPlano from '@/components/lazos/SimboloPlano';
 import { girar } from '@/lib/simbolosPlano';
@@ -32,7 +34,9 @@ import {
   obtenerPlano, otrosPlanosDelCliente, renombrarPlano, type LazoConElementos,
 } from '@/lib/planosDatos';
 
-type Herramienta = 'ver' | 'equipo' | 'conectar' | 'tuberia' | 'escala';
+type Herramienta = 'ver' | 'equipo' | 'conectar' | 'tuberia' | 'escala' | 'unifilar';
+// Las que cambian el plano: piden quitar el candado.
+const HERRAMIENTAS_DE_EDICION: Herramienta[] = ['equipo', 'conectar', 'tuberia', 'escala'];
 type EstadoGuardado = 'guardado' | 'guardando' | 'pendiente' | 'error';
 // panelId: al sembrar el panel (tipo FACP), cuál de los del cliente.
 type PorColocar = { tipo: string; elementoId: string | null; panelId?: string | null };
@@ -61,6 +65,7 @@ const HERRAMIENTAS: { id: Herramienta; nombre: string; icono: React.ReactNode }[
   { id: 'conectar', nombre: 'Conectar', icono: <Waypoints size={18} strokeWidth={2.3} /> },
   { id: 'tuberia', nombre: 'Tubería', icono: <Spline size={18} strokeWidth={2.3} /> },
   { id: 'escala', nombre: 'Escala', icono: <Ruler size={18} strokeWidth={2.3} /> },
+  { id: 'unifilar', nombre: 'Unifilar', icono: <Network size={18} strokeWidth={2.3} /> },
 ];
 
 function nuevoId(): string {
@@ -95,6 +100,14 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   const cadenaGuardar = useRef<Promise<void>>(Promise.resolve());
 
   const [herramienta, setHerramienta] = useState<Herramienta>('ver');
+  // El plano abre bloqueado: al recorrerlo con el dedo no se mueve nada sin
+  // querer. El candado de arriba lo abre para editar.
+  const [bloqueado, setBloqueado] = useState(true);
+  // Cuenta las veces que se intentó editar con candado (sacude el candado).
+  const [avisosCandado, setAvisosCandado] = useState(0);
+  // Pedido para centrar el plano en un equipo (al tocarlo en el unifilar).
+  const [enfocar, setEnfocar] = useState<{ punto: Punto; vez: number } | null>(null);
+  const [lazoUnifilarId, setLazoUnifilarId] = useState<string | null>(null);
   const [seleccion, setSeleccion] = useState<Seleccion>(null);
   const [porColocar, setPorColocar] = useState<PorColocar | null>(null);
   // Tramo de tubería que se está trazando. Cada toque se guarda en el plano
@@ -671,6 +684,9 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     if (equipo) setSeleccion({ tipo: 'equipo', id: equipo.id });
     else if (tuberia) setSeleccion({ tipo: 'tuberia', id: tuberia.id });
     else setSeleccion(null);
+    // En el unifilar se muestra el lazo del equipo tocado.
+    const lazoDelEquipo = equipo?.elementoId ? elementosPorId.get(equipo.elementoId)?.lazo : null;
+    if (lazoDelEquipo) setLazoUnifilarId(lazoDelEquipo.id);
     if (equipo || tuberia) setPanelAbierto(true);
   }
 
@@ -705,7 +721,10 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   function soltarTramo() {
     setTramoActivo({ id: null, inicio: null });
   }
-  atajos.current = { deshacer, rehacerCambio, soltarTramo };
+  // Con candado, Ctrl+Z y Ctrl+Y no cambian nada.
+  atajos.current = bloqueado
+    ? { deshacer: pedirDesbloqueo, rehacerCambio: pedirDesbloqueo, soltarTramo }
+    : { deshacer, rehacerCambio, soltarTramo };
 
   // Cambiar tipo o diámetro a medio trazo: lo que sigue es otro tramo que
   // arranca donde iba el anterior.
@@ -830,7 +849,40 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     cambiarSembrado({ ...sembrado, tuberias: sembrado.tuberias.map((t) => (t.id === id ? { ...t, ...cambio } : t)) });
   }
 
+  function pedirDesbloqueo() {
+    setAvisosCandado((n) => n + 1);
+    showToast('El plano está bloqueado. Toca el candado de arriba para editar.');
+  }
+
+  function cambiarCandado() {
+    if (bloqueado) {
+      setBloqueado(false);
+      showToast('Edición abierta: ya puedes mover y cambiar el plano');
+      return;
+    }
+    setBloqueado(true);
+    // Lo que se estaba haciendo se suelta y se vuelve a ver el plano.
+    if (HERRAMIENTAS_DE_EDICION.includes(herramienta)) elegirHerramienta('ver');
+    showToast('Plano bloqueado');
+  }
+
+  // Tocar un dispositivo en el unifilar lleva el plano hasta él.
+  function buscarEnPlano(elemento: Elemento) {
+    const equipo = estadoRef.current.sembrado.equipos.find((e) => e.elementoId === elemento.id);
+    if (equipo) {
+      setSeleccion({ tipo: 'equipo', id: equipo.id });
+      setEnfocar((anterior) => ({ punto: [equipo.x, equipo.y], vez: (anterior?.vez || 0) + 1 }));
+      return;
+    }
+    const otro = otrosPlanos.get(elemento.id);
+    showToast(otro ? `${elemento.nombre} está en el plano «${otro}»` : `${elemento.nombre} todavía no está sembrado en este plano`);
+  }
+
   function elegirHerramienta(h: Herramienta) {
+    if (bloqueado && HERRAMIENTAS_DE_EDICION.includes(h)) {
+      pedirDesbloqueo();
+      return;
+    }
     setHerramienta(h);
     setSeleccion(null);
     setTramoActivo({ id: null, inicio: null });
@@ -980,14 +1032,22 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
             ? <p className="text-[12px] text-amber flex items-center gap-1"><CloudOff size={12} /> Sin señal: copia guardada en este teléfono</p>
             : <EstadoDeGuardado estado={guardado} error={errorGuardar} onReintentar={subir} />}
         </div>
-        <button type="button" onClick={deshacer} disabled={historial.length === 0} aria-label="Deshacer" title="Deshacer (Ctrl+Z)"
-          className="w-11 h-11 rounded-xl border border-line bg-surface-2 flex items-center justify-center disabled:opacity-40">
-          <Undo2 size={18} strokeWidth={2.4} />
-        </button>
-        <button type="button" onClick={rehacerCambio} disabled={rehacer.length === 0} aria-label="Rehacer" title="Rehacer (Ctrl+Y)"
-          className="w-11 h-11 rounded-xl border border-line bg-surface-2 flex items-center justify-center disabled:opacity-40">
-          <Redo2 size={18} strokeWidth={2.4} />
-        </button>
+        <BotonCandado bloqueado={bloqueado} avisos={avisosCandado} onCambiar={cambiarCandado} />
+        <AnimatePresence initial={false}>
+          {!bloqueado && (
+            <motion.div key="historial" className="flex gap-2 overflow-hidden"
+              initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} transition={{ duration: 0.2 }}>
+              <button type="button" onClick={deshacer} disabled={historial.length === 0} aria-label="Deshacer" title="Deshacer (Ctrl+Z)"
+                className="w-11 h-11 shrink-0 rounded-xl border border-line bg-surface-2 flex items-center justify-center disabled:opacity-40">
+                <Undo2 size={18} strokeWidth={2.4} />
+              </button>
+              <button type="button" onClick={rehacerCambio} disabled={rehacer.length === 0} aria-label="Rehacer" title="Rehacer (Ctrl+Y)"
+                className="w-11 h-11 shrink-0 rounded-xl border border-line bg-surface-2 flex items-center justify-center disabled:opacity-40">
+                <Redo2 size={18} strokeWidth={2.4} />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <button type="button" onClick={exportar} disabled={exportando}
           className="min-h-[44px] px-3.5 rounded-xl bg-teal text-inkOnAccent font-semibold text-[14px] flex items-center gap-1.5 disabled:opacity-60">
           {exportando ? <Loader2 size={17} className="animate-spin" /> : <FileDown size={17} strokeWidth={2.4} />}
@@ -995,7 +1055,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
         </button>
         {esSupervisor && (
           <button type="button" onClick={() => setBorrando(true)} aria-label="Eliminar plano" title="Eliminar plano"
-            className="w-11 h-11 rounded-xl border border-red/40 text-red bg-red/10 flex items-center justify-center hover:bg-red/15 active:scale-95 transition-transform">
+            className="hidden sm:flex w-11 h-11 rounded-xl border border-red/40 text-red bg-red/10 items-center justify-center hover:bg-red/15 active:scale-95 transition-transform">
             <Trash2 size={18} strokeWidth={2.3} />
           </button>
         )}
@@ -1007,6 +1067,10 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
             <div className="absolute right-0 top-12 w-52 rounded-2xl bg-surface border border-line shadow-xl p-1.5 z-30">
               <button type="button" onClick={() => { setMenu(false); setExportandoDxf(true); }} className="w-full text-left min-h-[44px] px-3 rounded-xl hover:bg-surface-2 flex items-center gap-2 text-[14.5px]"><FileDown size={16} /> Exportar a AutoCAD (DXF)</button>
               <button type="button" onClick={renombrar} className="w-full text-left min-h-[44px] px-3 rounded-xl hover:bg-surface-2 flex items-center gap-2 text-[14.5px]"><PenLine size={16} /> Cambiar nombre</button>
+              {/* En celular no cabe en la barra: aquí. */}
+              {esSupervisor && (
+                <button type="button" onClick={() => { setMenu(false); setBorrando(true); }} className="sm:hidden w-full text-left min-h-[44px] px-3 rounded-xl hover:bg-red/10 text-red flex items-center gap-2 text-[14.5px]"><Trash2 size={16} /> Eliminar plano</button>
+              )}
             </div>
           )}
         </div>
@@ -1036,7 +1100,9 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
             resaltado={herramienta === 'conectar' ? equipoResaltado : null}
             ayudaPuntero={herramienta === 'tuberia' || herramienta === 'equipo' || herramienta === 'conectar'}
             guiasArrastre={guiasArrastre}
-            verNodos={herramienta === 'tuberia' || herramienta === 'ver'}
+            verNodos={!bloqueado && (herramienta === 'tuberia' || herramienta === 'ver')}
+            bloqueado={bloqueado}
+            enfocar={enfocar}
             onNodoInicio={nodoInicio}
             onNodo={moverNodo}
             onNodoFin={nodoFin}
@@ -1051,18 +1117,26 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
 
         {/* Herramientas y panel: abajo en celular, a la derecha en computadora */}
         <aside className="shrink-0 lg:w-[380px] border-t lg:border-t-0 lg:border-l border-line bg-surface flex flex-col min-h-0 lg:h-full">
-          <div className="grid grid-cols-5 gap-1 p-2" role="tablist" aria-label="Herramientas">
-            {HERRAMIENTAS.map((h) => (
-              <button key={h.id} type="button" role="tab" aria-selected={herramienta === h.id}
-                onClick={() => (herramienta === h.id ? setPanelAbierto((a) => !a) : elegirHerramienta(h.id))}
-                className={`min-h-[52px] rounded-xl flex flex-col items-center justify-center gap-0.5 text-[12px] font-semibold transition-colors ${herramienta === h.id ? 'bg-teal text-inkOnAccent' : 'text-muted hover:bg-surface-2'}`}>
-                {h.icono}
-                {h.nombre}
-              </button>
-            ))}
+          <div className="grid grid-cols-6 gap-1 p-2" role="tablist" aria-label="Herramientas">
+            {HERRAMIENTAS.map((h) => {
+              const conCandado = bloqueado && HERRAMIENTAS_DE_EDICION.includes(h.id);
+              // Con candado, «Mover» solo deja ver.
+              const verSolo = bloqueado && h.id === 'ver';
+              const activa = herramienta === h.id;
+              return (
+                <button key={h.id} type="button" role="tab" aria-selected={activa} aria-disabled={conCandado || undefined}
+                  title={conCandado ? 'Quita el candado de arriba para editar' : undefined}
+                  onClick={() => (activa ? setPanelAbierto((a) => !a) : elegirHerramienta(h.id))}
+                  className={`relative min-h-[52px] rounded-xl flex flex-col items-center justify-center gap-0.5 text-[11.5px] sm:text-[12px] font-semibold transition-colors ${activa ? 'bg-teal text-inkOnAccent' : conCandado ? 'text-faint opacity-60' : 'text-muted hover:bg-surface-2'}`}>
+                  {verSolo ? <Eye size={18} strokeWidth={2.3} /> : h.icono}
+                  {verSolo ? 'Ver' : h.nombre}
+                  {conCandado && <Lock size={10} strokeWidth={2.8} className="absolute top-1.5 right-1.5" aria-hidden />}
+                </button>
+              );
+            })}
           </div>
 
-          <div className={`${panelAbierto ? 'max-h-[38dvh]' : 'max-h-0'} lg:max-h-none lg:flex-1 overflow-y-auto px-3.5 transition-[max-height] duration-200`}>
+          <div className={`${panelAbierto ? (herramienta === 'unifilar' ? 'max-h-[46dvh]' : 'max-h-[38dvh]') : 'max-h-0'} lg:max-h-none lg:flex-1 overflow-y-auto px-3.5 transition-[max-height] duration-200`}>
             <div className="pb-4">
               {herramienta === 'ver' && (
                 <>
@@ -1074,15 +1148,17 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
                       candidatos={candidatosPara(equipoElegido)}
                       onLigar={(elementoId) => ligarEquipo(equipoElegido.id, elementoId)} onDesligar={() => desligarEquipo(equipoElegido.id)}
                       onEditarDatos={() => editarDatos(equipoElegido)}
-                      onRotacion={(g) => cambiarRotacion(equipoElegido.id, g)} onRotacionATodos={() => rotacionATodos(equipoElegido.rotacion || 0)} />
+                      onRotacion={(g) => cambiarRotacion(equipoElegido.id, g)} onRotacionATodos={() => rotacionATodos(equipoElegido.rotacion || 0)}
+                      soloVer={bloqueado} onVerUnifilar={() => elegirHerramienta('unifilar')} />
                   )}
                   {tuberiaElegida && (
                     <FichaTuberia tuberia={tuberiaElegida} metros={metrosDeTuberia(tuberiaElegida, metros)} tolerancia={radioPegar * 0.6}
-                      onCambiar={(c) => cambiarTuberia(tuberiaElegida.id, c)} onQuitar={quitarSeleccion} onCerrar={() => setSeleccion(null)} />
+                      onCambiar={(c) => cambiarTuberia(tuberiaElegida.id, c)} onQuitar={quitarSeleccion} onCerrar={() => setSeleccion(null)}
+                      soloVer={bloqueado} />
                   )}
                   {!equipoElegido && !tuberiaElegida && (
                     <>
-                      {sueltos.length > 0 && totalFaltantes > 0 && (
+                      {!bloqueado && sueltos.length > 0 && totalFaltantes > 0 && (
                         <div className="mt-1 mb-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
                           <p className="text-[13.5px]">
                             Hay <b>{sueltos.length} {sueltos.length === 1 ? 'equipo suelto' : 'equipos sueltos'}</b> en el plano
@@ -1099,11 +1175,23 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
                         <input type="checkbox" checked={verConexiones} onChange={(ev) => setVerConexiones(ev.target.checked)} className="w-5 h-5 accent-teal" />
                         Ver conexiones de los lazos (línea punteada)
                       </label>
-                      <p className="text-[13px] text-muted pt-1 pb-3">Toca un equipo o una tubería para ver su ficha (ahí se agranda o achica el equipo). Arrastra un equipo para moverlo; arrastra el plano para recorrerlo.</p>
+                      {bloqueado ? (
+                        <p className="text-[13px] text-muted pt-1 pb-3 flex gap-2">
+                          <Lock size={15} className="shrink-0 mt-0.5 text-faint" />
+                          <span>Plano bloqueado: recórrelo y acércalo sin miedo, nada se mueve. Toca un equipo para ver sus datos. Para editar, toca el candado de arriba.</span>
+                        </p>
+                      ) : (
+                        <p className="text-[13px] text-muted pt-1 pb-3">Toca un equipo o una tubería para ver su ficha (ahí se agranda o achica el equipo). Arrastra un equipo para moverlo; arrastra el plano para recorrerlo.</p>
+                      )}
                       <Cantidades sembrado={sembrado} metros={metros} />
                     </>
                   )}
                 </>
+              )}
+
+              {herramienta === 'unifilar' && (
+                <PanelUnifilar lazos={lazos} lazoId={lazoUnifilarId} onElegirLazo={setLazoUnifilarId} colorPorLazo={colorPorLazo}
+                  resaltado={equipoElegido?.elementoId || null} enEstePlano={sembrados} onTocar={buscarEnPlano} />
               )}
 
               {herramienta === 'equipo' && (
@@ -1761,7 +1849,7 @@ function PanelConectar({
 
 const BOTON_GIRO = 'h-11 px-2 rounded-xl bg-surface border border-line flex items-center gap-0.5 text-[12px] font-semibold';
 
-function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, onTamanoATodos, variosEquipos, candidatos, onLigar, onDesligar, onEditarDatos, onRotacion, onRotacionATodos }: {
+function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, onTamanoATodos, variosEquipos, candidatos, onLigar, onDesligar, onEditarDatos, onRotacion, onRotacionATodos, soloVer, onVerUnifilar }: {
   equipo: EquipoPlano;
   ligado: { elemento: Elemento; lazo: LazoConElementos } | null;
   etiqueta: string;
@@ -1776,6 +1864,9 @@ function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, o
   onEditarDatos: () => void;
   onRotacion: (grados: number) => void;
   onRotacionATodos: () => void;
+  // Plano bloqueado: solo los datos, sin botones que cambien algo.
+  soloVer: boolean;
+  onVerUnifilar: () => void;
 }) {
   const rotacion = equipo.rotacion || 0;
   const [eligiendo, setEligiendo] = useState(false);
@@ -1800,7 +1891,12 @@ function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, o
           ) : (
             <p className="text-[12.5px] text-faint mt-1">Equipo suelto, no está ligado a ningún dispositivo del lazo.</p>
           )}
-          {ligado && (
+          {ligado && soloVer && (
+            <button type="button" onClick={onVerUnifilar} className="mt-1.5 text-[13px] font-semibold text-teal underline inline-flex items-center gap-1">
+              <Network size={14} /> Ver en el unifilar
+            </button>
+          )}
+          {ligado && !soloVer && (
             <span className="flex flex-wrap gap-x-3">
               <button type="button" onClick={onEditarDatos} className="mt-1.5 text-[13px] font-semibold text-teal underline inline-flex items-center gap-1">
                 <PenLine size={14} /> Editar datos
@@ -1813,6 +1909,7 @@ function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, o
         </div>
         <button type="button" onClick={onCerrar} aria-label="Cerrar ficha" className="w-9 h-9 rounded-full flex items-center justify-center"><X size={18} /></button>
       </div>
+      {!soloVer && (<>
       {!ligado && !esPanel && (
         <ListaParaLigar candidatos={candidatos} eligiendo={eligiendo} onAbrir={() => setEligiendo(!eligiendo)}
           onLigar={(id) => { setEligiendo(false); onLigar(id); }} />
@@ -1853,6 +1950,7 @@ function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, o
       <button type="button" onClick={onQuitar} className="mt-3 w-full min-h-[44px] rounded-xl border border-red/40 text-red font-semibold text-[14px] flex items-center justify-center gap-1.5">
         <Trash2 size={16} /> Quitar del plano
       </button>
+      </>)}
     </div>
   );
 }
@@ -1891,13 +1989,14 @@ function ListaParaLigar({ candidatos, eligiendo, onAbrir, onLigar }: {
   );
 }
 
-function FichaTuberia({ tuberia, metros, tolerancia, onCambiar, onQuitar, onCerrar }: {
+function FichaTuberia({ tuberia, metros, tolerancia, onCambiar, onQuitar, onCerrar, soloVer }: {
   tuberia: TuberiaPlano;
   metros: number | null;
   tolerancia: number;
   onCambiar: (c: Partial<TuberiaPlano>) => void;
   onQuitar: () => void;
   onCerrar: () => void;
+  soloVer: boolean;
 }) {
   // Si enderezarla agrega codos, es que tiene tramos chuecos.
   const derecha = enderezar(tuberia.puntos, 'recto', tolerancia);
@@ -1910,6 +2009,9 @@ function FichaTuberia({ tuberia, metros, tolerancia, onCambiar, onQuitar, onCerr
         <span className="font-mono text-[14px]">{metros !== null ? formatoMetros(metros) : 'sin escala'}</span>
         <button type="button" onClick={onCerrar} aria-label="Cerrar ficha" className="w-9 h-9 rounded-full flex items-center justify-center"><X size={18} /></button>
       </div>
+      {soloVer ? (
+        <p className="mt-2 text-[12.5px] text-faint flex items-center gap-1.5"><Lock size={13} /> Quita el candado de arriba para cambiarla.</p>
+      ) : (<>
       <Opciones titulo="Tipo" opciones={TIPOS_TUBERIA} valor={tuberia.tipo} onElegir={(tipo) => onCambiar({ tipo })} />
       <Opciones titulo="Diámetro" opciones={DIAMETROS} valor={tuberia.diametro} onElegir={(d) => onCambiar({ diametro: d })} color={colorTuberia} />
       {chueca && (
@@ -1921,6 +2023,7 @@ function FichaTuberia({ tuberia, metros, tolerancia, onCambiar, onQuitar, onCerr
       <button type="button" onClick={onQuitar} className="mt-3 w-full min-h-[44px] rounded-xl border border-red/40 text-red font-semibold text-[14px] flex items-center justify-center gap-1.5">
         <Trash2 size={16} /> Quitar tramo
       </button>
+      </>)}
     </div>
   );
 }
@@ -1954,6 +2057,102 @@ function Cantidades({ sembrado, metros }: { sembrado: Sembrado; metros: number |
         ))}
         {tuberias.length > 0 && !metros && <p className="text-[12.5px] text-amber mt-1.5">Ponle escala al plano para ver los metros.</p>}
       </div>
+    </div>
+  );
+}
+
+// Candado de la barra de arriba. Cerrado: el plano solo se ve. Abierto
+// (ámbar, para que se note): se edita. Se sacude si se intenta editar con
+// candado.
+function BotonCandado({ bloqueado, avisos, onCambiar }: { bloqueado: boolean; avisos: number; onCambiar: () => void }) {
+  return (
+    <motion.button type="button" onClick={onCambiar} aria-pressed={!bloqueado}
+      aria-label={bloqueado ? 'Plano bloqueado. Toca para editar' : 'Editando. Toca para bloquear'}
+      title={bloqueado ? 'Toca para editar el plano' : 'Toca para bloquear el plano'}
+      key={avisos}
+      initial={false}
+      animate={avisos > 0 ? { x: [0, -7, 7, -5, 5, -2, 0] } : undefined}
+      transition={{ duration: 0.45 }}
+      whileTap={{ scale: 0.94 }}
+      className={`shrink-0 min-h-[44px] min-w-[44px] justify-center px-3 rounded-xl border font-semibold text-[13.5px] flex items-center gap-1.5 transition-colors ${bloqueado
+        ? 'bg-surface-2 border-line text-ink'
+        : 'bg-amber/15 border-amber/60 text-amber shadow-[0_0_0_3px_rgb(var(--c-amber)/0.12)]'}`}>
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.span key={bloqueado ? 'cerrado' : 'abierto'} className="flex"
+          initial={{ rotate: -35, scale: 0.5, opacity: 0 }} animate={{ rotate: 0, scale: 1, opacity: 1 }} exit={{ rotate: 35, scale: 0.5, opacity: 0 }}
+          transition={{ type: 'spring', stiffness: 500, damping: 26 }}>
+          {bloqueado ? <Lock size={17} strokeWidth={2.4} /> : <LockOpen size={17} strokeWidth={2.4} />}
+        </motion.span>
+      </AnimatePresence>
+      {/* Editando, en celular solo el ícono: ahí aparecen Deshacer y Rehacer. */}
+      <span className={bloqueado ? 'hidden min-[360px]:inline' : 'hidden sm:inline'}>{bloqueado ? 'Editar' : 'Editando'}</span>
+    </motion.button>
+  );
+}
+
+// El diagrama unifilar del lazo junto al plano. Tocar un dispositivo lleva
+// el plano hasta él; tocar un equipo en el plano lo marca aquí. Los que no
+// están sembrados en este plano salen tenues.
+function PanelUnifilar({ lazos, lazoId, onElegirLazo, colorPorLazo, resaltado, enEstePlano, onTocar }: {
+  lazos: LazoConElementos[];
+  lazoId: string | null;
+  onElegirLazo: (id: string) => void;
+  colorPorLazo: Map<string, string>;
+  resaltado: string | null;
+  enEstePlano: Set<string>;
+  onTocar: (elemento: Elemento) => void;
+}) {
+  const lazo = lazos.find((l) => l.id === lazoId) || lazos[0] || null;
+  const tenues = useMemo(() => {
+    const mapa = new Map<string, 'descartado'>();
+    for (const e of lazo?.elementos || []) if (!enEstePlano.has(e.id)) mapa.set(e.id, 'descartado');
+    return mapa;
+  }, [lazo, enEstePlano]);
+
+  if (!lazo) {
+    return (
+      <div className="rounded-2xl border border-dashed border-line-strong p-4 mt-1 text-center">
+        <Network size={26} className="mx-auto text-faint" />
+        <p className="text-[14px] font-semibold mt-2">Este cliente todavía no tiene lazos</p>
+        <p className="text-[13px] text-muted mt-1">Arma el lazo con «Conectar» (quita el candado) o desde Lazos, y aquí verás su diagrama.</p>
+      </div>
+    );
+  }
+
+  const enPlano = lazo.elementos.filter((e) => enEstePlano.has(e.id)).length;
+  const color = colorPorLazo.get(lazo.id);
+  return (
+    <div className="pt-1">
+      {lazos.length > 1 && (
+        <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-0.5 px-0.5" role="tablist" aria-label="Lazos">
+          {lazos.map((l) => {
+            const activo = l.id === lazo.id;
+            return (
+              <button key={l.id} type="button" role="tab" aria-selected={activo} onClick={() => onElegirLazo(l.id)}
+                className={`shrink-0 min-h-[38px] px-3 rounded-full border text-[13px] font-semibold flex items-center gap-1.5 transition-colors ${activo ? 'bg-surface-2 border-line-strong text-ink' : 'border-line text-muted hover:bg-surface-2'}`}>
+                <span className="w-2.5 h-2.5 rounded-full" style={{ background: colorPorLazo.get(l.id) }} />
+                {l.codigo}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <div className="flex items-center gap-2 mb-2">
+        <span className="w-1.5 h-8 rounded-full" style={{ background: color }} />
+        <div className="flex-1 min-w-0">
+          <p className="text-[14.5px] font-semibold truncate">{lazo.codigo} · {lazo.nombre}</p>
+          <p className="text-[12.5px] text-muted">{enPlano} de {lazo.elementos.length} en este plano · toca uno para ubicarlo</p>
+        </div>
+        <Link href={`/lazos/${lazo.id}`} className="shrink-0 min-h-[38px] px-3 rounded-xl border border-line text-[13px] font-semibold flex items-center">Abrir</Link>
+      </div>
+      {lazo.elementos.length === 0 ? (
+        <p className="text-[13px] text-muted rounded-2xl border border-line bg-surface-2 p-3.5">El lazo está vacío. Con «Conectar» lo armas tocando los equipos del plano.</p>
+      ) : (
+        <motion.div key={lazo.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}
+          className="rounded-2xl bg-surface-2 border border-line p-3 overflow-x-auto">
+          <DiagramaLazo lazo={lazo} elementos={lazo.elementos} onTocar={onTocar} colorLinea={color} estados={tenues} resaltado={resaltado} />
+        </motion.div>
+      )}
     </div>
   );
 }

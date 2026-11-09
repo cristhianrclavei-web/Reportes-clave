@@ -41,6 +41,7 @@ export default function LienzoPlano({
   imagenUrl, ancho, alto, sembrado, etiquetaDe, seleccion, trazo, colorTrazo, medida,
   ajustarPunto, onTocar, onDobleToque, onArrastreInicio, onArrastre, onArrastreFin,
   conexiones, colorPorLazo, resaltado, ayudaPuntero, guiasArrastre, verNodos, onNodoInicio, onNodo, onNodoFin,
+  bloqueado = false, enfocar = null,
 }: {
   imagenUrl: string | null;
   ancho: number;
@@ -72,6 +73,11 @@ export default function LienzoPlano({
   onNodoInicio: (nodo: NodoTuberia) => void;
   onNodo: (nodo: NodoTuberia, p: Punto) => void;
   onNodoFin: () => void;
+  // Plano bloqueado: arrastrar sobre un equipo recorre el plano, no lo mueve.
+  bloqueado?: boolean;
+  // Llevar la vista a un punto (p. ej. al tocarlo en el unifilar); `vez`
+  // cambia en cada pedido para que se repita aunque sea el mismo punto.
+  enfocar?: { punto: Punto; vez: number } | null;
 }) {
   const marco = useRef<HTMLDivElement>(null);
   const [vista, setVista] = useState<Vista>({ s: 0, tx: 0, ty: 0 });
@@ -126,6 +132,34 @@ export default function LienzoPlano({
     });
   }
 
+  // Enfocar: acerca (si hace falta) y centra el punto con un viaje corto.
+  const vezEnfocar = enfocar?.vez;
+  useEffect(() => {
+    if (!enfocar) return;
+    const caja = marco.current?.getBoundingClientRect();
+    if (!caja || caja.width === 0) return;
+    const inicio = vistaRef.current;
+    const completo = Math.min(caja.width / ancho, caja.height / alto) * 0.96;
+    const escalaFinal = Math.max(inicio.s, completo * 4);
+    const centroInicial = aHoja(caja.width / 2, caja.height / 2, inicio);
+    const [destinoX, destinoY] = enfocar.punto;
+    movido.current = true;
+    const arranque = performance.now();
+    let cuadro = 0;
+    function paso(ahora: number) {
+      const t = Math.min(1, (ahora - arranque) / 380);
+      const suave = 1 - (1 - t) ** 3;
+      const escala = inicio.s + (escalaFinal - inicio.s) * suave;
+      const cx = centroInicial[0] + (destinoX - centroInicial[0]) * suave;
+      const cy = centroInicial[1] + (destinoY - centroInicial[1]) * suave;
+      setVista({ s: escala, tx: caja!.width / 2 - cx * escala, ty: caja!.height / 2 - cy * escala });
+      if (t < 1) cuadro = requestAnimationFrame(paso);
+    }
+    cuadro = requestAnimationFrame(paso);
+    return () => cancelAnimationFrame(cuadro);
+    // Solo cuando llega un pedido nuevo.
+  }, [vezEnfocar]);
+
   // La rueda tiene que poder cancelar el desplazamiento de la página.
   useEffect(() => {
     const elemento = marco.current;
@@ -154,10 +188,11 @@ export default function LienzoPlano({
     if (punteros.current.size === 1) {
       // Si empieza sobre un equipo y el dedo se mueve, se arrastra el equipo
       // (con cualquier herramienta); si no, se recorre el plano.
-      const tocado = equipoEn(sembrado, aHoja(p.x, p.y), radioEnHoja(), r);
+      // Bloqueado: nada se arrastra, siempre se recorre el plano.
+      const tocado = bloqueado ? null : equipoEn(sembrado, aHoja(p.x, p.y), radioEnHoja(), r);
       const equipoId = tocado?.id || null;
       // Si no es un equipo y se ven los nodos, puede ser un nodo de tubería.
-      const nodo = !equipoId && verNodos ? nodoEn(aHoja(p.x, p.y), radioEnHoja()) : null;
+      const nodo = !equipoId && verNodos && !bloqueado ? nodoEn(aHoja(p.x, p.y), radioEnHoja()) : null;
       gesto.current = { tipo: 'posible', x: p.x, y: p.y, vista: vistaRef.current, equipoId, nodo };
       return;
     }

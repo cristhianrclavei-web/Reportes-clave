@@ -86,6 +86,7 @@ export default function DiagramaLazo({
   colorLinea,
   conPanel = true,
   mover,
+  resaltado,
 }: {
   lazo: Lazo;
   elementos: Elemento[];
@@ -101,6 +102,8 @@ export default function DiagramaLazo({
   // dispositivo y soltarlo sobre otro (con el ratón cualquiera; con el dedo
   // solo los ya elegidos, para que tocar los demás siga deslizando el diagrama).
   mover?: { seleccionados: string[]; onSoltar: (moverId: string, destino: Elemento) => void };
+  // Dispositivo marcado desde afuera (el que se tocó en el plano).
+  resaltado?: string | null;
 }) {
   const [contenedor, porRenglon] = usePorRenglon();
   const [encima, setEncima] = useState<string | null>(null);
@@ -112,6 +115,13 @@ export default function DiagramaLazo({
   const arrastreActivo = useRef(false);
   const linea = { backgroundColor: colorLinea || 'rgb(var(--c-muted) / 0.7)' };
   const acomodo = armarDiagrama(elementos);
+
+  // El marcado se trae a la vista dentro del diagrama.
+  useEffect(() => {
+    if (!resaltado) return;
+    const nodo = contenedor.current?.querySelector(`[data-elemento="${resaltado}"]`);
+    nodo?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+  }, [resaltado, contenedor]);
   const idBloque = (letra: string) => `rama-${lazo.id}-${letra}`;
 
   function boton(e: Elemento, chico: boolean) {
@@ -122,6 +132,7 @@ export default function DiagramaLazo({
     if (mover) marco = 'outline-dashed outline-1 outline-line-strong hover:outline-teal cursor-grab active:cursor-grabbing select-none';
     if (mover && encima === e.id) marco = 'outline outline-2 outline-teal bg-teal/10';
     if (seleccionado) marco = 'outline outline-2 outline-teal bg-teal/15 shadow-glow-teal touch-none select-none';
+    if (!mover && resaltado === e.id) marco = 'outline outline-2 outline-teal bg-teal/15 shadow-glow-teal';
     return (
       <button
         type="button"
