@@ -109,6 +109,15 @@ export default function NuevoPlano({ clienteInicial, onCerrar, onCreado }: {
     setLeyendo(false);
   }
 
+  // Android no conoce el tipo del DXF y lo deja en gris si se filtra: ahí se
+  // muestran todos los archivos (elegirArchivo ya revisa que sea DXF o PDF).
+  function abrirSelector() {
+    const input = entrada.current;
+    if (!input) return;
+    if (/Android/i.test(navigator.userAgent)) input.removeAttribute('accept');
+    input.click();
+  }
+
   // DXF: se lee aquí mismo; se proponen unidades y capas a apagar.
   async function elegirDxf(nuevo: File) {
     if (nuevo.size > PESO_MAXIMO) {
@@ -269,7 +278,7 @@ export default function NuevoPlano({ clienteInicial, onCerrar, onCreado }: {
 
         <span className="block text-[13px] text-muted mt-4 mb-1.5">Plano (DXF o PDF)</span>
         <input ref={entrada} type="file" accept=".dxf,application/dxf,image/vnd.dxf,application/pdf,.pdf" className="hidden" onChange={(ev) => elegirArchivo(ev.target.files?.[0])} />
-        <button type="button" onClick={() => entrada.current?.click()} disabled={leyendo || !!guardando}
+        <button type="button" onClick={abrirSelector} disabled={leyendo || !!guardando}
           className="w-full min-h-[64px] rounded-2xl border-2 border-dashed border-line hover:border-teal/60 bg-surface-2 flex items-center justify-center gap-2.5 text-[14.5px] font-semibold">
           {leyendo ? <Loader2 size={20} className="animate-spin" /> : <FileUp size={20} strokeWidth={2.2} />}
           {leyendo ? 'Leyendo el plano…' : archivo ? archivo.name : 'Elegir DXF o PDF'}
