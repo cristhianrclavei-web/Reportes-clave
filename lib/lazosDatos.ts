@@ -348,16 +348,26 @@ export async function historialDeLazo(lazoId: string): Promise<{ cambios: Cambio
 
 export type ResultadoGuardar = { pendiente: boolean };
 
+// El autor no se manda: la base lo pone sola al crear (default auth.uid())
+// y al corregir se queda el original. Si se mandara, al corregir algo que
+// capturó otra persona la base lo rechaza: el upsert revisa la regla de
+// «alta» (creado_por = quien guarda) aunque el registro ya exista.
+function sinAutor(fila: Record<string, unknown>): Record<string, unknown> {
+  const { creado_por, abierta_por, ...resto } = fila;
+  return resto;
+}
+
 async function ejecutar(p: Pendiente) {
   const supabase = createClient();
   if (p.accion === 'borrar') return supabase.from(p.tabla).delete().eq('id', p.id);
-  const resultado = await supabase.from(p.tabla).upsert(p.fila);
+  const fila = sinAutor(p.fila);
+  const resultado = await supabase.from(p.tabla).upsert(fila);
   // Sin patch_lazos_ubicacion.sql la base no tiene área/nivel/referencia: se
   // guarda sin ellas (no se pierde nada, todo va junto en `ubicacion`).
   const faltanPartes = p.tabla === 'lazo_elementos' && /\b(area|nivel|referencia|sin_conectar)\b/.test(resultado.error?.message || '');
   if (!faltanPartes) return resultado;
   // Sin patch_lazos_sin_conectar.sql tampoco existe sin_conectar.
-  const { area, nivel, referencia, sin_conectar, ...sinPartes } = p.fila;
+  const { area, nivel, referencia, sin_conectar, ...sinPartes } = fila;
   return supabase.from(p.tabla).upsert(sinPartes);
 }
 
