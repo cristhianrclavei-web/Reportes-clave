@@ -6,11 +6,12 @@ import ModalOverlay from '@/components/ModalOverlay';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
 import { abrirPdf, miniaturaHoja, renderizarHoja, type PdfAbierto } from '@/lib/leerPlanoPdf';
 import { crearPlano } from '@/lib/planosDatos';
-import { escalaDesdeProporcion, nombrePlanoSchema } from '@/lib/planos';
+import { escalaDesdeProporcion, nombrePlanoSchema, tiposSembrables } from '@/lib/planos';
 import {
-  UNIDADES, cajaDe, capaQueEstorba, cuentaPorCapa, decodificarDxf, leerDxf, primitivasDe, unidadProbable, type Primitiva,
+  UNIDADES, cajaDe, capaQueEstorba, cuentaPorCapa, decodificarDxf, leerDxf, primitivasDe, unidadProbable, type DxfLeido, type Primitiva,
 } from '@/lib/leerDxf';
 import { renderizarDxf, vistaPreviaDxf } from '@/lib/dibujarDxf';
+import { bloquesDelDxf, importarDispositivos, pasarAHoja, sinImportados, type BloqueEncontrado } from '@/lib/importarDxf';
 
 const CAMPO = 'w-full px-3.5 min-h-[46px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]';
 // Los planos de AutoCAD rara vez pasan de 20 MB; el bucket acepta 50.
@@ -18,8 +19,30 @@ const PESO_MAXIMO = 40 * 1024 * 1024;
 
 type Errores = Partial<Record<'cliente' | 'nombre' | 'archivo' | 'escala', string>>;
 
-// Un DXF ya leído: lo que se dibuja, sus capas y las unidades.
-type DxfAbierto = { primitivas: Primitiva[]; capas: { nombre: string; cuantos: number }[]; unidadDetectada: number };
+// Un DXF ya leído: lo que se dibuja, sus capas, las unidades y sus bloques.
+type DxfAbierto = { leido: DxfLeido; primitivas: Primitiva[]; capas: { nombre: string; cuantos: number }[]; unidadDetectada: number; bloques: BloqueEncontrado[] };
+
+// Lo que se eligió para cada bloque se recuerda en este equipo para el
+// siguiente plano (nombre del bloque → código, '' = no es dispositivo).
+const LLAVE_TIPOS_BLOQUE = 'planos:tiposDeBloque';
+
+function tiposRecordados(): Record<string, string> {
+  try {
+    return JSON.parse(localStorage.getItem(LLAVE_TIPOS_BLOQUE) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+function recordarTipos(tipos: Record<string, string>) {
+  try {
+    localStorage.setItem(LLAVE_TIPOS_BLOQUE, JSON.stringify({ ...tiposRecordados(), ...tipos }));
+  } catch {
+    // Sin almacenamiento (ventana privada): solo no se recuerda.
+  }
+}
+
+const TIPOS_EQUIPO = tiposSembrables();
 
 // Subir un plano: el PDF exportado de AutoCAD, la hoja (si trae varias) y,
 // si se sabe, la escala a la que se imprimió.
@@ -38,6 +61,7 @@ export default function NuevoPlano({ clienteInicial, onCerrar, onCreado }: {
   const [dxf, setDxf] = useState<DxfAbierto | null>(null);
   const [ocultas, setOcultas] = useState<Set<string>>(new Set());
   const [unidad, setUnidad] = useState(1);
+  const [tipoPorBloque, setTipoPorBloque] = useState<Record<string, string>>({});
   const [escala, setEscala] = useState('');
   const [leyendo, setLeyendo] = useState(false);
   const [guardando, setGuardando] = useState<string | null>(null);
@@ -102,11 +126,16 @@ export default function NuevoPlano({ clienteInicial, onCerrar, onCreado }: {
       const capas = [...cuentaPorCapa(primitivas)].map(([nombre, cuantos]) => ({ nombre, cuantos })).sort((a, b) => b.cuantos - a.cuantos);
       const apagar = new Set(capas.filter((c) => leido.capas.get(c.nombre)?.apagada || capaQueEstorba(c.nombre)).map((c) => c.nombre));
       const detectada = unidadProbable(leido.insunits, caja.maxX - caja.minX);
+      const bloques = bloquesDelDxf(leido);
+      const recordados = tiposRecordados();
+      const tipos: Record<string, string> = {};
+      for (const b of bloques) tipos[b.nombre] = recordados[b.nombre] ?? b.sugerido ?? '';
       setArchivo(nuevo);
       setPdf(null);
       setMiniaturas([]);
       setPagina(1);
-      setDxf({ primitivas, capas, unidadDetectada: detectada });
+      setDxf({ leido, primitivas, capas, unidadDetectada: detectada, bloques });
+      setTipoPorBloque(tipos);
       setOcultas(apagar);
       setUnidad(detectada);
       if (!nombre.trim()) setNombre(nuevo.name.replace(/\.dxf$/i, '').slice(0, 80));
@@ -124,6 +153,32 @@ export default function NuevoPlano({ clienteInicial, onCerrar, onCreado }: {
   }
 
   const vistaDxf = useMemo(() => (dxf ? vistaPreviaDxf(dxf.primitivas, ocultas) : null), [dxf, ocultas]);
+
+  // Los bloques elegidos se vuelven equipos de la app con su dirección.
+  const importado = useMemo(() => {
+    if (!dxf) return null;
+    const elegidos = new Map(Object.entries(tipoPorBloque).filter(([, codigo]) => codigo));
+    if (elegidos.size === 0) return null;
+    return importarDispositivos(dxf.leido, elegidos, () => crypto.randomUUID());
+  }, [dxf, tipoPorBloque]);
+
+  function elegirTipoBloque(bloque: string, codigo: string) {
+    setTipoPorBloque({ ...tipoPorBloque, [bloque]: codigo });
+  }
+
+  function filaBloque(b: BloqueEncontrado) {
+    return (
+      <label key={b.nombre} className="flex items-center gap-2.5 px-3 min-h-[46px] text-[13.5px]">
+        <span className="flex-1 min-w-0 truncate" title={b.nombre}>{b.nombre}</span>
+        <span className="text-[12px] text-faint font-mono shrink-0">{b.cuantos}</span>
+        <select value={tipoPorBloque[b.nombre] || ''} onChange={(ev) => elegirTipoBloque(b.nombre, ev.target.value)} aria-label={`Qué es el bloque ${b.nombre}`}
+          className="w-[46%] shrink-0 min-h-[38px] px-2 rounded-lg bg-surface border border-line text-[13px]">
+          <option value="">No es dispositivo</option>
+          {TIPOS_EQUIPO.map((t) => <option key={t.codigo} value={t.codigo}>{t.nombre}</option>)}
+        </select>
+      </label>
+    );
+  }
 
   function validar(): Errores {
     const e: Errores = {};
@@ -173,7 +228,10 @@ export default function NuevoPlano({ clienteInicial, onCerrar, onCreado }: {
     try {
       setGuardando('Dibujando el plano…');
       await new Promise((r) => setTimeout(r, 30));
-      const hoja = await renderizarDxf(abierto.primitivas, ocultas);
+      // Lo importado se quita del fondo para que no salga dos veces.
+      const fondo = importado ? primitivasDe(sinImportados(abierto.leido, importado.usadas)) : abierto.primitivas;
+      const hoja = await renderizarDxf(fondo, ocultas);
+      const equipos = importado ? pasarAHoja(importado.equipos, hoja.transformacion, hoja) : [];
       setGuardando('Subiendo…');
       const id = await crearPlano({
         clienteId,
@@ -185,7 +243,9 @@ export default function NuevoPlano({ clienteInicial, onCerrar, onCreado }: {
         alto: hoja.alto,
         metrosPorUnidad: hoja.transformacion.k * unidad,
         dxf: { ...hoja.transformacion, unidad },
+        sembrado: equipos.length > 0 ? { equipos, tuberias: [] } : undefined,
       });
+      recordarTipos(tipoPorBloque);
       onCreado(id);
     } catch (err: any) {
       setErrorGeneral(err?.message || 'No se pudo subir el plano. Revisa tu señal e intenta de nuevo.');
@@ -267,6 +327,31 @@ export default function NuevoPlano({ clienteInicial, onCerrar, onCreado }: {
               ))}
             </div>
             <p className="text-[12px] text-faint mt-1.5">Ya vienen apagadas cotas, mobiliario y vegetación; enciende o apaga lo que necesites.</p>
+
+            {dxf.bloques.length > 0 && (
+              <>
+                <span className="block text-[13px] text-muted mt-4 mb-1.5">Dispositivos del dibujo</span>
+                <p className="text-[12px] text-faint mb-1.5">Di qué es cada bloque. Los que elijas pasan a la app con su dirección (el texto junto al símbolo): se pueden mover, editar y conectar.</p>
+                <div className="rounded-xl border border-line bg-surface-2 divide-y divide-line">
+                  {dxf.bloques.filter((b) => b.sugerido || tipoPorBloque[b.nombre]).map(filaBloque)}
+                  {dxf.bloques.some((b) => !b.sugerido && !tipoPorBloque[b.nombre]) && (
+                    <details>
+                      <summary className="px-3 min-h-[44px] flex items-center text-[13px] font-semibold cursor-pointer">
+                        Otros bloques ({dxf.bloques.filter((b) => !b.sugerido && !tipoPorBloque[b.nombre]).length})
+                      </summary>
+                      <div className="max-h-[220px] overflow-y-auto divide-y divide-line border-t border-line">
+                        {dxf.bloques.filter((b) => !b.sugerido && !tipoPorBloque[b.nombre]).map(filaBloque)}
+                      </div>
+                    </details>
+                  )}
+                </div>
+                <p className={`text-[12.5px] mt-1.5 ${importado ? 'text-teal font-semibold' : 'text-faint'}`}>
+                  {importado
+                    ? `Pasan ${importado.equipos.length} dispositivos, ${importado.conDireccion} con su dirección.`
+                    : 'No se pasa ningún dispositivo: quedan como parte del fondo.'}
+                </p>
+              </>
+            )}
           </>
         )}
 

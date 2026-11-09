@@ -90,7 +90,7 @@ function CampoConSugerencias({ id, etiqueta, valor, onCambiar, sugerencias, plac
 
 type Errores = Partial<Record<'direccion' | 'nombre' | 'ubicacion' | 'general', string>>;
 
-export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, onGuardado, onCerrar, tipoInicial, nivelInicial, unoSolo }: {
+export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, onGuardado, onCerrar, tipoInicial, nivelInicial, direccionInicial, unoSolo }: {
   lazo: Lazo;
   elementos: Elemento[];
   lugarInicial: Lugar;
@@ -102,6 +102,8 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
   // y solo uno a la vez (el siguiente se toca en el plano).
   tipoInicial?: string;
   nivelInicial?: string;
+  // La dirección que ya traía el equipo en el plano (p. ej. de un DXF), «D017».
+  direccionInicial?: string | null;
   unoSolo?: boolean;
 }) {
   const tipos = TIPOS_POR_CIRCUITO[lazo.tipo];
@@ -129,6 +131,9 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
     !editando && lugarInicial.padreId && !lugarInicial.adoptar ? elementos.find((e) => e.id === lugarInicial.padreId) || null : null,
   );
   const entradaFoto = useRef<HTMLInputElement | null>(null);
+  // La del plano vale mientras no cambie el tipo ni se guarde otro. (Se
+  // compara en vez de «gastarla» porque en desarrollo el efecto corre dos veces.)
+  const alAbrir = useRef({ tipo: editando?.tipo || tipoDelPlano || tipos[0].codigo, cuantos: elementos.length });
 
   const infoTipo = tipoDispositivo(tipo);
   const padre = lugar.padreId ? elementos.find((e) => e.id === lugar.padreId) || null : null;
@@ -148,8 +153,14 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
   useEffect(() => {
     if (editando) return;
     const nuevaLetra = infoTipo.forma === 'detector' ? 'D' : 'M';
-    setLetra(nuevaLetra);
-    setNumero(infoTipo.conDireccion ? String(siguienteDireccion(nuevaLetra, elementos)).padStart(3, '0') : '');
+    const delPlano = tipo === alAbrir.current.tipo && elementos.length === alAbrir.current.cuantos ? direccionInicial : null;
+    if (delPlano && infoTipo.conDireccion) {
+      setLetra(delPlano[0] as 'D' | 'M');
+      setNumero(delPlano.slice(1));
+    } else {
+      setLetra(nuevaLetra);
+      setNumero(infoTipo.conDireccion ? String(siguienteDireccion(nuevaLetra, elementos)).padStart(3, '0') : '');
+    }
     if (!nombreAMano) setNombre(nombreSugerido(lazo.codigo, tipo, elementos));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tipo, elementos.length]);

@@ -14,7 +14,7 @@ import { showToast } from '@/components/Toast';
 import { confirmar, pedirTexto } from '@/lib/dialogos';
 import { catalogoEnCache, listarCatalogoClientes } from '@/lib/clientesCatalogo';
 import {
-  PANEL_EN_PLANO, TIPOS_POR_CIRCUITO, cuantosEnRama, direccionVisible, enOrdenDeRecorrido, esInicioSinConectar, idsSinConectar, tramosSinConectar, hijosDe, lineaPrincipal, lugarDespuesDe, tipoDispositivo,
+  PANEL_EN_PLANO, TIPOS_POR_CIRCUITO, cuantosEnRama, direccionDeTexto, direccionVisible, enOrdenDeRecorrido, esInicioSinConectar, idsSinConectar, tramosSinConectar, hijosDe, lineaPrincipal, lugarDespuesDe, tipoDispositivo,
   type Elemento, type Lugar, type Panel,
 } from '@/lib/lazos';
 import { guardarElemento, listarPaneles, pendientesDeLazo, subirPendientes } from '@/lib/lazosDatos';
@@ -49,6 +49,8 @@ type HojaPlano = {
   equipoId: string | null;
   punto: Punto | null;
   tipo: string | null;
+  // La dirección escrita junto al equipo suelto (importado del DXF).
+  direccion?: string | null;
 };
 
 const HISTORIAL_MAXIMO = 60;
@@ -471,6 +473,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
       equipoId: equipo ? equipo.id : null,
       punto: equipo ? null : alinearEquipo(p).puntos[0],
       tipo,
+      direccion: equipo?.etiqueta ? direccionDeTexto(equipo.etiqueta) : null,
     });
   }
 
@@ -1220,6 +1223,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
           editando={hoja.editando}
           tipoInicial={hoja.tipo || undefined}
           nivelInicial={plano.nombre.slice(0, 40)}
+          direccionInicial={hoja.direccion}
           unoSolo
           onGuardado={(elemento, pendiente) => alGuardarDesdeHoja(hoja, elemento, pendiente)}
           onCerrar={() => setHoja(null)}

@@ -150,10 +150,18 @@ export type NuevoPlano = {
   ancho: number;
   alto: number;
   metrosPorUnidad: number | null;
+  // Equipos que ya vienen del DXF (lib/importarDxf.ts).
+  sembrado?: Sembrado;
 };
 
 export async function crearPlano(datos: NuevoPlano): Promise<string> {
   if (!navigator.onLine) throw new Error('Subir un plano necesita señal. Intenta cuando tengas conexión.');
+  let sembrado: Sembrado | undefined;
+  if (datos.sembrado) {
+    const revisado = sembradoSchema.safeParse(datos.sembrado);
+    if (!revisado.success) throw new Error('Los dispositivos del DXF no se pudieron leer bien (demasiados o con datos raros). Sube el plano sin pasarlos y siémbralos a mano.');
+    sembrado = revisado.data as Sembrado;
+  }
   const supabase = createClient();
   const id = crypto.randomUUID();
   const carpeta = `lazos/planos/${id}`;
@@ -179,6 +187,7 @@ export async function crearPlano(datos: NuevoPlano): Promise<string> {
     metros_por_unidad: datos.metrosPorUnidad,
     // Solo los DXF llevan estas columnas: así un PDF se sube aunque falte el patch.
     ...(esDxf ? { formato: 'dxf', dxf: datos.dxf } : {}),
+    ...(sembrado ? { sembrado } : {}),
   });
   // shortcut: si falla aquí los archivos quedan huérfanos en Storage (no hay política de borrado en lazos/); limpiar a mano si pasa seguido.
   if (error) throw new Error(mensajeError(error, 'guardar el plano'));

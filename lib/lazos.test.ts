@@ -324,3 +324,14 @@ describe('mover un dispositivo', () => {
     expect(() => planDeMovimientoVarios(base, ['A', 'B'], 'B', 'despues')).toThrow();
   });
 });
+
+describe('dirección escrita en el plano', () => {
+  it('entiende L01D017, D17 y M-4; lo demás no', async () => {
+    const { direccionDeTexto } = await import('./lazos');
+    expect(direccionDeTexto('L01D017')).toBe('D017');
+    expect(direccionDeTexto('d17')).toBe('D017');
+    expect(direccionDeTexto('M-4')).toBe('M004');
+    expect(direccionDeTexto('L01D000')).toBeNull();
+    expect(direccionDeTexto('Pasillo')).toBeNull();
+  });
+});

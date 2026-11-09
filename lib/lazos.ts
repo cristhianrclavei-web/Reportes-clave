@@ -377,6 +377,14 @@ export function direccionVisible(direccion: string | null, numeroLazo: number | 
   return `${prefijoLazo(numeroLazo)}${letra}${numero}`;
 }
 
+// La dirección escrita en un plano («L01D017», «D17», «M004») como se guarda
+// en el lazo (letra y número de 3 cifras). null si no se entiende.
+export function direccionDeTexto(texto: string): string | null {
+  const partes = /^(?:L\d{1,2}[-\s]?)?([DM])[-\s]?(\d{1,3})$/i.exec(texto.trim());
+  if (!partes || Number(partes[2]) === 0) return null;
+  return partes[1].toUpperCase() + partes[2].padStart(3, '0');
+}
+
 // ¿Otro dispositivo del lazo ya tiene esa dirección?
 export function direccionOcupada(direccion: string, elementos: Elemento[], excepto?: string): Elemento | null {
   return elementos.find((e) => e.direccion === direccion && e.id !== excepto) || null;
