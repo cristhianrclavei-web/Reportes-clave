@@ -1672,16 +1672,7 @@ function PanelEquipos({ paneles, panelDondeEsta, faltantesPorLazo, porColocar, o
       {conDispositivos.length > 0 && (
         <>
           <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-faint mb-1.5">De los lazos del cliente</p>
-          <label className="relative block mb-2">
-            <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
-            <input type="search" value={busqueda} onChange={(ev) => setBusqueda(ev.target.value)} placeholder="Buscar: L01D017, pasillo, humo…"
-              aria-label="Buscar dispositivo en los lazos" enterKeyHint="search"
-              className="w-full min-h-[44px] pl-9 pr-9 rounded-xl border border-line bg-surface-2 text-[14.5px] focus:outline-none focus:border-teal" />
-            {busqueda && (
-              <button type="button" onClick={() => setBusqueda('')} aria-label="Borrar búsqueda"
-                className="absolute right-1 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center text-muted"><X size={16} /></button>
-            )}
-          </label>
+          <BuscadorDispositivos valor={busqueda} onCambiar={setBusqueda} className="mb-2" />
           {texto ? (
             <div className="rounded-xl border border-line bg-surface-2 p-1.5 flex flex-col gap-1 max-h-[260px] overflow-y-auto">
               {encontrados.length === 0 && <p className="text-[13px] text-muted p-2">Ningún dispositivo coincide con «{busqueda.trim()}».</p>}
@@ -2001,12 +1992,39 @@ function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, o
   );
 }
 
+// Lupa para buscar dispositivos del lazo (al sembrar y al ligar).
+function BuscadorDispositivos({ valor, onCambiar, className }: { valor: string; onCambiar: (v: string) => void; className: string }) {
+  return (
+    <label className={`relative block ${className}`}>
+      <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
+      <input type="search" value={valor} onChange={(ev) => onCambiar(ev.target.value)} placeholder="Buscar: L01D017, pasillo, humo…"
+        aria-label="Buscar dispositivo en los lazos" enterKeyHint="search"
+        className="w-full min-h-[44px] pl-9 pr-9 rounded-xl border border-line bg-surface text-[14.5px] focus:outline-none focus:border-teal" />
+      {valor && (
+        <button type="button" onClick={() => onCambiar('')} aria-label="Borrar búsqueda"
+          className="absolute right-1 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center text-muted"><X size={16} /></button>
+      )}
+    </label>
+  );
+}
+
+// Por dirección, nombre, ubicación, tipo o lazo; sin importar acentos.
+function filtrarCandidatos<T extends { elemento: Elemento; lazo: LazoConElementos; etiqueta: string }>(candidatos: T[], busqueda: string): T[] {
+  const texto = normalizar(busqueda.trim());
+  if (!texto) return candidatos;
+  return candidatos.filter(({ elemento, lazo, etiqueta }) => {
+    const donde = [elemento.nombre, etiqueta, elemento.direccion || '', elemento.ubicacion || '', tipoDispositivo(elemento.tipo).nombre, lazo.codigo].join(' ');
+    return normalizar(donde).includes(texto);
+  });
+}
+
 function ListaParaLigar({ candidatos, eligiendo, onAbrir, onLigar }: {
   candidatos: { elemento: Elemento; lazo: LazoConElementos; etiqueta: string }[];
   eligiendo: boolean;
   onAbrir: () => void;
   onLigar: (elementoId: string) => void;
 }) {
+  const [busqueda, setBusqueda] = useState('');
   if (candidatos.length === 0) {
     return <p className="mt-3 text-[12.5px] text-faint">Cuando lo agregues al diagrama del lazo, aquí lo podrás ligar para que tome su dirección.</p>;
   }
@@ -2017,8 +2035,14 @@ function ListaParaLigar({ candidatos, eligiendo, onAbrir, onLigar }: {
         <Link2 size={16} /> Ligar a un dispositivo del lazo
       </button>
       {eligiendo && (
+        <BuscadorDispositivos valor={busqueda} onCambiar={setBusqueda} className="mt-2" />
+      )}
+      {eligiendo && (
         <div className="mt-2 flex flex-col gap-1 max-h-[240px] overflow-y-auto">
-          {candidatos.map(({ elemento, lazo, etiqueta }) => (
+          {filtrarCandidatos(candidatos, busqueda).length === 0 && (
+            <p className="text-[13px] text-muted p-2">Ningún dispositivo coincide con «{busqueda.trim()}».</p>
+          )}
+          {filtrarCandidatos(candidatos, busqueda).map(({ elemento, lazo, etiqueta }) => (
             <button key={elemento.id} type="button" onClick={() => onLigar(elemento.id)}
               className="min-h-[44px] px-2 rounded-lg flex items-center gap-2.5 text-left hover:bg-surface border border-line">
               <span className="w-10 flex justify-center text-ink"><SimboloPlano tipo={elemento.tipo} tamano={28} /></span>
