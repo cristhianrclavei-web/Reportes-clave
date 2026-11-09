@@ -138,8 +138,11 @@ export default function LienzoPlano({
     if (!enfocar) return;
     const caja = marco.current?.getBoundingClientRect();
     if (!caja || caja.width === 0) return;
-    const inicio = vistaRef.current;
     const completo = Math.min(caja.width / ancho, caja.height / alto) * 0.96;
+    // Recién montado todavía no hay vista: se parte del plano completo.
+    const inicio = vistaRef.current.s > 0
+      ? vistaRef.current
+      : { s: completo, tx: (caja.width - ancho * completo) / 2, ty: (caja.height - alto * completo) / 2 };
     const escalaFinal = Math.max(inicio.s, completo * 4);
     const centroInicial = aHoja(caja.width / 2, caja.height / 2, inicio);
     const [destinoX, destinoY] = enfocar.punto;

@@ -1,13 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ChevronLeft, GitFork, CloudUpload, FileDown, History, Move, Plus, Settings2, Undo2, WifiOff, X } from 'lucide-react';
+import { AlertTriangle, ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ChevronLeft, GitFork, CloudUpload, FileDown, History, Map as IconoPlano, Move, Plus, Settings2, Undo2, WifiOff, X } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
 import DiagramaLazo from '@/components/lazos/DiagramaLazo';
 import ListaEnOrden from '@/components/lazos/ListaEnOrden';
 import PanelLazos from '@/components/lazos/PanelLazos';
+import PlanoDelLazo from '@/components/lazos/PlanoDelLazo';
 import { NuevoLazo } from '@/app/lazos/LazosList';
 import { catalogoEnCache } from '@/lib/clientesCatalogo';
 import VerFoto from '@/components/lazos/VerFoto';
@@ -66,6 +67,42 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
   const [aplicandoMover, setAplicandoMover] = useState(false);
   // Cómo estaban los que cambiaron en el último movimiento, para deshacerlo.
   const [deshacer, setDeshacer] = useState<{ texto: string; antes: Elemento[] } | null>(null);
+  // Plano junto al diagrama: tocar un dispositivo lo busca en el plano y
+  // tocar un equipo del plano lo marca en el diagrama. Se recuerda abierto.
+  const [verPlano, setVerPlano] = useState(false);
+  const [marcadoEnPlano, setMarcadoEnPlano] = useState<string | null>(null);
+  const [enfoquePlano, setEnfoquePlano] = useState<{ elementoId: string; vez: number } | null>(null);
+  // Alto del encabezado fijo: el plano se pega justo debajo al deslizar.
+  const encabezado = useRef<HTMLDivElement>(null);
+  const [altoEncabezado, setAltoEncabezado] = useState(0);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('lazos:verPlano') === '1') setVerPlano(true);
+    } catch {
+      // Sin almacenamiento: el plano empieza cerrado.
+    }
+  }, []);
+  useEffect(() => {
+    const nodo = encabezado.current;
+    if (!nodo) return;
+    const medir = () => setAltoEncabezado(nodo.offsetHeight);
+    medir();
+    const observador = new ResizeObserver(medir);
+    observador.observe(nodo);
+    return () => observador.disconnect();
+    // El encabezado aparece cuando termina de cargar el lazo.
+  }, [datos === null]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function alternarPlano() {
+    const nuevo = !verPlano;
+    setVerPlano(nuevo);
+    setMarcadoEnPlano(null);
+    try {
+      localStorage.setItem('lazos:verPlano', nuevo ? '1' : '0');
+    } catch {
+      // Sin almacenamiento: solo no se recuerda.
+    }
+  }
 
   // El PDF se arma en el servidor y se descarga con un enlace firmado de
   // Storage (ver app/api/lazos/[id]/pdf): abrir el PDF directo no funciona
@@ -208,6 +245,12 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
   // En modo mover: primero cada toque elige o quita uno; ya en «Elegir
   // destino», el toque es el dispositivo junto al que van.
   function tocarEnDiagrama(elemento: Elemento) {
+    if (!moviendo && verPlano) {
+      // Con el plano abierto, el toque lo busca ahí (la ficha sale en la tarjeta).
+      setMarcadoEnPlano(elemento.id);
+      setEnfoquePlano((e) => ({ elementoId: elemento.id, vez: (e?.vez || 0) + 1 }));
+      return;
+    }
     if (!moviendo) { abrirFicha(elemento); return; }
     if (eligiendoDestino) {
       if (seleccionMover.includes(elemento.id)) { showToast('Ese es uno de los que vas a mover: toca otro como destino.', 'error'); return; }
@@ -375,7 +418,7 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
 
   return (
     <div className="max-w-3xl lg:max-w-[1500px] mx-auto pb-28">
-      <div className="sticky top-0 z-20 glass-strong px-4 lg:px-8 py-3" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}>
+      <div ref={encabezado} className="sticky top-0 z-20 glass-strong px-4 lg:px-8 py-3" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}>
         <div className="flex items-center gap-2">
           <Link href={panelDelLazo ? `/lazos/panel/${panelDelLazo.id}` : `/lazos?cliente=${lazo.cliente_id}`} aria-label={panelDelLazo ? `Volver al ${panelDelLazo.nombre}` : 'Volver a los lazos'} className="shrink-0 w-11 h-11 -ml-1.5 rounded-full flex items-center justify-center active:scale-90 transition-transform">
             <ChevronLeft size={24} strokeWidth={2.4} />
@@ -460,11 +503,22 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
                   {moviendo ? <X size={16} strokeWidth={2.4} /> : <Move size={16} strokeWidth={2.2} />} {moviendo ? 'Listo' : 'Mover'}
                 </button>
               )}
+              <button type="button" onClick={alternarPlano} aria-pressed={verPlano}
+                className={`min-h-[42px] px-3.5 rounded-xl border text-[13.5px] font-semibold flex items-center gap-1.5 ${verPlano ? 'border-teal bg-teal/15 text-teal' : 'border-line bg-surface-2'}`}>
+                <IconoPlano size={16} strokeWidth={2.2} /> Plano
+              </button>
               <button type="button" onClick={exportarPdf} disabled={exportando}
                 className="min-h-[42px] px-3.5 rounded-xl border border-line bg-surface-2 text-[13.5px] font-semibold flex items-center gap-1.5 disabled:opacity-60">
                 <FileDown size={16} strokeWidth={2.2} /> {exportando ? 'Generando…' : 'PDF'}
               </button>
             </div>
+            {verPlano && (
+              <div className="sticky z-10 -mx-1 px-1 pb-2 bg-bg" style={{ top: esAncho ? 0 : altoEncabezado }}>
+                <PlanoDelLazo lazo={lazo} elementos={elementos} enfocar={enfoquePlano}
+                  onTocarEquipo={setMarcadoEnPlano} onAbrirFicha={abrirFicha}
+                  className="h-[36dvh] lg:h-[44vh]" />
+              </div>
+            )}
             {hayVariosLazos && verPanel ? (
               <PanelLazos actual={lazo} elementosActual={elementos} lazos={delPanel} nombrePanel={nombrePanel} onTocar={abrirFicha} onAgregarLazo={() => setAgregandoLazo(true)} />
             ) : (
@@ -497,7 +551,7 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
                   </div>
                 )}
                 <div className={`rounded-2xl bg-surface border p-3 overflow-x-auto ${moviendo ? 'border-teal/50' : 'border-line'}`}>
-                  <DiagramaLazo lazo={lazo} elementos={elementos} onTocar={tocarEnDiagrama}
+                  <DiagramaLazo lazo={lazo} elementos={elementos} onTocar={tocarEnDiagrama} resaltado={verPlano ? marcadoEnPlano : null}
                     mover={moviendo ? { seleccionados: seleccionMover, onSoltar: soltarEnDiagrama } : undefined} />
                 </div>
                 {lazo.tipo === 'deteccion' && !hayVariosLazos && (

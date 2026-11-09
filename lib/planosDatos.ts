@@ -137,6 +137,25 @@ export async function otrosPlanosDelCliente(clienteId: string, planoId: string):
   return new Map(pares);
 }
 
+const copiaPlanosCliente = (clienteId: string) => `planosCliente:${clienteId}`;
+
+// Todos los planos del cliente con su sembrado, para ver el lazo sobre el
+// plano desde su diagrama. Sin señal sale la copia del teléfono.
+export async function planosDelCliente(clienteId: string): Promise<{ planos: Plano[]; sinConexion: boolean }> {
+  const { data, error } = await createClient()
+    .from('lazo_planos')
+    .select('*')
+    .eq('cliente_id', clienteId)
+    .order('nombre');
+  if (error) {
+    const copia = leerCopia<Plano[]>(copiaPlanosCliente(clienteId));
+    if (copia && esErrorDeRed(error)) return { planos: copia.map((p) => ({ ...p, sembrado: leerSembrado(p.sembrado) })), sinConexion: true };
+    throw new Error(mensajeError(error, 'cargar los planos del cliente'));
+  }
+  guardarCopia(copiaPlanosCliente(clienteId), data);
+  return { planos: (data || []).map((p) => ({ ...(p as Plano), sembrado: leerSembrado(p.sembrado) })), sinConexion: false };
+}
+
 // ---------- Alta ----------
 
 export type NuevoPlano = {
