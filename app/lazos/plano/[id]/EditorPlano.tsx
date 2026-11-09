@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
-  Check, ChevronLeft, CloudOff, FileDown, Hand, Lock, LockOpen, Network, Map as IconoPlano, Link2, Link2Off, Loader2, Minus, MoreVertical, Plus, RotateCcw, RotateCw, MousePointer2, PenLine, Ruler, Spline, Redo2, Trash2, Undo2, Waypoints, X,
+  Check, ChevronLeft, CloudOff, FileDown, Hand, Lock, LockOpen, Network, Search, Map as IconoPlano, Link2, Link2Off, Loader2, Minus, MoreVertical, Plus, RotateCcw, RotateCw, MousePointer2, PenLine, Ruler, Spline, Redo2, Trash2, Undo2, Waypoints, X,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import HojaCaptura from '@/components/lazos/HojaCaptura';
@@ -14,7 +14,7 @@ import { girar } from '@/lib/simbolosPlano';
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
 import { confirmar, pedirTexto } from '@/lib/dialogos';
-import { catalogoEnCache, listarCatalogoClientes } from '@/lib/clientesCatalogo';
+import { catalogoEnCache, listarCatalogoClientes, normalizar } from '@/lib/clientesCatalogo';
 import {
   PANEL_EN_PLANO, TIPOS_POR_CIRCUITO, cuantosEnRama, direccionDeTexto, direccionVisible, enOrdenDeRecorrido, esInicioSinConectar, idsSinConectar, tramosSinConectar, hijosDe, lineaPrincipal, lugarDespuesDe, tipoDispositivo,
   type Elemento, type Lugar, type Panel,
@@ -105,6 +105,9 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   // Pedido para centrar el plano en un equipo (al tocarlo en el unifilar).
   const [enfocar, setEnfocar] = useState<{ punto: Punto; vez: number } | null>(null);
   const [lazoUnifilarId, setLazoUnifilarId] = useState<string | null>(null);
+  // Lazo del último dispositivo sembrado: de ahí sale la sugerencia del
+  // siguiente (ya no se arma solo, hay que elegirlo).
+  const [lazoSembrando, setLazoSembrando] = useState<string | null>(null);
   const [seleccion, setSeleccion] = useState<Seleccion>(null);
   const [porColocar, setPorColocar] = useState<PorColocar | null>(null);
   // Tramo de tubería que se está trazando. Cada toque se guarda en el plano
@@ -630,8 +633,10 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
 
   function colocarEquipo(toque: Punto) {
     const p = alinearEquipo(toque).puntos[0];
+    // Sin equipo elegido, tocar el plano no siembra nada: así un toque sin
+    // querer no agrega dispositivos.
     if (!porColocar) {
-      showToast('Elige abajo qué equipo vas a sembrar', 'error');
+      showToast('Primero elige abajo qué equipo vas a sembrar');
       setPanelAbierto(true);
       return;
     }
@@ -651,13 +656,16 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
       showToast(panel ? `${panel.nombre} sembrado` : 'Panel sembrado');
     }
     cambiarSembrado({ ...estadoRef.current.sembrado, equipos: [...estadoRef.current.sembrado.equipos, equipo] });
-    // Del lazo: pasa solo al siguiente dispositivo en el orden del cable.
-    if (porColocar.elementoId) {
-      const ligado = elementosPorId.get(porColocar.elementoId);
-      const yaSembrados = new Set(sembrados).add(porColocar.elementoId);
-      const siguiente = ligado ? enOrdenDeRecorrido(ligado.lazo.elementos).find((e) => !yaSembrados.has(e.id)) : null;
-      setPorColocar(siguiente ? { tipo: siguiente.tipo, elementoId: siguiente.id } : null);
-      if (!siguiente && ligado) showToast(`Todo ${ligado.lazo.codigo} quedó sembrado`);
+    // Un toque, un equipo: después hay que elegir el siguiente (abajo se
+    // sugiere el que sigue en el cable).
+    setPorColocar(null);
+    setPanelAbierto(true);
+    const ligado = porColocar.elementoId ? elementosPorId.get(porColocar.elementoId) : null;
+    if (ligado) {
+      setLazoSembrando(ligado.lazo.id);
+      showToast(`${etiquetaDeElemento(ligado.elemento, ligado.lazo)} sembrado`);
+    } else if (porColocar.tipo !== PANEL_EN_PLANO) {
+      showToast(`${tipoDispositivo(porColocar.tipo).nombre} sembrado`);
     }
   }
 
@@ -867,11 +875,8 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     setMedida([]);
     setErrorEscala(null);
     setPanelAbierto(true);
-    // Equipos: arranca con el primer dispositivo que falte sembrar.
-    if (h === 'equipo' && !porColocar) {
-      const primero = faltantesPorLazo.find((f) => f.faltan.length > 0)?.faltan[0];
-      if (primero) setPorColocar({ tipo: primero.tipo, elementoId: primero.id });
-    }
+    // Equipos: no se arma ninguno solo; se elige abajo (evita sembrar sin querer).
+    if (h !== 'equipo') setPorColocar(null);
   }
 
   // ---------- Escala ----------
@@ -1163,7 +1168,9 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
                   faltantesPorLazo={faltantesPorLazo}
                   porColocar={porColocar}
                   onElegir={setPorColocar}
+                  onCancelar={() => setPorColocar(null)}
                   etiquetaDe={etiquetaDeElemento}
+                  lazoSembrando={lazoSembrando}
                 />
               )}
 
@@ -1550,19 +1557,90 @@ function Opciones({ titulo, opciones, valor, onElegir, color }: {
   );
 }
 
-function PanelEquipos({ paneles, panelDondeEsta, faltantesPorLazo, porColocar, onElegir, etiquetaDe }: {
+function PanelEquipos({ paneles, panelDondeEsta, faltantesPorLazo, porColocar, onElegir, onCancelar, etiquetaDe, lazoSembrando }: {
   paneles: Panel[];
   panelDondeEsta: (id: string) => string | null;
   faltantesPorLazo: { lazo: LazoConElementos; faltan: Elemento[] }[];
   porColocar: PorColocar | null;
   onElegir: (p: PorColocar) => void;
+  onCancelar: () => void;
   etiquetaDe: (e: Elemento, l: LazoConElementos) => string;
+  // Lazo del último sembrado: se sugiere el que sigue en su cable.
+  lazoSembrando: string | null;
 }) {
   const [abierto, setAbierto] = useState<string | null>(null);
+  const [busqueda, setBusqueda] = useState('');
   const conDispositivos = faltantesPorLazo.filter((f) => f.lazo.elementos.length > 0);
   const eligiendoPanel = (id: string | null) => porColocar?.tipo === PANEL_EN_PLANO && (porColocar.panelId || null) === id;
+
+  const delLazoSembrando = faltantesPorLazo.find((f) => f.lazo.id === lazoSembrando);
+  const siguiente = delLazoSembrando && delLazoSembrando.faltan[0]
+    ? { elemento: delLazoSembrando.faltan[0], lazo: delLazoSembrando.lazo }
+    : null;
+  const elegido = porColocar?.elementoId ? buscarElemento(faltantesPorLazo, porColocar.elementoId) : null;
+  const nombreElegido = elegido
+    ? `${elegido.elemento.nombre}${elegido.elemento.direccion ? ` · ${etiquetaDe(elegido.elemento, elegido.lazo)}` : ''}`
+    : porColocar ? (porColocar.tipo === PANEL_EN_PLANO ? 'Panel de alarma' : tipoDispositivo(porColocar.tipo).nombre) : '';
+
+  // Búsqueda: por nombre, dirección, ubicación o tipo, en todos los lazos.
+  // Los ya sembrados también salen (marcados) para saber que ya están.
+  const texto = normalizar(busqueda.trim());
+  const encontrados = texto
+    ? conDispositivos.flatMap(({ lazo, faltan }) => {
+      const pendientes = new Set(faltan.map((e) => e.id));
+      return enOrdenDeRecorrido(lazo.elementos)
+        .filter((e) => {
+          const donde = [e.nombre, etiquetaDe(e, lazo), e.direccion || '', e.ubicacion || '', tipoDispositivo(e.tipo).nombre, lazo.codigo].join(' ');
+          return normalizar(donde).includes(texto);
+        })
+        .map((e) => ({ elemento: e, lazo, pendiente: pendientes.has(e.id) }));
+    })
+    : [];
+
+  function fila(e: Elemento, lazo: LazoConElementos, conLazo: boolean, pendiente = true) {
+    const activo = porColocar?.elementoId === e.id;
+    return (
+      <button key={e.id} type="button" disabled={!pendiente} onClick={() => (activo ? onCancelar() : onElegir({ tipo: e.tipo, elementoId: e.id }))} aria-pressed={activo}
+        className={`min-h-[44px] px-2 rounded-lg flex items-center gap-2.5 text-left disabled:opacity-50 ${activo ? 'bg-teal/15 ring-1 ring-teal' : 'hover:bg-surface'}`}>
+        <span className="w-10 flex justify-center text-ink"><SimboloPlano tipo={e.tipo} tamano={28} /></span>
+        <span className="flex-1 min-w-0">
+          <span className="block text-[13.5px] font-semibold truncate">{e.nombre}</span>
+          <span className="block text-[12px] text-muted truncate">
+            {[conLazo ? lazo.codigo : null, e.ubicacion, pendiente ? null : 'ya sembrado'].filter(Boolean).join(' · ')}
+          </span>
+        </span>
+        {e.direccion && <span className="font-mono text-[12px] text-muted">{etiquetaDe(e, lazo)}</span>}
+      </button>
+    );
+  }
+
   return (
     <div className="pt-1">
+      {porColocar ? (
+        <div className="mb-3 rounded-xl border border-teal bg-teal/10 p-2.5 flex items-center gap-2.5">
+          <span className="w-10 flex justify-center text-ink"><SimboloPlano tipo={porColocar.tipo} tamano={30} /></span>
+          <span className="flex-1 min-w-0">
+            <span className="block text-[12px] text-teal font-semibold">Toca el plano donde va</span>
+            <span className="block text-[14px] font-semibold truncate">{nombreElegido}</span>
+          </span>
+          <button type="button" onClick={onCancelar} className="shrink-0 min-h-[40px] px-3 rounded-lg border border-line bg-surface text-[13px] font-semibold">Cancelar</button>
+        </div>
+      ) : siguiente ? (
+        <button type="button" onClick={() => onElegir({ tipo: siguiente.elemento.tipo, elementoId: siguiente.elemento.id })}
+          className="mb-3 w-full rounded-xl border border-dashed border-teal/60 p-2.5 flex items-center gap-2.5 text-left hover:bg-teal/5">
+          <span className="w-10 flex justify-center text-ink"><SimboloPlano tipo={siguiente.elemento.tipo} tamano={30} /></span>
+          <span className="flex-1 min-w-0">
+            <span className="block text-[12px] text-muted">Sigue en el cable de {siguiente.lazo.codigo}</span>
+            <span className="block text-[14px] font-semibold truncate">
+              {siguiente.elemento.nombre}{siguiente.elemento.direccion ? ` · ${etiquetaDe(siguiente.elemento, siguiente.lazo)}` : ''}
+            </span>
+          </span>
+          <span className="shrink-0 min-h-[40px] px-3 rounded-lg bg-teal text-inkOnAccent text-[13px] font-semibold flex items-center">Elegir</span>
+        </button>
+      ) : (
+        <p className="mb-3 text-[13px] text-muted">Elige qué equipo vas a sembrar y luego toca el plano donde va. Cada toque siembra uno.</p>
+      )}
+
       <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-faint mb-1.5">Panel de alarma</p>
       <div className="flex flex-col gap-1.5 mb-4">
         {paneles.map((p) => {
@@ -1594,6 +1672,22 @@ function PanelEquipos({ paneles, panelDondeEsta, faltantesPorLazo, porColocar, o
       {conDispositivos.length > 0 && (
         <>
           <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-faint mb-1.5">De los lazos del cliente</p>
+          <label className="relative block mb-2">
+            <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
+            <input type="search" value={busqueda} onChange={(ev) => setBusqueda(ev.target.value)} placeholder="Buscar: L01D017, pasillo, humo…"
+              aria-label="Buscar dispositivo en los lazos" enterKeyHint="search"
+              className="w-full min-h-[44px] pl-9 pr-9 rounded-xl border border-line bg-surface-2 text-[14.5px] focus:outline-none focus:border-teal" />
+            {busqueda && (
+              <button type="button" onClick={() => setBusqueda('')} aria-label="Borrar búsqueda"
+                className="absolute right-1 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center text-muted"><X size={16} /></button>
+            )}
+          </label>
+          {texto ? (
+            <div className="rounded-xl border border-line bg-surface-2 p-1.5 flex flex-col gap-1 max-h-[260px] overflow-y-auto">
+              {encontrados.length === 0 && <p className="text-[13px] text-muted p-2">Ningún dispositivo coincide con «{busqueda.trim()}».</p>}
+              {encontrados.slice(0, 60).map(({ elemento, lazo, pendiente }) => fila(elemento, lazo, conDispositivos.length > 1, pendiente))}
+            </div>
+          ) : (
           <div className="flex flex-col gap-1.5">
             {conDispositivos.map(({ lazo, faltan }) => {
               const desplegado = abierto === lazo.id || faltan.some((e) => e.id === porColocar?.elementoId);
@@ -1608,29 +1702,21 @@ function PanelEquipos({ paneles, panelDondeEsta, faltantesPorLazo, porColocar, o
                   </button>
                   {desplegado && faltan.length > 0 && (
                     <div className="px-2 pb-2 flex flex-col gap-1 max-h-[220px] overflow-y-auto">
-                      {faltan.map((e) => (
-                        <button key={e.id} type="button" onClick={() => onElegir({ tipo: e.tipo, elementoId: e.id })} aria-pressed={porColocar?.elementoId === e.id}
-                          className={`min-h-[44px] px-2 rounded-lg flex items-center gap-2.5 text-left ${porColocar?.elementoId === e.id ? 'bg-teal/15 ring-1 ring-teal' : 'hover:bg-surface'}`}>
-                          <span className="w-10 flex justify-center text-ink"><SimboloPlano tipo={e.tipo} tamano={28} /></span>
-                          <span className="flex-1 min-w-0">
-                            <span className="block text-[13.5px] font-semibold truncate">{e.nombre}</span>
-                            {e.ubicacion && <span className="block text-[12px] text-muted truncate">{e.ubicacion}</span>}
-                          </span>
-                          {e.direccion && <span className="font-mono text-[12px] text-muted">{etiquetaDe(e, lazo)}</span>}
-                        </button>
-                      ))}
+                      {faltan.map((e) => fila(e, lazo, false))}
                     </div>
                   )}
                 </div>
               );
             })}
           </div>
+          )}
         </>
       )}
       <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-faint mt-4 mb-1.5">Equipo suelto (sin lazo)</p>
       <div className="grid grid-cols-3 gap-1.5">
         {tiposSembrables().map((t) => (
-          <button key={t.codigo} type="button" onClick={() => onElegir({ tipo: t.codigo, elementoId: null })} title={t.nombre}
+          <button key={t.codigo} type="button" title={t.nombre}
+            onClick={() => (porColocar?.elementoId === null && porColocar?.tipo === t.codigo ? onCancelar() : onElegir({ tipo: t.codigo, elementoId: null }))}
             aria-pressed={porColocar?.elementoId === null && porColocar?.tipo === t.codigo}
             className={`min-h-[68px] rounded-xl border flex flex-col items-center justify-center gap-1 px-1 text-ink ${porColocar?.elementoId === null && porColocar?.tipo === t.codigo ? 'border-teal bg-teal/15' : 'border-line bg-surface-2'}`}>
             <SimboloPlano tipo={t.codigo} tamano={30} />
@@ -1640,6 +1726,14 @@ function PanelEquipos({ paneles, panelDondeEsta, faltantesPorLazo, porColocar, o
       </div>
     </div>
   );
+}
+
+function buscarElemento(faltantesPorLazo: { lazo: LazoConElementos; faltan: Elemento[] }[], id: string) {
+  for (const { lazo } of faltantesPorLazo) {
+    const elemento = lazo.elementos.find((e) => e.id === id);
+    if (elemento) return { elemento, lazo };
+  }
+  return null;
 }
 
 function PanelConectar({
