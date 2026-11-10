@@ -3,7 +3,7 @@
 // el camino más corto POR las tuberías dibujadas, como va el cable de verdad.
 // Lógica pura, se prueba en lib/rutaTuberia.test.ts.
 
-import type { Punto, TuberiaPlano } from './planos';
+import { tamanoDe, type EquipoPlano, type Punto, type TuberiaPlano } from './planos';
 
 type Proyeccion = { punto: Punto; t: number; distancia: number };
 
@@ -222,15 +222,49 @@ export type Flecha = { punto: Punto; ux: number; uy: number };
 // Lo que se dibuja de una conexión: la línea (sin tocar los símbolos) y las
 // flechas repartidas a lo largo, cada `cada` de distancia (mínimo una, a la
 // mitad). null si es tan corta que no cabe.
-export function trazoDeConexion(camino: Punto[], separacion: number, cada: number): { linea: Punto[]; flechas: Flecha[] } | null {
+//
+// Para que se vea de dónde sale y a dónde llega: `salida` es el punto donde
+// la línea deja el primer equipo (ahí va un punto) y `llegada` es donde toca
+// al segundo y hacia dónde entra (ahí va la punta grande). Por eso cada
+// punta se recorta según el tamaño de SU equipo (`separacion` al inicio,
+// `separacionFin` al final).
+export type TrazoConexion = { linea: Punto[]; flechas: Flecha[]; salida: Punto; llegada: Flecha };
+
+export function trazoDeConexion(camino: Punto[], separacion: number, cada: number, separacionFin = separacion): TrazoConexion | null {
   const total = largoDe(camino);
-  if (total < separacion * 2.2) return null;
-  const linea = recortar(camino, separacion, separacion);
+  if (total < (separacion + separacionFin) * 1.1) return null;
+  const linea = recortar(camino, separacion, separacionFin);
   const util = largoDe(linea);
-  const cuantas = Math.max(1, Math.floor(util / cada));
+  // En un tramo corto basta con la punta de llegada: sin flechas en medio.
+  const cuantas = util < cada * 0.3 ? 0 : Math.max(1, Math.floor(util / cada));
   const flechas: Flecha[] = [];
   for (let k = 0; k < cuantas; k++) flechas.push(puntoA(linea, (util * (k + 0.5)) / cuantas));
-  return { linea, flechas };
+  return { linea, flechas, salida: linea[0], llegada: puntoA(linea, util) };
+}
+
+// Punta de llegada: triángulo lleno con la punta justo en el punto (toca al
+// equipo al que llega). `p` es su largo.
+export function puntaDeLlegada(f: Flecha, p: number): Punto[] {
+  const { punto: [x, y], ux, uy } = f;
+  const ancho = p * 0.5;
+  const bx = x - ux * p;
+  const by = y - uy * p;
+  return [[x, y], [bx - uy * ancho, by + ux * ancho], [bx + uy * ancho, by - ux * ancho]];
+}
+
+// Devuelve una función que dice cuánto mide (radio) el equipo que está en un
+// punto, para recortar la línea justo a la orilla de su símbolo. `r` es el
+// radio de un símbolo de tamaño normal.
+export function radioDeEquipoEn(equipos: EquipoPlano[], r: number): (p: Punto) => number {
+  const porPunto = new Map<string, number>();
+  for (const e of equipos) porPunto.set(`${e.x},${e.y}`, r * tamanoDe(e));
+  return (p) => porPunto.get(`${p[0]},${p[1]}`) ?? r;
+}
+
+// Recortes de una conexión: la salida deja libre el punto de inicio y la
+// llegada toca la orilla del símbolo (1.3 = alcanza la esquina de un cuadro).
+export function recortesDeConexion(radioDesde: number, radioHasta: number, r: number): { inicio: number; fin: number } {
+  return { inicio: radioDesde * 1.3 + r * 0.45, fin: radioHasta * 1.3 };
 }
 
 // Punta de flecha delgada con muesca atrás (no un triángulo grueso), con la

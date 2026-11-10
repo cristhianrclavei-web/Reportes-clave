@@ -6,7 +6,7 @@
 import { LineCapStyle, PDFDocument, PDFFont, PDFPage, StandardFonts, degrees, rgb } from 'pdf-lib';
 import { aHoja, figuraDe } from './simbolosPlano';
 import type { LineaConexion, MarcaConexion } from './conexionesPlano';
-import { puntasDeFlecha, trazoDeConexion } from './rutaTuberia';
+import { puntaDeLlegada, puntasDeFlecha, radioDeEquipoEn, recortesDeConexion, trazoDeConexion } from './rutaTuberia';
 import {
   cantidadesDeEquipos, cantidadesDeTuberia, colocacionDePagina, colorEquipo, colorTuberia, formatoMetros,
   proporcionDeEscala, tamanoDe, tamanoSimbolo, type Plano, type Punto,
@@ -65,8 +65,9 @@ export type DatosExportar = {
 
 // Conexión punteada (por la tubería si la hay) con flechas delgadas, como en
 // pantalla. `camino` en puntos de la hoja (y hacia abajo, como el SVG).
-function dibujarConexion(hoja: PDFPage, camino: Punto[], H: number, r: number, tinta: ReturnType<typeof rgb>) {
-  const trazo = trazoDeConexion(camino, r * 1.2, r * 14);
+// Igual que en pantalla: un punto hueco donde sale y una punta llena donde llega.
+function dibujarConexion(hoja: PDFPage, camino: Punto[], H: number, r: number, tinta: ReturnType<typeof rgb>, recortes: { inicio: number; fin: number }) {
+  const trazo = trazoDeConexion(camino, recortes.inicio, r * 14, recortes.fin);
   if (!trazo) return;
   const grosor = Math.max(0.4, r / 6.5);
   // drawSvgPath pone el origen arriba a la izquierda y y hacia abajo: los
@@ -76,6 +77,8 @@ function dibujarConexion(hoja: PDFPage, camino: Punto[], H: number, r: number, t
   for (const f of trazo.flechas) {
     hoja.drawSvgPath(ruta(puntasDeFlecha(f, r * 1.05), true), { x: 0, y: H, color: tinta });
   }
+  hoja.drawCircle({ x: trazo.salida[0], y: H - trazo.salida[1], size: r * 0.34, color: rgb(1, 1, 1), borderColor: tinta, borderWidth: grosor * 1.1 });
+  hoja.drawSvgPath(ruta(puntaDeLlegada(trazo.llegada, r * 1.4), true), { x: 0, y: H, color: tinta });
 }
 
 export async function exportarPlanoPdf({ plano, pdfOriginal, fondoPng, cliente, etiquetas, conexiones, lazos = [] }: DatosExportar): Promise<Uint8Array> {
@@ -107,9 +110,10 @@ export async function exportarPlanoPdf({ plano, pdfOriginal, fondoPng, cliente, 
     hoja.drawSvgPath(camino, { x: 0, y: H, borderColor: color(colorTuberia(t.diametro)), borderWidth: Math.max(0.6, rNormal / 3.5), borderOpacity: 0.9 });
   }
   const colorLazo = new Map(lazos.map((l) => [l.id, l.color]));
+  const radioEn = radioDeEquipoEn(plano.sembrado.equipos, rNormal);
   for (const l of conexiones?.lineas || []) {
     const tinta = color(colorLazo.get(l.lazoId) || '#0f766e');
-    dibujarConexion(hoja, l.camino, H, rNormal, tinta);
+    dibujarConexion(hoja, l.camino, H, rNormal, tinta, recortesDeConexion(radioEn(l.desde), radioEn(l.hasta), rNormal));
   }
   for (const e of plano.sembrado.equipos) {
     const cx = e.x;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { carrilesDe, desplazarCamino, puntasDeFlecha, rutaPorTuberia, trazoDeConexion } from './rutaTuberia';
+import { carrilesDe, desplazarCamino, puntaDeLlegada, puntasDeFlecha, radioDeEquipoEn, rutaPorTuberia, trazoDeConexion } from './rutaTuberia';
 import type { TuberiaPlano } from './planos';
 
 function tubo(id: string, puntos: [number, number][]): TuberiaPlano {
@@ -47,6 +47,20 @@ describe('trazo de la conexión', () => {
     // La primera va a la derecha, la última hacia abajo.
     expect(trazo?.flechas[0].ux).toBe(1);
     expect(trazo?.flechas[2].uy).toBe(1);
+  });
+
+  it('marca dónde sale y dónde llega, recortando según el tamaño de cada equipo', () => {
+    // Sale de un equipo normal (10) y llega a uno grande (30).
+    const trazo = trazoDeConexion([[0, 0], [200, 0]], 10, 60, 30);
+    expect(trazo?.salida).toEqual([10, 0]);
+    expect(trazo?.llegada.punto).toEqual([170, 0]);
+    // La punta toca la llegada y abre hacia atrás.
+    const punta = puntaDeLlegada(trazo!.llegada, 10);
+    expect(punta[0]).toEqual([170, 0]);
+    expect(punta[1][0]).toBe(160);
+    const radioEn = radioDeEquipoEn([{ id: 'a', tipo: 'SH', x: 5, y: 5, tamano: 3 }], 4);
+    expect(radioEn([5, 5])).toBe(12);
+    expect(radioEn([9, 9])).toBe(4);
   });
 
   it('muy corta: no se dibuja', () => {
