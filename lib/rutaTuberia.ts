@@ -261,10 +261,35 @@ export function radioDeEquipoEn(equipos: EquipoPlano[], r: number): (p: Punto) =
   return (p) => porPunto.get(`${p[0]},${p[1]}`) ?? r;
 }
 
-// Recortes de una conexión: la salida deja libre el punto de inicio y la
-// llegada toca la orilla del símbolo (1.3 = alcanza la esquina de un cuadro).
-export function recortesDeConexion(radioDesde: number, radioHasta: number, r: number): { inicio: number; fin: number } {
-  return { inicio: radioDesde * 1.3 + r * 0.45, fin: radioHasta * 1.3 };
+// Medidas del dibujo de una conexión. Todo va en proporción al MENOR de los
+// dos equipos que une: así, junto a símbolos chicos, las flechas también son
+// chicas y no tapan el plano. `tope` (opcional) limita cada medida: en
+// pantalla se usa para que al acercar mucho no crezcan de más.
+export type MedidasConexion = {
+  // Cuánto se recorta cada punta (1.3 = alcanza la esquina de un cuadro).
+  inicio: number;
+  fin: number;
+  // Largo de la punta de llegada, radio del punto de salida, largo de las
+  // flechas de en medio, cada cuánto van y grosor de la línea.
+  punta: number;
+  punto: number;
+  flecha: number;
+  cada: number;
+  grosor: number;
+};
+
+export function medidasDeConexion(radioDesde: number, radioHasta: number, tope = Infinity): MedidasConexion {
+  const u = Math.min(radioDesde, radioHasta, tope);
+  const punto = u * 0.26;
+  return {
+    inicio: radioDesde * 1.3 + punto * 1.6,
+    fin: radioHasta * 1.3,
+    punta: u * 0.95,
+    punto,
+    flecha: u * 0.7,
+    cada: u * 22,
+    grosor: u * 0.13,
+  };
 }
 
 // Punta de flecha delgada con muesca atrás (no un triángulo grueso), con la

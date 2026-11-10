@@ -5,7 +5,7 @@ import { Maximize, Minus, Plus } from 'lucide-react';
 import { figuraDe } from '@/lib/simbolosPlano';
 import { FiguraEnSvg } from '@/components/lazos/SimboloPlano';
 import type { LineaConexion, MarcaConexion } from '@/lib/conexionesPlano';
-import { puntaDeLlegada, puntasDeFlecha, radioDeEquipoEn, recortesDeConexion, trazoDeConexion } from '@/lib/rutaTuberia';
+import { medidasDeConexion, puntaDeLlegada, puntasDeFlecha, radioDeEquipoEn, trazoDeConexion, type MedidasConexion } from '@/lib/rutaTuberia';
 import type { Ajuste, Guias } from '@/lib/trazoRecto';
 import {
   colorEquipo, colorTuberia, equipoEn, tamanoDe, tamanoSimbolo, tuberiaEn,
@@ -371,8 +371,9 @@ export default function LienzoPlano({
               const tocaAlElegido = equipoElegido !== null && (esElMismoPunto(l.desde, equipoElegido) || esElMismoPunto(l.hasta, equipoElegido));
               const estado: EstadoLinea = !hayResaltadas ? 'normal' : tocaAlElegido ? 'resaltada' : 'tenue';
               return (
-                <LineaPunteada key={i} linea={l} color={colorPorLazo.get(l.lazoId) || '#0f766e'} r={r} grosor={grosorTubo * 0.55}
-                  recortes={recortesDeConexion(radioEn(l.desde), radioEn(l.hasta), r)} estado={estado} />
+                // Tope de 14 pixeles de pantalla: al acercar mucho, las flechas no crecen de más.
+                <LineaPunteada key={i} linea={l} color={colorPorLazo.get(l.lazoId) || '#0f766e'}
+                  medidas={medidasDeConexion(radioEn(l.desde), radioEn(l.hasta), 14 / s)} estado={estado} />
               );
             })}
 
@@ -469,30 +470,30 @@ function esElMismoPunto(a: Punto, b: Punto): boolean {
 // Lleva una orilla blanca para leerse encima del dibujo del plano. Resaltada
 // (toca al equipo elegido) va más gruesa y sus rayas caminan en el sentido
 // del cable.
-function LineaPunteada({ linea, color, r, grosor, recortes, estado }: {
-  linea: LineaConexion; color: string; r: number; grosor: number;
-  recortes: { inicio: number; fin: number }; estado: EstadoLinea;
+function LineaPunteada({ linea, color, medidas, estado }: {
+  linea: LineaConexion; color: string; medidas: MedidasConexion; estado: EstadoLinea;
 }) {
-  const trazo = trazoDeConexion(linea.camino, recortes.inicio, r * 14, recortes.fin);
+  const trazo = trazoDeConexion(linea.camino, medidas.inicio, medidas.cada, medidas.fin);
   if (!trazo) return null;
   const puntos = (lista: Punto[]) => lista.map((p) => p.join(',')).join(' ');
   const resaltada = estado === 'resaltada';
-  const ancho = resaltada ? grosor * 1.7 : grosor;
-  const raya = ancho * 2.5;
-  const hueco = ancho * 2;
-  const largoPunta = r * (resaltada ? 1.7 : 1.4);
+  // Resaltada: un poco más marcada, sin exagerar.
+  const realce = resaltada ? 1.5 : 1;
+  const ancho = medidas.grosor * realce;
+  const raya = ancho * 3;
+  const hueco = ancho * 2.4;
   return (
-    <g style={{ pointerEvents: 'none' }} opacity={estado === 'tenue' ? 0.28 : 1}>
-      <polyline points={puntos(trazo.linea)} fill="none" stroke="#fff" strokeOpacity={0.8} strokeWidth={ancho * 2.4} strokeLinecap="round" strokeLinejoin="round" />
+    <g style={{ pointerEvents: 'none' }} opacity={estado === 'tenue' ? 0.25 : 1}>
+      <polyline points={puntos(trazo.linea)} fill="none" stroke="#fff" strokeOpacity={0.7} strokeWidth={ancho * 2.2} strokeLinecap="round" strokeLinejoin="round" />
       <polyline points={puntos(trazo.linea)} fill="none" stroke={color} strokeWidth={ancho}
         strokeDasharray={`${raya} ${hueco}`} strokeLinecap="round" strokeLinejoin="round">
         {resaltada && <animate attributeName="stroke-dashoffset" from={raya + hueco} to={0} dur="0.7s" repeatCount="indefinite" />}
       </polyline>
       {trazo.flechas.map((f, i) => (
-        <polygon key={i} points={puntos(puntasDeFlecha(f, r * 1.05))} fill={color} stroke="#fff" strokeWidth={grosor * 0.35} strokeLinejoin="round" paintOrder="stroke" />
+        <polygon key={i} points={puntos(puntasDeFlecha(f, medidas.flecha * realce))} fill={color} stroke="#fff" strokeWidth={ancho * 0.3} strokeLinejoin="round" paintOrder="stroke" />
       ))}
-      <circle cx={trazo.salida[0]} cy={trazo.salida[1]} r={r * (resaltada ? 0.42 : 0.34)} fill="#fff" stroke={color} strokeWidth={ancho * 1.1} />
-      <polygon points={puntos(puntaDeLlegada(trazo.llegada, largoPunta))} fill={color} stroke="#fff" strokeWidth={grosor * 0.5} strokeLinejoin="round" paintOrder="stroke" />
+      <circle cx={trazo.salida[0]} cy={trazo.salida[1]} r={medidas.punto * realce} fill="#fff" stroke={color} strokeWidth={ancho} />
+      <polygon points={puntos(puntaDeLlegada(trazo.llegada, medidas.punta * realce))} fill={color} stroke="#fff" strokeWidth={ancho * 0.4} strokeLinejoin="round" paintOrder="stroke" />
     </g>
   );
 }

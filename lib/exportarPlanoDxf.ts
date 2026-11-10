@@ -11,7 +11,7 @@ import { tipoDispositivo } from './lazos';
 import { colorEquipo, tamanoDe, tamanoSimbolo, type Plano } from './planos';
 import { figuraDe } from './simbolosPlano';
 import type { LineaConexion, MarcaConexion } from './conexionesPlano';
-import { puntaDeLlegada, puntasDeFlecha, radioDeEquipoEn, recortesDeConexion, trazoDeConexion } from './rutaTuberia';
+import { medidasDeConexion, puntaDeLlegada, puntasDeFlecha, radioDeEquipoEn, trazoDeConexion } from './rutaTuberia';
 
 type P = [number, number];
 
@@ -346,12 +346,12 @@ export function exportarPlanoDxf({ plano, colocacion, etiquetaDe, conexiones, la
       // Por la tubería si la hay, con flechas delgadas a lo largo (como en pantalla).
       const camino = l.camino.map(([x, y]) => [X(x), Y(y)] as P);
       // Las puntas se recortan a la orilla de cada equipo: la llegada lleva punta grande.
-      const recortes = recortesDeConexion(radioEn(l.desde), radioEn(l.hasta), rBase);
-      const trazo = trazoDeConexion(camino, recortes.inicio, rBase * 14, recortes.fin);
+      const m = medidasDeConexion(radioEn(l.desde), radioEn(l.hasta));
+      const trazo = trazoDeConexion(camino, m.inicio, m.cada, m.fin);
       if (!trazo) continue;
       dxf.polilinea(capa, trazo.linea, false);
-      for (const f of trazo.flechas) dxf.polilinea(capa, puntasDeFlecha(f, rBase * 1.05), true, [[6, 'CONTINUOUS']]);
-      dxf.polilinea(capa, puntaDeLlegada(trazo.llegada, rBase * 1.4), true, [[6, 'CONTINUOUS']]);
+      for (const f of trazo.flechas) dxf.polilinea(capa, puntasDeFlecha(f, m.flecha), true, [[6, 'CONTINUOUS']]);
+      dxf.polilinea(capa, puntaDeLlegada(trazo.llegada, m.punta), true, [[6, 'CONTINUOUS']]);
     }
     for (const m of conexiones.marcas) {
       dxf.texto(capaLazo.get(m.lazoId) || 'FA-TEXTO', X(m.en[0]), Y(m.en[1]) - rBase * 2.3, rBase * 0.85, m.texto.replace(/[«»]/g, '').trim(), true);
