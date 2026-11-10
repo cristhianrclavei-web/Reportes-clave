@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, Building2, Cable, ChevronLeft, ChevronRight, CircuitBoard, Map as IconoPlano, MapPin, Plus, WifiOff, X } from 'lucide-react';
+import { AlertTriangle, Building2, Cable, ChevronLeft, ChevronRight, CircuitBoard, Map as IconoPlano, MapPin, Plus, Search, WifiOff, X } from 'lucide-react';
 import FormPanel from '@/components/lazos/FormPanel';
 import NuevoPlano from '@/components/lazos/NuevoPlano';
 import { SalidasCompactas } from '@/components/lazos/FrentePanel';
@@ -14,10 +14,11 @@ import AutocompletarCliente from '@/components/AutocompletarCliente';
 import EstadoVacio from '@/components/EstadoVacio';
 import EncabezadoSeccion, { BOTON_PRINCIPAL } from '@/components/tecnico/EncabezadoSeccion';
 import { showToast } from '@/components/Toast';
-import { catalogoEnCache, listarCatalogoClientes, ClienteCatalogo } from '@/lib/clientesCatalogo';
+import { catalogoEnCache, listarCatalogoClientes, normalizar, ClienteCatalogo } from '@/lib/clientesCatalogo';
 import { NOMBRE_CIRCUITO, PREFIJO_CIRCUITO, Panel, TipoCircuito, etiquetaSalida } from '@/lib/lazos';
 import { crearLazo, listarLazos, listarPaneles, LazoResumen } from '@/lib/lazosDatos';
 import { listarPlanos, type PlanoResumen } from '@/lib/planosDatos';
+import { useEsAncho } from '@/lib/useEsAncho';
 
 const BOTON_SECUNDARIO = 'min-h-[48px] lg:min-h-[46px] px-4 rounded-2xl border border-line bg-surface-2 font-semibold text-[14.5px] flex items-center justify-center gap-2 hover:border-teal/60';
 
@@ -93,8 +94,20 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
   }
   const grupos = [...porCliente.entries()].sort((a, b) => nombreCliente(a[0]).localeCompare(nombreCliente(b[0]), 'es'));
 
+  // En computadora es una mesa de trabajo: a la izquierda los clientes (con
+  // buscador) y a la derecha solo el cliente elegido, con sus circuitos en tabla.
+  const esAncho = useEsAncho();
+  const [clienteElegido, setClienteElegido] = useState<string | null>(null);
+  const [buscarCliente, setBuscarCliente] = useState('');
+  const conLista = esAncho && grupos.length > 1;
+  const idElegido = conLista ? (grupos.find(([id]) => id === clienteElegido) || grupos[0])[0] : null;
+  const gruposALaVista = idElegido ? grupos.filter(([id]) => id === idElegido) : grupos;
+  const textoBuscado = normalizar(buscarCliente);
+  const gruposEnLista = grupos.filter(([id]) => normalizar(nombreCliente(id)).includes(textoBuscado));
+  const fallasAbiertas = visibles.filter((l) => l.fallaAbierta).length;
+
   return (
-    <div className={`max-w-2xl mx-auto pb-16 ${esSupervisor ? "lg:max-w-6xl" : "lg:max-w-none lg:px-6"}`}>
+    <div className={`max-w-2xl mx-auto pb-16 ${esSupervisor ? "lg:max-w-[1500px]" : "lg:max-w-none lg:px-6"}`}>
       {/* Técnicos: una sección más, con sus pestañas. Supervisión llega desde
           la ficha del cliente y regresa a ella. */}
       {esSupervisor ? (
@@ -178,7 +191,51 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
           />
         )}
 
-        {grupos.map(([clienteId, lista]) => {
+        {/* Solo computadora: los números de un vistazo. */}
+        {esAncho && !cargando && grupos.length > 0 && (
+          <div className="grid grid-cols-6 gap-2.5 mb-5">
+            <Indicador titulo="Clientes" valor={grupos.length} />
+            <Indicador titulo="Paneles" valor={panelesVisibles.length} />
+            <Indicador titulo="Circuitos" valor={visibles.length} />
+            <Indicador titulo="Dispositivos" valor={visibles.reduce((suma, l) => suma + l.dispositivos, 0)} />
+            <Indicador titulo="Planos" valor={planosVisibles.length} />
+            <Indicador titulo="Fallas a tierra abiertas" valor={fallasAbiertas} alerta={fallasAbiertas > 0} />
+          </div>
+        )}
+
+        <div className={conLista ? 'grid grid-cols-[300px_minmax(0,1fr)] gap-5 items-start' : ''}>
+        {conLista && (
+          <aside className="sticky top-[84px] rounded-3xl border border-line bg-surface/50 p-2.5 max-h-[calc(100vh-110px)] flex flex-col">
+            <div className="relative mb-2">
+              <Search size={16} strokeWidth={2.2} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint" aria-hidden="true" />
+              <input type="search" value={buscarCliente} onChange={(ev) => setBuscarCliente(ev.target.value)}
+                placeholder="Buscar cliente" aria-label="Buscar cliente"
+                className="w-full pl-9 pr-3 h-10 rounded-xl bg-surface border border-line focus:border-teal focus:outline-none text-[14px]" />
+            </div>
+            <nav className="overflow-y-auto flex flex-col gap-0.5" aria-label="Clientes">
+              {gruposEnLista.map(([id, lista]) => {
+                const activo = id === idElegido;
+                const conFalla = lista.some((l) => l.fallaAbierta);
+                return (
+                  <button key={id} type="button" onClick={() => setClienteElegido(id)} aria-current={activo}
+                    className={`text-left rounded-xl px-3 py-2 flex items-center gap-2.5 transition-colors ${activo ? 'bg-teal/15 text-ink' : 'hover:bg-surface-2'}`}>
+                    <span className={`w-1 self-stretch rounded-full ${activo ? 'bg-teal' : 'bg-transparent'}`} />
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-[14px] font-semibold truncate">{nombreCliente(id)}</span>
+                      <span className="block text-[12px] text-muted truncate">
+                        {lista.length} {lista.length === 1 ? 'circuito' : 'circuitos'} · {lista.reduce((suma, l) => suma + l.dispositivos, 0)} dispositivos
+                      </span>
+                    </span>
+                    {conFalla && <AlertTriangle size={15} strokeWidth={2.4} className="text-amber shrink-0" aria-label="Con falla a tierra abierta" />}
+                  </button>
+                );
+              })}
+              {gruposEnLista.length === 0 && <p className="text-[13px] text-muted px-3 py-2">Ningún cliente con ese nombre.</p>}
+            </nav>
+          </aside>
+        )}
+        <div className="min-w-0">
+        {gruposALaVista.map(([clienteId, lista]) => {
           const panelesDelCliente = paneles.filter((p) => p.cliente_id === clienteId);
           const sueltos = lista.filter((l) => !l.panel_id || !panelesDelCliente.some((p) => p.id === l.panel_id));
           const planosDelCliente = planos.filter((p) => p.cliente_id === clienteId);
@@ -271,7 +328,8 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
                   {panelesDelCliente.length > 0 && sueltos.length > 0 && (
                     <p className="col-span-full text-[12px] font-semibold uppercase tracking-[0.08em] text-faint mt-2">Sin panel</p>
                   )}
-                  {sueltos.map((lazo) => (
+                  {esAncho && sueltos.length > 0 && <TablaCircuitos circuitos={sueltos} />}
+                  {!esAncho && sueltos.map((lazo) => (
                     <Link key={lazo.id} href={`/lazos/${lazo.id}`} className={`block rounded-2xl bg-surface border p-3.5 transition-colors hover:border-teal/60 ${lazo.fallaAbierta ? 'border-amber/60' : 'border-line'}`}>
                       <div className="flex items-center gap-2.5">
                         <span className="font-mono text-[13px] rounded-lg bg-surface-2 px-2 py-1">{lazo.codigo}</span>
@@ -296,6 +354,8 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
           </section>
           );
         })}
+        </div>
+        </div>
       </div>
 
       {nuevoPanel && (
@@ -323,6 +383,42 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
           onCreado={(id) => { window.location.href = `/lazos/${id}`; }}
         />
       )}
+    </div>
+  );
+}
+
+// Un número grande con su título (la tira de arriba, en computadora).
+function Indicador({ titulo, valor, alerta = false }: { titulo: string; valor: number; alerta?: boolean }) {
+  return (
+    <div className={`rounded-2xl border px-4 py-3 ${alerta ? 'border-amber/60 bg-amber/10' : 'border-line bg-surface/60'}`}>
+      <p className={`font-display font-bold text-[26px] leading-none ${alerta ? 'text-amber' : ''}`}>{valor}</p>
+      <p className="text-[12px] text-muted mt-1.5 truncate">{titulo}</p>
+    </div>
+  );
+}
+
+// Circuitos en renglones (computadora): se comparan de un vistazo y todo el
+// renglón lleva al circuito.
+function TablaCircuitos({ circuitos }: { circuitos: LazoResumen[] }) {
+  return (
+    <div className="col-span-full rounded-2xl border border-line bg-surface overflow-hidden">
+      <div className="grid grid-cols-[90px_minmax(0,1.6fr)_minmax(0,1.2fr)_80px_110px_minmax(0,1fr)_28px] gap-3 px-4 py-2 text-[11.5px] font-semibold uppercase tracking-[0.06em] text-faint border-b border-line">
+        <span>Código</span><span>Nombre</span><span>Tipo</span><span>Clase</span><span className="text-right">Dispositivos</span><span>Estado</span><span />
+      </div>
+      {circuitos.map((lazo) => (
+        <Link key={lazo.id} href={`/lazos/${lazo.id}`}
+          className="grid grid-cols-[90px_minmax(0,1.6fr)_minmax(0,1.2fr)_80px_110px_minmax(0,1fr)_28px] gap-3 items-center px-4 min-h-[52px] border-b border-line last:border-b-0 text-[14px] transition-colors hover:bg-teal/10">
+          <span><span className="font-mono text-[12.5px] rounded-lg bg-surface-2 px-2 py-1">{lazo.codigo}</span></span>
+          <span className="font-semibold truncate">{lazo.nombre}</span>
+          <span className="text-muted truncate">{NOMBRE_CIRCUITO[lazo.tipo]}</span>
+          <span className="text-muted">{lazo.clase || '—'}</span>
+          <span className="font-mono text-right">{lazo.dispositivos}</span>
+          {lazo.fallaAbierta
+            ? <span className="flex items-center gap-1.5 text-amber font-medium truncate"><AlertTriangle size={15} strokeWidth={2.4} className="shrink-0" /> Falla a tierra abierta</span>
+            : <span className="flex items-center gap-1.5 text-muted"><span className="w-2 h-2 rounded-full bg-green-500" /> Sin fallas</span>}
+          <ChevronRight size={17} className="text-muted" />
+        </Link>
+      ))}
     </div>
   );
 }

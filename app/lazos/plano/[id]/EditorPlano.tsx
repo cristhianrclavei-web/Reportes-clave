@@ -16,7 +16,7 @@ import { showToast } from '@/components/Toast';
 import { confirmar, pedirTexto } from '@/lib/dialogos';
 import { catalogoEnCache, listarCatalogoClientes, normalizar } from '@/lib/clientesCatalogo';
 import {
-  PANEL_EN_PLANO, TIPOS_POR_CIRCUITO, cuantosEnRama, direccionDeTexto, direccionVisible, enOrdenDeRecorrido, esInicioSinConectar, idsSinConectar, tramosSinConectar, hijosDe, lineaPrincipal, lugarDespuesDe, tipoDispositivo,
+  PANEL_EN_PLANO, TIPOS_POR_CIRCUITO, tiposParaElegir, cuantosEnRama, direccionDeTexto, direccionVisible, enOrdenDeRecorrido, esInicioSinConectar, idsSinConectar, tramosSinConectar, hijosDe, lineaPrincipal, lugarDespuesDe, tipoDispositivo,
   type Elemento, type Lugar, type Panel,
 } from '@/lib/lazos';
 import { guardarElemento, listarPaneles, pendientesDeLazo, subirPendientes } from '@/lib/lazosDatos';
@@ -57,14 +57,18 @@ type HojaPlano = {
 
 const HISTORIAL_MAXIMO = 60;
 
-const HERRAMIENTAS: { id: Herramienta; nombre: string; icono: React.ReactNode }[] = [
-  { id: 'ver', nombre: 'Mover', icono: <Hand size={18} strokeWidth={2.3} /> },
-  { id: 'equipo', nombre: 'Equipos', icono: <MousePointer2 size={18} strokeWidth={2.3} /> },
-  { id: 'conectar', nombre: 'Conectar', icono: <Waypoints size={18} strokeWidth={2.3} /> },
-  { id: 'tuberia', nombre: 'Tubería', icono: <Spline size={18} strokeWidth={2.3} /> },
-  { id: 'escala', nombre: 'Escala', icono: <Ruler size={18} strokeWidth={2.3} /> },
-  { id: 'unifilar', nombre: 'Unifilar', icono: <Network size={18} strokeWidth={2.3} /> },
+// `tecla`: atajo del teclado en computadora (se ve en la esquina del botón).
+const HERRAMIENTAS: { id: Herramienta; nombre: string; tecla: string; icono: React.ReactNode }[] = [
+  { id: 'ver', nombre: 'Mover', tecla: 'V', icono: <Hand size={18} strokeWidth={2.3} /> },
+  { id: 'equipo', nombre: 'Equipos', tecla: 'E', icono: <MousePointer2 size={18} strokeWidth={2.3} /> },
+  { id: 'conectar', nombre: 'Conectar', tecla: 'C', icono: <Waypoints size={18} strokeWidth={2.3} /> },
+  { id: 'tuberia', nombre: 'Tubería', tecla: 'T', icono: <Spline size={18} strokeWidth={2.3} /> },
+  { id: 'escala', nombre: 'Escala', tecla: 'R', icono: <Ruler size={18} strokeWidth={2.3} /> },
+  { id: 'unifilar', nombre: 'Unifilar', tecla: 'U', icono: <Network size={18} strokeWidth={2.3} /> },
 ];
+
+// Flechas del teclado → hacia dónde se mueve el equipo elegido.
+const FLECHAS: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
 
 function nuevoId(): string {
   return crypto.randomUUID();
@@ -285,7 +289,13 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
 
   // Atajos: Ctrl+Z deshace; Ctrl+Y (o Ctrl+Shift+Z) rehace. En Mac, Cmd.
   // No cuando se escribe en un campo (ahí el navegador deshace el texto).
-  const atajos = useRef({ deshacer, rehacerCambio, soltarTramo: () => {} });
+  // En computadora, además: una letra por herramienta (V, E, C, T, R, U), L el
+  // candado, Supr quita lo elegido y las flechas mueven fino el equipo elegido
+  // (con Mayús, de 10 en 10).
+  const atajos = useRef({
+    deshacer, rehacerCambio, soltarTramo: () => {},
+    herramienta: (_h: Herramienta) => {}, candado: () => {}, quitar: () => {}, flecha: (_dx: number, _dy: number) => false, soltarTodo: () => {},
+  });
   useEffect(() => {
     function alTeclear(ev: KeyboardEvent) {
       const destino = ev.target as HTMLElement | null;
@@ -293,10 +303,30 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
       // Esc termina el tramo de tubería, como en AutoCAD.
       if (ev.key === 'Escape') {
         atajos.current.soltarTramo();
+        atajos.current.soltarTodo();
+        return;
+      }
+      const tecla = ev.key.toLowerCase();
+      if (!(ev.ctrlKey || ev.metaKey || ev.altKey)) {
+        const flecha = FLECHAS[ev.key];
+        if (flecha) {
+          const pasos = ev.shiftKey ? 10 : 1;
+          if (atajos.current.flecha(flecha[0] * pasos, flecha[1] * pasos)) ev.preventDefault();
+          return;
+        }
+        if (ev.key === 'Delete') {
+          atajos.current.quitar();
+          return;
+        }
+        if (tecla === 'l') {
+          atajos.current.candado();
+          return;
+        }
+        const herramientaDeTecla = HERRAMIENTAS.find((h) => h.tecla.toLowerCase() === tecla);
+        if (herramientaDeTecla) atajos.current.herramienta(herramientaDeTecla.id);
         return;
       }
       if (!(ev.ctrlKey || ev.metaKey) || ev.altKey) return;
-      const tecla = ev.key.toLowerCase();
       if (tecla === 'z' && !ev.shiftKey) {
         ev.preventDefault();
         atajos.current.deshacer();
@@ -738,7 +768,8 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   function soltarTramo() {
     setTramoActivo({ id: null, inicio: null });
   }
-  atajos.current = { deshacer, rehacerCambio, soltarTramo };
+  // (los demás atajos se llenan más abajo, cuando ya existen sus funciones)
+  Object.assign(atajos.current, { deshacer, rehacerCambio, soltarTramo });
 
   // Cambiar tipo o diámetro a medio trazo: lo que sigue es otro tramo que
   // arranca donde iba el anterior.
@@ -890,6 +921,19 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     // Equipos: no se arma ninguno solo; se elige abajo (evita sembrar sin querer).
     if (h !== 'equipo') setPorColocar(null);
   }
+
+  // Atajos de teclado (se actualizan en cada render para usar el estado de ahora).
+  Object.assign(atajos.current, {
+    herramienta: elegirHerramienta,
+    candado: cambiarCandado,
+    quitar: () => { if (seleccion) quitarSeleccion(); },
+    soltarTodo: () => { setPorColocar(null); setSeleccion(null); },
+    flecha: (dx: number, dy: number) => {
+      if (seleccion?.tipo !== 'equipo') return false;
+      moverUnPaso(seleccion.id, dx, dy);
+      return true;
+    },
+  });
 
   // ---------- Escala ----------
 
@@ -1081,6 +1125,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
             onTocar={alTocar}
             onDobleToque={() => { if (herramienta === 'tuberia') soltarTramo(); }}
             onEscala={(escala) => { escalaLienzo.current = escala; }}
+            metrosPorUnidad={metros}
             onArrastreInicio={arrastreInicio}
             onArrastre={arrastre}
             onArrastreFin={arrastreFin}
@@ -1110,11 +1155,13 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
             {HERRAMIENTAS.map((h) => {
               const activa = herramienta === h.id;
               return (
-                <button key={h.id} type="button" role="tab" aria-selected={activa}
+                <button key={h.id} type="button" role="tab" aria-selected={activa} title={`${h.nombre} (tecla ${h.tecla})`}
                   onClick={() => (activa ? setPanelAbierto((a) => !a) : elegirHerramienta(h.id))}
-                  className={`min-h-[52px] rounded-xl flex flex-col items-center justify-center gap-0.5 text-[11.5px] sm:text-[12px] font-semibold transition-colors ${activa ? 'bg-teal text-inkOnAccent' : 'text-muted hover:bg-surface-2'}`}>
+                  className={`relative min-h-[52px] rounded-xl flex flex-col items-center justify-center gap-0.5 text-[11.5px] sm:text-[12px] font-semibold transition-colors ${activa ? 'bg-teal text-inkOnAccent' : 'text-muted hover:bg-surface-2'}`}>
                   {h.icono}
                   {h.nombre}
+                  {/* La tecla del atajo: solo en computadora. */}
+                  <kbd className={`hidden lg:block absolute top-1 right-1 font-mono text-[9.5px] leading-none px-1 py-0.5 rounded border ${activa ? 'border-white/40' : 'border-line text-faint'}`}>{h.tecla}</kbd>
                 </button>
               );
             })}
@@ -1259,6 +1306,14 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
               )}
             </div>
           </div>
+          {/* Recordatorio de atajos: solo donde hay teclado. */}
+          <p className="hidden lg:flex flex-wrap gap-x-3 gap-y-1 border-t border-line px-3.5 py-2 text-[11.5px] text-faint">
+            <span><kbd className="font-mono">←↑↓→</kbd> mover fino</span>
+            <span><kbd className="font-mono">Supr</kbd> quitar</span>
+            <span><kbd className="font-mono">L</kbd> candado</span>
+            <span><kbd className="font-mono">Esc</kbd> soltar</span>
+            <span><kbd className="font-mono">Ctrl+Z</kbd> deshacer</span>
+          </p>
         </aside>
       </div>
 
@@ -1582,6 +1637,7 @@ function PanelEquipos({ paneles, panelDondeEsta, faltantesPorLazo, porColocar, o
   // Lazo del último sembrado: se sugiere el que sigue en su cable.
   lazoSembrando: string | null;
 }) {
+  const [verMasTipos, setVerMasTipos] = useState(false);
   const [abierto, setAbierto] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState('');
   const conDispositivos = faltantesPorLazo.filter((f) => f.lazo.elementos.length > 0);
@@ -1719,7 +1775,7 @@ function PanelEquipos({ paneles, panelDondeEsta, faltantesPorLazo, porColocar, o
       )}
       <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-faint mt-4 mb-1.5">Equipo suelto (sin lazo)</p>
       <div className="grid grid-cols-3 gap-1.5">
-        {tiposSembrables().map((t) => (
+        {tiposParaElegir(tiposSembrables(), verMasTipos, porColocar?.elementoId === null ? porColocar.tipo : null).map((t) => (
           <button key={t.codigo} type="button" title={t.nombre}
             onClick={() => (porColocar?.elementoId === null && porColocar?.tipo === t.codigo ? onCancelar() : onElegir({ tipo: t.codigo, elementoId: null }))}
             aria-pressed={porColocar?.elementoId === null && porColocar?.tipo === t.codigo}
@@ -1729,6 +1785,7 @@ function PanelEquipos({ paneles, panelDondeEsta, faltantesPorLazo, porColocar, o
           </button>
         ))}
       </div>
+      <BotonMasTipos abierto={verMasTipos} onCambiar={setVerMasTipos} />
     </div>
   );
 }
@@ -1764,6 +1821,7 @@ function PanelConectar({
   rechazo: string | null;
   clienteId: string;
 }) {
+  const [verMasTipos, setVerMasTipos] = useState(false);
   if (lazos.length === 0) {
     return (
       <div className="pt-1 text-[13.5px]">
@@ -1882,7 +1940,7 @@ function PanelConectar({
 
           <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-faint mt-4 mb-1.5">Equipo nuevo (al tocar un punto vacío)</p>
           <div className="grid grid-cols-4 gap-1.5">
-            {TIPOS_POR_CIRCUITO[lazoActivo.tipo].map((t) => (
+            {tiposParaElegir(TIPOS_POR_CIRCUITO[lazoActivo.tipo], verMasTipos, tipoNuevo).map((t) => (
               <button key={t.codigo} type="button" onClick={() => onTipoNuevo(t.codigo)} title={t.nombre} aria-pressed={tipoNuevo === t.codigo}
                 className={`min-h-[56px] rounded-xl border flex flex-col items-center justify-center gap-0.5 px-1 text-ink ${tipoNuevo === t.codigo ? 'border-teal bg-teal/15' : 'border-line bg-surface-2'}`}>
                 <SimboloPlano tipo={t.codigo} tamano={30} />
@@ -1891,6 +1949,7 @@ function PanelConectar({
               </button>
             ))}
           </div>
+          {TIPOS_POR_CIRCUITO[lazoActivo.tipo].some((t) => t.extra) && <BotonMasTipos abierto={verMasTipos} onCambiar={setVerMasTipos} />}
           <p className="text-[12.5px] text-muted mt-2">Toca un punto vacío para poner uno nuevo, o un equipo suelto para darle sus datos. Se guarda en el lazo y aparece en el diagrama unifilar.</p>
 
           {avisos.length > 0 && (
@@ -1905,6 +1964,18 @@ function PanelConectar({
         </>
       )}
     </div>
+  );
+}
+
+// Abre o guarda los equipos poco comunes (gas, ducto, photobeam, supresión…)
+// para que la lista de siempre no se llene.
+function BotonMasTipos({ abierto, onCambiar }: { abierto: boolean; onCambiar: (abierto: boolean) => void }) {
+  return (
+    <button type="button" onClick={() => onCambiar(!abierto)} aria-expanded={abierto}
+      className="mt-1.5 w-full min-h-[40px] rounded-xl border border-dashed border-line text-[13px] font-semibold text-muted flex items-center justify-center gap-1.5">
+      {abierto ? <Minus size={15} strokeWidth={2.6} /> : <Plus size={15} strokeWidth={2.6} />}
+      {abierto ? 'Solo los más usados' : 'Más equipos (gas, ducto, photobeam, supresión…)'}
+    </button>
   );
 }
 

@@ -417,9 +417,10 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
   const verDiagrama = vistaActiva === 'diagrama' || (esAncho && vistaActiva === 'lista');
 
   return (
-    <div className="max-w-3xl lg:max-w-[1500px] mx-auto pb-28">
-      <div ref={encabezado} className="sticky top-0 z-20 glass-strong px-4 lg:px-8 py-3" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}>
-        <div className="flex items-center gap-2">
+    <div className="max-w-3xl lg:max-w-[1500px] mx-auto pb-28 lg:pb-10">
+      {/* En computadora todo el encabezado va en un renglón: título, pestañas y «Agregar». */}
+      <div ref={encabezado} className="sticky top-0 z-20 glass-strong px-4 lg:px-8 py-3 lg:flex lg:items-center lg:gap-5" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}>
+        <div className="flex items-center gap-2 lg:flex-1 lg:min-w-0">
           <Link href={panelDelLazo ? `/lazos/panel/${panelDelLazo.id}` : `/lazos?cliente=${lazo.cliente_id}`} aria-label={panelDelLazo ? `Volver al ${panelDelLazo.nombre}` : 'Volver a los lazos'} className="shrink-0 w-11 h-11 -ml-1.5 rounded-full flex items-center justify-center active:scale-90 transition-transform">
             <ChevronLeft size={24} strokeWidth={2.4} />
           </Link>
@@ -438,7 +439,7 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
             <Settings2 size={20} strokeWidth={2.2} />
           </button>
         </div>
-        <div className={`grid ${pestanas.length === 3 ? 'grid-cols-3' : 'grid-cols-2 lg:max-w-xl'} gap-1 rounded-xl bg-surface border border-line p-1 mt-2.5`} role="tablist">
+        <div className={`grid ${pestanas.length === 3 ? 'grid-cols-3' : 'grid-cols-2'} gap-1 rounded-xl bg-surface border border-line p-1 mt-2.5 lg:mt-0 lg:w-[400px] lg:shrink-0`} role="tablist">
           {pestanas.map((p) => (
             <button key={p.k} type="button" role="tab" aria-selected={vistaActiva === p.k} onClick={() => setVista(p.k)}
               className={`relative min-h-[38px] rounded-lg text-[13px] font-semibold ${vistaActiva === p.k ? 'bg-teal text-inkOnAccent' : 'text-muted'}`}>
@@ -447,6 +448,12 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
             </button>
           ))}
         </div>
+        {vista !== 'falla' && (
+          <button type="button" onClick={() => setHoja({ lugar: lugarAlFinal(elementos), editando: null })}
+            className="hidden lg:flex shrink-0 min-h-[46px] px-5 rounded-xl bg-teal text-inkOnAccent font-semibold text-[14.5px] items-center gap-2 hover:brightness-110">
+            <Plus size={18} strokeWidth={2.6} /> Agregar dispositivo
+          </button>
+        )}
       </div>
 
       <div className="px-4 lg:px-8 pt-4">
@@ -478,7 +485,8 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
             </div>
           )}
           {verDiagrama && (
-            <div className={esAncho ? 'sticky top-[150px] max-h-[calc(100vh-170px)] overflow-y-auto pb-20' : ''}>
+            <div className={esAncho ? 'sticky overflow-y-auto pb-4' : ''}
+              style={esAncho ? { top: altoEncabezado + 16, maxHeight: `calc(100vh - ${altoEncabezado + 32}px)` } : undefined}>
             <div className="flex flex-wrap items-center justify-end gap-2 mb-2">
               {hayVariosLazos && (
                 <div className="mr-auto grid grid-cols-2 gap-0.5 rounded-xl bg-surface border border-line p-0.5" role="radiogroup" aria-label="Qué ver en el diagrama">
@@ -577,7 +585,7 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
 
       {/* pr-20: deja libre el botón flotante del asistente. */}
       {vista !== 'falla' && (
-        <div className="fixed bottom-0 inset-x-0 z-10 bg-bg/95 border-t border-line pl-4 pr-20 sm:pr-4 pt-3" style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}>
+        <div className="lg:hidden fixed bottom-0 inset-x-0 z-10 bg-bg/95 border-t border-line pl-4 pr-20 sm:pr-4 pt-3" style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}>
           <button type="button" onClick={() => setHoja({ lugar: lugarAlFinal(elementos), editando: null })}
             className="w-full max-w-3xl mx-auto min-h-[52px] rounded-xl bg-teal text-inkOnAccent font-semibold text-[15.5px] flex items-center justify-center gap-2">
             <Plus size={19} strokeWidth={2.6} /> Agregar dispositivo

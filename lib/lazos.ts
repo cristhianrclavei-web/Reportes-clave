@@ -84,7 +84,8 @@ export type Corte = {
 // Forma del símbolo en el diagrama.
 export type Forma = 'detector' | 'caja' | 'fin' | 'cuadro';
 
-export type TipoDispositivo = { codigo: string; nombre: string; forma: Forma; conDireccion: boolean };
+// `extra`: equipo poco común; en las listas para elegir sale hasta tocar «Más equipos».
+export type TipoDispositivo = { codigo: string; nombre: string; forma: Forma; conDireccion: boolean; extra?: true };
 
 // Códigos que usan en sus planos. Caja de registro y fin de línea van en
 // todos los circuitos. Si cambia un nombre, se cambia solo aquí.
@@ -106,6 +107,26 @@ export const TIPOS_POR_CIRCUITO: Record<TipoCircuito, TipoDispositivo[]> = {
     { codigo: 'CO', nombre: 'Corneta / sirena', forma: 'cuadro', conDireccion: false },
     { codigo: 'AL', nombre: 'Dispositivo supervisado', forma: 'cuadro', conDireccion: false },
     CAJA,
+    // Poco comunes (de la simbología de AutoCAD de Clave). El código no pasa de 6 letras (así lo pide la base).
+    { codigo: 'DM', nombre: 'Detector multicriterio (humo + calor)', forma: 'detector', conDireccion: true, extra: true },
+    { codigo: 'DG', nombre: 'Detector de gas', forma: 'detector', conDireccion: true, extra: true },
+    { codigo: 'DCO', nombre: 'Detector de monóxido de carbono', forma: 'detector', conDireccion: true, extra: true },
+    { codigo: 'DF', nombre: 'Detector de flama', forma: 'detector', conDireccion: true, extra: true },
+    { codigo: 'DD', nombre: 'Detector de humo en ducto', forma: 'detector', conDireccion: true, extra: true },
+    { codigo: 'ASP', nombre: 'Detector por aspiración (VESDA)', forma: 'detector', conDireccion: true, extra: true },
+    { codigo: 'BRX', nombre: 'Photobeam receptor', forma: 'detector', conDireccion: true, extra: true },
+    { codigo: 'BTX', nombre: 'Photobeam emisor', forma: 'cuadro', conDireccion: false, extra: true },
+    { codigo: 'BRF', nombre: 'Photobeam reflector', forma: 'cuadro', conDireccion: false, extra: true },
+    { codigo: 'MMC', nombre: 'Módulo dual monitoreo / control', forma: 'cuadro', conDireccion: true, extra: true },
+    { codigo: 'MMI', nombre: 'Minimódulo de monitoreo', forma: 'cuadro', conDireccion: true, extra: true },
+    { codigo: 'MZ', nombre: 'Módulo de zona convencional', forma: 'cuadro', conDireccion: true, extra: true },
+    { codigo: 'FS', nombre: 'Interruptor de flujo', forma: 'cuadro', conDireccion: false, extra: true },
+    { codigo: 'TS', nombre: 'Supervisor de válvula (tamper)', forma: 'cuadro', conDireccion: false, extra: true },
+    { codigo: 'PS', nombre: 'Interruptor de presión', forma: 'cuadro', conDireccion: false, extra: true },
+    { codigo: 'RET', nombre: 'Retenedor magnético de puerta', forma: 'cuadro', conDireccion: false, extra: true },
+    { codigo: 'FP', nombre: 'Fuente de poder / extensor NAC', forma: 'cuadro', conDireccion: false, extra: true },
+    { codigo: 'ANN', nombre: 'Anunciador remoto', forma: 'cuadro', conDireccion: false, extra: true },
+    { codigo: 'PL', nombre: 'Panel de liberación de agente', forma: 'cuadro', conDireccion: false, extra: true },
   ],
   voceo: [
     { codigo: 'BO', nombre: 'Bocina', forma: 'cuadro', conDireccion: false },
@@ -119,8 +140,17 @@ export const TIPOS_POR_CIRCUITO: Record<TipoCircuito, TipoDispositivo[]> = {
     { codigo: 'CO', nombre: 'Corneta / sirena', forma: 'cuadro', conDireccion: false },
     CAJA,
     FIN_DE_LINEA,
+    { codigo: 'CA', nombre: 'Campana de alarma', forma: 'cuadro', conDireccion: false, extra: true },
+    { codigo: 'LD', nombre: 'Letrero «Agente descargado»', forma: 'cuadro', conDireccion: false, extra: true },
   ],
 };
+
+// Lo que se enseña al elegir tipo: los comunes y, si ya está elegido uno de
+// los poco comunes, ese también (para que no desaparezca). Con `todos`, la lista entera.
+export function tiposParaElegir<T extends { codigo: string; extra?: true }>(tipos: T[], todos: boolean, elegido: string | null): T[] {
+  if (todos) return tipos;
+  return tipos.filter((t) => !t.extra || t.codigo === elegido);
+}
 
 export const NOMBRE_CIRCUITO: Record<TipoCircuito, string> = {
   deteccion: 'Lazo de detección',

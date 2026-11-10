@@ -6,7 +6,7 @@ import ModalOverlay from '@/components/ModalOverlay';
 import { Simbolo } from '@/components/lazos/DiagramaLazo';
 import { generarUUID } from '@/lib/uuid';
 import {
-  Elemento, Lazo, PartesUbicacion, TIPOS_POR_CIRCUITO, armarUbicacion, direccionOcupada, direccionVisible, hijosDe, lineaPrincipal,
+  Elemento, Lazo, PartesUbicacion, TIPOS_POR_CIRCUITO, tiposParaElegir, armarUbicacion, direccionOcupada, direccionVisible, hijosDe, lineaPrincipal,
   nombreSugerido, normalizarDireccion, ordenEntre, partesDe, prefijoLazo, siguienteDireccion, tipoDispositivo, sugerenciaPara, valoresUsados,
 } from '@/lib/lazos';
 import { guardarElemento, subirFotoElemento } from '@/lib/lazosDatos';
@@ -107,6 +107,9 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
   unoSolo?: boolean;
 }) {
   const tipos = TIPOS_POR_CIRCUITO[lazo.tipo];
+  // Los poco comunes se enseñan hasta que se piden.
+  const [verTodosLosTipos, setVerTodosLosTipos] = useState(false);
+  const cuantosExtra = tipos.filter((t) => t.extra).length;
   const [lugar, setLugar] = useState<Lugar>(lugarInicial);
   const tipoDelPlano = tipos.some((t) => t.codigo === tipoInicial) ? (tipoInicial as string) : null;
   const [tipo, setTipo] = useState(editando?.tipo || tipoDelPlano || tipos[0].codigo);
@@ -311,13 +314,19 @@ export default function HojaCaptura({ lazo, elementos, lugarInicial, editando, o
 
         <span className="sr-only" id="tipo-dispositivo">Tipo de dispositivo</span>
         <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5" role="radiogroup" aria-labelledby="tipo-dispositivo">
-          {tipos.map((t) => (
+          {tiposParaElegir(tipos, verTodosLosTipos, tipo).map((t) => (
             <button key={t.codigo} type="button" role="radio" aria-checked={tipo === t.codigo} title={t.nombre}
               onClick={() => setTipo(t.codigo)}
               className={`min-h-[40px] rounded-lg border font-mono text-[12.5px] ${tipo === t.codigo ? 'bg-teal border-teal text-inkOnAccent' : t.forma === 'caja' ? 'bg-surface-2 border-amber/50 text-amber' : 'bg-surface-2 border-line text-ink'}`}>
               {t.codigo}
             </button>
           ))}
+          {cuantosExtra > 0 && (
+            <button type="button" onClick={() => setVerTodosLosTipos(!verTodosLosTipos)} aria-expanded={verTodosLosTipos}
+              className="min-h-[40px] rounded-lg border border-dashed border-line text-[12px] font-semibold text-muted">
+              {verTodosLosTipos ? 'Menos' : `Más +${cuantosExtra}`}
+            </button>
+          )}
         </div>
         <p className="flex items-center gap-2 text-[13px] text-muted mt-2">
           <span className="text-ink scale-75 origin-left"><Simbolo tipo={tipo} chico /></span>{infoTipo.nombre}

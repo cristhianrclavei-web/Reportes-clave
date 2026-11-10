@@ -23,11 +23,12 @@ export function Simbolo({ tipo, chico = false }: { tipo: string; chico?: boolean
   const t = tipoDispositivo(tipo);
   if (t.forma === 'detector') {
     const ancho = chico ? 30 : 38;
-    const letra = tipo === 'SC' ? 'C' : 'S';
+    // Humo y calor, como siempre: S y C. Los demás detectores, su código.
+    const letra = tipo === 'SC' ? 'C' : tipo === 'SH' ? 'S' : tipo;
     return (
       <svg width={ancho} height={ancho * 0.9} viewBox="0 0 38 34" role="img" aria-label={t.nombre}>
         <path d="M10 2h18l9 15-9 15H10L1 17z" fill="rgb(var(--c-surface))" stroke="currentColor" strokeWidth="1.8" />
-        <text x="19" y="22" textAnchor="middle" fontFamily="var(--font-mono), monospace" fontSize="13" fill="currentColor">{letra}</text>
+        <text x="19" y="22" textAnchor="middle" fontFamily="var(--font-mono), monospace" fontSize={letra.length > 1 ? 10 : 13} fill="currentColor">{letra}</text>
       </svg>
     );
   }

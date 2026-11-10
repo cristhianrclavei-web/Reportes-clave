@@ -40,7 +40,7 @@ const RADIO_TOQUE = 22;
 
 export default function LienzoPlano({
   imagenUrl, ancho, alto, sembrado, etiquetaDe, seleccion, trazo, colorTrazo, medida,
-  ajustarPunto, onEscala, onTocar, onDobleToque, onArrastreInicio, onArrastre, onArrastreFin,
+  ajustarPunto, onEscala, metrosPorUnidad, onTocar, onDobleToque, onArrastreInicio, onArrastre, onArrastreFin,
   conexiones, colorPorLazo, resaltado, ayudaPuntero, guiasArrastre, verNodos, onNodoInicio, onNodo, onNodoFin,
   bloqueado = false, enfocar = null,
 }: {
@@ -57,6 +57,8 @@ export default function LienzoPlano({
   ajustarPunto: (p: Punto) => Ajuste;
   // Avisa cuántos pixeles mide una unidad de la hoja (cambia al acercar).
   onEscala?: (pixelesPorUnidad: number) => void;
+  // Para la barra de estado de computadora: la posición del mouse en metros.
+  metrosPorUnidad?: number | null;
   onTocar: (p: Punto, equipo: EquipoPlano | null, tuberia: TuberiaPlano | null) => void;
   onDobleToque: () => void;
   onArrastreInicio: (id: string) => void;
@@ -178,6 +180,13 @@ export default function LienzoPlano({
     elemento.addEventListener('wheel', rueda, { passive: false });
     return () => elemento.removeEventListener('wheel', rueda);
   });
+
+  // La escala con la que el plano completo cabe en pantalla (el «100 %»).
+  function escalaCompleta() {
+    const caja = marco.current;
+    if (!caja || caja.clientWidth === 0) return vistaRef.current.s || 1;
+    return Math.min(caja.clientWidth / ancho, caja.clientHeight / alto) * 0.96;
+  }
 
   function radioEnHoja() {
     return RADIO_TOQUE / vistaRef.current.s;
@@ -393,6 +402,18 @@ export default function LienzoPlano({
             )}
           </g>
         </svg>
+      )}
+
+      {/* Barra de estado, como en AutoCAD: acercamiento y dónde va el mouse. Solo en computadora. */}
+      {listo && (
+        <div className="hidden lg:flex absolute left-3 bottom-3 items-center gap-3 rounded-lg bg-surface/95 border border-line shadow-md px-3 h-8 font-mono text-[11.5px] text-muted pointer-events-none">
+          <span>{Math.round((s / escalaCompleta()) * 100)} %</span>
+          {encima && metrosPorUnidad ? (
+            <span>X {(encima[0] * metrosPorUnidad).toFixed(2)} m · Y {((alto - encima[1]) * metrosPorUnidad).toFixed(2)} m</span>
+          ) : (
+            <span>rueda: acercar · arrastrar: recorrer</span>
+          )}
+        </div>
       )}
 
       <div className="absolute right-3 bottom-3 flex flex-col gap-1.5" onPointerDown={(ev) => ev.stopPropagation()} onPointerUp={(ev) => ev.stopPropagation()} onDoubleClick={(ev) => ev.stopPropagation()}>

@@ -79,14 +79,14 @@ export function colorTuberia(diametro: string): string {
 }
 
 // Equipos que se pueden sembrar: los mismos códigos de los lazos, sin repetir.
-export function tiposSembrables(): { codigo: string; nombre: string }[] {
+export function tiposSembrables(): { codigo: string; nombre: string; extra?: true }[] {
   const vistos = new Set<string>();
-  const lista: { codigo: string; nombre: string }[] = [];
+  const lista: { codigo: string; nombre: string; extra?: true }[] = [];
   for (const tipos of Object.values(TIPOS_POR_CIRCUITO)) {
     for (const t of tipos) {
       if (vistos.has(t.codigo)) continue;
       vistos.add(t.codigo);
-      lista.push({ codigo: t.codigo, nombre: t.nombre });
+      lista.push({ codigo: t.codigo, nombre: t.nombre, extra: t.extra });
     }
   }
   return lista;
