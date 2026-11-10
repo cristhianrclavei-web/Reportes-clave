@@ -119,7 +119,7 @@ export default function PlanoDelLazo({ lazo, elementos, enfocar, onTocarEquipo, 
   } else if (!plano) {
     contenido = (
       <Aviso>
-        <span>Ningún dispositivo de {lazo.codigo} está sembrado en un plano.</span>
+        <span>Ningún dispositivo de {lazo.codigo} está colocado en un plano.</span>
         <Link href={`/lazos?cliente=${lazo.cliente_id}`} className="font-semibold text-teal underline">Ir a los planos del cliente</Link>
       </Aviso>
     );
@@ -150,7 +150,7 @@ export default function PlanoDelLazo({ lazo, elementos, enfocar, onTocarEquipo, 
                 {elementoMarcado.nombre}{elementoMarcado.direccion ? ` · ${direccionVisible(elementoMarcado.direccion, lazo.numero)}` : ''}
               </span>
               <span className="block text-[12px] text-muted truncate">
-                {otroPlano ? `Está en el plano «${otroPlano.nombre}»` : equipoMarcado ? tipoDispositivo(elementoMarcado.tipo).nombre : 'No está sembrado en ningún plano'}
+                {otroPlano ? `Está en el plano «${otroPlano.nombre}»` : equipoMarcado ? tipoDispositivo(elementoMarcado.tipo).nombre : 'No está colocado en ningún plano'}
               </span>
             </span>
             {otroPlano && (

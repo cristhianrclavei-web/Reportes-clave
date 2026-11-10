@@ -266,7 +266,7 @@ export default function NuevoPlano({ clienteInicial, onCerrar, onCreado }: {
     <ModalOverlay onClose={() => !guardando && onCerrar()}>
       <div className="glass-strong rounded-3xl max-w-lg w-full p-5 max-h-[88vh] overflow-y-auto">
         <h2 className="font-display font-bold text-[22px]">Nuevo plano</h2>
-        <p className="text-[13px] text-muted mt-1 mb-4">Sube el <b>DXF</b> (AutoCAD: Guardar como → DXF; el sembrado regresa a AutoCAD en su lugar exacto) o un PDF exportado con «DWG To PDF.pc3», una hoja por nivel.</p>
+        <p className="text-[13px] text-muted mt-1 mb-4">Sube el <b>DXF</b> (AutoCAD: Guardar como → DXF; los equipos regresan a AutoCAD en su lugar exacto) o un PDF exportado con «DWG To PDF.pc3», una hoja por nivel.</p>
 
         {!clienteInicial && (
           <>
@@ -384,7 +384,7 @@ export default function NuevoPlano({ clienteInicial, onCerrar, onCreado }: {
           <button type="button" onClick={onCerrar} disabled={!!guardando} className="flex-1 min-h-[48px] rounded-xl bg-surface-2 border border-line font-semibold text-[14.5px]">Cancelar</button>
           <button type="button" onClick={guardar} disabled={!!guardando || leyendo} className="flex-[1.4] min-h-[48px] rounded-xl bg-teal text-inkOnAccent font-semibold text-[14.5px] disabled:opacity-60 flex items-center justify-center gap-2">
             {guardando && <Loader2 size={18} className="animate-spin" />}
-            {guardando || 'Subir y sembrar'}
+            {guardando || 'Subir y colocar equipos'}
           </button>
         </div>
       </div>

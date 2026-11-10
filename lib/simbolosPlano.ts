@@ -1,7 +1,6 @@
 // Símbolos de los equipos en el PLANO (el diagrama unifilar usa los suyos,
-// components/lazos/DiagramaLazo). Más llamativos, rellenos de color, y con
-// forma de lo que son: la estación manual con su palanca, la sirena con su
-// corneta, el estrobo con su destello, el aislador con su moño.
+// components/lazos/DiagramaLazo). Son los bloques de la simbología de AutoCAD
+// de Clave (lib/simbolosBiblioteca.ts), con el color de cada equipo.
 //
 // Cada símbolo se describe una sola vez en unidades (radio 1, centro en 0,0,
 // y hacia abajo) como trazos SVG y letras. La pantalla (SimboloPlano) y el
@@ -9,6 +8,7 @@
 
 import { tipoDispositivo } from './lazos';
 import { colorEquipo } from './planos';
+import { BLOQUES, type Bloque } from './simbolosBiblioteca';
 
 export type Trazo = {
   d: string;
@@ -34,6 +34,7 @@ function rectangulo(ancho: number, alto: number, radio: number, cx = 0, cy = 0):
   const x = cx - ancho / 2;
   const y = cy - alto / 2;
   const r = Math.min(radio, ancho / 2, alto / 2);
+  if (r === 0) return `M ${x} ${y} L ${x + ancho} ${y} L ${x + ancho} ${y + alto} L ${x} ${y + alto} Z`;
   return [
     `M ${x + r} ${y}`,
     `L ${x + ancho - r} ${y}`,
@@ -48,14 +49,9 @@ function rectangulo(ancho: number, alto: number, radio: number, cx = 0, cy = 0):
   ].join(' ');
 }
 
-// Corneta (bocina) y destello (estrobo), centrados en (cx, cy) a escala `e`.
+// Corneta centrada en (cx, cy) a escala `e`.
 function corneta(cx: number, cy: number, e: number): string {
   const p = [[-0.55, -0.2], [-0.22, -0.2], [0.38, -0.58], [0.38, 0.58], [-0.22, 0.2], [-0.55, 0.2]];
-  return 'M ' + p.map(([x, y]) => `${cx + x * e} ${cy + y * e}`).join(' L ') + ' Z';
-}
-
-function destello(cx: number, cy: number, e: number): string {
-  const p = [[0.12, -0.62], [-0.36, 0.08], [-0.04, 0.08], [-0.16, 0.62], [0.36, -0.1], [0.04, -0.1]];
   return 'M ' + p.map(([x, y]) => `${cx + x * e} ${cy + y * e}`).join(' L ') + ' Z';
 }
 
@@ -63,65 +59,38 @@ const relleno = (d: string, color: string): Trazo => ({ d, relleno: color, linea
 
 // ---------- Cada equipo ----------
 
-function detector(color: string, letra: string, haloPunteado: boolean): FiguraSimbolo {
+// Para los tipos sin bloque en la simbología, con su mismo estilo de línea.
+function detector(color: string, letra: string): FiguraSimbolo {
   return {
     trazos: [
-      // Halo: como los círculos concéntricos de sus planos de AutoCAD.
-      { d: circulo(0, 0, 1), relleno: null, linea: color, grosor: 0.09, guiones: haloPunteado ? [0.22, 0.16] : undefined },
-      relleno(circulo(0, 0, 0.78), color),
+      { d: circulo(0, 0, 1), relleno: BLANCO, linea: color, grosor: GROSOR_BLOQUE },
+      { d: circulo(0, 0, 0.84), relleno: null, linea: color, grosor: GROSOR_BLOQUE },
     ],
-    letras: [{ texto: letra, x: 0, y: 0, tam: 0.95, color: BLANCO }],
+    letras: [{ texto: letra, x: 0, y: 0, tam: 0.9, color }],
   };
 }
 
-// Estación manual: caja roja con la flecha «jale hacia abajo» y la palanca.
-function estacion(color: string, letra: string | null): FiguraSimbolo {
-  const trazos: Trazo[] = [relleno(rectangulo(1.5, 1.9, 0.22), color)];
-  if (letra) {
-    trazos.push(relleno(rectangulo(1.0, 0.26, 0.06, 0, 0.42), BLANCO));
-    return { trazos, letras: [{ texto: letra, x: 0, y: -0.28, tam: 0.75, color: BLANCO }] };
-  }
-  // Flecha hacia abajo y la palanca debajo.
-  trazos.push(relleno('M -0.3 -0.62 L 0.3 -0.62 L 0 -0.18 Z', BLANCO));
-  trazos.push(relleno(rectangulo(1.0, 0.3, 0.06, 0, 0.3), BLANCO));
-  return { trazos, letras: [] };
-}
-
-// Módulo: marco blanco con borde grueso, franja de color arriba y su código.
+// Módulo: doble marco y su código, como los MOD-… de la simbología.
 function modulo(color: string, codigo: string): FiguraSimbolo {
   return {
     trazos: [
-      { d: rectangulo(1.9, 1.5, 0.14), relleno: BLANCO, linea: color, grosor: 0.14 },
-      relleno('M -0.88 -0.68 L 0.88 -0.68 L 0.88 -0.3 L -0.88 -0.3 Z', color),
+      { d: rectangulo(2, 2, 0), relleno: BLANCO, linea: color, grosor: GROSOR_BLOQUE },
+      { d: rectangulo(1.68, 1.68, 0), relleno: null, linea: color, grosor: GROSOR_BLOQUE },
     ],
-    letras: [{ texto: codigo, x: 0, y: 0.2, tam: codigo.length > 2 ? 0.55 : 0.68, color }],
+    letras: [{ texto: codigo, x: 0, y: 0, tam: codigo.length > 2 ? 0.62 : 0.85, color }],
   };
 }
 
-// Aislador: marco con el moño (dos triángulos que se tocan).
-function aislador(color: string): FiguraSimbolo {
+// Corneta o bocina sola: marco (redondo la bocina) con la corneta dentro.
+function notificacion(color: string, redonda: boolean): FiguraSimbolo {
+  const fondo = redonda ? circulo(0, 0, 1) : rectangulo(2, 2, 0);
   return {
     trazos: [
-      { d: rectangulo(1.9, 1.5, 0.14), relleno: BLANCO, linea: color, grosor: 0.14 },
-      relleno('M -0.6 -0.42 L 0.6 0.42 L 0.6 -0.42 L -0.6 0.42 Z', color),
+      { d: fondo, relleno: BLANCO, linea: color, grosor: GROSOR_BLOQUE },
+      { d: corneta(0.05, 0, 1.15), relleno: null, linea: color, grosor: GROSOR_BLOQUE },
     ],
     letras: [],
   };
-}
-
-// Sirena, estrobo o las dos: caja de color con la corneta y/o el destello.
-function notificacion(color: string, conCorneta: boolean, conDestello: boolean, redonda = false): FiguraSimbolo {
-  const fondo = redonda ? circulo(0, 0, 0.95) : rectangulo(1.8, 1.5, 0.2);
-  const trazos: Trazo[] = [relleno(fondo, color)];
-  if (conCorneta && conDestello) {
-    trazos.push(relleno(corneta(-0.38, 0, 0.82), BLANCO));
-    trazos.push(relleno(destello(0.46, 0, 0.8), BLANCO));
-  } else if (conCorneta) {
-    trazos.push(relleno(corneta(0.05, 0, 1.15), BLANCO));
-  } else {
-    trazos.push(relleno(destello(0, 0, 1.25), BLANCO));
-  }
-  return { trazos, letras: [] };
 }
 
 function caja(color: string): FiguraSimbolo {
@@ -142,37 +111,51 @@ function finDeLinea(color: string): FiguraSimbolo {
   };
 }
 
-// Panel de alarma: gabinete con su pantalla verde, como en sus planos.
-function panel(color: string): FiguraSimbolo {
-  return {
-    trazos: [
-      { d: rectangulo(2.0, 2.4, 0.16), relleno: BLANCO, linea: color, grosor: 0.14 },
-      { d: rectangulo(1.5, 0.62, 0.06, 0, -0.62), relleno: '#22c55e', linea: '#15803d', grosor: 0.06 },
-    ],
-    letras: [{ texto: 'FACP', x: 0, y: 0.5, tam: 0.56, color }],
-  };
+// Qué bloque de la simbología de AutoCAD de Clave (lib/simbolosBiblioteca.ts)
+// dibuja cada tipo de la app. Los que no están aquí usan el dibujo propio.
+export const BLOQUE_DE_TIPO: Record<string, string> = {
+  FACP: 'TABLERO',
+  SH: 'DET-PHOTO',
+  SC: 'DET CALOR',
+  MC: 'MOD-CONTROL',
+  MM: 'MOD-MONITOR',
+  MD: 'MOD-DUAL',
+  CR: 'MOD-RELAY',
+  AIS: 'MOD-AISLADOR',
+  EMA: 'EMAN',
+  EA: 'EST-ABORTO',
+  EL: 'EST-DISPARO',
+  SE: 'SIRENA',
+  ES: 'ESTROBO',
+  BE: 'BOCINA-ESTROBO',
+};
+
+const GROSOR_BLOQUE = 0.08;
+
+// El bloque de AutoCAD con el color del equipo: líneas del color, el contorno
+// de fuera con fondo blanco (para que se lea encima del plano) y los sólidos
+// rellenos.
+function deBloque(bloque: Bloque, color: string): FiguraSimbolo {
+  const trazos = bloque.trazos.map((t): Trazo => {
+    if (t.clase === 'relleno') return relleno(t.d, t.color || color);
+    return { d: t.d, relleno: t.clase === 'cerrado' ? BLANCO : null, linea: color, grosor: GROSOR_BLOQUE };
+  });
+  return { trazos, letras: bloque.letras.map((l) => ({ ...l, color })) };
 }
 
 export function figuraDe(tipo: string): FiguraSimbolo {
   const color = colorEquipo(tipo);
+  const bloque = BLOQUES[BLOQUE_DE_TIPO[tipo]];
+  if (bloque) return deBloque(bloque, color);
   switch (tipo) {
-    case 'FACP': return panel(color);
-    case 'SH': return detector(color, 'S', false);
-    case 'SC': return detector(color, 'C', true);
-    case 'EMA': return estacion(color, null);
-    case 'EA': return estacion(color, 'A');
-    case 'EL': return estacion(color, 'L');
-    case 'AIS': return aislador(color);
-    case 'CO': return notificacion(color, true, false);
-    case 'ES': return notificacion(color, false, true);
-    case 'SE': return notificacion(color, true, true);
-    case 'BO': return notificacion(color, true, false, true);
-    case 'BE': return notificacion(color, true, true);
+    // La simbología no trae corneta ni bocina solas: se dibujan al mismo estilo.
+    case 'CO': return notificacion(color, false);
+    case 'BO': return notificacion(color, true);
     case 'RG': return caja(color);
     case 'FDL': return finDeLinea(color);
   }
   const forma = tipoDispositivo(tipo).forma;
-  if (forma === 'detector') return detector(color, tipo.slice(0, 1), false);
+  if (forma === 'detector') return detector(color, tipo.slice(0, 2));
   return modulo(color, tipo.slice(0, 3));
 }
 

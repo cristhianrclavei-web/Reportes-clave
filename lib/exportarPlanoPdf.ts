@@ -80,7 +80,7 @@ function dibujarConexion(hoja: PDFPage, camino: Punto[], H: number, r: number, t
 
 export async function exportarPlanoPdf({ plano, pdfOriginal, fondoPng, cliente, etiquetas, conexiones, lazos = [] }: DatosExportar): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
-  pdf.setTitle(texto(`Sembrado - ${plano.nombre}`));
+  pdf.setTitle(texto(`Distribución de equipos - ${plano.nombre}`));
   const fuente = await pdf.embedFont(StandardFonts.Helvetica);
   const negrita = await pdf.embedFont(StandardFonts.HelveticaBold);
 
@@ -141,7 +141,7 @@ export async function exportarPlanoPdf({ plano, pdfOriginal, fondoPng, cliente, 
   let y = 612 - margen;
   const tinta = rgb(0.1, 0.12, 0.16);
   const gris = rgb(0.42, 0.45, 0.5);
-  resumen.drawText(texto(`Sembrado de equipos · ${plano.nombre}`), { x: margen, y: y - 18, size: 18, font: negrita, color: tinta });
+  resumen.drawText(texto(`Distribución de equipos · ${plano.nombre}`), { x: margen, y: y - 18, size: 18, font: negrita, color: tinta });
   y -= 40;
   const escala = plano.metros_por_unidad ? `Escala aprox. 1:${proporcionDeEscala(plano.metros_por_unidad)}` : 'Sin escala: los metros no se calcularon';
   const fecha = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'America/Mexico_City' });
@@ -161,7 +161,7 @@ export async function exportarPlanoPdf({ plano, pdfOriginal, fondoPng, cliente, 
     yIzq -= 24;
     if (yIzq < margen) break;
   }
-  if (equipos.length === 0) resumen.drawText('Sin equipos sembrados.', { x: margen, y: yIzq, size: 11, font: fuente, color: gris });
+  if (equipos.length === 0) resumen.drawText('Sin equipos colocados.', { x: margen, y: yIzq, size: 11, font: fuente, color: gris });
   const totalEquipos = plano.sembrado.equipos.length;
   if (totalEquipos > 0 && yIzq > margen) {
     resumen.drawLine({ start: { x: margen, y: yIzq + 14 }, end: { x: margen + 320, y: yIzq + 14 }, thickness: 0.6, color: gris });

@@ -6,7 +6,8 @@
 // Lógica pura; se prueba en lib/importarDxf.test.ts.
 
 import { primitivasDe, textoLimpio, type DxfLeido } from './leerDxf';
-import { tipoDispositivo } from './lazos';
+import { PANEL_EN_PLANO, tipoDispositivo } from './lazos';
+import { BLOQUE_DE_TIPO } from './simbolosPlano';
 import { TAMANOS_SIMBOLO, tamanoSimbolo, type EquipoPlano } from './planos';
 import type { TransformacionDxf } from './dibujarDxf';
 
@@ -35,7 +36,7 @@ export type BloqueEncontrado = { nombre: string; cuantos: number; sugerido: stri
 // Tipo de la app según el nombre del bloque. Los que exporta la app se
 // llaman FA_<código>, así un DXF exportado vuelve igual.
 const PISTAS: [RegExp, string][] = [
-  [/HUMO|PHOTO|FOTO|SMOKE|OPTIC/, 'SH'],
+  [/HUMO|PHOTO(?!BEAM)|FOTO|SMOKE|OPTIC/, 'SH'],
   [/CALOR|HEAT|TERM/, 'SC'],
   [/EMAN|ESTACI|PULL|MANUAL/, 'EMA'],
   [/SIRENA.*ESTROB|HORN.*STROBE/, 'SE'],
@@ -53,6 +54,9 @@ export function tipoSugerido(nombreBloque: string): string | null {
   const nombre = nombreBloque.toUpperCase();
   const propio = /^FA_([A-Z]+)$/.exec(nombre);
   if (propio && tipoDispositivo(propio[1]).codigo === propio[1]) return propio[1];
+  // Los bloques de la simbología de Clave, por su nombre exacto.
+  const deLaSimbologia = Object.keys(BLOQUE_DE_TIPO).find((tipo) => BLOQUE_DE_TIPO[tipo] === nombre);
+  if (deLaSimbologia && deLaSimbologia !== PANEL_EN_PLANO) return deLaSimbologia;
   for (const [patron, codigo] of PISTAS) if (patron.test(nombre)) return codigo;
   return null;
 }

@@ -22,6 +22,10 @@ describe('pasar dispositivos del DXF a la app', () => {
     expect(tipoSugerido('DET CALOR')).toBe('SC');
     expect(tipoSugerido('EMAN')).toBe('EMA');
     expect(tipoSugerido('FA_MM')).toBe('MM');
+    // Nombres de la simbología de Clave.
+    expect(tipoSugerido('SIRENA')).toBe('SE');
+    expect(tipoSugerido('MOD-CONTROL')).toBe('MC');
+    expect(tipoSugerido('EST-ABORTO')).toBe('EA');
     expect(tipoSugerido('topes')).toBeNull();
   });
 

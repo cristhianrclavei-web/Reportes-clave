@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
-  Check, ChevronLeft, CloudOff, FileDown, Hand, Lock, LockOpen, Network, Search, Map as IconoPlano, Link2, Link2Off, Loader2, Minus, MoreVertical, Plus, RotateCcw, RotateCw, MousePointer2, PenLine, Ruler, Spline, Redo2, Trash2, Undo2, Waypoints, X,
+  ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, ChevronLeft, CloudOff, FileDown, Hand, Lock, LockOpen, Network, Search, Map as IconoPlano, Link2, Link2Off, Loader2, Minus, MoreVertical, Plus, RotateCcw, RotateCw, MousePointer2, PenLine, Ruler, Spline, Redo2, Trash2, Undo2, Waypoints, X,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import HojaCaptura from '@/components/lazos/HojaCaptura';
@@ -581,6 +581,8 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   const W = plano?.ancho || 1;
   const H = plano?.alto || 1;
   const radioPegar = tamanoSimbolo(W, H);
+  // Pixeles de pantalla por unidad de la hoja, según lo acercado que esté el plano.
+  const escalaLienzo = useRef(1);
 
   // Lo que agrega un toque a la tubería: pegado al centro de un equipo o a
   // un nodo (quiebre o punta) de otra tubería, con codo si no está en línea;
@@ -624,9 +626,19 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   // empareja con él y se muestra la guía (como el rastreo de AutoCAD).
   const alinearEquipo = useCallback((p: Punto, excepto: string | null = null): Ajuste => {
     const otros = estadoRef.current.sembrado.equipos.filter((e) => e.id !== excepto).map((e): Punto => [e.x, e.y]);
-    const { punto, guias } = alinear(p, otros, radioPegar * 0.6, { x: true, y: true });
+    // El imán jala solo si falta muy poco en PANTALLA (8 pixeles): al acercar
+    // el plano se puede poner el equipo exacto sin que brinque a la guía.
+    const tolerancia = Math.min(radioPegar * 0.6, 8 / escalaLienzo.current);
+    const { punto, guias } = alinear(p, otros, tolerancia, { x: true, y: true });
     return { puntos: [punto], guias };
   }, [radioPegar]);
+
+  // Ajuste fino desde la ficha: un pixel de pantalla por toque (dx, dy = ±1).
+  function moverUnPaso(id: string, dx: number, dy: number) {
+    const paso = 1 / escalaLienzo.current;
+    const { sembrado } = estadoRef.current;
+    cambiarSembrado({ ...sembrado, equipos: sembrado.equipos.map((e) => (e.id === id ? { ...e, x: e.x + dx * paso, y: e.y + dy * paso } : e)) });
+  }
 
   // Guías mientras se arrastra un equipo.
   const [guiasArrastre, setGuiasArrastre] = useState<Guias | null>(null);
@@ -636,7 +648,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     // Sin equipo elegido, tocar el plano no siembra nada: así un toque sin
     // querer no agrega dispositivos.
     if (!porColocar) {
-      showToast('Primero elige abajo qué equipo vas a sembrar');
+      showToast('Primero elige abajo qué equipo vas a colocar');
       setPanelAbierto(true);
       return;
     }
@@ -653,7 +665,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
       equipo.etiqueta = panel ? panel.nombre : 'FACP';
       // Un panel se siembra una vez: se suelta la selección.
       setPorColocar(null);
-      showToast(panel ? `${panel.nombre} sembrado` : 'Panel sembrado');
+      showToast(panel ? `${panel.nombre} colocado` : 'Panel colocado');
     }
     cambiarSembrado({ ...estadoRef.current.sembrado, equipos: [...estadoRef.current.sembrado.equipos, equipo] });
     // Un toque, un equipo: después hay que elegir el siguiente (abajo se
@@ -663,9 +675,9 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     const ligado = porColocar.elementoId ? elementosPorId.get(porColocar.elementoId) : null;
     if (ligado) {
       setLazoSembrando(ligado.lazo.id);
-      showToast(`${etiquetaDeElemento(ligado.elemento, ligado.lazo)} sembrado`);
+      showToast(`${etiquetaDeElemento(ligado.elemento, ligado.lazo)} colocado`);
     } else if (porColocar.tipo !== PANEL_EN_PLANO) {
-      showToast(`${tipoDispositivo(porColocar.tipo).nombre} sembrado`);
+      showToast(`${tipoDispositivo(porColocar.tipo).nombre} colocado`);
     }
   }
 
@@ -865,7 +877,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
       return;
     }
     const otro = otrosPlanos.get(elemento.id);
-    showToast(otro ? `${elemento.nombre} está en el plano «${otro}»` : `${elemento.nombre} todavía no está sembrado en este plano`);
+    showToast(otro ? `${elemento.nombre} está en el plano «${otro}»` : `${elemento.nombre} todavía no está colocado en este plano`);
   }
 
   function elegirHerramienta(h: Herramienta) {
@@ -941,7 +953,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
         conexiones,
         lazos: lazos.map((l) => ({ id: l.id, texto: `${l.codigo} · ${l.nombre}`, color: colorPorLazo.get(l.id) || '#0f766e' })),
       });
-      const nombreArchivo = `sembrado-${plano.nombre}-${cliente}`.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/gi, '-');
+      const nombreArchivo = `equipos-${plano.nombre}-${cliente}`.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/gi, '-');
       const url = await entregarPdf(plano.id, bytes, nombreArchivo);
       window.location.assign(url);
       showToast('Descargando el PDF del plano');
@@ -1068,6 +1080,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
             ajustarPunto={herramienta === 'tuberia' ? ajustarPunto : alinearEquipo}
             onTocar={alTocar}
             onDobleToque={() => { if (herramienta === 'tuberia') soltarTramo(); }}
+            onEscala={(escala) => { escalaLienzo.current = escala; }}
             onArrastreInicio={arrastreInicio}
             onArrastre={arrastre}
             onArrastreFin={arrastreFin}
@@ -1119,6 +1132,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
                       candidatos={candidatosPara(equipoElegido)}
                       onLigar={(elementoId) => ligarEquipo(equipoElegido.id, elementoId)} onDesligar={() => desligarEquipo(equipoElegido.id)}
                       onEditarDatos={() => editarDatos(equipoElegido)}
+                      onMover={(dx, dy) => moverUnPaso(equipoElegido.id, dx, dy)}
                       onRotacion={(g) => cambiarRotacion(equipoElegido.id, g)} onRotacionATodos={() => rotacionATodos(equipoElegido.rotacion || 0)} />
                   )}
                   {tuberiaElegida && (
@@ -1131,7 +1145,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
                         <div className="mt-1 mb-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
                           <p className="text-[13.5px]">
                             Hay <b>{sueltos.length} {sueltos.length === 1 ? 'equipo suelto' : 'equipos sueltos'}</b> en el plano
-                            y <b>{totalFaltantes} {totalFaltantes === 1 ? 'dispositivo' : 'dispositivos'} del lazo</b> sin sembrar.
+                            y <b>{totalFaltantes} {totalFaltantes === 1 ? 'dispositivo' : 'dispositivos'} del lazo</b> sin colocar.
                             Si son los mismos, lígalos para que tomen su dirección.
                           </p>
                           <button type="button" onClick={() => setSeleccion({ tipo: 'equipo', id: sueltos[0].id })}
@@ -1346,7 +1360,7 @@ function ExportarDxf({ plano, etiquetaDe, conexiones, lazos, onCerrar }: {
       }
       const { exportarPlanoDxf, colocacionDe } = await import('@/lib/exportarPlanoDxf');
       const bytes = exportarPlanoDxf({ plano, colocacion: colocacionDe(plano, unidad), etiquetaDe, conexiones, lazos });
-      const nombre = `sembrado-${plano.nombre}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/gi, '-');
+      const nombre = `equipos-${plano.nombre}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/gi, '-');
       const url = await entregarPdf(plano.id, bytes, nombre, 'dxf');
       window.location.assign(url);
       onCerrar();
@@ -1432,7 +1446,7 @@ function ConfirmarBorrarPlano({ nombre, imagenUrl, equipos, tramos, onCancelar, 
   }
 
   const loQueSeBorra = [
-    `${equipos} ${equipos === 1 ? 'equipo sembrado' : 'equipos sembrados'}`,
+    `${equipos} ${equipos === 1 ? 'equipo colocado' : 'equipos colocados'}`,
     `${tramos} ${tramos === 1 ? 'tramo de tubería' : 'tramos de tubería'}`,
   ].join(' y ');
 
@@ -1459,7 +1473,7 @@ function ConfirmarBorrarPlano({ nombre, imagenUrl, equipos, tramos, onCancelar, 
         </div>
 
         <ul id="borrar-plano-detalle" className="mt-4 text-left text-[13.5px] flex flex-col gap-2">
-          <li className="flex gap-2"><X size={16} strokeWidth={2.6} className="text-red shrink-0 mt-0.5" /> Se borra el plano con todo lo sembrado, la tubería y sus conexiones dibujadas.</li>
+          <li className="flex gap-2"><X size={16} strokeWidth={2.6} className="text-red shrink-0 mt-0.5" /> Se borra el plano con todos sus equipos, la tubería y sus conexiones dibujadas.</li>
           <li className="flex gap-2"><Check size={16} strokeWidth={2.6} className="text-teal shrink-0 mt-0.5" /> Los lazos y sus dispositivos se quedan: siguen en el diagrama unifilar.</li>
         </ul>
         <p className="mt-3 text-[12.5px] font-semibold text-red">Esta acción no se puede deshacer.</p>
@@ -1500,7 +1514,7 @@ function AyudaFlotante({ herramienta, porColocar, trazo, medida, etiqueta, desde
   if (herramienta === 'conectar') {
     texto = desde ? <>Sale de <b>{desde}</b> · toca dónde va el siguiente</> : 'Toca el dispositivo del que sale el cable';
   } else if (herramienta === 'equipo') {
-    texto = porColocar ? <>Toca el plano para sembrar <b>{etiqueta}</b></> : 'Elige qué equipo vas a sembrar';
+    texto = porColocar ? <>Toca el plano para colocar <b>{etiqueta}</b></> : 'Elige qué equipo vas a colocar';
   } else if (herramienta === 'tuberia') {
     texto = trazo === 0 ? 'Toca donde empieza la tubería' : 'Se guarda solo · toca otra vez el último punto para terminar';
   } else if (herramienta === 'escala') {
@@ -1606,7 +1620,7 @@ function PanelEquipos({ paneles, panelDondeEsta, faltantesPorLazo, porColocar, o
         <span className="flex-1 min-w-0">
           <span className="block text-[13.5px] font-semibold truncate">{e.nombre}</span>
           <span className="block text-[12px] text-muted truncate">
-            {[conLazo ? lazo.codigo : null, e.ubicacion, pendiente ? null : 'ya sembrado'].filter(Boolean).join(' · ')}
+            {[conLazo ? lazo.codigo : null, e.ubicacion, pendiente ? null : 'ya colocado'].filter(Boolean).join(' · ')}
           </span>
         </span>
         {e.direccion && <span className="font-mono text-[12px] text-muted">{etiquetaDe(e, lazo)}</span>}
@@ -1638,7 +1652,7 @@ function PanelEquipos({ paneles, panelDondeEsta, faltantesPorLazo, porColocar, o
           <span className="shrink-0 min-h-[40px] px-3 rounded-lg bg-teal text-inkOnAccent text-[13px] font-semibold flex items-center">Elegir</span>
         </button>
       ) : (
-        <p className="mb-3 text-[13px] text-muted">Elige qué equipo vas a sembrar y luego toca el plano donde va. Cada toque siembra uno.</p>
+        <p className="mb-3 text-[13px] text-muted">Elige qué equipo vas a colocar y luego toca el plano donde va. Cada toque coloca uno.</p>
       )}
 
       <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-faint mb-1.5">Panel de alarma</p>
@@ -1652,7 +1666,7 @@ function PanelEquipos({ paneles, panelDondeEsta, faltantesPorLazo, porColocar, o
               <SimboloPlano tipo={PANEL_EN_PLANO} tamano={32} />
               <span className="flex-1 min-w-0">
                 <span className="block text-[14px] font-semibold truncate">{p.nombre}</span>
-                <span className="block text-[12px] text-muted truncate">{donde ? `Ya está ${donde}` : [p.modelo, p.ubicacion].filter(Boolean).join(' · ') || 'Toca para sembrarlo'}</span>
+                <span className="block text-[12px] text-muted truncate">{donde ? `Ya está ${donde}` : [p.modelo, p.ubicacion].filter(Boolean).join(' · ') || 'Toca para colocarlo'}</span>
               </span>
             </button>
           );
@@ -1663,7 +1677,7 @@ function PanelEquipos({ paneles, panelDondeEsta, faltantesPorLazo, porColocar, o
             <SimboloPlano tipo={PANEL_EN_PLANO} tamano={32} />
             <span className="flex-1 min-w-0">
               <span className="block text-[14px] font-semibold">Panel (FACP)</span>
-              <span className="block text-[12px] text-muted">El cliente no tiene panel registrado; se siembra solo el símbolo.</span>
+              <span className="block text-[12px] text-muted">El cliente no tiene panel registrado; se coloca solo el símbolo.</span>
             </span>
           </button>
         )}
@@ -1894,9 +1908,10 @@ function PanelConectar({
   );
 }
 
+const BOTON_FLECHA = 'w-11 h-11 rounded-xl bg-surface border border-line flex items-center justify-center';
 const BOTON_GIRO = 'h-11 px-2 rounded-xl bg-surface border border-line flex items-center gap-0.5 text-[12px] font-semibold';
 
-function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, onTamanoATodos, variosEquipos, candidatos, onLigar, onDesligar, onEditarDatos, onRotacion, onRotacionATodos }: {
+function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, onTamanoATodos, variosEquipos, candidatos, onLigar, onDesligar, onEditarDatos, onMover, onRotacion, onRotacionATodos }: {
   equipo: EquipoPlano;
   ligado: { elemento: Elemento; lazo: LazoConElementos } | null;
   etiqueta: string;
@@ -1909,6 +1924,7 @@ function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, o
   onLigar: (elementoId: string) => void;
   onDesligar: () => void;
   onEditarDatos: () => void;
+  onMover: (dx: number, dy: number) => void;
   onRotacion: (grados: number) => void;
   onRotacionATodos: () => void;
 }) {
@@ -1966,6 +1982,14 @@ function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, o
           Poner todos los equipos a {Math.round(tamano * 100)} %
         </button>
       )}
+      {/* Ajuste fino: mueve muy poquito; entre más acercado el plano, más fino. */}
+      <div className="mt-3 flex items-center gap-1.5">
+        <span className="text-[13px] text-muted flex-1">Mover poquito</span>
+        <button type="button" onClick={() => onMover(-1, 0)} aria-label="Mover un poco a la izquierda" className={BOTON_FLECHA}><ArrowLeft size={18} strokeWidth={2.6} /></button>
+        <button type="button" onClick={() => onMover(0, -1)} aria-label="Mover un poco hacia arriba" className={BOTON_FLECHA}><ArrowUp size={18} strokeWidth={2.6} /></button>
+        <button type="button" onClick={() => onMover(0, 1)} aria-label="Mover un poco hacia abajo" className={BOTON_FLECHA}><ArrowDown size={18} strokeWidth={2.6} /></button>
+        <button type="button" onClick={() => onMover(1, 0)} aria-label="Mover un poco a la derecha" className={BOTON_FLECHA}><ArrowRight size={18} strokeWidth={2.6} /></button>
+      </div>
       {/* Giro: de 15 en 15 para emparejarlo con la pared; 90 para voltearlo. */}
       <div className="mt-3 flex items-center gap-1.5">
         <span className="text-[13px] text-muted flex-1">Girar</span>
@@ -2101,7 +2125,7 @@ function Cantidades({ sembrado, metros }: { sembrado: Sembrado; metros: number |
     <div className="grid gap-3">
       <div className="rounded-2xl border border-line bg-surface-2 p-3.5">
         <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-faint mb-2">Equipos · {sembrado.equipos.length}</p>
-        {equipos.length === 0 && <p className="text-[13px] text-muted">Todavía no hay equipos. Usa «Equipos» para sembrarlos.</p>}
+        {equipos.length === 0 && <p className="text-[13px] text-muted">Todavía no hay equipos. Usa «Equipos» para colocarlos.</p>}
         {equipos.map((e) => (
           <div key={e.tipo} className="flex items-center gap-2.5 py-1">
             <span className="w-10 flex justify-center text-ink"><SimboloPlano tipo={e.tipo} tamano={28} /></span>

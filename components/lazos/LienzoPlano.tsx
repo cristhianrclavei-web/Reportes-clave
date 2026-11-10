@@ -26,9 +26,10 @@ export type NodoTuberia = { tuberiaId: string; indice: number };
 
 type Gesto =
   | { tipo: 'nada' }
-  | { tipo: 'posible'; x: number; y: number; vista: Vista; equipoId: string | null; nodo: NodoTuberia | null }
+  // `centro`: dónde estaba el equipo al tocarlo, para arrastrarlo sin que brinque al dedo.
+  | { tipo: 'posible'; x: number; y: number; vista: Vista; equipoId: string | null; centro: Punto | null; nodo: NodoTuberia | null }
   | { tipo: 'pan'; x: number; y: number; vista: Vista }
-  | { tipo: 'arrastre'; equipoId: string }
+  | { tipo: 'arrastre'; equipoId: string; x: number; y: number; centro: Punto }
   | { tipo: 'arrastreNodo'; nodo: NodoTuberia }
   | { tipo: 'pinza'; distancia: number; centro: { x: number; y: number }; vista: Vista };
 
@@ -39,7 +40,7 @@ const RADIO_TOQUE = 22;
 
 export default function LienzoPlano({
   imagenUrl, ancho, alto, sembrado, etiquetaDe, seleccion, trazo, colorTrazo, medida,
-  ajustarPunto, onTocar, onDobleToque, onArrastreInicio, onArrastre, onArrastreFin,
+  ajustarPunto, onEscala, onTocar, onDobleToque, onArrastreInicio, onArrastre, onArrastreFin,
   conexiones, colorPorLazo, resaltado, ayudaPuntero, guiasArrastre, verNodos, onNodoInicio, onNodo, onNodoFin,
   bloqueado = false, enfocar = null,
 }: {
@@ -54,6 +55,8 @@ export default function LienzoPlano({
   medida: Punto[];
   // Cómo queda el siguiente toque de la tubería (a 90°, con codo, alineado).
   ajustarPunto: (p: Punto) => Ajuste;
+  // Avisa cuántos pixeles mide una unidad de la hoja (cambia al acercar).
+  onEscala?: (pixelesPorUnidad: number) => void;
   onTocar: (p: Punto, equipo: EquipoPlano | null, tuberia: TuberiaPlano | null) => void;
   onDobleToque: () => void;
   onArrastreInicio: (id: string) => void;
@@ -196,7 +199,7 @@ export default function LienzoPlano({
       const equipoId = tocado?.id || null;
       // Si no es un equipo y se ven los nodos, puede ser un nodo de tubería.
       const nodo = !equipoId && verNodos && !bloqueado ? nodoEn(aHoja(p.x, p.y), radioEnHoja()) : null;
-      gesto.current = { tipo: 'posible', x: p.x, y: p.y, vista: vistaRef.current, equipoId, nodo };
+      gesto.current = { tipo: 'posible', x: p.x, y: p.y, vista: vistaRef.current, equipoId, centro: tocado ? [tocado.x, tocado.y] : null, nodo };
       return;
     }
     if (punteros.current.size === 2) {
@@ -222,8 +225,8 @@ export default function LienzoPlano({
     const g = gesto.current;
     if (g.tipo === 'posible') {
       if (Math.hypot(p.x - g.x, p.y - g.y) < UMBRAL_MOVIMIENTO) return;
-      if (g.equipoId) {
-        gesto.current = { tipo: 'arrastre', equipoId: g.equipoId };
+      if (g.equipoId && g.centro) {
+        gesto.current = { tipo: 'arrastre', equipoId: g.equipoId, x: g.x, y: g.y, centro: g.centro };
         onArrastreInicio(g.equipoId);
       } else if (g.nodo) {
         gesto.current = { tipo: 'arrastreNodo', nodo: g.nodo };
@@ -237,7 +240,10 @@ export default function LienzoPlano({
       movido.current = true;
       setVista({ s: actual.vista.s, tx: actual.vista.tx + p.x - actual.x, ty: actual.vista.ty + p.y - actual.y });
     } else if (actual.tipo === 'arrastre') {
-      onArrastre(actual.equipoId, aHoja(p.x, p.y));
+      // El equipo se mueve lo mismo que el dedo desde donde se tomó: así no
+      // brinca su centro al dedo al empezar.
+      const escala = vistaRef.current.s;
+      onArrastre(actual.equipoId, [actual.centro[0] + (p.x - actual.x) / escala, actual.centro[1] + (p.y - actual.y) / escala]);
     } else if (actual.tipo === 'arrastreNodo') {
       onNodo(actual.nodo, aHoja(p.x, p.y));
     } else if (actual.tipo === 'pinza' && punteros.current.size >= 2) {
@@ -292,6 +298,10 @@ export default function LienzoPlano({
   }
 
   const { s } = vista;
+  useEffect(() => {
+    if (s > 0) onEscala?.(s);
+    // Solo cuando cambia el acercamiento.
+  }, [s]);
   const listo = s > 0;
   // Los símbolos miden lo mismo que en el PDF, pero nunca menos de 9 px en pantalla.
   const r = listo ? Math.max(tamanoSimbolo(ancho, alto) / 2, 9 / s) : 1;
