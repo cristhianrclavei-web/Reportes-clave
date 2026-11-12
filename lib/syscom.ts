@@ -9,6 +9,7 @@
 // de pedirlo en cada búsqueda — solo se renueva si expiró o si nunca se pidió.
 
 import { fetch as fetchUndici, ProxyAgent } from 'undici';
+import { arreglarEnlaceSyscom, enlaceDeProducto } from './syscomEnlace';
 
 const BASE_URL = 'https://developers.syscom.mx/api/v1';
 
@@ -177,10 +178,10 @@ function imagenDe(p: any): string | null {
 
 function linkDe(p: any): string | null {
   const link = aHttps(p.link);
-  if (link) return link;
+  if (link) return arreglarEnlaceSyscom(link);
   const id = p.producto_id ?? p.id;
   if (!id) return null;
-  return `https://www.syscom.mx/producto/${id}`;
+  return enlaceDeProducto(id);
 }
 
 // La descripción de SYSCOM viene en HTML; aquí se vuelve texto plano para

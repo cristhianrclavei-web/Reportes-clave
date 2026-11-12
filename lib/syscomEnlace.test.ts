@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { idProductoDeEnlace } from './syscomEnlace';
+import { arreglarEnlaceSyscom, enlaceDeProducto, idProductoDeEnlace } from './syscomEnlace';
 
 describe('idProductoDeEnlace', () => {
   it('saca el número de los enlaces de SYSCOM', () => {
@@ -12,5 +12,19 @@ describe('idProductoDeEnlace', () => {
     expect(idProductoDeEnlace('https://syscom.mx.ejemplo.com/producto/213930')).toBeNull();
     expect(idProductoDeEnlace('camara 213930')).toBeNull();
     expect(idProductoDeEnlace('https://www.syscom.mx/')).toBeNull();
+  });
+});
+
+describe('arreglarEnlaceSyscom', () => {
+  it('cambia la forma que ya no abre por la que sí', () => {
+    expect(arreglarEnlaceSyscom('https://www.syscom.mx/producto/231391')).toBe('https://www.syscom.mx/products/231391');
+    expect(arreglarEnlaceSyscom('https://www.syscom.mx/products/producto/231391')).toBe('https://www.syscom.mx/products/231391');
+    expect(enlaceDeProducto(231391)).toBe('https://www.syscom.mx/products/231391');
+  });
+  it('deja igual los enlaces buenos y los de otros sitios', () => {
+    const conNombre = 'https://www.syscom.mx/producto/ds-2cd1043g2-liuf-hikvision-213930.html';
+    expect(arreglarEnlaceSyscom(conNombre)).toBe(conNombre);
+    expect(arreglarEnlaceSyscom('https://ejemplo.com/producto/123')).toBe('https://ejemplo.com/producto/123');
+    expect(arreglarEnlaceSyscom('no es enlace')).toBe('no es enlace');
   });
 });

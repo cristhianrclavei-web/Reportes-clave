@@ -155,7 +155,7 @@ function LienzoCompleto({
       setHayTrazo(false);
     }
 
-    function pos(e: PointerEvent) {
+    function pos(e: { clientX: number; clientY: number }) {
       const r = canvas.getBoundingClientRect();
       return { x: e.clientX - r.left, y: e.clientY - r.top };
     }
@@ -165,15 +165,8 @@ function LienzoCompleto({
         ? { x0: Math.min(c.x0, p.x), y0: Math.min(c.y0, p.y), x1: Math.max(c.x1, p.x), y1: Math.max(c.y1, p.y) }
         : { x0: p.x, y0: p.y, x1: p.x, y1: p.y };
     }
-    function inicio(e: PointerEvent) {
-      e.preventDefault();
-      try {
-        canvas.setPointerCapture(e.pointerId);
-      } catch {
-        // Si el navegador no deja capturar el puntero (ya se soltó), se firma igual sin captura.
-      }
+    function empezar(p: { x: number; y: number }) {
       dibujando.current = true;
-      const p = pos(e);
       ultimo.current = p;
       // Un toque sin arrastrar también deja marca (puntos de una «i», etc.).
       ctx.beginPath();
@@ -183,10 +176,8 @@ function LienzoCompleto({
       ampliar(p);
       setHayTrazo(true);
     }
-    function mover(e: PointerEvent) {
+    function seguir(p: { x: number; y: number }) {
       if (!dibujando.current || !ultimo.current) return;
-      e.preventDefault();
-      const p = pos(e);
       ctx.beginPath();
       ctx.moveTo(ultimo.current.x, ultimo.current.y);
       ctx.lineTo(p.x, p.y);
@@ -199,17 +190,55 @@ function LienzoCompleto({
       ultimo.current = null;
     }
 
-    canvas.addEventListener('pointerdown', inicio);
-    canvas.addEventListener('pointermove', mover);
-    canvas.addEventListener('pointerup', fin);
-    canvas.addEventListener('pointercancel', fin);
+    // El dedo (y el lápiz) se leen con eventos TÁCTILES: en la app de Android
+    // los eventos de puntero no llegaban al lienzo y no se podía firmar. El
+    // mouse sí va por eventos de puntero.
+    function dedoInicio(e: TouchEvent) {
+      e.preventDefault();
+      if (e.touches.length > 0) empezar(pos(e.touches[0]));
+    }
+    function dedoMover(e: TouchEvent) {
+      e.preventDefault();
+      if (e.touches.length > 0) seguir(pos(e.touches[0]));
+    }
+    function mouseInicio(e: PointerEvent) {
+      if (e.pointerType !== 'mouse') return;
+      e.preventDefault();
+      try {
+        canvas.setPointerCapture(e.pointerId);
+      } catch {
+        // Si el navegador no deja capturar el puntero, se firma igual sin captura.
+      }
+      empezar(pos(e));
+    }
+    function mouseMover(e: PointerEvent) {
+      if (e.pointerType !== 'mouse') return;
+      seguir(pos(e));
+    }
+    function mouseFin(e: PointerEvent) {
+      if (e.pointerType === 'mouse') fin();
+    }
+
+    // passive: false para poder cancelar el desplazamiento de la página.
+    canvas.addEventListener('touchstart', dedoInicio, { passive: false });
+    canvas.addEventListener('touchmove', dedoMover, { passive: false });
+    canvas.addEventListener('touchend', fin);
+    canvas.addEventListener('touchcancel', fin);
+    canvas.addEventListener('pointerdown', mouseInicio);
+    canvas.addEventListener('pointermove', mouseMover);
+    canvas.addEventListener('pointerup', mouseFin);
+    canvas.addEventListener('pointercancel', mouseFin);
     window.addEventListener('resize', alRedimensionar);
     return () => {
       document.body.style.overflow = previo;
-      canvas.removeEventListener('pointerdown', inicio);
-      canvas.removeEventListener('pointermove', mover);
-      canvas.removeEventListener('pointerup', fin);
-      canvas.removeEventListener('pointercancel', fin);
+      canvas.removeEventListener('touchstart', dedoInicio);
+      canvas.removeEventListener('touchmove', dedoMover);
+      canvas.removeEventListener('touchend', fin);
+      canvas.removeEventListener('touchcancel', fin);
+      canvas.removeEventListener('pointerdown', mouseInicio);
+      canvas.removeEventListener('pointermove', mouseMover);
+      canvas.removeEventListener('pointerup', mouseFin);
+      canvas.removeEventListener('pointercancel', mouseFin);
       window.removeEventListener('resize', alRedimensionar);
     };
   }, []);

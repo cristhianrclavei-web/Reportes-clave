@@ -1,5 +1,6 @@
 'use client';
 
+import { arreglarEnlaceSyscom } from '@/lib/syscomEnlace';
 import { useEffect, useMemo, useState } from 'react';
 import { Check, AlertTriangle, X, Search, ScanLine, ExternalLink, Package } from 'lucide-react';
 import { coincideBusqueda } from '@/lib/busqueda';
@@ -240,7 +241,7 @@ export default function EquipoInstaladoRenglon({
           <Search size={12} strokeWidth={2.6} /> Buscar en SYSCOM
         </button>
         {eq.enlace && (
-          <a href={eq.enlace} target="_blank" rel="noopener noreferrer" className="text-[12px] text-muted flex items-center gap-1">
+          <a href={arreglarEnlaceSyscom(eq.enlace)} target="_blank" rel="noopener noreferrer" className="text-[12px] text-muted flex items-center gap-1">
             <ExternalLink size={12} strokeWidth={2.4} /> Ficha
           </a>
         )}

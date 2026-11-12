@@ -1,5 +1,6 @@
 'use client';
 
+import { arreglarEnlaceSyscom } from '@/lib/syscomEnlace';
 import { ExternalLink, Package } from 'lucide-react';
 import { cantidadTexto } from '@/lib/materialesReporte';
 
@@ -29,7 +30,7 @@ export default function TablaEquiposInstalados({ equipos }: { equipos: any[] }) 
             <div className="flex flex-wrap items-center gap-x-3 mt-0.5">
               {e.serie && <span className="text-[12px] text-muted">Serie: <span className="font-mono text-ink/80">{e.serie}</span></span>}
               {e.enlace && (
-                <a href={e.enlace} target="_blank" rel="noopener noreferrer" className="text-[12px] text-teal font-medium flex items-center gap-1">
+                <a href={arreglarEnlaceSyscom(e.enlace)} target="_blank" rel="noopener noreferrer" className="text-[12px] text-teal font-medium flex items-center gap-1">
                   <ExternalLink size={11} strokeWidth={2.4} /> Ficha SYSCOM
                 </a>
               )}

@@ -1,5 +1,6 @@
 'use client';
 
+import { arreglarEnlaceSyscom } from '@/lib/syscomEnlace';
 import { avisar, confirmar } from '@/lib/dialogos';
 import { useRef, useState } from 'react';
 import Link from 'next/link';
@@ -342,7 +343,7 @@ export default function CotizacionDetalle({
                       <p className="text-amber/80 text-[11.5px] mt-0.5">Costo {money(l.costo)} · {l.margen_pct}% ganancia</p>
                     )}
                     {l.enlace && (
-                      <a href={l.enlace} target="_blank" rel="noopener noreferrer"
+                      <a href={arreglarEnlaceSyscom(l.enlace)} target="_blank" rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 mt-1.5 text-[12px] font-semibold text-teal hover:underline break-all">
                         <ExternalLink size={12} /> Ver equipo{(() => { try { return ` · ${new URL(l.enlace).hostname.replace(/^www\./, '')}`; } catch { return ''; } })()}
                       </a>
