@@ -167,7 +167,11 @@ function LienzoCompleto({
     }
     function inicio(e: PointerEvent) {
       e.preventDefault();
-      canvas.setPointerCapture(e.pointerId);
+      try {
+        canvas.setPointerCapture(e.pointerId);
+      } catch {
+        // Si el navegador no deja capturar el puntero (ya se soltó), se firma igual sin captura.
+      }
       dibujando.current = true;
       const p = pos(e);
       ultimo.current = p;
