@@ -1,6 +1,6 @@
 'use client';
 
-import { acomodar, MEDIDAS_DIAGRAMA, tonosDeCable, type AvanceGuia, type DatosGuia } from '@/lib/guias';
+import { acomodar, COLORES_CABLE, MEDIDAS_DIAGRAMA, tonosDeCable, type AvanceGuia, type DatosGuia } from '@/lib/guias';
 
 // El diagrama de conexión: cada equipo es una caja con sus bornes y cada
 // cable una línea de su color entre dos bornes. Tocar un equipo o un cable lo
@@ -82,13 +82,15 @@ export default function DiagramaConexion({ datos, avance, elegido, onElegir }: {
         const resaltado = resalta(conexion.id, conexion.de.equipo, conexion.a.equipo);
         const hecho = Boolean(avance.conexiones[conexion.id]);
         const grosor = resaltado ? 3.6 : 2.4;
+        // La orilla contrasta con el cable: clara para el negro (se perdía en el tema oscuro), oscura para los demás.
+        const esNegro = tonos[0] === COLORES_CABLE.negro;
+        const orilla = esNegro ? '#e2e8f0' : '#0f172a';
         return (
           <g key={conexion.id} style={{ cursor: 'pointer' }} opacity={hayElegido && !resaltado ? 0.14 : 1}
             onClick={(ev) => { ev.stopPropagation(); onElegir(conexionElegida === conexion.id ? null : { conexion: conexion.id }); }}>
             {/* Franja ancha invisible: el dedo no tiene que atinarle a una línea delgada. */}
             <path d={d} fill="none" stroke="transparent" strokeWidth={16} />
-            {/* Orilla oscura: un cable blanco o amarillo se pierde sobre fondo claro. */}
-            <path d={d} fill="none" stroke="#0f172a" strokeOpacity={0.55} strokeWidth={grosor + 1.4} strokeLinecap="round" />
+            <path d={d} fill="none" stroke={orilla} strokeOpacity={esNegro ? 0.9 : 0.55} strokeWidth={grosor + 1.4} strokeLinecap="round" />
             <path d={d} fill="none" stroke={tonos[0]} strokeWidth={grosor} strokeLinecap="round" />
             {tonos[1] && <path d={d} fill="none" stroke={tonos[1]} strokeWidth={grosor} strokeDasharray="7 7" />}
             {hecho && (

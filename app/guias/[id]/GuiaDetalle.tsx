@@ -278,7 +278,7 @@ function RenglonConexion({ guia, conexion, soloVer, onAlternar }: { guia: Guia; 
   return (
     <div className={`rounded-2xl border p-3 flex items-start gap-3 ${marca ? 'border-green-500/50 bg-green-500/10' : 'border-line bg-surface'}`}>
       {/* Muestra del cable: uno o dos colores */}
-      <span className="mt-1 w-3.5 h-10 rounded-full border border-black/40 shrink-0"
+      <span className="mt-1 w-3.5 h-10 rounded-full border border-slate-400 shrink-0"
         style={{ background: tonos[1] ? `repeating-linear-gradient(0deg, ${tonos[0]} 0 6px, ${tonos[1]} 6px 12px)` : tonos[0] }} aria-hidden="true" />
       <div className="flex-1 min-w-0">
         <p className="text-[14.5px] font-semibold leading-snug">{textoPunta(guia.datos, conexion.de)}</p>
