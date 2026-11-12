@@ -90,7 +90,7 @@ export default function DiagramaConexion({ datos, avance, elegido, onElegir }: {
             onClick={(ev) => { ev.stopPropagation(); onElegir(conexionElegida === conexion.id ? null : { conexion: conexion.id }); }}>
             {/* Franja ancha invisible: el dedo no tiene que atinarle a una línea delgada. */}
             <path d={d} fill="none" stroke="transparent" strokeWidth={16} />
-            <path d={d} fill="none" stroke={orilla} strokeOpacity={esNegro ? 0.9 : 0.55} strokeWidth={grosor + 1.4} strokeLinecap="round" />
+            <path d={d} fill="none" stroke={orilla} strokeOpacity={esNegro ? 1 : 0.55} strokeWidth={grosor + (esNegro ? 3 : 1.4)} strokeLinecap="round" />
             <path d={d} fill="none" stroke={tonos[0]} strokeWidth={grosor} strokeLinecap="round" />
             {tonos[1] && <path d={d} fill="none" stroke={tonos[1]} strokeWidth={grosor} strokeDasharray="7 7" />}
             {hecho && (
