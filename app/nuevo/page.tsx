@@ -1,6 +1,7 @@
 'use client';
 
 import AnexarFallaTierra from '@/components/lazos/AnexarFallaTierra';
+import { aplicaAnexo } from '@/lib/anexosPorSistema';
 import { AnexoFallaTierra, anexosDeReporte } from '@/lib/anexoFallaTierra';
 import GrabadorVideo from '@/components/GrabadorVideo';
 import { MiniaturaEvidencia, HojaEvidencia } from '@/components/EvidenciaEditor';
@@ -2221,7 +2222,10 @@ export default function NuevoReportePage() {
           )}
         </div>
 
-        <AnexarFallaTierra clienteId={clienteId} fecha={fecha} visible={pasoKey === 'evidencia'} anexos={fallasTierra} onCambiar={setFallasTierra} />
+        {/* Solo cuando el reporte es de detección (o ya trae una anexada, para no esconderla). */}
+        {(aplicaAnexo('fallaTierra', seguridad) || fallasTierra.length > 0) && (
+          <AnexarFallaTierra clienteId={clienteId} fecha={fecha} visible={pasoKey === 'evidencia'} anexos={fallasTierra} onCambiar={setFallasTierra} />
+        )}
 
         </div>
 

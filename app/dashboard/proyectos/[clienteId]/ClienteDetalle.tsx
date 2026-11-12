@@ -397,11 +397,11 @@ export default function ClienteDetalle({ clienteId, userName }: { clienteId: str
       <FacturasDelCliente clienteId={cliente.id} />
 
       {/* Lazos y circuitos de detección, voceo y estrobos (app/lazos) */}
-      <Link href={`/lazos?cliente=${cliente.id}`} className={`${cardCls} flex items-center gap-3 mb-6 hover:border-teal/60 transition-colors`}>
+      <Link href={`/dashboard/diagramas?cliente=${cliente.id}`} className={`${cardCls} flex items-center gap-3 mb-6 hover:border-teal/60 transition-colors`}>
         <Cable size={22} strokeWidth={2.1} className="text-teal shrink-0" />
         <span className="flex-1 min-w-0">
-          <span className="block font-display font-semibold text-[15px]">Lazos y circuitos</span>
-          <span className="block text-[12.5px] text-muted">Cableado en orden, diagrama unifilar y búsqueda de fallas a tierra</span>
+          <span className="block font-display font-semibold text-[15px]">Diagramas y planos</span>
+          <span className="block text-[12.5px] text-muted">Diagramas unifilares, planos con equipos y búsqueda de fallas a tierra</span>
         </span>
         <ChevronRight size={18} className="text-muted shrink-0" />
       </Link>

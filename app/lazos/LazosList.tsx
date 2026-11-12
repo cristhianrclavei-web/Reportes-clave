@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, Building2, Cable, ChevronLeft, ChevronRight, CircuitBoard, Map as IconoPlano, MapPin, Plus, Search, WifiOff, X } from 'lucide-react';
+import { AlertTriangle, Building2, Cable, ChevronRight, CircuitBoard, Map as IconoPlano, MapPin, Plus, Search, WifiOff, X } from 'lucide-react';
 import FormPanel from '@/components/lazos/FormPanel';
 import NuevoPlano from '@/components/lazos/NuevoPlano';
 import { SalidasCompactas } from '@/components/lazos/FrentePanel';
 import MenuCuenta from '@/components/MenuCuenta';
+import SupervisorShell from '@/components/SupervisorShell';
 import TecnicoTabs from '@/components/TecnicoTabs';
 import Logo from '@/components/Logo';
 import ModalOverlay from '@/components/ModalOverlay';
@@ -19,6 +20,8 @@ import { NOMBRE_CIRCUITO, PREFIJO_CIRCUITO, Panel, TipoCircuito, etiquetaSalida 
 import { crearLazo, listarLazos, listarPaneles, LazoResumen } from '@/lib/lazosDatos';
 import { listarPlanos, type PlanoResumen } from '@/lib/planosDatos';
 import { useEsAncho } from '@/lib/useEsAncho';
+
+const DETALLE = 'Diagramas unifilares y planos por cliente. Por ahora, del sistema de detección de incendio: lazos, voceo y estrobos.';
 
 const BOTON_SECUNDARIO = 'min-h-[48px] lg:min-h-[46px] px-4 rounded-2xl border border-line bg-surface-2 font-semibold text-[14.5px] flex items-center justify-center gap-2 hover:border-teal/60';
 
@@ -106,35 +109,26 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
   const gruposEnLista = grupos.filter(([id]) => normalizar(nombreCliente(id)).includes(textoBuscado));
   const fallasAbiertas = visibles.filter((l) => l.fallaAbierta).length;
 
-  return (
-    <div className={`max-w-2xl mx-auto pb-16 ${esSupervisor ? "lg:max-w-[1500px]" : "lg:max-w-none lg:px-6"}`}>
-      {/* Técnicos: una sección más, con sus pestañas. Supervisión llega desde
-          la ficha del cliente y regresa a ella. */}
-      {esSupervisor ? (
-        <div className="sticky top-0 z-20 glass-strong px-4 py-3 flex items-center justify-between gap-3" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}>
-          <div className="flex items-center gap-2 min-w-0">
-            <Link href={filtroCliente ? `/dashboard/proyectos/${filtroCliente}` : '/dashboard/proyectos'} aria-label="Volver al cliente" className="shrink-0 w-11 h-11 -ml-1.5 rounded-full flex items-center justify-center active:scale-90 transition-transform">
-              <ChevronLeft size={24} strokeWidth={2.4} />
-            </Link>
-            <span className="font-display font-semibold text-[17px] tracking-wide truncate">Lazos y circuitos</span>
-          </div>
-          <MenuCuenta nombre={userName} respaldo="Supervisión" />
+  // Supervisión lo ve dentro de su panel (con su barra de secciones); el
+  // técnico, como una sección más con sus pestañas.
+  const marco = (contenido: React.ReactNode) => (esSupervisor ? (
+    <SupervisorShell active="diagramas" title="Diagramas y planos" userName={userName} wrapperClassName="max-w-2xl lg:max-w-[1500px] mx-auto pb-16 lg:px-8 2xl:px-10">
+      {contenido}
+    </SupervisorShell>
+  ) : (
+    <div className="max-w-2xl mx-auto pb-16 lg:max-w-none lg:px-6">
+      <div className="sticky top-0 z-20 bg-bg pb-2">
+        <div className="barra-fija px-5 pb-3 flex items-center justify-between gap-3" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}>
+          <Logo variante="completo" size={34} className="min-w-0" />
+          <MenuCuenta nombre={userName} respaldo="Personal técnico" />
         </div>
-      ) : (
-        <div className="sticky top-0 z-20 bg-bg pb-2">
-          <div className="barra-fija px-5 pb-3 flex items-center justify-between gap-3" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}>
-            <Logo variante="completo" size={34} className="min-w-0" />
-            <MenuCuenta nombre={userName} respaldo="Personal técnico" />
-          </div>
-          <TecnicoTabs active="lazos" />
-        </div>
-      )}
+        <TecnicoTabs active="lazos" />
+      </div>
+      {contenido}
+    </div>
+  ));
 
-      <div className="px-5 pt-4">
-        <EncabezadoSeccion
-          titulo="Lazos y circuitos"
-          detalle="El cableado de cada lazo de detección, voceo y estrobos, en el orden en que corre el cable."
-          accion={
+  const botones = (
             <div className="flex flex-col sm:flex-row gap-2">
               {!faltaPatchPaneles && (
                 <button type="button" onClick={() => setNuevoPanel(true)} className={BOTON_PRINCIPAL}>
@@ -152,8 +146,21 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
                 )}
               </div>
             </div>
-          }
-        />
+  );
+
+  return marco(
+    <>
+      {/* En el panel del supervisor el margen lo da el marco. */}
+      <div className={esSupervisor ? 'px-4 lg:px-0 pt-4' : 'px-5 pt-4'}>
+        {esSupervisor ? (
+          // En el panel del supervisor el título ya lo pone el marco: aquí solo la descripción y los botones.
+          <div className="flex flex-col gap-3 mb-5 lg:flex-row lg:items-center lg:justify-between">
+            <p className="text-[14px] text-muted leading-snug">{DETALLE}</p>
+            <div className="shrink-0">{botones}</div>
+          </div>
+        ) : (
+          <EncabezadoSeccion titulo="Diagramas y planos" detalle={DETALLE} accion={botones} />
+        )}
 
         {sinConexion && (
           <p className="flex items-center gap-2 text-[13px] text-amber bg-amber/10 rounded-xl px-3 py-2 mb-4">
@@ -186,8 +193,8 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
         {!cargando && !errorCarga && visibles.length === 0 && panelesVisibles.length === 0 && planosVisibles.length === 0 && (
           <EstadoVacio
             icono={<Cable size={26} strokeWidth={2} />}
-            titulo="Todavía no hay lazos"
-            detalle="Crea el primero y captura sus dispositivos mientras cableas."
+            titulo="Todavía no hay diagramas ni planos"
+            detalle="Crea el primer circuito y captura sus dispositivos mientras cableas, o sube un plano."
           />
         )}
 
@@ -383,7 +390,7 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
           onCreado={(id) => { window.location.href = `/lazos/${id}`; }}
         />
       )}
-    </div>
+    </>,
   );
 }
 

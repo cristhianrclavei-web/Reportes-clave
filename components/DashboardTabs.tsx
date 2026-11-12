@@ -1,6 +1,6 @@
 'use client';
 
-import { FileText, FolderKanban, History, CalendarDays, LayoutDashboard, Warehouse, Receipt, Building2, ReceiptText, CalendarClock } from 'lucide-react';
+import { FileText, FolderKanban, History, CalendarDays, LayoutDashboard, Network, Warehouse, Receipt, Building2, ReceiptText, CalendarClock } from 'lucide-react';
 
 // Secciones del panel del supervisor: una sola fuente de verdad para la
 // barra lateral, la barra inferior del celular y el buscador (Ctrl+K).
@@ -10,6 +10,8 @@ export const TABS = [
   { key: 'servicios', label: 'Servicios', corto: 'Servicios', href: '/dashboard/servicios', Icono: FolderKanban },
   { key: 'agenda', label: 'Agenda', corto: 'Agenda', href: '/dashboard/agenda', Icono: CalendarDays },
   { key: 'reportes', label: 'Reportes', corto: 'Reportes', href: '/dashboard/reportes', Icono: FileText },
+  // Diagramas unifilares y planos por sistema (hoy: detección de incendio; app/lazos).
+  { key: 'diagramas', label: 'Diagramas y planos', corto: 'Diagramas', href: '/dashboard/diagramas', Icono: Network },
   { key: 'cotizaciones', label: 'Cotizaciones', corto: 'Cotizar', href: '/dashboard/cotizaciones', Icono: Receipt },
   { key: 'proyectos', label: 'Clientes', corto: 'Clientes', href: '/dashboard/proyectos', Icono: Building2 },
   { key: 'personal', label: 'Personal', corto: 'Personal', href: '/dashboard/personal', Icono: CalendarClock },
@@ -43,7 +45,7 @@ export function seccionesVisibles(puedeAlmacen: boolean, puedeFacturar: boolean,
 // Agrupación de la barra lateral: qué se opera a diario, qué se vende y qué
 // se controla.
 export const GRUPOS_NAV: { titulo: string; keys: DashboardTabKey[] }[] = [
-  { titulo: 'Operación', keys: ['resumen', 'servicios', 'agenda', 'reportes'] },
+  { titulo: 'Operación', keys: ['resumen', 'servicios', 'agenda', 'reportes', 'diagramas'] },
   { titulo: 'Ventas', keys: ['cotizaciones', 'facturacion', 'proyectos'] },
   { titulo: 'Control', keys: ['personal', 'almacen', 'eventos'] },
 ];

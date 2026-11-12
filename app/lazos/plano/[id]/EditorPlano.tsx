@@ -1826,7 +1826,7 @@ function PanelConectar({
     return (
       <div className="pt-1 text-[13.5px]">
         <p>Este cliente todavía no tiene lazos. Crea el lazo (necesita señal) y regresa a conectarlo aquí.</p>
-        <Link href={`/lazos?cliente=${clienteId}`} className="inline-block mt-2 font-semibold text-teal underline">Ir a Lazos y circuitos</Link>
+        <Link href={`/lazos?cliente=${clienteId}`} className="inline-block mt-2 font-semibold text-teal underline">Ir a Diagramas y planos</Link>
       </div>
     );
   }
@@ -2270,7 +2270,7 @@ function PanelUnifilar({ lazos, lazoId, onElegirLazo, colorPorLazo, resaltado, e
       <div className="rounded-2xl border border-dashed border-line-strong p-4 mt-1 text-center">
         <Network size={26} className="mx-auto text-faint" />
         <p className="text-[14px] font-semibold mt-2">Este cliente todavía no tiene lazos</p>
-        <p className="text-[13px] text-muted mt-1">Arma el lazo con «Conectar» o desde Lazos, y aquí verás su diagrama.</p>
+        <p className="text-[13px] text-muted mt-1">Arma el lazo con «Conectar» o desde Diagramas y planos, y aquí verás su diagrama.</p>
       </div>
     );
   }

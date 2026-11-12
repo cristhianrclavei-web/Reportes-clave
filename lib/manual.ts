@@ -7,11 +7,11 @@ export type SeccionManual = { titulo: string; temas: TemaManual[] };
 
 // Igual para técnicos y supervisión (app/lazos).
 const SECCION_LAZOS: SeccionManual = {
-  titulo: 'Lazos y fallas a tierra',
+  titulo: 'Diagramas y planos (lazos y fallas a tierra)',
   temas: [
     {
       titulo: 'Capturar un lazo mientras cableas',
-      resumen: 'Técnicos: pestaña «Lazos». Supervisión: en la ficha del cliente → «Lazos y circuitos». Anota los dispositivos en el orden en que corre el cable y la app dibuja el diagrama unifilar.',
+      resumen: 'Técnicos: pestaña «Diagramas». Supervisión: sección «Diagramas y planos» del menú (o desde la ficha del cliente). Hoy cubre el sistema de detección de incendio; después se agregarán diagramas de otros sistemas. Anota los dispositivos en el orden en que corre el cable y la app dibuja el diagrama unifilar.',
       pasos: [
         'Primero registra el panel: «Nuevo panel», el cliente, el nombre, la marca y modelo, y dónde está.',
         'Toca el panel para entrar: sus circuitos salen uno debajo de otro (primero los SLC, luego las NAC y el voceo), con cuántos dispositivos tiene cada uno y si hay falla a tierra abierta. Toca «Agregar circuito», elige SLC (lazo de detección), NAC (sirenas y estrobos) o Voceo, y el circuito ya sale con su número siguiente y su panel. En «Diagrama» ves todos los circuitos del panel, cada uno en su carril.',
@@ -40,7 +40,7 @@ const SECCION_LAZOS: SeccionManual = {
         'La barra y el diagrama pintan en ámbar el tramo con la falla y se sugiere el siguiente corte a la mitad del tramo.',
         'Si te equivocaste en un corte, quítalo con el bote de basura y el tramo se vuelve a calcular.',
         'Al encontrarla, toca «Encontré la falla», elige dónde estaba, escribe la causa y, si quieres, toma una foto de evidencia (necesita señal). Queda en «Fallas encontradas» (con la bitácora de cortes), en la ficha de ese dispositivo y en el historial del lazo.',
-        'Para que quede en tu reporte: en el reporte de servicio de ese cliente, paso «Evidencia», sección «Falla a tierra», toca «Anexar» (la app sugiere la que trabajaste ese día). Se anexa aunque no la hayan encontrado: va con los cortes, lo que se sugería, dónde quedó la falla y las fotos, y sale como hoja aparte en el PDF del reporte. Si haces más cortes después de anexarla, toca «Actualizar».',
+        'Para que quede en tu reporte: en el reporte de servicio de ese cliente (la sección «Falla a tierra» solo aparece si en «Sistemas» marcaste «Alarma&Det» o «Supresión»), paso «Evidencia», sección «Falla a tierra», toca «Anexar» (la app sugiere la que trabajaste ese día). Se anexa aunque no la hayan encontrado: va con los cortes, lo que se sugería, dónde quedó la falla y las fotos, y sale como hoja aparte en el PDF del reporte. Si haces más cortes después de anexarla, toca «Actualizar».',
       ],
     },
     {
@@ -48,7 +48,7 @@ const SECCION_LAZOS: SeccionManual = {
       resumen: 'Sube el plano del cliente en PDF, coloca los equipos de sus lazos y traza la tubería; la app cuenta equipos y metros.',
       pasos: [
         'Lo mejor es subir el DXF: en AutoCAD, Guardar como → «AutoCAD DXF» (el DWG no se puede leer directo). También sirve un PDF exportado con «DWG To PDF.pc3», una hoja por nivel.',
-        'En «Lazos y circuitos» toca «Plano»: elige el cliente y el archivo. Con DXF, revisa las unidades (la app propone las que cuadran con el tamaño del dibujo) y apaga las capas que estorban (cotas, mobiliario y vegetación ya vienen apagadas); la escala sale sola. Con PDF, si trae varias hojas elige cuál y, si sabes la escala (1:100), escríbela.',
+        'En «Diagramas y planos» toca «Plano»: elige el cliente y el archivo. Con DXF, revisa las unidades (la app propone las que cuadran con el tamaño del dibujo) y apaga las capas que estorban (cotas, mobiliario y vegetación ya vienen apagadas); la escala sale sola. Con PDF, si trae varias hojas elige cuál y, si sabes la escala (1:100), escríbela.',
         'Si el DXF ya trae los equipos dibujados: en «Dispositivos del dibujo» di qué es cada bloque (DET-PHOTO → Detector de humo, EMAN → Estación manual…; la app propone los que reconoce y recuerda lo que elijas para el siguiente plano). Los elegidos pasan a la app en su lugar, con su giro, su tamaño y su dirección (el texto como «L01D017» junto al símbolo); ya no salen en el fondo, así que se pueden mover y corregir. Luego, en «Conectar», al tocar uno la hoja ya trae su dirección. Si el DXF trae dos planos, deja solo el que vas a usar (los demás en una capa apagada).',
         '«Escala»: si no la pusiste, toca los dos extremos de algo cuya medida conoces (una puerta de 0.90 m, una cota) y escribe cuánto mide. Sin escala no se calculan los metros.',
         '«Equipos»: primero elige qué vas a colocar (un dispositivo de los lazos del cliente o un «equipo suelto») y luego toca el plano donde va. Cada toque coloca uno solo: si tocas el plano sin haber elegido, no se agrega nada. Después de colocarlo, arriba se sugiere el que sigue en el cable; tócalo («Elegir») para colocarlo. «Cancelar» suelta el elegido. Con la lupa buscas por dirección (L01D017), nombre, ubicación o tipo en todos los lazos; los ya colocados salen marcados. La misma lupa aparece al ligar un equipo suelto («Ligar a un dispositivo del lazo»).',

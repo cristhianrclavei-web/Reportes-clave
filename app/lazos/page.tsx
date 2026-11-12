@@ -5,7 +5,7 @@ import LazosList from './LazosList';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// Lazos y circuitos de todos los clientes. La usan técnicos y supervisión:
+// «Diagramas y planos» del técnico (lazos y circuitos de todos los clientes):
 // el técnico captura el cableado en campo y cualquiera puede atender una
 // falla a tierra. `?cliente=<id>` abre la lista filtrada por un cliente.
 export default async function LazosPage(props: { searchParams: Promise<{ cliente?: string }> }) {
@@ -16,6 +16,8 @@ export default async function LazosPage(props: { searchParams: Promise<{ cliente
 
   const { data: role } = await supabase.rpc('get_my_role');
   if (role !== 'supervisor' && role !== 'tecnico') redirect('/login');
+  // Supervisión lo ve dentro de su panel, como una sección más.
+  if (role === 'supervisor') redirect(searchParams.cliente ? `/dashboard/diagramas?cliente=${searchParams.cliente}` : '/dashboard/diagramas');
 
   const { data: perfil } = await supabase.from('profiles').select('full_name').eq('id', user.id).single();
 
