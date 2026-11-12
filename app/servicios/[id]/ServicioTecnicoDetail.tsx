@@ -1,5 +1,6 @@
 'use client';
 
+import GuiasDelCliente from '@/components/guias/GuiasDelCliente';
 import { avisar, confirmar } from '@/lib/dialogos';
 import GrabadorVideo from '@/components/GrabadorVideo';
 import VisorVideo, { MarcaVideo } from '@/components/VisorVideo';
@@ -1131,6 +1132,9 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
         {error && <p className="text-red text-[13px] mb-3">{error}</p>}
 
         {/* Checklist estilo rondín */}
+        {/* Cómo se conecta lo de este cliente (si el ingeniero armó la guía). */}
+        <GuiasDelCliente clienteId={servicio.cliente_id} grupoId={servicio.grupo_id} />
+
         {tareas.length > 0 && <RotuloGrupo cuenta={tareas.length}>Tareas</RotuloGrupo>}
         {servicio.dias_totales > 1 && (
           <p className="text-[11.5px] text-muted mb-2.5">

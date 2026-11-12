@@ -2,6 +2,8 @@
 
 import AnexarFallaTierra from '@/components/lazos/AnexarFallaTierra';
 import { aplicaAnexo } from '@/lib/anexosPorSistema';
+import AnexarGuia from '@/components/guias/AnexarGuia';
+import { anexosGuiaDeReporte, type AnexoGuia } from '@/lib/anexoGuia';
 import { AnexoFallaTierra, anexosDeReporte } from '@/lib/anexoFallaTierra';
 import GrabadorVideo from '@/components/GrabadorVideo';
 import { MiniaturaEvidencia, HojaEvidencia } from '@/components/EvidenciaEditor';
@@ -366,6 +368,8 @@ export default function NuevoReportePage() {
   const [formatos, setFormatos] = useState<FormatoLlenado[]>([]);
   // Búsquedas de falla a tierra anexadas (copia; ver lib/anexoFallaTierra).
   const [fallasTierra, setFallasTierra] = useState<AnexoFallaTierra[]>([]);
+  // Guías de conexión anexadas (lo conectado y sus pruebas): lib/anexoGuia.ts.
+  const [guiasConexion, setGuiasConexion] = useState<AnexoGuia[]>([]);
   // Los formatos de mantenimiento son parte de los planes Profesional y
   // Empresa (lib/planes.ts).
   const plan = usePlan();
@@ -449,12 +453,12 @@ export default function NuevoReportePage() {
     manejadoPor, ingACargo, personalAdicional, tipoServicio, subTipo, tipoServicioOtroTexto, seguridad,
     seguridadOtraTexto, tuberias, cables, soporteria, observaciones, actividades, showCaso, casoPuntos, equipos,
     firmaIngNombre, firmaClienteNombre, servicioConcluido, paso, usaFormato, formatos, fotosServicio,
-    firmaIngData, firmaClienteData, fallasTierra,
+    firmaIngData, firmaClienteData, fallasTierra, guiasConexion,
     clienteAusente, motivoAusente, recibioNombre, recibioPuesto, recibioFirma,
   };
   const hayDatos = Boolean(
     empresaCliente.trim() || tipoServicio || ordCompra.trim() || observaciones.trim() || horaLlegada ||
-    actividades.some((a) => a.trim()) || fotos.length || formatos.length || fallasTierra.length || firmaIngData || firmaClienteData || recibioFirma
+    actividades.some((a) => a.trim()) || fotos.length || formatos.length || fallasTierra.length || guiasConexion.length || firmaIngData || firmaClienteData || recibioFirma
   );
 
   // Llena el formulario desde campos guardados (borrador o reporte a corregir).
@@ -479,6 +483,7 @@ export default function NuevoReportePage() {
     set(setRecibioNombre, c.recibioNombre); set(setRecibioPuesto, c.recibioPuesto); set(setRecibioFirma, c.recibioFirma);
     set(setUsaFormato, c.usaFormato); set(setFormatos, c.formatos); set(setFotosServicio, c.fotosServicio);
     if (c.fallasTierra !== undefined) setFallasTierra(anexosDeReporte(c.fallasTierra));
+    if (c.guiasConexion !== undefined) setGuiasConexion(anexosGuiaDeReporte(c.guiasConexion));
     if (typeof c.tokenVerificacion === 'string') tokenRef.current = c.tokenVerificacion;
     if (c.firmaIngData || c.firmaClienteData || c.recibioFirma) {
       setFirmaIngData(c.firmaIngData || null);
@@ -580,6 +585,7 @@ export default function NuevoReportePage() {
       usaFormato: Array.isArray(d.formatosMtto) && d.formatosMtto.length > 0, formatos: Array.isArray(d.formatosMtto) ? d.formatosMtto : [],
       fotosServicio: conUrl,
       fallasTierra: anexosDeReporte(d.fallasTierra),
+      guiasConexion: anexosGuiaDeReporte(d.guiasConexion),
       tokenVerificacion: d.tokenVerificacion,
       firmaIngData: d.firmaIngData || null, firmaClienteData: null,
       paso: 1,
@@ -1040,6 +1046,7 @@ export default function NuevoReportePage() {
       formatosMtto: conFormato ? formatos : [],
       ...(conFormato ? { tokenVerificacion: tokenVerificacion() } : {}),
       ...(fallasTierra.length > 0 ? { fallasTierra } : {}),
+      ...(guiasConexion.length > 0 ? { guiasConexion } : {}),
       ...(clienteAusente
         ? {
             firmaPendiente: true,
@@ -2226,6 +2233,9 @@ export default function NuevoReportePage() {
         {(aplicaAnexo('fallaTierra', seguridad) || fallasTierra.length > 0) && (
           <AnexarFallaTierra clienteId={clienteId} fecha={fecha} visible={pasoKey === 'evidencia'} anexos={fallasTierra} onCambiar={setFallasTierra} />
         )}
+
+        {/* Guías de conexión del cliente, solo las de los sistemas de este reporte. */}
+        <AnexarGuia clienteId={clienteId} sistemas={seguridad} visible={pasoKey === 'evidencia'} anexos={guiasConexion} onCambiar={setGuiasConexion} />
 
         </div>
 

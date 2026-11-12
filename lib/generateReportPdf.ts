@@ -16,6 +16,7 @@ import sharp from 'sharp';
 import { descripcionCorta } from './descripcionEquipo';
 import { urlVerificacion } from './etiquetaMantenimiento';
 import { AnexoFallaTierra, anexosDeReporte, etiquetaDispositivo, fechaHoraEnMexico, horaEnMexico } from './anexoFallaTierra';
+import { anexosGuiaDeReporte, type AnexoGuia } from './anexoGuia';
 import {
   FormatoLlenado, ETIQUETA_FRECUENCIA, ETIQUETA_RESULTADO, ETIQUETA_RESULTADO_DISP, resumenFormato,
   resumenDispositivos, resumenPorTipo, tipoDispositivo,
@@ -680,6 +681,97 @@ export async function generateReportPdf(report: ReportRow, supabase?: any, opcio
 
   for (const anexo of anexosDeReporte(data.fallasTierra)) {
     await drawAnexoFallaTierra(anexo);
+  }
+
+  for (const anexo of anexosGuiaDeReporte(data.guiasConexion)) {
+    drawAnexoGuia(anexo);
+  }
+
+  // ====================== ANEXO: GUÍA DE CONEXIÓN ======================
+  // Lo que se conectó (borne a borne, con quién lo hizo) y lo que dieron las
+  // pruebas de puesta en marcha. Sale de la copia anexada al reporte
+  // (lib/anexoGuia.ts).
+  function drawAnexoGuia(a: AnexoGuia) {
+    const BOTTOM = MARGIN + 24;
+    const ROJO = rgb(0.78, 0.15, 0.15);
+    let hoja = 1;
+    // Las fuentes de respaldo (Helvetica) no traen Ω, → ni otros símbolos.
+    const t = (texto: string) => (texto || '').replace(/Ω/g, ' ohm').replace(/→/g, '>').replace(/−/g, '-').replace(/[^\x20-\xFF\u2013\u2014\u2018\u2019\u201C\u201D\u2026]/g, '');
+    const pie = () => {
+      page.drawText(t(`Guía de conexión · ${a.nombre} · Anexo al reporte de servicio · Folio ${folio} · Hoja ${hoja}`), { x: MARGIN, y: MARGIN / 2, size: 6.5, font, color: GRAY_TEXT });
+    };
+    const espacio = (alto: number) => {
+      if (y - alto < BOTTOM) {
+        pie();
+        hoja++;
+        newPage();
+      }
+    };
+    const rotulo = (texto: string) => {
+      espacio(30);
+      page.drawText(texto, { x: MARGIN, y, size: 9.5, font: bold, color: NAVY });
+      y -= 5;
+      page.drawLine({ start: { x: MARGIN, y }, end: { x: PAGE_W - MARGIN, y }, thickness: 0.6, color: GRAY_LINE });
+      y -= 13;
+    };
+
+    newPage();
+    const top = y;
+    drawBadge(page, display, MARGIN, top, 34);
+    drawWordmark(page, display, MARGIN + 44, top - 13, 12);
+    const titulo = 'GUÍA DE CONEXIÓN';
+    page.drawText(titulo, { x: PAGE_W - MARGIN - display.widthOfTextAtSize(titulo, 12.5), y: top - 10, size: 12.5, font: display, color: NAVY });
+    const sub = `Anexo al reporte · Folio ${folio}`;
+    page.drawText(sub, { x: PAGE_W - MARGIN - font.widthOfTextAtSize(sub, 7.5), y: top - 23, size: 7.5, font, color: GRAY_TEXT });
+    y = top - 48;
+    page.drawText(t(report.empresa_cliente || 'Cliente sin especificar'), { x: MARGIN, y, size: 15, font: display, color: NAVY, maxWidth: contentW });
+    y -= 14;
+    const sistema = a.sistema === 'Alarma&Det' ? 'Alarma y detección' : a.sistema;
+    page.drawText(t(`Servicio del ${fechaDMA(report.fecha)}  ·  ${a.nombre}  ·  ${sistema}  ·  Avance ${a.porcentaje} %`), { x: MARGIN, y, size: 8.5, font, color: GRAY_TEXT, maxWidth: contentW });
+    y -= 10;
+    page.drawLine({ start: { x: MARGIN, y }, end: { x: PAGE_W - MARGIN, y }, thickness: 1.5, color: NAVY });
+    y -= 18;
+
+    if (a.equipos.length > 0) {
+      rotulo('EQUIPOS');
+      for (const renglon of wrapText(t(a.equipos.join('   ·   ')), font, 8.5, contentW)) {
+        espacio(12);
+        page.drawText(renglon, { x: MARGIN, y, size: 8.5, font, color: NAVY });
+        y -= 11.5;
+      }
+      y -= 8;
+    }
+
+    // ---- Conexiones: casilla, de dónde a dónde, cable y quién ----
+    rotulo(`CONEXIONES (${a.conexiones.filter((c) => c.hecha).length} de ${a.conexiones.length})`);
+    for (const c of a.conexiones) {
+      const texto = wrapText(t(`${c.de}  >  ${c.a}`), font, 8.5, contentW - 180);
+      espacio(texto.length * 11 + 5);
+      page.drawRectangle({ x: MARGIN, y: y - 1.5, width: 8, height: 8, borderColor: c.hecha ? VERDE : GRAY_TEXT, borderWidth: 0.8, color: c.hecha ? VERDE : undefined });
+      texto.forEach((renglon, i) => page.drawText(renglon, { x: MARGIN + 14, y: y - i * 11, size: 8.5, font, color: NAVY }));
+      page.drawText(t(c.cable || '—'), { x: PAGE_W - MARGIN - 166, y, size: 8, font, color: GRAY_TEXT, maxWidth: 86 });
+      page.drawText(t(c.hecha ? c.por : 'Pendiente'), { x: PAGE_W - MARGIN - 76, y, size: 8, font, color: c.hecha ? GRAY_TEXT : ROJO, maxWidth: 76 });
+      y -= texto.length * 11 + 4;
+    }
+    y -= 8;
+
+    // ---- Pruebas: qué debía dar, qué dio y si quedó dentro ----
+    if (a.pruebas.length > 0) {
+      rotulo('PRUEBAS DE PUESTA EN MARCHA');
+      for (const p of a.pruebas) {
+        const texto = wrapText(t(p.texto), font, 8.5, contentW - 250);
+        espacio(texto.length * 11 + 5);
+        texto.forEach((renglon, i) => page.drawText(renglon, { x: MARGIN, y: y - i * 11, size: 8.5, font, color: NAVY }));
+        page.drawText(t(p.rango ? `Debe dar ${p.rango}` : ''), { x: PAGE_W - MARGIN - 240, y, size: 8, font, color: GRAY_TEXT, maxWidth: 100 });
+        const medido = p.valor === null ? 'Sin medir' : `${p.valor}${p.unidad ? ` ${p.unidad}` : ''}`;
+        const colorMedido = p.estado === 'fuera' ? ROJO : p.estado === 'bien' ? VERDE : GRAY_TEXT;
+        page.drawText(t(medido), { x: PAGE_W - MARGIN - 134, y, size: 9, font: bold, color: colorMedido, maxWidth: 60 });
+        const veredicto = p.estado === 'fuera' ? 'FUERA DE RANGO' : p.estado === 'bien' ? 'Bien' : '';
+        page.drawText(veredicto, { x: PAGE_W - MARGIN - 70, y, size: 7.5, font: bold, color: colorMedido });
+        y -= texto.length * 11 + 4;
+      }
+    }
+    pie();
   }
 
   // Anexo «Búsqueda de falla a tierra»: resultado, bitácora de cortes (qué

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabaseServer';
 import LazosList from '@/app/lazos/LazosList';
+import { guiaDesdeCotizacion } from '@/lib/guiaDesdeCotizacion';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -8,7 +9,7 @@ export const revalidate = 0;
 // «Diagramas y planos» dentro del panel del supervisor: la misma lista que
 // ven los técnicos en /lazos (paneles, circuitos y planos por cliente).
 // `?cliente=<id>` la abre filtrada por un cliente.
-export default async function DiagramasPage(props: { searchParams: Promise<{ cliente?: string }> }) {
+export default async function DiagramasPage(props: { searchParams: Promise<{ cliente?: string; ver?: string; cotizacion?: string }> }) {
   const searchParams = await props.searchParams;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -19,5 +20,16 @@ export default async function DiagramasPage(props: { searchParams: Promise<{ cli
 
   const { data: perfil } = await supabase.from('profiles').select('full_name').eq('id', user.id).single();
 
-  return <LazosList userName={perfil?.full_name || user.email || ''} esSupervisor clienteInicial={searchParams.cliente || null} />;
+  // «Crear guía de conexión» desde una cotización: llega con sus equipos.
+  const guiaInicial = searchParams.cotizacion ? await guiaDesdeCotizacion(supabase, searchParams.cotizacion) : null;
+
+  return (
+    <LazosList
+      userName={perfil?.full_name || user.email || ''}
+      esSupervisor
+      clienteInicial={searchParams.cliente || null}
+      verInicial={searchParams.ver === 'guias' || guiaInicial ? 'guias' : 'lazos'}
+      guiaInicial={guiaInicial}
+    />
+  );
 }

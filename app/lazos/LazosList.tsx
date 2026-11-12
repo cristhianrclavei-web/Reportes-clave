@@ -8,6 +8,8 @@ import NuevoPlano from '@/components/lazos/NuevoPlano';
 import { SalidasCompactas } from '@/components/lazos/FrentePanel';
 import MenuCuenta from '@/components/MenuCuenta';
 import SupervisorShell from '@/components/SupervisorShell';
+import GuiasLista from '@/components/guias/GuiasLista';
+import type { GuiaInicial } from '@/lib/guiaDesdeCotizacion';
 import TecnicoTabs from '@/components/TecnicoTabs';
 import Logo from '@/components/Logo';
 import ModalOverlay from '@/components/ModalOverlay';
@@ -29,11 +31,15 @@ const CAMPO = 'w-full px-3.5 min-h-[46px] rounded-xl bg-surface-2 border border-
 
 type Errores = Partial<Record<'cliente' | 'nombre' | 'codigo' | 'numero', string>>;
 
-export default function LazosList({ userName, esSupervisor, clienteInicial }: {
+export default function LazosList({ userName, esSupervisor, clienteInicial, verInicial, guiaInicial }: {
   userName: string;
   esSupervisor: boolean;
   clienteInicial: string | null;
+  // Qué pestaña abre: los lazos y planos de detección, o las guías de conexión.
+  verInicial: 'lazos' | 'guias';
+  guiaInicial: GuiaInicial | null;
 }) {
+  const [ver, setVer] = useState<'lazos' | 'guias'>(verInicial);
   const [lazos, setLazos] = useState<LazoResumen[]>([]);
   const [clientes, setClientes] = useState<ClienteCatalogo[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -152,6 +158,25 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
     <>
       {/* En el panel del supervisor el margen lo da el marco. */}
       <div className={esSupervisor ? 'px-4 lg:px-0 pt-4' : 'px-5 pt-4'}>
+        {/* Dos mitades de la sección: lo de detección de incendio y las guías de cualquier sistema. */}
+        <div className="grid grid-cols-2 gap-1 rounded-xl bg-surface border border-line p-1 mb-4 lg:max-w-md" role="tablist" aria-label="Qué ver">
+          {([['lazos', 'Lazos y planos'], ['guias', 'Guías de conexión']] as const).map(([clave, texto]) => (
+            <button key={clave} type="button" role="tab" aria-selected={ver === clave} onClick={() => setVer(clave)}
+              className={`min-h-[42px] rounded-lg text-[13.5px] font-semibold ${ver === clave ? 'bg-teal text-inkOnAccent' : 'text-muted'}`}>
+              {texto}
+            </button>
+          ))}
+        </div>
+
+        {ver === 'guias' && (
+          <>
+            {!esSupervisor && <h1 className="font-display font-bold text-[26px] leading-tight tracking-wide mb-2">Guías de conexión</h1>}
+            <GuiasLista esSupervisor={esSupervisor} inicial={guiaInicial} />
+          </>
+        )}
+
+        {ver === 'lazos' && (
+        <>
         {esSupervisor ? (
           // En el panel del supervisor el título ya lo pone el marco: aquí solo la descripción y los botones.
           <div className="flex flex-col gap-3 mb-5 lg:flex-row lg:items-center lg:justify-between">
@@ -363,6 +388,8 @@ export default function LazosList({ userName, esSupervisor, clienteInicial }: {
         })}
         </div>
         </div>
+        </>
+        )}
       </div>
 
       {nuevoPanel && (

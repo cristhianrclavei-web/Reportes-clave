@@ -2,6 +2,7 @@
 
 import ResumenFallaTierra from '@/components/lazos/ResumenFallaTierra';
 import { anexosDeReporte } from '@/lib/anexoFallaTierra';
+import { anexosGuiaDeReporte, resumenCortoGuia } from '@/lib/anexoGuia';
 import { avisar, confirmar } from '@/lib/dialogos';
 import TablaEquiposInstalados from '@/components/reporte/TablaEquiposInstalados';
 import VisorVideo, { MarcaVideo } from '@/components/VisorVideo';
@@ -707,6 +708,24 @@ export default function ReportDetailModal({
         {(report.data?.formatosMtto || []).length > 0 && (
           <Section title="Formato de mantenimiento preventivo">
             <ResumenFormatos formatos={report.data.formatosMtto} />
+          </Section>
+        )}
+
+        {anexosGuiaDeReporte(report.data?.guiasConexion).length > 0 && (
+          <Section title="Guía de conexión">
+            <div className="flex flex-col gap-2">
+              {anexosGuiaDeReporte(report.data?.guiasConexion).map((anexo) => (
+                <div key={anexo.guia_id} className="rounded-2xl border border-line p-3">
+                  <p className="text-[14px] font-semibold">{anexo.nombre}</p>
+                  <p className="text-[12.5px] text-muted">{anexo.sistema === 'Alarma&Det' ? 'Alarma y detección' : anexo.sistema} · {resumenCortoGuia(anexo)}</p>
+                  {anexo.pruebas.filter((p) => p.valor !== null).map((p) => (
+                    <p key={p.texto} className={`text-[12.5px] mt-1 ${p.estado === 'fuera' ? 'text-red font-semibold' : ''}`}>
+                      {p.texto}: {p.valor} {p.unidad}{p.rango ? ` (debe dar ${p.rango})` : ''}
+                    </p>
+                  ))}
+                </div>
+              ))}
+            </div>
           </Section>
         )}
 

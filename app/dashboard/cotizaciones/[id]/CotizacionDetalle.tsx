@@ -15,7 +15,7 @@ import {
 } from '@/lib/cotizaciones';
 import { showToast } from '@/components/Toast';
 import type { FirmanteSugerido } from '@/lib/firmantesCotizacion';
-import { FileText, Pencil, Trash2, ChevronLeft, X, Check, Send, Ban, MessageCircle, ExternalLink, Copy, Sparkles, Undo2 } from 'lucide-react';
+import { FileText, Pencil, Trash2, ChevronLeft, X, Check, Send, Ban, MessageCircle, ExternalLink, Copy, Network, Sparkles, Undo2 } from 'lucide-react';
 import { MARCA, MARCA_MAYUS } from '@/lib/marca';
 
 // WhatsApp necesita el código de país adelante — los teléfonos se capturan
@@ -560,6 +560,15 @@ export default function CotizacionDetalle({
           Quitar aprobación para corregir
         </button>
       )}
+
+      {/* Guía de conexión para los técnicos, con los equipos ya cotizados. */}
+      <Link
+        href={`/dashboard/diagramas?cotizacion=${cotizacion.id}`}
+        className="w-full min-h-[48px] mb-3 rounded-xl border border-teal/50 text-teal font-semibold text-[14.5px] flex items-center justify-center gap-2 active:scale-95 transition-transform hover:bg-teal/5"
+      >
+        <Network size={16} strokeWidth={2.3} />
+        Crear guía de conexión con estos equipos
+      </Link>
 
       {/* Copiar: la misma cotización como base para otro cliente. */}
       <Link

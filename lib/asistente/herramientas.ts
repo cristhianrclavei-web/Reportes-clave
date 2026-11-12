@@ -7,6 +7,7 @@ import { buscarProductosSyscom, syscomConfigurado } from '@/lib/syscom';
 import { enviarPush } from '@/lib/pushServidor';
 import { cablesDe, soporteriaDe, textoCable, textoSoporteria, textoTuberia, tuberiasDe } from '@/lib/materialesReporte';
 import { calcularTotales, normalizarEnlace, precioUnitarioDesdeCosto } from '@/lib/cotizaciones';
+import { leerAvance, leerDatos, progresoDe, rangoDePrueba, textoConexion } from '@/lib/guias';
 
 // Funciones de consulta del asistente. Reglas de este archivo:
 //
@@ -467,6 +468,44 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
         .limit(n);
       if (error) return falla(error);
       return salida(data, n);
+    },
+  });
+
+  // Solo lectura. Con guia_id devuelve el detalle (cada conexión ya en una
+  // frase); sin él, la lista para elegir. Sin fotos ni quién marcó qué.
+  const guiasDeConexion = betaZodTool({
+    name: 'guias_de_conexion',
+    description: 'Guías de conexión de una instalación: qué equipos lleva, qué borne se conecta con qué borne y de qué color es el cable, las pruebas de puesta en marcha con su rango y las notas del ingeniero. Úsala cuando pregunten cómo conectar algo (p. ej. «¿dónde va el botón de salida?»). Sin guia_id lista las guías (filtra por cliente o sistema); con guia_id da el detalle. Responde SOLO con lo que diga la guía: si no viene, dilo y sugiere preguntar al ingeniero.',
+    inputSchema: z.object({
+      guia_id: z.string().uuid().optional(),
+      cliente: z.string().optional().describe('Nombre o parte del nombre del cliente'),
+      sistema: z.string().optional().describe('p. ej. Control de acceso, Paneles solares, CCTV'),
+    }),
+    run: async (i) => {
+      if (i.guia_id) {
+        const { data, error } = await supabase.from('guias_conexion').select('nombre, sistema, descripcion, datos, avance').eq('id', i.guia_id).maybeSingle();
+        if (error) return falla(error);
+        if (!data) return JSON.stringify({ error: 'No existe esa guía o no tienes acceso' });
+        const datos = leerDatos(data.datos);
+        const progreso = progresoDe(datos, leerAvance(data.avance));
+        return JSON.stringify({
+          nombre: data.nombre, sistema: data.sistema, descripcion: data.descripcion,
+          equipos: datos.equipos.map((e) => ({ nombre: e.nombre, modelo: e.modelo || null, nota: e.nota || null, bornes: e.bornes.map((b) => b.nombre) })),
+          conexiones: datos.conexiones.map((c) => ({ conexion: textoConexion(datos, c), nota: c.nota || null })),
+          pruebas: datos.pruebas.map((p) => ({ prueba: p.texto, debe_dar: rangoDePrueba(p) || null })),
+          notas_del_ingeniero: datos.notas,
+          avance: `${progreso.conexionesHechas} de ${progreso.conexiones} conexiones hechas`,
+        });
+      }
+      let consulta = supabase.from('guias_conexion').select('id, nombre, sistema, es_plantilla, cliente_id, clientes(nombre)').order('actualizado_en', { ascending: false }).limit(40);
+      if (i.sistema) consulta = consulta.ilike('sistema', patron(i.sistema) || '%');
+      const { data, error } = await consulta;
+      if (error) return falla(error);
+      const buscado = sinAcentos(i.cliente || '');
+      const filas = ((data as any[]) || [])
+        .map((g) => ({ guia_id: g.id, nombre: g.nombre, sistema: g.sistema, plantilla: g.es_plantilla, cliente: g.clientes?.nombre || null }))
+        .filter((g) => !buscado || sinAcentos(g.cliente || '').includes(buscado));
+      return salida(filas, 40);
     },
   });
 
@@ -1221,7 +1260,7 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
   // El técnico no recibe las funciones de supervisión: aunque la RLS ya le
   // devolvería vacío, no ofrecerlas evita respuestas confusas («no hay
   // cotizaciones») sobre datos que simplemente no le corresponden.
-  const comunes = [buscarEquipos, buscarReportes, servicios, tareas, listaDeCarga, plantillas, existencias, vales, clientes, ...(yo.puedeEscribir === false ? [] : [solicitarMaterial])];
+  const comunes = [buscarEquipos, buscarReportes, servicios, tareas, listaDeCarga, plantillas, existencias, vales, clientes, guiasDeConexion, ...(yo.puedeEscribir === false ? [] : [solicitarMaterial])];
   if (!esSupervisor) return comunes;
   return [...comunes, cotizaciones, disponibles, recurrentes, preciosDeReferencia, redaccion, leerBorrador, ...(yo.puedeEscribir === false ? [] : [crearBorrador, actualizarBorrador, programarServicio, reprogramarServicio, cancelarServicio, cambiarTecnicos])];
 }
