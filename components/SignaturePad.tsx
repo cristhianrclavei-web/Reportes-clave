@@ -8,6 +8,8 @@ export type SignaturePadHandle = {
   clear: () => void;
   isEmpty: () => boolean;
   getDataURL: () => string | null;
+  // Abre el lienzo para firmar (lo usa quien muestra algo antes, con `antesDeFirmar`).
+  abrir: () => void;
 };
 
 // Firma en dos tiempos:
@@ -28,8 +30,13 @@ const MAX_H = 240;
 // borrador guardado en el dispositivo.
 const SignaturePad = forwardRef<
   SignaturePadHandle,
-  { height?: number; titulo?: string; inicial?: string | null; onCambio?: (v: string | null) => void }
->(function SignaturePad({ height = 140, titulo = 'Firma', inicial = null, onCambio }, ref) {
+  {
+    height?: number; titulo?: string; inicial?: string | null; onCambio?: (v: string | null) => void;
+    // Si viene, «Firmar» no abre el lienzo: avisa aquí para que el formulario
+    // muestre primero lo que se va a firmar y luego llame a `abrir()`.
+    antesDeFirmar?: () => void;
+  }
+>(function SignaturePad({ height = 140, titulo = 'Firma', inicial = null, onCambio, antesDeFirmar }, ref) {
   const [dataUrl, setDataUrl] = useState<string | null>(inicial);
   const dataUrlRef = useRef<string | null>(inicial);
   const [abierto, setAbierto] = useState(false);
@@ -44,6 +51,7 @@ const SignaturePad = forwardRef<
     clear: () => fijar(null),
     isEmpty: () => !dataUrlRef.current,
     getDataURL: () => dataUrlRef.current,
+    abrir: () => setAbierto(true),
   }));
 
   return (
@@ -55,7 +63,7 @@ const SignaturePad = forwardRef<
         ) : (
           <button
             type="button"
-            onClick={() => setAbierto(true)}
+            onClick={() => (antesDeFirmar ? antesDeFirmar() : setAbierto(true))}
             className="absolute inset-0 flex items-center justify-center active:scale-[0.98] transition-transform"
           >
             <span className="bg-teal text-inkOnAccent font-semibold text-[14px] px-5 py-2.5 rounded-full flex items-center gap-2 shadow-glow-teal">

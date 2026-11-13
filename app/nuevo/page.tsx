@@ -280,6 +280,8 @@ export default function NuevoReportePage() {
   // Deja ver el 100 % un instante antes de cerrar la pantalla de guardado.
   const pausaFinal = () => new Promise((r) => setTimeout(r, 700));
   const [showPreview, setShowPreview] = useState(false);
+  // El cliente revisa el reporte completo antes de que se abra el lienzo de su firma.
+  const [revisionCliente, setRevisionCliente] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
   const [msg, setMsg] = useState<string | null>(null);
@@ -1067,13 +1069,15 @@ export default function NuevoReportePage() {
       fecha,
       tipoServicio,
       subTipo,
-      data: buildSharedData(),
+      data: { ...buildSharedData(), firmaIngNombre, firmaClienteNombre },
       fotos: [
         ...fotosServicio.map((f) => ({ previewUrl: f.previewUrl, caption: f.caption, ...metaLimpia(f) })),
         ...fotos.map((f) => ({ previewUrl: f.previewUrl, caption: f.caption, ...metaLimpia(f) })),
       ],
       firmaIngListo: Boolean(sigIngRef.current && !sigIngRef.current.isEmpty()),
       firmaClienteListo: !clienteAusente && Boolean(sigClienteRef.current && !sigClienteRef.current.isEmpty()),
+      firmaIng: sigIngRef.current?.getDataURL() || null,
+      firmaCliente: clienteAusente ? null : sigClienteRef.current?.getDataURL() || null,
     };
   }
 
@@ -2258,7 +2262,7 @@ export default function NuevoReportePage() {
             <>
               <div className="mb-2.5"><label className={labelCls}>Nombre del cliente</label><input type="text" className={inputCls} value={firmaClienteNombre} onChange={(e) => setFirmaClienteNombre(e.target.value)} /></div>
               <div className="rounded-xl overflow-hidden border border-line">
-                <SignaturePad ref={sigClienteRef} titulo="Firma del cliente" inicial={firmaClienteData} onCambio={setFirmaClienteData} />
+                <SignaturePad ref={sigClienteRef} titulo="Firma del cliente" inicial={firmaClienteData} onCambio={setFirmaClienteData} antesDeFirmar={() => setRevisionCliente(true)} />
               </div>
             </>
           ) : (
@@ -2354,6 +2358,16 @@ export default function NuevoReportePage() {
       )}
 
       {showPreview && <ReportPreviewModal preview={getPreviewData()} onClose={() => setShowPreview(false)} />}
+      {revisionCliente && (
+        <ReportPreviewModal
+          preview={getPreviewData()}
+          onClose={() => setRevisionCliente(false)}
+          onFirmar={() => {
+            setRevisionCliente(false);
+            sigClienteRef.current?.abrir();
+          }}
+        />
+      )}
 
       {/* Barra inferior: moverse entre pasos y guardar al final */}
       <div
