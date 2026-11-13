@@ -1,5 +1,6 @@
 'use client';
 
+import { alTocarEnlace } from '@/lib/abrirArchivo';
 import { useEffect, useRef, useState } from 'react';
 import { X, Camera, MapPin, QrCode, Plus, History, User } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
@@ -138,7 +139,7 @@ export default function ModalArticulo({
           </button>
           <div className="text-[12.5px] text-muted">
             {subiendo ? 'Subiendo…' : fotoUrl ? 'Toca la foto para cambiarla.' : 'Toca para tomarle foto: ayuda a reconocerlo al pedirlo y al entregarlo.'}
-            <a href={`/api/almacen/etiquetas?tipo=articulo&ids=${articulo.id}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 mt-2 text-teal font-semibold">
+            <a href={`/api/almacen/etiquetas?tipo=articulo&ids=${articulo.id}`} onClick={alTocarEnlace} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 mt-2 text-teal font-semibold">
               <QrCode size={14} /> Imprimir etiqueta QR
             </a>
           </div>

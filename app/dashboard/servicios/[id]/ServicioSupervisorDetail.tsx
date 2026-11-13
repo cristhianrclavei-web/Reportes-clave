@@ -1,5 +1,6 @@
 'use client';
 
+import { abrirArchivo } from '@/lib/abrirArchivo';
 import PlazoProyecto from '@/components/PlazoProyecto';
 import MotivoAmpliacion from '@/components/MotivoAmpliacion';
 import { avisar, confirmar, pedirTexto } from '@/lib/dialogos';
@@ -678,7 +679,7 @@ export default function ServicioSupervisorDetail({ servicioId }: { servicioId: s
       <div className="px-4 lg:px-0 pt-5">
         {servicio.report_id && (
           <button
-            onClick={() => window.open(`/api/reports/${servicio.report_id}/pdf?t=${Date.now()}`, '_blank', 'noopener,noreferrer')}
+            onClick={() => abrirArchivo(`/api/reports/${servicio.report_id}/pdf?t=${Date.now()}`)}
             className="flex items-center gap-1.5 text-[13px] mb-2"
           >
             <span className="text-muted">Reporte generado — Folio:</span>

@@ -1,5 +1,6 @@
 'use client';
 
+import { abrirArchivo } from '@/lib/abrirArchivo';
 import { avisar, confirmar } from '@/lib/dialogos';
 import { useEffect, useState } from 'react';
 import {
@@ -129,7 +130,7 @@ export default function LevantamientoDetalleModal({
               <h2 className="font-display font-bold text-[21px] leading-snug">{levantamiento.empresa}</h2>
               <p className="text-[13px] text-muted mt-0.5 mb-3">Hecho por {nombreCreador(levantamiento.profiles)}</p>
               <button
-                onClick={() => window.open(`/api/levantamientos/${levantamiento.id}/pdf?t=${Date.now()}`, '_blank', 'noopener,noreferrer')}
+                onClick={() => abrirArchivo(`/api/levantamientos/${levantamiento.id}/pdf?t=${Date.now()}`)}
                 className="min-h-[38px] inline-flex items-center gap-1.5 text-[12.5px] bg-teal text-inkOnAccent rounded-full px-3.5 py-2 font-semibold active:scale-95 transition-transform shadow-glow-teal"
               >
                 <FileText size={15} strokeWidth={2.4} />

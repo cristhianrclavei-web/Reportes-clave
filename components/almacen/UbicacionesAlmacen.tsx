@@ -1,5 +1,6 @@
 'use client';
 
+import { alTocarEnlace } from '@/lib/abrirArchivo';
 import { useMemo, useState } from 'react';
 import { MapPin, Plus, QrCode, ChevronLeft, Pencil, Search } from 'lucide-react';
 import { showToast } from '@/components/Toast';
@@ -82,7 +83,7 @@ export default function UbicacionesAlmacen({
               {ubic.descripcion && <p className="text-[13px] text-muted">{ubic.descripcion}</p>}
             </div>
           )}
-          <a href={`/api/almacen/etiquetas?tipo=ubicacion&ids=${ubic.id}`} target="_blank" rel="noopener noreferrer" className="shrink-0 px-3 min-h-[40px] rounded-xl bg-surface-2 border border-line text-[13px] font-semibold flex items-center gap-1.5"><QrCode size={15} /> Etiqueta</a>
+          <a href={`/api/almacen/etiquetas?tipo=ubicacion&ids=${ubic.id}`} onClick={alTocarEnlace} target="_blank" rel="noopener noreferrer" className="shrink-0 px-3 min-h-[40px] rounded-xl bg-surface-2 border border-line text-[13px] font-semibold flex items-center gap-1.5"><QrCode size={15} /> Etiqueta</a>
         </div>
 
         <div className="rounded-2xl bg-surface border border-line divide-y divide-line mb-3">
@@ -98,7 +99,7 @@ export default function UbicacionesAlmacen({
           ))}
         </div>
         {aqui.length > 0 && (
-          <a href={`/api/almacen/etiquetas?tipo=articulo&ids=${aqui.map((a) => a.id).join(',')}`} target="_blank" rel="noopener noreferrer" className="text-[13px] font-semibold text-teal flex items-center gap-1.5 mb-4"><QrCode size={14} /> Imprimir etiquetas de estos {aqui.length} artículos</a>
+          <a href={`/api/almacen/etiquetas?tipo=articulo&ids=${aqui.map((a) => a.id).join(',')}`} onClick={alTocarEnlace} target="_blank" rel="noopener noreferrer" className="text-[13px] font-semibold text-teal flex items-center gap-1.5 mb-4"><QrCode size={14} /> Imprimir etiquetas de estos {aqui.length} artículos</a>
         )}
 
         {!acomodar ? (
@@ -160,7 +161,7 @@ export default function UbicacionesAlmacen({
         ))}
       </div>
       {ubicaciones.length > 0 && (
-        <a href={`/api/almacen/etiquetas?tipo=ubicacion&ids=${ubicaciones.map((u) => u.id).join(',')}`} target="_blank" rel="noopener noreferrer" className="mt-3 text-[13px] font-semibold text-teal flex items-center gap-1.5"><QrCode size={14} /> Imprimir etiquetas de todas las ubicaciones</a>
+        <a href={`/api/almacen/etiquetas?tipo=ubicacion&ids=${ubicaciones.map((u) => u.id).join(',')}`} onClick={alTocarEnlace} target="_blank" rel="noopener noreferrer" className="mt-3 text-[13px] font-semibold text-teal flex items-center gap-1.5"><QrCode size={14} /> Imprimir etiquetas de todas las ubicaciones</a>
       )}
     </div>
   );

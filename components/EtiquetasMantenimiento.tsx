@@ -1,5 +1,6 @@
 'use client';
 
+import { descargarArchivo } from '@/lib/abrirArchivo';
 import { useEffect, useState } from 'react';
 import { X, Share2, Download, Tag } from 'lucide-react';
 import ModalOverlay from './ModalOverlay';
@@ -95,10 +96,7 @@ export default function EtiquetasMantenimiento({
   }
 
   function descargar(e: Generada) {
-    const a = document.createElement('a');
-    a.href = e.url;
-    a.download = e.archivo.name;
-    a.click();
+    descargarArchivo(e.archivo, e.archivo.name);
   }
 
   return (

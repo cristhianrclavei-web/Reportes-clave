@@ -1,5 +1,6 @@
 'use client';
 
+import { descargarArchivo } from '@/lib/abrirArchivo';
 import EstadoVacio from '@/components/EstadoVacio';
 import TablaLista from '@/components/TablaLista';
 import { VistaCondicional } from '@/lib/vistaSupervisor';
@@ -100,8 +101,7 @@ export default function Solicitudes({ nombre }: { nombre: string }) {
       hoja.addRow({ folio: s.folio, persona: s.solicitante?.full_name, fecha: s.fecha, de: s.hora_inicio?.slice(0, 5), a: s.hora_fin?.slice(0, 5), horas: Number(s.horas), cliente: s.cliente_nombre, act: (s.actividades || '').replace(/\n/g, ' · '), estado: ESTADO_SOLICITUD[s.estado].label.replace('✓ ', ''), aut: s.revisado_nombre || '' });
     }
     const buf = await libro.xlsx.writeBuffer();
-    const url = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
-    const a = document.createElement('a'); a.href = url; a.download = `horas-extra-corte-${corteActual}.xlsx`; a.click(); URL.revokeObjectURL(url);
+    await descargarArchivo(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `horas-extra-corte-${corteActual}.xlsx`);
   }
 
   const proximoPago = corteActual === hoyLocalSeguro ? corteDe(sumarDias(corteActual, 1)) : corteActual;

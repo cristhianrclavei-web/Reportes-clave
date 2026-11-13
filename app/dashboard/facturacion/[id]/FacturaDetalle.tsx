@@ -1,5 +1,6 @@
 'use client';
 
+import { abrirArchivo } from '@/lib/abrirArchivo';
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -212,7 +213,7 @@ export default function FacturaDetalle({
 
           {/* Acciones */}
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-            <button onClick={() => window.open(`/api/facturas/${f.id}/pdf?t=${Date.now()}`, '_blank', 'noopener,noreferrer')} className={`${base} bg-teal text-inkOnAccent shadow-glow-teal`}>
+            <button onClick={() => abrirArchivo(`/api/facturas/${f.id}/pdf?t=${Date.now()}`)} className={`${base} bg-teal text-inkOnAccent shadow-glow-teal`}>
               <FileText size={19} strokeWidth={2.3} /> Prefactura
             </button>
             {f.estado === 'borrador' && (

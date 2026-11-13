@@ -1,5 +1,6 @@
 'use client';
 
+import { abrirArchivo } from '@/lib/abrirArchivo';
 import { avisar } from '@/lib/dialogos';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -130,7 +131,7 @@ export default function VisitaSinTrabajoPanel({ servicio, onCambio }: { servicio
             <CalendarClock size={15} strokeWidth={2.4} />
             Reprogramar
           </button>
-          <button type="button" onClick={() => window.open(`/api/servicios/${servicio.id}/visita/pdf?t=${Date.now()}`, '_blank', 'noopener,noreferrer')} className={`${botonCls} border-line-strong text-ink/85 bg-surface`}>
+          <button type="button" onClick={() => abrirArchivo(`/api/servicios/${servicio.id}/visita/pdf?t=${Date.now()}`)} className={`${botonCls} border-line-strong text-ink/85 bg-surface`}>
             <FileText size={15} strokeWidth={2.4} />
             Hoja de visita
           </button>

@@ -1,5 +1,6 @@
 'use client';
 
+import { alTocarEnlace } from '@/lib/abrirArchivo';
 import { arreglarEnlaceSyscom } from '@/lib/syscomEnlace';
 import { avisar, confirmar } from '@/lib/dialogos';
 import { useRef, useState } from 'react';
@@ -518,6 +519,7 @@ export default function CotizacionDetalle({
           // El PDF ya se sirve con no-store; esto solo evita reusar la
           // pestaña vieja después de editar.
           href={`/api/cotizaciones/${cotizacion.id}/pdf?v=${encodeURIComponent(cotizacion.updated_at || '')}`}
+          onClick={alTocarEnlace}
           target="_blank"
           rel="noopener noreferrer"
           className="flex-1 min-h-[52px] rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15px] flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-glow-teal"

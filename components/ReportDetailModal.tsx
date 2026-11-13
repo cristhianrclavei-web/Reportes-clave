@@ -1,5 +1,7 @@
 'use client';
 
+import { abrirArchivo, descargarArchivo } from '@/lib/abrirArchivo';
+import { esAppAndroid } from '@/lib/rastreoUbicacion';
 import ResumenFallaTierra from '@/components/lazos/ResumenFallaTierra';
 import { anexosDeReporte } from '@/lib/anexoFallaTierra';
 import { anexosGuiaDeReporte, resumenCortoGuia } from '@/lib/anexoGuia';
@@ -395,7 +397,7 @@ export default function ReportDetailModal({
   function abrirPdf(conFotos: boolean) {
     setMenuPdf(false);
     const extra = conFotos ? '&fotosEquipos=1' : '';
-    window.open(`/api/reports/${report.id}/pdf?t=${Date.now()}${extra}`, '_blank', 'noopener,noreferrer');
+    abrirArchivo(`/api/reports/${report.id}/pdf?t=${Date.now()}${extra}`);
   }
 
   async function handleShare(format: 'pdf' | 'xlsx') {
@@ -437,12 +439,7 @@ export default function ReportDetailModal({
           `Este celular no permite adjuntar archivos Excel directo a WhatsApp.\n\n` +
             `Vamos a descargar el archivo y luego abrir WhatsApp para que tú mismo lo adjuntes ahí con el clip 📎 → Documento.`
         );
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
+        await descargarArchivo(blob, filename);
         window.open(
           `https://wa.me/?text=${encodeURIComponent(
             `Reporte de servicio — ${report.empresa_cliente} (${report.fecha})\n\n` +
@@ -576,7 +573,12 @@ export default function ReportDetailModal({
                 )}
                 {MARCA.excelReporte && (
                   <button
-                    onClick={() => { window.location.href = `/api/reports/${report.id}/xlsx?t=${Date.now()}`; }}
+                    onClick={() => {
+                      const ruta = `/api/reports/${report.id}/xlsx?t=${Date.now()}`;
+                      // En el navegador la descarga se queda en la misma pestaña; la app de Android necesita otro camino.
+                      if (esAppAndroid()) abrirArchivo(ruta);
+                      else window.location.href = ruta;
+                    }}
                     className={secundario}
                   >
                     <FileSpreadsheet size={19} strokeWidth={2.3} className="text-teal" />

@@ -1,5 +1,6 @@
 'use client';
 
+import { alTocarEnlace } from '@/lib/abrirArchivo';
 import { useEffect, useRef, useState } from 'react';
 import { X, FileText, Check, MessageSquareWarning, Ban, Pencil, Clock, CalendarDays } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
@@ -209,7 +210,7 @@ export default function DetalleSolicitud({
           </div>
         )}
 
-        <a href={`/api/solicitudes/${s.id}/pdf`} target="_blank" rel="noopener noreferrer"
+        <a href={`/api/solicitudes/${s.id}/pdf`} onClick={alTocarEnlace} target="_blank" rel="noopener noreferrer"
           className="mt-3 min-h-[44px] rounded-xl bg-surface-2 border border-line text-[13.5px] font-semibold flex items-center justify-center gap-2">
           <FileText size={16} /> Descargar PDF
         </a>

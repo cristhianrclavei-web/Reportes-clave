@@ -1,5 +1,6 @@
 'use client';
 
+import { descargarArchivo } from '@/lib/abrirArchivo';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Printer, X, Search, Check, CheckCircle2, AlertTriangle, Loader2, Download, ArrowLeft, ArrowRight,
@@ -325,19 +326,11 @@ export default function ImprimirReportes({ reportes, onClose }: { reportes: Repo
     cargarImpresos();
   }
 
-  function bajarArchivo(url: string, nombre: string) {
-    const enlace = document.createElement('a');
-    enlace.href = url;
-    enlace.download = nombre;
-    document.body.appendChild(enlace);
-    enlace.click();
-    enlace.remove();
-  }
 
   // Todo junto, en el mismo orden que se imprime.
   function descargarJunto() {
     if (!resultado) return;
-    bajarArchivo(resultado.url, resultado.nombre);
+    descargarArchivo(resultado.blob, resultado.nombre);
     marcarImpresos();
   }
 
@@ -355,11 +348,9 @@ export default function ImprimirReportes({ reportes, onClose }: { reportes: Repo
     }
     for (let i = 0; i < archivos.length; i++) {
       setDescargando(`Descargando ${i + 1} de ${archivos.length}…`);
-      const url = URL.createObjectURL(new Blob([archivos[i].bytes], { type: 'application/pdf' }));
-      bajarArchivo(url, archivos[i].nombre);
+      await descargarArchivo(new Blob([archivos[i].bytes as BlobPart], { type: 'application/pdf' }), archivos[i].nombre);
       // Una pausa entre archivos: si van todos de golpe el navegador descarta algunos.
       await new Promise((listo) => setTimeout(listo, 450));
-      URL.revokeObjectURL(url);
     }
     setDescargando(null);
     showToast(`Se descargaron ${archivos.length} archivos. Si faltan, permite «descargar varios archivos» en el aviso del navegador.`);

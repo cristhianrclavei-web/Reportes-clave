@@ -1,5 +1,6 @@
 'use client';
 
+import { alTocarEnlace } from '@/lib/abrirArchivo';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAvanceGuardado, pausaFinal } from '@/lib/useAvanceGuardado';
 import SavingOverlay from '@/components/SavingOverlay';
@@ -212,7 +213,7 @@ export default function ValeDetalle({
             </div>
           )}
           {vale.estado !== 'solicitado' && vale.estado !== 'cancelado' && (
-            <a href={`/api/vales/${vale.id}/pdf`} target="_blank" rel="noopener noreferrer"
+            <a href={`/api/vales/${vale.id}/pdf`} onClick={alTocarEnlace} target="_blank" rel="noopener noreferrer"
               className="min-h-[42px] rounded-xl bg-surface-2 border border-line text-[13.5px] font-semibold flex items-center justify-center gap-2">
               <FileText size={16} /> Ver vale en PDF
             </a>

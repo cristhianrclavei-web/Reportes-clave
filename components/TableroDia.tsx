@@ -1,5 +1,6 @@
 'use client';
 
+import { descargarArchivo } from '@/lib/abrirArchivo';
 import MotivoAmpliacion from '@/components/MotivoAmpliacion';
 import { debeReporte } from '@/lib/visitaSinTrabajo';
 import { useEnVivo } from '@/lib/useEnVivo';
@@ -294,12 +295,7 @@ export default function TableroDia({ onAgendar }: {
       }
     }
     const buf = await libro.xlsx.writeBuffer();
-    const url = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `servicios-${fecha}.xlsx`;
-    a.click();
-    URL.revokeObjectURL(url);
+    await descargarArchivo(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `servicios-${fecha}.xlsx`);
   }
 
   // Técnico que se muestra en el celular.
