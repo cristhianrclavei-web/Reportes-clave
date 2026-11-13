@@ -30,7 +30,7 @@ import { showToast } from '@/components/Toast';
 import SavingOverlay from '@/components/SavingOverlay';
 import ReportPreviewModal, { PreviewData } from '@/components/ReportPreviewModal';
 import { listarMisServicios, vincularReporteAServicio, Servicio, filtrarSiguienteDiaPorGrupo, listarTecnicosDeServicio, listarFotosDelDia, listarActividadesDeTareas, FotoDelDia } from '@/lib/serviciosProgramados';
-import { X, Camera, Images, Plus, AlertTriangle, Eye, EyeOff, ChevronDown, Tag, History, Check, Video } from 'lucide-react';
+import { X, Camera, Images, Plus, AlertTriangle, Eye, EyeOff, ChevronDown, ChevronRight, Tag, History, Check, Video } from 'lucide-react';
 import { generarUUID } from '@/lib/uuid';
 import { registrarAccionGlobal } from '@/lib/auditoriaGlobal';
 import { notificar } from '@/lib/push';
@@ -2290,9 +2290,6 @@ export default function NuevoReportePage() {
             </div>
           )}
 
-          <p className="text-[11px] text-muted mt-3 leading-relaxed">
-            El reporte quedará como <b>pendiente de revisión</b> hasta que {MARCA.revisor} lo firme desde el panel.
-          </p>
         </div>
 
         {msg && (
@@ -2319,12 +2316,20 @@ export default function NuevoReportePage() {
           </button>
         )}
 
+        {/* Grande y con explicación: el cliente tiene el teléfono en la mano y debe notar que puede revisar. */}
         <button
+          type="button"
           onClick={() => setShowPreview(true)}
-          className="w-full min-h-[52px] rounded-2xl border border-teal/50 text-teal font-display font-semibold text-[15px] tracking-wide flex items-center justify-center gap-2 active:scale-95 transition-transform mb-3"
+          className="w-full rounded-2xl bg-teal/12 border-2 border-teal/60 p-3.5 flex items-center gap-3 text-left active:scale-[0.98] transition-transform mb-3 shadow-glow-teal"
         >
-          <Eye size={17} strokeWidth={2.3} />
-          Vista previa del reporte
+          <span className="w-12 h-12 rounded-xl bg-teal text-inkOnAccent flex items-center justify-center shrink-0">
+            <Eye size={24} strokeWidth={2.3} />
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="block font-display font-semibold text-[17px] leading-tight">Ver el reporte completo</span>
+            <span className="block text-[13px] text-ink/75 leading-snug mt-0.5">Revise cómo queda el documento antes de firmar y guardar.</span>
+          </span>
+          <ChevronRight size={22} strokeWidth={2.4} className="text-teal shrink-0" />
         </button>
 
         {faltantes.length > 0 && (
