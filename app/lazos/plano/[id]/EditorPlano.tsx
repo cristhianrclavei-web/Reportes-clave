@@ -3,13 +3,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
-  ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, ChevronLeft, CloudOff, FileDown, Hand, Lock, LockOpen, Network, Search, Map as IconoPlano, Link2, Link2Off, Loader2, Minus, MoreVertical, Plus, RotateCcw, RotateCw, MousePointer2, PenLine, Ruler, Spline, Redo2, Trash2, Undo2, Waypoints, X,
+  ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, ChevronLeft, CloudOff, FileDown, Hand, ListChecks, Lock, LockOpen, Network, Search, Map as IconoPlano, Link2, Link2Off, Loader2, Minus, MoreVertical, Plus, RotateCcw, RotateCw, MousePointer2, PenLine, Ruler, Spline, Redo2, Trash2, Undo2, Waypoints, X,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import HojaCaptura from '@/components/lazos/HojaCaptura';
 import DiagramaLazo from '@/components/lazos/DiagramaLazo';
 import LienzoPlano, { type NodoTuberia, type Seleccion } from '@/components/lazos/LienzoPlano';
 import SimboloPlano from '@/components/lazos/SimboloPlano';
+import PanelAvance from '@/components/lazos/PanelAvance';
+import {
+  colorDeAvance, equiposEnRecuadro, equiposQueCuentan, leerAvance, marcaNueva, pasaFiltro,
+  type AvancePlano, type Bloqueo, type EstadoAvance, type FiltroAvance,
+} from '@/lib/avancePlano';
+import { MARCA } from '@/lib/marca';
 import { girar } from '@/lib/simbolosPlano';
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
@@ -31,10 +37,10 @@ import {
 } from '@/lib/planos';
 import {
   borrarPlano, descargarPdfOriginal, entregarPdf, guardarCopiaLazos, guardarSembrado, imagenDelPlano, lazosDelCliente, leerPendiente,
-  obtenerPlano, otrosPlanosDelCliente, renombrarPlano, type LazoConElementos,
+  avancePendienteDe, marcarAvance, obtenerPlano, otrosPlanosDelCliente, planosDelCliente, renombrarPlano, subirAvance, type LazoConElementos,
 } from '@/lib/planosDatos';
 
-type Herramienta = 'ver' | 'equipo' | 'conectar' | 'tuberia' | 'escala' | 'unifilar';
+type Herramienta = 'ver' | 'equipo' | 'conectar' | 'tuberia' | 'escala' | 'unifilar' | 'avance';
 type EstadoGuardado = 'guardado' | 'guardando' | 'pendiente' | 'error';
 // panelId: al sembrar el panel (tipo FACP), cuál de los del cliente.
 type PorColocar = { tipo: string; elementoId: string | null; panelId?: string | null };
@@ -65,6 +71,7 @@ const HERRAMIENTAS: { id: Herramienta; nombre: string; tecla: string; icono: Rea
   { id: 'tuberia', nombre: 'Tubería', tecla: 'T', icono: <Spline size={18} strokeWidth={2.3} /> },
   { id: 'escala', nombre: 'Escala', tecla: 'R', icono: <Ruler size={18} strokeWidth={2.3} /> },
   { id: 'unifilar', nombre: 'Unifilar', tecla: 'U', icono: <Network size={18} strokeWidth={2.3} /> },
+  { id: 'avance', nombre: 'Avance', tecla: 'A', icono: <ListChecks size={18} strokeWidth={2.3} /> },
 ];
 
 // Flechas del teclado → hacia dónde se mueve el equipo elegido.
@@ -148,6 +155,14 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   const [hoja, setHoja] = useState<HojaPlano | null>(null);
   const [borrando, setBorrando] = useState(false);
   const [exportandoDxf, setExportandoDxf] = useState(false);
+  // Avance de obra: el estado de cada equipo, los elegidos para marcar, el
+  // filtro y las esquinas del recuadro (null = no se elige por zona).
+  const [avance, setAvance] = useState<AvancePlano>({});
+  const [elegidosAvance, setElegidosAvance] = useState<Set<string>>(new Set());
+  const [filtroAvance, setFiltroAvance] = useState<FiltroAvance>({ etapa: 'todas', soloFaltan: false });
+  const [recuadro, setRecuadro] = useState<Punto[] | null>(null);
+  const [avancePendiente, setAvancePendiente] = useState(0);
+  const [generandoReporte, setGenerandoReporte] = useState(false);
 
   // ---------- Carga ----------
 
@@ -157,6 +172,10 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
       const { plano: datos, sinConexion: sinSenal } = await obtenerPlano(planoId);
       setPlano(datos);
       setSinConexion(sinSenal);
+      // Lo marcado en este teléfono que no ha subido va encima de lo del servidor.
+      const sinSubir = avancePendienteDe(planoId);
+      setAvance({ ...leerAvance(datos.avance), ...sinSubir });
+      setAvancePendiente(Object.keys(sinSubir).length);
       const pendiente = leerPendiente(planoId);
       if (pendiente) {
         // Cambios que no alcanzaron a subir la vez pasada: ganan a los del servidor.
@@ -217,6 +236,124 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     window.addEventListener('online', alVolverSenal);
     return () => window.removeEventListener('online', alVolverSenal);
   }, [guardado, subir]);
+
+  // ---------- Avance de obra ----------
+
+  // Sube lo marcado sin señal (al abrir y al volver la conexión).
+  const sincronizarAvance = useCallback(async () => {
+    try {
+      const resultado = await subirAvance(planoId);
+      if (resultado.avance) setAvance({ ...resultado.avance, ...avancePendienteDe(planoId) });
+      setAvancePendiente(Object.keys(avancePendienteDe(planoId)).length);
+    } catch (e: any) {
+      setAvancePendiente(Object.keys(avancePendienteDe(planoId)).length);
+      showToast(e?.message || 'No se pudo subir el avance guardado en este teléfono.', 'error');
+    }
+  }, [planoId]);
+
+  useEffect(() => {
+    sincronizarAvance();
+    window.addEventListener('online', sincronizarAvance);
+    return () => window.removeEventListener('online', sincronizarAvance);
+  }, [sincronizarAvance]);
+
+  // Marca los equipos elegidos: se ve de inmediato y se guarda (o queda en cola sin señal).
+  async function marcarElegidos(cambio: { estado?: EstadoAvance; bloqueo?: Bloqueo | null }) {
+    if (elegidosAvance.size === 0) return;
+    const ahora = new Date().toISOString();
+    const cambios: AvancePlano = {};
+    for (const id of elegidosAvance) cambios[id] = marcaNueva(avance[id], cambio, ahora);
+    setAvance((previo) => ({ ...previo, ...cambios }));
+    try {
+      const resultado = await marcarAvance(planoId, cambios);
+      if (resultado.avance) setAvance({ ...resultado.avance, ...avancePendienteDe(planoId) });
+      const cuantos = Object.keys(cambios).length;
+      showToast(resultado.pendiente
+        ? `Guardado en este teléfono (${cuantos}); sube al volver la señal`
+        : cuantos === 1 ? 'Avance guardado' : `Avance guardado en ${cuantos} equipos`);
+    } catch (e: any) {
+      showToast(e?.message || 'No se pudo guardar el avance. Intenta de nuevo.', 'error');
+      // El servidor lo rechazó: se vuelve a lo que tiene la base.
+      obtenerPlano(planoId).then((r) => setAvance(leerAvance(r.plano.avance))).catch(() => {});
+    }
+    setAvancePendiente(Object.keys(avancePendienteDe(planoId)).length);
+  }
+
+  // La etapa es dato del plano (como el tamaño): va en el sembrado y se puede deshacer.
+  function etapaAElegidos(etapa: number | null) {
+    const { sembrado } = estadoRef.current;
+    cambiarSembrado({ ...sembrado, equipos: sembrado.equipos.map((e) => (elegidosAvance.has(e.id) ? { ...e, etapa } : e)) });
+    showToast(etapa ? `Etapa ${etapa} asignada a ${elegidosAvance.size} ${elegidosAvance.size === 1 ? 'equipo' : 'equipos'}` : 'Etapa quitada');
+  }
+
+  function tocarEnAvance(p: Punto, equipo: EquipoPlano | null) {
+    if (recuadro) {
+      if (recuadro.length === 0) {
+        setRecuadro([p]);
+        return;
+      }
+      const dentro = equiposEnRecuadro(equiposQueCuentan(estadoRef.current.sembrado.equipos), recuadro[0], p)
+        .filter((e) => pasaFiltro(e, avance, filtroAvance));
+      setElegidosAvance((previos) => new Set([...previos, ...dentro.map((e) => e.id)]));
+      setRecuadro(null);
+      showToast(dentro.length === 0 ? 'No hay equipos en esa zona' : `${dentro.length} ${dentro.length === 1 ? 'equipo elegido' : 'equipos elegidos'}`, dentro.length === 0 ? 'error' : 'success');
+      return;
+    }
+    if (!equipo || equipo.tipo === PANEL_EN_PLANO) return;
+    alternarElegido(equipo.id);
+    setPanelAbierto(true);
+  }
+
+  function alternarElegido(id: string) {
+    setElegidosAvance((previos) => {
+      const nuevos = new Set(previos);
+      if (nuevos.has(id)) nuevos.delete(id);
+      else nuevos.add(id);
+      return nuevos;
+    });
+  }
+
+  // Reporte de avance de TODOS los planos del cliente.
+  async function generarReporte() {
+    if (!plano) return;
+    if (!navigator.onLine) {
+      showToast('El reporte necesita señal. Intenta cuando tengas conexión.', 'error');
+      return;
+    }
+    setGenerandoReporte(true);
+    try {
+      const [{ reporteAvancePdf }, { planos: delCliente }] = await Promise.all([import('@/lib/reporteAvancePdf'), planosDelCliente(plano.cliente_id)]);
+      let clientes = catalogoEnCache();
+      if (!clientes.some((c) => c.id === plano.cliente_id)) clientes = await listarCatalogoClientes().catch(() => clientes);
+      const cliente = clientes.find((c) => c.id === plano.cliente_id)?.nombre || 'Cliente';
+      const etiquetas = new Map<string, string>();
+      for (const [id, { elemento, lazo }] of elementosPorId) etiquetas.set(id, etiquetaDeElemento(elemento, lazo));
+
+      const paraReporte = [];
+      for (const otro of delCliente) {
+        // Este plano va con lo que se ve en pantalla (puede traer cambios sin subir).
+        const esEste = otro.id === plano.id;
+        const datos = esEste ? { ...otro, sembrado: estado.sembrado } : otro;
+        const esDxf = datos.formato === 'dxf';
+        const original = await descargarPdfOriginal(esDxf ? datos.imagen_path : datos.pdf_path);
+        paraReporte.push({
+          plano: datos,
+          avance: esEste ? avance : leerAvance(otro.avance),
+          pdfOriginal: esDxf ? null : original,
+          fondoPng: esDxf ? await aPng(original) : null,
+          etiquetas,
+        });
+      }
+      const bytes = await reporteAvancePdf({ cliente, empresa: MARCA.nombre, planos: paraReporte });
+      const nombreArchivo = `avance-${cliente}`.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/gi, '-');
+      const url = await entregarPdf(plano.id, bytes, nombreArchivo);
+      window.location.assign(url);
+      showToast('Descargando el reporte de avance');
+    } catch (e: any) {
+      showToast(e?.message || 'No se pudo generar el reporte. Intenta de nuevo.', 'error');
+    }
+    setGenerandoReporte(false);
+  }
 
   // Dispositivos capturados desde el plano sin señal: van en la misma cola
   // de los lazos y se suben al volver la señal.
@@ -712,6 +849,10 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   }
 
   function alTocar(p: Punto, equipo: EquipoPlano | null, tuberia: TuberiaPlano | null) {
+    if (herramienta === 'avance') {
+      tocarEnAvance(p, equipo);
+      return;
+    }
     if (herramienta === 'conectar') {
       tocarAlConectar(p, equipo);
       return;
@@ -914,6 +1055,8 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   function elegirHerramienta(h: Herramienta) {
     setHerramienta(h);
     setSeleccion(null);
+    setElegidosAvance(new Set());
+    setRecuadro(null);
     setTramoActivo({ id: null, inicio: null });
     setMedida([]);
     setErrorEscala(null);
@@ -1054,6 +1197,9 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   }
 
   const { sembrado, metros } = estado;
+  // Modo avance: color por estado (el panel no lleva) y los que el filtro deja fuera, tenues.
+  const colorAvanceDe = (e: EquipoPlano) => (e.tipo === PANEL_EN_PLANO ? 'none' : colorDeAvance(avance[e.id]));
+  const tenuesAvance = new Set(sembrado.equipos.filter((e) => !pasaFiltro(e, avance, filtroAvance)).map((e) => e.id));
   const equipoElegido = seleccion?.tipo === 'equipo' ? sembrado.equipos.find((e) => e.id === seleccion.id) || null : null;
   const tuberiaElegida = seleccion?.tipo === 'tuberia' ? sembrado.tuberias.find((t) => t.id === seleccion.id) || null : null;
   const metrosTrazo = metros && trazo.length > 1 ? longitudEnHoja(trazo) * metros : null;
@@ -1120,7 +1266,10 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
             seleccion={seleccion}
             trazo={trazo}
             colorTrazo={colorTuberia(diametro)}
-            medida={medida}
+            medida={herramienta === 'avance' ? recuadro || [] : medida}
+            colorAvance={herramienta === 'avance' ? colorAvanceDe : null}
+            elegidos={herramienta === 'avance' ? elegidosAvance : null}
+            tenues={herramienta === 'avance' ? tenuesAvance : null}
             ajustarPunto={herramienta === 'tuberia' ? ajustarPunto : alinearEquipo}
             onTocar={alTocar}
             onDobleToque={() => { if (herramienta === 'tuberia') soltarTramo(); }}
@@ -1151,7 +1300,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
 
         {/* Herramientas y panel: abajo en celular, a la derecha en computadora */}
         <aside className="shrink-0 lg:w-[380px] border-t lg:border-t-0 lg:border-l border-line bg-surface flex flex-col min-h-0 lg:h-full">
-          <div className="grid grid-cols-6 gap-1 p-2" role="tablist" aria-label="Herramientas">
+          <div className="grid grid-cols-7 gap-0.5 sm:gap-1 p-2" role="tablist" aria-label="Herramientas">
             {HERRAMIENTAS.map((h) => {
               const activa = herramienta === h.id;
               return (
@@ -1167,7 +1316,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
             })}
           </div>
 
-          <div className={`${panelAbierto ? (herramienta === 'unifilar' ? 'max-h-[46dvh]' : 'max-h-[38dvh]') : 'max-h-0'} lg:max-h-none lg:flex-1 overflow-y-auto px-3.5 transition-[max-height] duration-200`}>
+          <div className={`${panelAbierto ? (herramienta === 'unifilar' || herramienta === 'avance' ? 'max-h-[46dvh]' : 'max-h-[38dvh]') : 'max-h-0'} lg:max-h-none lg:flex-1 overflow-y-auto px-3.5 transition-[max-height] duration-200`}>
             <div className="pb-4">
               {herramienta === 'ver' && (
                 <>
@@ -1215,6 +1364,27 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
                     </>
                   )}
                 </>
+              )}
+
+              {herramienta === 'avance' && (
+                <PanelAvance
+                  equipos={sembrado.equipos}
+                  avance={avance}
+                  elegidos={elegidosAvance}
+                  etiquetaDe={etiquetaDe}
+                  filtro={filtroAvance}
+                  onFiltro={setFiltroAvance}
+                  puntosRecuadro={recuadro ? recuadro.length : null}
+                  onRecuadro={(activo) => setRecuadro(activo ? [] : null)}
+                  onElegir={(ids) => setElegidosAvance(new Set(ids))}
+                  onAlternar={alternarElegido}
+                  onLimpiar={() => setElegidosAvance(new Set())}
+                  onMarcar={marcarElegidos}
+                  onEtapa={etapaAElegidos}
+                  pendientes={avancePendiente}
+                  onReporte={generarReporte}
+                  generando={generandoReporte}
+                />
               )}
 
               {herramienta === 'unifilar' && (

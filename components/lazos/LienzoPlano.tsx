@@ -42,8 +42,13 @@ export default function LienzoPlano({
   imagenUrl, ancho, alto, sembrado, etiquetaDe, seleccion, trazo, colorTrazo, medida,
   ajustarPunto, onEscala, metrosPorUnidad, onTocar, onDobleToque, onArrastreInicio, onArrastre, onArrastreFin,
   conexiones, colorPorLazo, resaltado, ayudaPuntero, guiasArrastre, verNodos, onNodoInicio, onNodo, onNodoFin,
-  bloqueado = false, enfocar = null,
+  bloqueado = false, enfocar = null, colorAvance = null, elegidos = null, tenues = null,
 }: {
+  // Modo avance: color de fondo de cada equipo según su estado de obra,
+  // varios equipos elegidos a la vez y los que quedan fuera del filtro.
+  colorAvance?: ((e: EquipoPlano) => string) | null;
+  elegidos?: Set<string> | null;
+  tenues?: Set<string> | null;
   imagenUrl: string | null;
   ancho: number;
   alto: number;
@@ -398,7 +403,8 @@ export default function LienzoPlano({
 
             {sembrado.equipos.map((e) => (
               <SimboloEnPlano key={e.id} equipo={e} r={r * tamanoDe(e)} etiqueta={etiquetaDe(e)}
-                elegido={seleccion?.tipo === 'equipo' && seleccion.id === e.id} />
+                elegido={(seleccion?.tipo === 'equipo' && seleccion.id === e.id) || Boolean(elegidos?.has(e.id))}
+                fondo={colorAvance ? colorAvance(e) : null} tenue={Boolean(tenues?.has(e.id))} />
             ))}
 
             {conexiones && conexiones.marcas.map((m, i) => (
@@ -500,11 +506,15 @@ function LineaPunteada({ linea, color, medidas, estado }: {
 
 // El símbolo del plano (el mismo del PDF), girado y en puntos de la hoja. La
 // etiqueta no gira: se lee siempre derecha.
-function SimboloEnPlano({ equipo, r, etiqueta, elegido }: { equipo: EquipoPlano; r: number; etiqueta: string; elegido: boolean }) {
+function SimboloEnPlano({ equipo, r, etiqueta, elegido, fondo = null, tenue = false }: {
+  equipo: EquipoPlano; r: number; etiqueta: string; elegido: boolean; fondo?: string | null; tenue?: boolean;
+}) {
   const tinta = colorEquipo(equipo.tipo);
   return (
-    <g transform={`translate(${equipo.x} ${equipo.y})`} style={{ cursor: 'pointer' }}>
-      {elegido && <circle r={r * 1.9} fill="#14b8a6" fillOpacity={0.22} stroke="#14b8a6" strokeWidth={r / 7} />}
+    <g transform={`translate(${equipo.x} ${equipo.y})`} style={{ cursor: 'pointer' }} opacity={tenue ? 0.18 : 1}>
+      {elegido && <circle r={r * 2.1} fill="#14b8a6" fillOpacity={0.22} stroke="#14b8a6" strokeWidth={r / 6} />}
+      {/* Disco del color del estado de obra, detrás del símbolo. */}
+      {fondo && <circle r={r * 1.5} fill={fondo} fillOpacity={0.55} stroke={fondo} strokeWidth={r / 5} />}
       <g transform={`rotate(${equipo.rotacion || 0}) scale(${r})`}>
         <FiguraEnSvg figura={figuraDe(equipo.tipo)} />
       </g>

@@ -27,6 +27,8 @@ export type EquipoPlano = {
   rotacion?: number | null;
   // Si es el panel (tipo FACP): cuál de los paneles del cliente es.
   panelId?: string | null;
+  // Etapa de la obra a la que pertenece (1, 2, 3…), para el reporte de avance.
+  etapa?: number | null;
 };
 
 export type TuberiaPlano = {
@@ -53,6 +55,8 @@ export type Plano = {
   formato?: 'pdf' | 'dxf';
   dxf?: { x0: number; y1: number; k: number; unidad: number } | null;
   sembrado: Sembrado;
+  // Avance de obra por equipo (patch_lazos_avance.sql). Sin el patch no viene.
+  avance?: unknown;
   creado_en: string;
   actualizado_en: string;
 };
@@ -208,6 +212,7 @@ export const sembradoSchema = z.object({
     tamano: z.number().min(0.25).max(4).nullish(),
     rotacion: z.number().min(0).max(360).nullish(),
     panelId: z.string().uuid().nullish(),
+    etapa: z.number().int().min(1).max(20).nullish(),
   })).max(3000),
   tuberias: z.array(z.object({
     id: z.string().min(1).max(40),

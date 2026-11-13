@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { leerDxf } from './leerDxf';
-import { bloquesDelDxf, importarDispositivos, pareceDireccion, pasarAHoja, sinImportados, tipoSugerido } from './importarDxf';
+import { bloquesDelDxf, etapaDeCapa, importarDispositivos, pareceDireccion, pasarAHoja, sinImportados, tipoSugerido } from './importarDxf';
 
 function dxf(entidades: (string | number)[][]): string {
   const bloque = (nombre: string) => [0, 'BLOCK', 8, '0', 2, nombre, 70, 0, 10, 0, 20, 0, 0, 'CIRCLE', 8, '0', 10, 0, 20, 0, 40, 0.5, 0, 'ENDBLK'];
@@ -71,5 +71,22 @@ describe('pasar dispositivos del DXF a la app', () => {
     expect(e.y).toBeCloseTo(200);
     expect(e.tamano).toBe(0.5);
     expect('medida' in e).toBe(false);
+  });
+
+  it('toma la etapa de la capa del bloque o de la zona dibujada que lo encierra', () => {
+    expect(etapaDeCapa('DH-ETAPA 2')).toBe(2);
+    expect(etapaDeCapa('etapa_04')).toBe(4);
+    expect(etapaDeCapa('DH-SIMBOLOGIA')).toBeNull();
+    // Zona de la etapa 3: un cuadro de (0,0) a (10,10) como polilínea cerrada.
+    const zona = [0, 'LWPOLYLINE', 8, 'DH-ETAPA 3', 90, 4, 70, 1, 10, 0, 20, 0, 10, 10, 20, 0, 10, 10, 20, 10, 10, 0, 20, 10];
+    const leido = leerDxf(dxf([
+      zona,
+      insertar('DET-PHOTO', 5, 5),
+      insertar('DET-PHOTO', 50, 50),
+      insertar('DET-PHOTO', 80, 80, [], 'DH-ETAPA 1'),
+    ]));
+    let n = 0;
+    const { equipos } = importarDispositivos(leido, new Map([['DET-PHOTO', 'SH']]), () => `e${++n}`);
+    expect(equipos.map((e) => e.etapa)).toEqual([3, null, 1]);
   });
 });

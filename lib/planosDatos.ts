@@ -4,6 +4,7 @@ import { createClient } from './supabaseClient';
 import type { Elemento, Lazo } from './lazos';
 import { elementosConPendientes } from './lazosDatos';
 import { leerSembrado, sembradoSchema, type Plano, type Sembrado } from './planos';
+import { leerAvance, type AvancePlano } from './avancePlano';
 
 // Datos de los planos (supabase/patch_lazos_planos.sql).
 //
@@ -335,4 +336,57 @@ export async function entregarPdf(planoId: string, bytes: Uint8Array, nombreArch
   const firmado = await supabase.storage.from('evidencias').createSignedUrl(ruta, 600, { download: `${nombreArchivo}.${extension}` });
   if (firmado.error || !firmado.data) throw new Error(mensajeError(firmado.error, `preparar el enlace del ${extension.toUpperCase()}`));
   return firmado.data.signedUrl;
+}
+
+// ---------- Avance de la instalación ----------
+// Las marcas van primero a una cola en el teléfono y solo salen de ahí cuando
+// el servidor confirma. Sin señal se quedan y suben después (subirAvance).
+
+const CLAVE_AVANCE = 'avancePendiente';
+
+function colaDeAvance(): Record<string, AvancePlano> {
+  return leerCopia<Record<string, AvancePlano>>(CLAVE_AVANCE) || {};
+}
+
+// Lo marcado en este teléfono que todavía no sube, para pintarlo encima.
+export function avancePendienteDe(planoId: string): AvancePlano {
+  return colaDeAvance()[planoId] || {};
+}
+
+export type ResultadoAvance = { pendiente: boolean; avance: AvancePlano | null };
+
+// Marca uno o varios equipos (id del equipo → su marca nueva).
+export async function marcarAvance(planoId: string, cambios: AvancePlano): Promise<ResultadoAvance> {
+  const cola = colaDeAvance();
+  cola[planoId] = { ...(cola[planoId] || {}), ...cambios };
+  guardarCopia(CLAVE_AVANCE, cola);
+  return subirAvance(planoId);
+}
+
+// Sube lo pendiente de un plano. Devuelve el avance completo del servidor
+// (con lo que marcaron los demás) o `pendiente` si no hubo señal.
+export async function subirAvance(planoId: string): Promise<ResultadoAvance> {
+  const enviado = colaDeAvance()[planoId];
+  if (!enviado || Object.keys(enviado).length === 0) return { pendiente: false, avance: null };
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return { pendiente: true, avance: null };
+
+  const { data, error } = await createClient().rpc('marcar_avance_plano', { p_plano: planoId, p_cambios: enviado });
+  if (error && esErrorDeRed(error)) return { pendiente: true, avance: null };
+
+  // Guardado o rechazado sin remedio: sale de la cola lo que se envió. Lo que
+  // se haya marcado mientras subía (otra marca del mismo equipo) se queda.
+  const cola = colaDeAvance();
+  const resto: AvancePlano = {};
+  for (const [equipoId, marca] of Object.entries(cola[planoId] || {})) {
+    if (JSON.stringify(marca) !== JSON.stringify(enviado[equipoId])) resto[equipoId] = marca;
+  }
+  if (Object.keys(resto).length > 0) cola[planoId] = resto;
+  else delete cola[planoId];
+  guardarCopia(CLAVE_AVANCE, cola);
+
+  if (error) {
+    if (/marcar_avance_plano|column .*avance/i.test(error.message || '')) throw new Error('El avance de obra todavía no está activado: falta correr supabase/patch_lazos_avance.sql en la base.');
+    throw new Error(mensajeError(error, 'guardar el avance'));
+  }
+  return { pendiente: false, avance: leerAvance(data) };
 }

@@ -108,6 +108,40 @@ function centroDelTexto(dxf: DxfLeido, e: Entidad): Omit<TextoDireccion, 'indice
   return { texto: p.texto.trim(), x: p.x + ux * a - uy * b, y: p.y + uy * a + ux * b, alto: p.alto };
 }
 
+// ---------- Etapas de obra ----------
+
+// «DH-ETAPA 1», «ETAPA-02», «Etapa 3»… → 1, 2, 3. Otra capa → null.
+export function etapaDeCapa(capa: string): number | null {
+  const encontrada = /ETAPA[\s_-]*0*(\d{1,2})\b/i.exec(capa);
+  const numero = encontrada ? Number(encontrada[1]) : 0;
+  return numero >= 1 && numero <= 20 ? numero : null;
+}
+
+// ¿El punto cae dentro del polígono? (se cuenta cuántos lados cruza un rayo hacia la derecha)
+function dentroDe(x: number, y: number, poligono: [number, number][]): boolean {
+  let dentro = false;
+  for (let i = 0, j = poligono.length - 1; i < poligono.length; j = i++) {
+    const [xi, yi] = poligono[i];
+    const [xj, yj] = poligono[j];
+    const cruza = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+    if (cruza) dentro = !dentro;
+  }
+  return dentro;
+}
+
+// Zonas dibujadas en capas de etapa: cada contorno (polilínea) es una zona.
+function zonasDeEtapa(dxf: DxfLeido): { etapa: number; contorno: [number, number][] }[] {
+  const zonas: { etapa: number; contorno: [number, number][] }[] = [];
+  for (const e of dxf.entidades) {
+    const etapa = etapaDeCapa(valor(e, 8) || '');
+    if (!etapa || e.tipo === 'INSERT' || numero(e, 67) === 1) continue;
+    for (const p of primitivasDe({ ...dxf, entidades: [e] })) {
+      if (p.tipo === 'trazo' && p.puntos.length >= 3) zonas.push({ etapa, contorno: p.puntos as [number, number][] });
+    }
+  }
+  return zonas;
+}
+
 // ---------- Importar ----------
 
 // `medida`: lo que mide el símbolo en el dibujo, para que en la app salga
@@ -125,7 +159,8 @@ export type Importado = {
 // están, no se importan). Los equipos salen en coordenadas del DIBUJO;
 // `pasarAHoja` los lleva a la hoja cuando ya se sabe cómo queda el fondo.
 export function importarDispositivos(dxf: DxfLeido, tipoPorBloque: Map<string, string>, nuevoId: () => string): Importado {
-  type Disp = { indice: number; tipo: string; X: number; Y: number; giro: number; medida: number };
+  type Disp = { indice: number; tipo: string; X: number; Y: number; giro: number; medida: number; etapa: number | null };
+  const zonas = zonasDeEtapa(dxf);
   const dispositivos: Disp[] = [];
   dxf.entidades.forEach((e, indice) => {
     if (e.tipo !== 'INSERT' || !seUsa(dxf, e)) return;
@@ -138,7 +173,10 @@ export function importarDispositivos(dxf: DxfLeido, tipoPorBloque: Map<string, s
       X = -X;
       giro = 180 - giro;
     }
-    dispositivos.push({ indice, tipo, X, Y: numero(e, 20), giro, medida: medidaDe(dxf, e) });
+    const Y = numero(e, 20);
+    // La etapa sale de la capa del bloque («DH-ETAPA 2») o de la zona que lo encierra.
+    const etapa = etapaDeCapa(valor(e, 8) || '') ?? zonas.find((z) => dentroDe(X, Y, z.contorno))?.etapa ?? null;
+    dispositivos.push({ indice, tipo, X, Y, giro, medida: medidaDe(dxf, e), etapa });
   });
 
   const textos: TextoDireccion[] = [];
@@ -184,6 +222,7 @@ export function importarDispositivos(dxf: DxfLeido, tipoPorBloque: Map<string, s
       y: p.Y,
       etiqueta: t2 === undefined ? null : textos[t2].texto,
       rotacion: rotacion === 0 || rotacion === 360 ? null : rotacion,
+      etapa: p.etapa,
       medida: p.medida,
     };
   });

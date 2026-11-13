@@ -61,6 +61,10 @@ export type DatosExportar = {
   // Conexiones de los lazos (línea punteada) y qué color lleva cada lazo.
   conexiones?: { lineas: LineaConexion[]; marcas: MarcaConexion[] };
   lazos?: { id: string; texto: string; color: string }[];
+  // Reporte de avance: disco de color detrás de cada equipo según su estado.
+  colorFondo?: (equipoId: string) => string | null;
+  // Solo la hoja del plano, sin la de simbología y cantidades.
+  soloPlano?: boolean;
 };
 
 // Conexión punteada (por la tubería si la hay) con flechas delgadas, como en
@@ -81,7 +85,7 @@ function dibujarConexion(hoja: PDFPage, camino: Punto[], H: number, tinta: Retur
   hoja.drawSvgPath(ruta(puntaDeLlegada(trazo.llegada, m.punta), true), { x: 0, y: H, color: tinta });
 }
 
-export async function exportarPlanoPdf({ plano, pdfOriginal, fondoPng, cliente, etiquetas, conexiones, lazos = [] }: DatosExportar): Promise<Uint8Array> {
+export async function exportarPlanoPdf({ plano, pdfOriginal, fondoPng, cliente, etiquetas, conexiones, lazos = [], colorFondo, soloPlano }: DatosExportar): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
   pdf.setTitle(texto(`Distribución de equipos - ${plano.nombre}`));
   const fuente = await pdf.embedFont(StandardFonts.Helvetica);
@@ -119,6 +123,8 @@ export async function exportarPlanoPdf({ plano, pdfOriginal, fondoPng, cliente, 
     const cx = e.x;
     const cy = H - e.y;
     const r = rNormal * tamanoDe(e);
+    const fondo = colorFondo ? colorFondo(e.id) : null;
+    if (fondo) hoja.drawCircle({ x: cx, y: cy, size: r * 1.5, color: color(fondo), opacity: 0.55, borderColor: color(fondo), borderWidth: r / 5 });
     dibujarSimbolo(hoja, negrita, e.tipo, cx, cy, r, e.rotacion || 0);
     const rotulo = (e.elementoId && etiquetas.get(e.elementoId)) || e.etiqueta;
     if (rotulo) {
@@ -138,6 +144,8 @@ export async function exportarPlanoPdf({ plano, pdfOriginal, fondoPng, cliente, 
       color: color(colorLazo.get(m.lazoId) || '#0f766e'),
     });
   }
+
+  if (soloPlano) return pdf.save();
 
   // Hoja 2: simbología y cantidades (carta horizontal).
   const resumen = pdf.addPage([792, 612]);
