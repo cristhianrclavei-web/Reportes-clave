@@ -30,7 +30,7 @@ import { showToast } from '@/components/Toast';
 import SavingOverlay from '@/components/SavingOverlay';
 import ReportPreviewModal, { PreviewData } from '@/components/ReportPreviewModal';
 import { listarMisServicios, vincularReporteAServicio, Servicio, filtrarSiguienteDiaPorGrupo, listarTecnicosDeServicio, listarFotosDelDia, listarActividadesDeTareas, FotoDelDia } from '@/lib/serviciosProgramados';
-import { X, Camera, Images, Plus, AlertTriangle, Eye, EyeOff, ChevronDown, ChevronRight, Tag, History, Check, Video } from 'lucide-react';
+import { X, Camera, Images, Plus, AlertTriangle, EyeOff, ChevronDown, Tag, History, Check, Video } from 'lucide-react';
 import { generarUUID } from '@/lib/uuid';
 import { registrarAccionGlobal } from '@/lib/auditoriaGlobal';
 import { notificar } from '@/lib/push';
@@ -279,7 +279,6 @@ export default function NuevoReportePage() {
     avance(desde + ((hasta - desde) * i) / total, total > 1 ? `Guardando fotos · ${i + 1} de ${total}` : 'Guardando la foto');
   // Deja ver el 100 % un instante antes de cerrar la pantalla de guardado.
   const pausaFinal = () => new Promise((r) => setTimeout(r, 700));
-  const [showPreview, setShowPreview] = useState(false);
   // El cliente revisa el reporte completo antes de que se abra el lienzo de su firma.
   const [revisionCliente, setRevisionCliente] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
@@ -995,7 +994,7 @@ export default function NuevoReportePage() {
     setVehiculo(''); setPlacas(''); setManejadoPor('');
     setSubTipo(null); setTipoServicioOtroTexto('');
     setUsaFormato(false); setFormatos([]); tokenRef.current = null;
-    setShowEtiquetas(false); setShowPreview(false); setPaso(1);
+    setShowEtiquetas(false); setRevisionCliente(false); setPaso(1);
     setSeguridad([]); setSeguridadOtraTexto(''); setObservaciones(''); setActividades(['']); setShowCaso(false);
     setCasoPuntos([{ ...EMPTY_PUNTO }]);
     setTuberias([tuberiaVacia()]);
@@ -2316,21 +2315,6 @@ export default function NuevoReportePage() {
           </button>
         )}
 
-        {/* Grande y con explicación: el cliente tiene el teléfono en la mano y debe notar que puede revisar. */}
-        <button
-          type="button"
-          onClick={() => setShowPreview(true)}
-          className="w-full rounded-2xl bg-teal/12 border-2 border-teal/60 p-3.5 flex items-center gap-3 text-left active:scale-[0.98] transition-transform mb-3 shadow-glow-teal"
-        >
-          <span className="w-12 h-12 rounded-xl bg-teal text-inkOnAccent flex items-center justify-center shrink-0">
-            <Eye size={24} strokeWidth={2.3} />
-          </span>
-          <span className="flex-1 min-w-0">
-            <span className="block font-display font-semibold text-[17px] leading-tight">Ver el reporte completo</span>
-            <span className="block text-[13px] text-ink/75 leading-snug mt-0.5">Revise cómo queda el documento antes de firmar y guardar.</span>
-          </span>
-          <ChevronRight size={22} strokeWidth={2.4} className="text-teal shrink-0" />
-        </button>
 
         {faltantes.length > 0 && (
           <div className="mb-3 p-4 rounded-2xl bg-amber/10 border border-amber/30 flex items-start gap-2.5">
@@ -2362,7 +2346,6 @@ export default function NuevoReportePage() {
         />
       )}
 
-      {showPreview && <ReportPreviewModal preview={getPreviewData()} onClose={() => setShowPreview(false)} />}
       {revisionCliente && (
         <ReportPreviewModal
           preview={getPreviewData()}
