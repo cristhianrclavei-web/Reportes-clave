@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { MapPin, Map as IconoMapa } from 'lucide-react';
 import { getCurrentLocation } from '@/lib/geolocation';
@@ -42,12 +42,15 @@ export function ubicacionDeCampos(c: CamposUbicacion): { ubicacion: { lat: numbe
 }
 
 export default function CampoUbicacionSitio({
-  valor, onCambio, cerca,
+  valor, onCambio, cerca, radio,
 }: {
   valor: CamposUbicacion;
   onCambio: (valor: CamposUbicacion) => void;
   // Zona donde ya hay servicios: la búsqueda muestra primero lo cercano.
   cerca?: Punto | null;
+  // Metros que cubre el lugar. Si se pasa, el mapa se abre solo en cuanto
+  // hay punto y dibuja el aro, para ver qué alcanza cada radio.
+  radio?: number;
 }) {
   const [ubicSugerencias, setUbicSugerencias] = useState<SugerenciaDireccion[]>([]);
   const [lugaresGoogle, setLugaresGoogle] = useState<LugarGoogle[]>([]);
@@ -62,6 +65,12 @@ export default function CampoUbicacionSitio({
   const [ubicError, setUbicError] = useState<string | null>(null);
   const [mapaAbierto, setMapaAbierto] = useState(false);
   const puntoActual = ubicacionDeCampos(valor).ubicacion;
+  const hayPunto = !!puntoActual;
+  useEffect(() => {
+    if (radio !== undefined && hayPunto) setMapaAbierto(true);
+    // Solo al aparecer el punto: después se puede ocultar el mapa a mano.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hayPunto]);
 
   async function handleUsarUbicacionActual() {
     setUbicBuscando(true);
@@ -234,6 +243,7 @@ export default function CampoUbicacionSitio({
           punto={puntoActual ? { lat: puntoActual.lat, lng: puntoActual.lng } : null}
           cerca={cerca}
           onElegir={fijarPuntoDelSitio}
+          radio={radio}
         />
       )}
       <button

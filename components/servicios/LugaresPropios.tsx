@@ -104,7 +104,7 @@ export default function LugaresPropios({ version, onCambio }: { version: number;
               <label className="block text-[12px] font-semibold text-muted mb-1" htmlFor="lugar-nombre">Nombre</label>
               <input id="lugar-nombre" type="text" maxLength={60} value={nombre} onChange={(ev) => setNombre(ev.target.value)} placeholder="Oficina"
                 className="w-full px-3.5 min-h-[44px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[14.5px] mb-2.5" />
-              <CampoUbicacionSitio valor={campos} onCambio={setCampos} />
+              <CampoUbicacionSitio valor={campos} onCambio={setCampos} radio={radio} />
               <p className="text-[12px] font-semibold text-muted mt-2.5 mb-1.5">Tamaño del lugar</p>
               <div className="flex flex-wrap gap-1.5">
                 {RADIOS.map((metros) => (

@@ -95,7 +95,7 @@ export default function UbicacionCliente({ clienteId }: { clienteId: string }) {
 
       {editando && (
         <div>
-          <CampoUbicacionSitio valor={campos} onCambio={setCampos} />
+          <CampoUbicacionSitio valor={campos} onCambio={setCampos} radio={radioEdit} />
           <p className="text-[12px] font-semibold text-muted mt-3 mb-1.5">¿Qué tan cerca cuenta como «estuvo con el cliente»?</p>
           <div className="flex flex-wrap gap-1.5">
             {RADIOS_CLIENTE.map((metros) => (
