@@ -9,7 +9,7 @@
 // prueba en lib/visitasExigibles.test.ts. Las consultas están en
 // lib/visitasExigiblesDatos.ts.
 
-import { HORA_CORTE_MIN, fechaCorta } from './coberturaReportes';
+import { HORA_CORTE_MIN, INICIO_COBERTURA, fechaCorta } from './coberturaReportes';
 import { textoDuracion } from './visitas';
 
 // Una fila de visitas_por_revisar().
@@ -151,4 +151,54 @@ export function visitasPorTecnico<T extends { tecnico_id: string }>(visitas: T[]
     mapa.set(visita.tecnico_id, lista);
   }
   return mapa;
+}
+
+// ---------- Aviso del Resumen para supervisión ----------
+
+// Lo que le falta a una persona: días sin reporte, visitas del rastreo sin
+// reporte y justificaciones (de días o visitas) esperando autorización.
+export type FaltantesDeTecnico = {
+  tecnicoId: string;
+  tecnico: string;
+  diasSinReporte: string[];
+  visitasSinReporte: { fecha: string; cliente: string }[];
+  porAutorizar: number;
+};
+
+type DiaCobertura = { tecnico_id: string; tecnico: string | null; fecha: string; estado: string };
+type VisitaResumida = { tecnico_id: string; tecnico: string | null; fecha: string; cliente: string; estado: string };
+
+// Agrupa por persona lo que falta. Las mismas reglas que Cobertura: el día
+// de hoy solo se cobra desde las 18:00. Ordena de quien debe más a quien menos.
+export function reportesFaltantes(dias: DiaCobertura[], visitas: VisitaResumida[], hoy: string, minutosDelDia: number): FaltantesDeTecnico[] {
+  const porTecnico = new Map<string, FaltantesDeTecnico>();
+  function de(tecnicoId: string, nombre: string | null): FaltantesDeTecnico {
+    let fila = porTecnico.get(tecnicoId);
+    if (!fila) {
+      fila = { tecnicoId, tecnico: nombre || 'Personal técnico', diasSinReporte: [], visitasSinReporte: [], porAutorizar: 0 };
+      porTecnico.set(tecnicoId, fila);
+    }
+    return fila;
+  }
+  const yaSeCobra = (fecha: string) => fecha < hoy || (fecha === hoy && minutosDelDia >= HORA_CORTE_MIN);
+
+  for (const dia of dias) {
+    if (dia.fecha < INICIO_COBERTURA) continue;
+    if (dia.estado === 'sin_reporte' && yaSeCobra(dia.fecha)) de(dia.tecnico_id, dia.tecnico).diasSinReporte.push(dia.fecha);
+    if (dia.estado === 'por_autorizar') de(dia.tecnico_id, dia.tecnico).porAutorizar++;
+  }
+  for (const visita of visitasPendientes(visitas, hoy, minutosDelDia)) {
+    de(visita.tecnico_id, visita.tecnico).visitasSinReporte.push({ fecha: visita.fecha, cliente: visita.cliente });
+  }
+  for (const visita of visitas) {
+    if (visita.estado === 'por_autorizar') de(visita.tecnico_id, visita.tecnico).porAutorizar++;
+  }
+
+  const lista = Array.from(porTecnico.values());
+  for (const fila of lista) {
+    fila.diasSinReporte.sort();
+    fila.visitasSinReporte.sort((a, b) => a.fecha.localeCompare(b.fecha));
+  }
+  const faltan = (f: FaltantesDeTecnico) => f.diasSinReporte.length + f.visitasSinReporte.length;
+  return lista.sort((a, b) => faltan(b) - faltan(a) || b.porAutorizar - a.porAutorizar || a.tecnico.localeCompare(b.tecnico));
 }

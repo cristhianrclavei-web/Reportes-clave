@@ -19,6 +19,7 @@ import KpiProductividad from '@/components/KpiProductividad';
 import KpiOperativos from '@/components/KpiOperativos';
 import AvisosPendientes from '@/components/AvisosPendientes';
 import ServiciosSinReporteSection from '@/components/ServiciosSinReporteSection';
+import AvisoReportesFaltantes from '@/components/resumen/AvisoReportesFaltantes';
 import { listarAgendaSupervisor, DiaAgenda } from '@/lib/serviciosProgramados';
 import KpiEficiencia from '@/components/KpiEficiencia';
 import KpiPlazos from '@/components/KpiPlazos';
@@ -200,6 +201,8 @@ export default function ResumenList({
         )}
 
         {/* Lo que requiere una decisión va antes que las métricas */}
+        <AvisoReportesFaltantes />
+
         {diasVencidos.length > 0 && (
           <AvisoPlegable
             tono="red"

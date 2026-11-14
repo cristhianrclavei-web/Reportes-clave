@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  enlaceReporteDeVisita, errorDeJustificacion, horaReloj, horarioSugerido, mensajeVisitasPendientes,
+  enlaceReporteDeVisita, errorDeJustificacion, reportesFaltantes, horaReloj, horarioSugerido, mensajeVisitasPendientes,
   textoHorario, visitasPendientes, visitasPorTecnico,
 } from './visitasExigibles';
 
@@ -80,5 +80,33 @@ describe('enlaceReporteDeVisita', () => {
     expect(parametros.get('fecha')).toBe('2026-11-04');
     expect(parametros.get('cliente')).toBe('abc');
     expect(parametros.get('nombre')).toBe('Plaza & Cía');
+  });
+});
+
+describe('reportesFaltantes', () => {
+  const dias = [
+    { tecnico_id: 'a', tecnico: 'Ana', fecha: '2026-11-03', estado: 'sin_reporte' },
+    { tecnico_id: 'a', tecnico: 'Ana', fecha: '2026-11-04', estado: 'sin_reporte' },
+    { tecnico_id: 'b', tecnico: 'Beto', fecha: '2026-11-03', estado: 'por_autorizar' },
+    { tecnico_id: 'b', tecnico: 'Beto', fecha: '2026-11-02', estado: 'reporte' },
+  ];
+  const visitas = [
+    { tecnico_id: 'b', tecnico: 'Beto', fecha: '2026-11-03', cliente: 'HCL', estado: 'sin_reporte' },
+    { tecnico_id: 'b', tecnico: 'Beto', fecha: '2026-11-03', cliente: 'Plaza', estado: 'cubierta' },
+  ];
+
+  it('antes de las 18:00 no cobra el día de hoy', () => {
+    const lista = reportesFaltantes(dias, visitas, '2026-11-04', 12 * 60);
+    // Deben lo mismo (1); va primero quien además tiene algo por autorizar.
+    expect(lista.map((f) => [f.tecnico, f.diasSinReporte, f.visitasSinReporte.length, f.porAutorizar])).toEqual([
+      ['Beto', [], 1, 1],
+      ['Ana', ['2026-11-03'], 0, 0],
+    ]);
+  });
+
+  it('desde las 18:00 sí, y quien debe más va primero', () => {
+    const lista = reportesFaltantes(dias, visitas, '2026-11-04', 18 * 60);
+    expect(lista[0].tecnico).toBe('Ana');
+    expect(lista[0].diasSinReporte).toEqual(['2026-11-03', '2026-11-04']);
   });
 });
