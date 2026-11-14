@@ -8,6 +8,7 @@ import { sumarDias } from '@/lib/fechaHoy';
 import { INICIO_COBERTURA, agruparPorTecnico, inicioVentana, mensajePendiente, fechaCorta } from '@/lib/coberturaReportes';
 import { MARCA, MARCA_MAYUS } from '@/lib/marca';
 import { mensajeVisitasPendientes, visitasPorTecnico, type VisitaExigible } from '@/lib/visitasExigibles';
+import { mensajeParadasPendientes } from '@/lib/paradas';
 
 export const dynamic = 'force-dynamic';
 
@@ -111,6 +112,29 @@ export async function POST(request: NextRequest) {
         cuerpo: mensaje.cuerpo,
         url: '/mis-reportes?pendientes=1',
         tag: `visitas-pendientes-${momento}`,
+      });
+      const r = await avisarUsuarios(admin, [tecnicoId], 'reporte_pendiente', carga);
+      enviadas += r.enviadas;
+      caducadas.push(...r.caducadas);
+    }
+  }
+
+  // Paradas del rastreo sin justificar (gasolinera, proveedor…): a cada
+  // técnico, cuántas le faltan. Las calcula pg_cron cada 15 min.
+  let paradasSinJustificar = 0;
+  const { data: filasParadas, error: errParadas } = await admin.rpc('paradas_por_revisar', { p_desde: desde, p_hasta: hasta });
+  if (errParadas) {
+    console.error('No se pudieron leer las paradas del rastreo:', errParadas.message);
+  } else {
+    const sinJustificar = ((filasParadas as { tecnico_id: string; estado: string | null }[]) || []).filter((p) => p.estado === null || p.estado === 'rechazada');
+    paradasSinJustificar = sinJustificar.length;
+    for (const [tecnicoId, suyas] of visitasPorTecnico(sinJustificar)) {
+      const mensaje = mensajeParadasPendientes(suyas.length);
+      const carga = JSON.stringify({
+        titulo: mensaje.titulo,
+        cuerpo: mensaje.cuerpo,
+        url: '/mis-reportes',
+        tag: `paradas-pendientes-${momento}`,
       });
       const r = await avisarUsuarios(admin, [tecnicoId], 'reporte_pendiente', carga);
       enviadas += r.enviadas;
@@ -348,7 +372,7 @@ export async function POST(request: NextRequest) {
     await admin.from('push_suscripciones').delete().in('endpoint', caducadas);
   }
 
-  return NextResponse.json({ enviadas, tecnicos: porTecnico.size, escalados, visitasSinReporte, visitasPorAutorizar, serviciosAbiertos, serviciosSinIniciar, cierresPorConfirmar, porAutorizar, valesVencidos, equiposSinRegistro, horasPorAutorizar, limpiadas: caducadas.length });
+  return NextResponse.json({ enviadas, tecnicos: porTecnico.size, escalados, visitasSinReporte, visitasPorAutorizar, paradasSinJustificar, serviciosAbiertos, serviciosSinIniciar, cierresPorConfirmar, porAutorizar, valesVencidos, equiposSinRegistro, horasPorAutorizar, limpiadas: caducadas.length });
 }
 
 // Adónde lleva el resumen del supervisor: al servicio (o a la lista) si hay

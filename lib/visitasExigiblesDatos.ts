@@ -8,13 +8,13 @@ import { errorDeJustificacion, type MotivoVisita, type VisitaExigible } from './
 // ¿El error es porque todavía no se corre el parche en la base?
 export function faltaElParche(error: { message?: string; code?: string } | null | undefined): boolean {
   const texto = error?.message || '';
-  return error?.code === 'PGRST202' || /visitas_por_revisar|mi_horario_gps|justificar_visita|revisar_visita|does not exist|schema cache/i.test(texto);
+  return error?.code === 'PGRST202' || /visitas_por_revisar|mi_horario_gps|justificar_visita|revisar_visita|paradas_por_revisar|justificar_parada|revisar_parada|gastos_campo|does not exist|schema cache/i.test(texto);
 }
 
-function mensajeError(error: { message?: string; code?: string } | null | undefined, accion: string): string {
+export function mensajeError(error: { message?: string; code?: string } | null | undefined, accion: string): string {
   const texto = error?.message || '';
   if (faltaElParche(error)) {
-    return 'Las visitas por rastreo todavía no están activadas: falta correr supabase/patch_visitas_exigibles.sql en la base.';
+    return 'Esta función del rastreo todavía no está activada en la base: falta correr su parche de supabase/.';
   }
   const sinConexion = typeof navigator !== 'undefined' && !navigator.onLine;
   if (sinConexion || /fetch|network|load failed|timeout/i.test(texto)) {
@@ -35,10 +35,11 @@ export async function cargarVisitas(desde: string, hasta: string, tecnicoId?: st
   return (data as VisitaExigible[]) || [];
 }
 
-export async function justificarVisita(id: string, motivo: MotivoVisita, detalle: string): Promise<void> {
+// `gasto`: el ticket ya subido (lib/paradasDatos.ts), cuando el motivo es compra de material.
+export async function justificarVisita(id: string, motivo: MotivoVisita, detalle: string, gasto?: object | null): Promise<void> {
   const problema = errorDeJustificacion(motivo, detalle);
   if (problema) throw new Error(problema);
-  const { error } = await createClient().rpc('justificar_visita', { p_id: id, p_motivo: motivo, p_detalle: detalle.trim() });
+  const { error } = await createClient().rpc('justificar_visita', { p_id: id, p_motivo: motivo, p_detalle: detalle.trim(), p_gasto: gasto ?? null });
   if (error) throw new Error(mensajeError(error, 'guardar la justificación'));
 }
 

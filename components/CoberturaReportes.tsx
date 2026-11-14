@@ -12,6 +12,8 @@ import { revisarJustificacion, revisarDiaBitacora } from '@/lib/controlReportes'
 import { pedirTexto } from '@/lib/dialogos';
 import { TEXTO_CUBRE, etiquetaMotivoVisita, textoHorario, visitasPendientes, type VisitaExigible } from '@/lib/visitasExigibles';
 import { cargarVisitas, faltaElParche, justificarVisita, revisarVisita } from '@/lib/visitasExigiblesDatos';
+import { gastosDeVisitas, type GastoGuardado } from '@/lib/paradasDatos';
+import TicketsDeGasto from '@/components/gastos/TicketsDeGasto';
 
 // Cobertura de reportes para el supervisor: por técnico y por día de la
 // semana, si hubo reporte, justificación, si falta o si no se exige. La
@@ -104,6 +106,8 @@ export default function CoberturaReportes({
   const [revisando, setRevisando] = useState(false);
   // Visitas que detectó el rastreo en la semana, y por qué no cargaron (si pasó).
   const [visitas, setVisitas] = useState<VisitaExigible[]>([]);
+  // Ticket de las visitas justificadas como compra de material.
+  const [gastosVisita, setGastosVisita] = useState<Map<string, GastoGuardado>>(new Map());
   const [errorVisitas, setErrorVisitas] = useState<string | null>(null);
 
   useEffect(() => {
@@ -139,7 +143,17 @@ export default function CoberturaReportes({
     let cancelado = false;
     setErrorVisitas(null);
     cargarVisitas(lunes, sumarDias(lunes, 6))
-      .then((lista) => { if (!cancelado) setVisitas(lista); })
+      .then(async (lista) => {
+        if (cancelado) return;
+        setVisitas(lista);
+        const compras = lista.filter((x) => x.motivo === 'compra_material').map((x) => x.id);
+        try {
+          const gastos = await gastosDeVisitas(compras);
+          if (!cancelado) setGastosVisita(gastos);
+        } catch (e: any) {
+          if (!faltaElParche(e)) console.error('No se pudieron cargar los tickets de las visitas:', e?.message);
+        }
+      })
       .catch((e: any) => {
         if (cancelado) return;
         setVisitas([]);
@@ -525,6 +539,14 @@ export default function CoberturaReportes({
                             <b>{etiquetaMotivoVisita(x.motivo)}</b>{x.detalle ? ` · «${x.detalle}»` : ''}
                             {x.justifico ? <span className="text-muted"> — {x.justifico}</span> : null}
                           </p>
+                        )}
+                        {x.motivo === 'compra_material' && x.estado !== 'cubierta' && gastosVisita.get(x.id) && (
+                          <TicketsDeGasto
+                            monto={gastosVisita.get(x.id)!.monto}
+                            fotos={gastosVisita.get(x.id)!.fotos}
+                            sinTicket={gastosVisita.get(x.id)!.sin_ticket}
+                            motivoSinTicket={gastosVisita.get(x.id)!.motivo_sin_ticket}
+                          />
                         )}
                         {x.cerca_con_registro && (
                           <p className="text-[12.5px] text-muted mt-1">Cliente vecino con reporte ese día: {x.cerca_con_registro}.</p>

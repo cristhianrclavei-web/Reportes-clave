@@ -6,6 +6,9 @@ import { FileText, MapPin, MessageSquareText } from 'lucide-react';
 import { createClient } from '@/lib/supabaseClient';
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
+import CamposGasto from '@/components/gastos/CamposGasto';
+import { GASTO_VACIO, errorDeGasto, type DatosGasto } from '@/lib/paradas';
+import { gastoListo } from '@/lib/paradasDatos';
 import { horaActualMexico } from '@/lib/horaMexico';
 import { fechaCorta, inicioVentana } from '@/lib/coberturaReportes';
 import {
@@ -24,6 +27,8 @@ export default function AvisoVisitasSinReporte() {
   const [justificando, setJustificando] = useState<VisitaExigible | null>(null);
   const [motivo, setMotivo] = useState<MotivoVisita | ''>('');
   const [detalle, setDetalle] = useState('');
+  // Ticket, cuando el motivo es «Recolección o compra de material».
+  const [gasto, setGasto] = useState<DatosGasto>(GASTO_VACIO);
   const [errorFormulario, setErrorFormulario] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
 
@@ -54,12 +59,14 @@ export default function AvisoVisitasSinReporte() {
     setJustificando(visita);
     setMotivo('');
     setDetalle('');
+    setGasto(GASTO_VACIO);
     setErrorFormulario(null);
   }
 
   async function guardar() {
     if (!justificando) return;
-    const problema = errorDeJustificacion(motivo, detalle);
+    const esCompra = motivo === 'compra_material';
+    const problema = errorDeJustificacion(motivo, detalle) || (esCompra ? errorDeGasto(gasto) : null);
     if (problema || !motivo) {
       setErrorFormulario(problema || 'Elige el motivo.');
       return;
@@ -67,7 +74,8 @@ export default function AvisoVisitasSinReporte() {
     setErrorFormulario(null);
     setGuardando(true);
     try {
-      await justificarVisita(justificando.id, motivo, detalle);
+      const gastoEnviar = esCompra ? await gastoListo(gasto) : null;
+      await justificarVisita(justificando.id, motivo, detalle, gastoEnviar);
       setPendientes((prev) => prev.filter((v) => v.id !== justificando.id));
       setJustificando(null);
       showToast('Justificación enviada. Tu supervisor la revisará.', 'success');
@@ -168,6 +176,12 @@ export default function AvisoVisitasSinReporte() {
               maxLength={500}
               className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line focus:border-teal focus:outline-none text-[15px]"
             />
+            {motivo === 'compra_material' && (
+              <div className="mt-3">
+                <CamposGasto tipo="material" valor={gasto} deshabilitado={guardando}
+                  onCambio={(g) => { setGasto(g); setErrorFormulario(null); }} />
+              </div>
+            )}
             {errorFormulario && <p className="text-[13px] text-red font-semibold mt-1.5">{errorFormulario}</p>}
             <div className="flex gap-2 mt-4">
               <button
