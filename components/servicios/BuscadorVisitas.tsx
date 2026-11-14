@@ -50,7 +50,8 @@ function textoRegistros(registros: Registro[]): string {
 export default function BuscadorVisitas({ fechaMinimaRastreo, onVerEnMapa }: {
   // Primer día con rastreo guardado (los puntos se borran a los 90 días).
   fechaMinimaRastreo: string | null;
-  onVerEnMapa: (dia: string, tecnicoId: string | null) => boolean;
+  // Lleva el mapa a ese día y dibuja el recorrido de esos técnicos (hasta 3).
+  onVerEnMapa: (dia: string, tecnicoIds: string[]) => boolean;
 }) {
   const [modo, setModo] = useState<Modo>('cliente');
   const [clienteTexto, setClienteTexto] = useState('');
@@ -122,8 +123,8 @@ export default function BuscadorVisitas({ fechaMinimaRastreo, onVerEnMapa }: {
     setBuscando(false);
   }
 
-  function verEnMapa(dia: string, tecnico: string | null) {
-    const sePudo = onVerEnMapa(dia, tecnico);
+  function verEnMapa(dia: string, tecnicos: string[]) {
+    const sePudo = onVerEnMapa(dia, tecnicos);
     if (!sePudo) showToast('Ese día ya no tiene rastreo guardado (se conserva 90 días).', 'error');
   }
 
@@ -270,7 +271,7 @@ export default function BuscadorVisitas({ fechaMinimaRastreo, onVerEnMapa }: {
         <div className="mt-4 pt-4 border-t border-line">
           {resultado.modo === 'cliente'
             ? <ResultadoCliente resultado={resultado} soloAvisos={soloAvisos} nombreTecnico={nombreTecnico} onVer={verEnMapa} />
-            : <ResultadoTecnico resultado={resultado} soloAvisos={soloAvisos} onVer={(dia) => verEnMapa(dia, resultado.tecnico.id)} onPropio={marcarComoPropio} />}
+            : <ResultadoTecnico resultado={resultado} soloAvisos={soloAvisos} onVer={(dia) => verEnMapa(dia, [resultado.tecnico.id])} onPropio={marcarComoPropio} />}
           <div className="flex flex-wrap gap-2 mt-3">
             <label className="min-h-[44px] px-3 rounded-xl border border-line bg-surface-2 flex items-center gap-2 text-[13.5px] font-semibold">
               <input type="checkbox" className="w-4 h-4 accent-teal" checked={soloAvisos} onChange={(ev) => setSoloAvisos(ev.target.checked)} /> Solo lo que hay que revisar
@@ -298,7 +299,7 @@ function Aviso({ tipo }: { tipo: 'sin_registro' | 'sin_rastreo' | 'revisar' }) {
 
 function BotonVer({ onClick, texto = 'Ver en el mapa' }: { onClick: () => void; texto?: string }) {
   return (
-    <button type="button" onClick={onClick} className="min-h-[38px] px-3 rounded-lg border border-teal/50 text-teal text-[12.5px] font-semibold flex items-center gap-1.5 shrink-0 active:scale-95 transition-transform">
+    <button type="button" onClick={(ev) => { ev.stopPropagation(); onClick(); }} className="min-h-[38px] px-3 rounded-lg border border-teal/50 text-teal text-[12.5px] font-semibold flex items-center gap-1.5 shrink-0 active:scale-95 transition-transform">
       <Route size={14} strokeWidth={2.4} /> {texto}
     </button>
   );
@@ -308,8 +309,14 @@ function ResultadoCliente({ resultado, soloAvisos, nombreTecnico, onVer }: {
   resultado: Extract<Resultado, { modo: 'cliente' }>;
   soloAvisos: boolean;
   nombreTecnico: (id: string) => string;
-  onVer: (dia: string, tecnicoId: string | null) => void;
+  onVer: (dia: string, tecnicoIds: string[]) => void;
 }) {
+  // Al elegir una fila se ven en el mapa todos los que estuvieron con el
+  // cliente ese día: primero el de la fila, luego sus compañeros.
+  function verFila(fila: VisitaACliente) {
+    const companeros = resultado.filas.filter((f) => f.fecha === fila.fecha && f.tecnicoId !== fila.tecnicoId && f.gps).map((f) => f.tecnicoId);
+    onVer(fila.fecha, [fila.tecnicoId, ...companeros]);
+  }
   const filas = soloAvisos ? resultado.filas.filter((f) => f.aviso === 'sin_registro') : resultado.filas;
   const dias = new Set(resultado.filas.map((f) => f.fecha)).size;
   const sinRegistro = resultado.filas.filter((f) => f.aviso === 'sin_registro').length;
@@ -328,13 +335,14 @@ function ResultadoCliente({ resultado, soloAvisos, nombreTecnico, onVer }: {
       <div className="mt-3 flex flex-col gap-1.5 max-h-[520px] overflow-y-auto">
         {filas.length === 0 && <p className="text-[13.5px] text-muted">{soloAvisos ? 'Nada que revisar: todas las visitas tienen registro.' : 'No hay visitas en estas fechas.'}</p>}
         {filas.map((f) => (
-          <div key={`${f.fecha}${f.tecnicoId}`} className={`rounded-xl border p-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 ${f.aviso === 'sin_registro' ? 'border-red/40 bg-red/5' : 'border-line bg-surface-2/60'}`}>
+          <div key={`${f.fecha}${f.tecnicoId}`} onClick={() => verFila(f)} title="Ver el recorrido de ese día en el mapa"
+            className={`rounded-xl border p-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 cursor-pointer hover:border-teal/60 transition-colors ${f.aviso === 'sin_registro' ? 'border-red/40 bg-red/5' : 'border-line bg-surface-2/60'}`}>
             <p className="w-[150px] shrink-0 font-semibold text-[13.5px] first-letter:uppercase">{textoDia(f.fecha)}</p>
             <p className="flex-1 min-w-[140px] text-[13.5px]">{nombreTecnico(f.tecnicoId)}</p>
             <p className="min-w-[110px] text-[13px]">
               {f.registros.length === 0 ? <span className="text-faint">Sin registro</span> : f.registros.map((r, i) => (
                 r.tipo === 'servicio'
-                  ? <Link key={i} href={`/dashboard/servicios/${r.id}`} className="text-teal font-semibold underline mr-2">Servicio</Link>
+                  ? <Link key={i} href={`/dashboard/servicios/${r.id}`} onClick={(ev) => ev.stopPropagation()} className="text-teal font-semibold underline mr-2">Servicio</Link>
                   : <span key={i} className="font-semibold mr-2">Reporte</span>
               ))}
             </p>
@@ -344,7 +352,7 @@ function ResultadoCliente({ resultado, soloAvisos, nombreTecnico, onVer }: {
               {f.gps && textoSinSenal(f.gps.sinSenal) && <span className="block font-sans text-[11.5px] text-muted">incluye {textoSinSenal(f.gps.sinSenal)}</span>}
             </p>
             {f.aviso && <Aviso tipo={f.aviso} />}
-            <BotonVer onClick={() => onVer(f.fecha, f.tecnicoId)} />
+            <BotonVer onClick={() => verFila(f)} />
           </div>
         ))}
       </div>
@@ -379,7 +387,8 @@ function ResultadoTecnico({ resultado, soloAvisos, onVer, onPropio }: {
           const reportes = dia.registros.filter((r) => r.tipo === 'reporte').length;
           const servicios = dia.registros.filter((r) => r.tipo === 'servicio').length;
           return (
-            <div key={dia.fecha} className={`rounded-xl border p-3 ${dia.sinRegistro > 0 ? 'border-red/40 bg-red/5' : 'border-line bg-surface-2/60'}`}>
+            <div key={dia.fecha} onClick={() => onVer(dia.fecha)} title="Ver el recorrido de ese día en el mapa"
+              className={`rounded-xl border p-3 cursor-pointer hover:border-teal/60 transition-colors ${dia.sinRegistro > 0 ? 'border-red/40 bg-red/5' : 'border-line bg-surface-2/60'}`}>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                 <p className="font-semibold text-[14px] first-letter:uppercase">{textoDia(dia.fecha)}</p>
                 <p className="flex-1 min-w-[180px] text-[12.5px] text-muted">
@@ -403,7 +412,7 @@ function ResultadoTecnico({ resultado, soloAvisos, onVer, onPropio }: {
                   <span className="flex-1 min-w-[150px] flex items-center gap-1.5">
                     <MapPin size={13} strokeWidth={2.3} className="shrink-0 text-muted" />
                     {p.cliente ? <b>{p.cliente}</b> : (
-                      <a href={`https://www.google.com/maps?q=${p.lat},${p.lng}`} target="_blank" rel="noopener noreferrer" className="text-teal font-semibold underline inline-flex items-center gap-1">
+                      <a href={`https://www.google.com/maps?q=${p.lat},${p.lng}`} target="_blank" rel="noopener noreferrer" onClick={(ev) => ev.stopPropagation()} className="text-teal font-semibold underline inline-flex items-center gap-1">
                         Ver el lugar <ExternalLink size={12} />
                       </a>
                     )}
@@ -412,7 +421,7 @@ function ResultadoTecnico({ resultado, soloAvisos, onVer, onPropio }: {
                   {p.cliente && !p.conRegistro && !p.propio && <Aviso tipo="sin_registro" />}
                   {!p.cliente && <Aviso tipo="revisar" />}
                   {!p.cliente && (
-                    <button type="button" onClick={() => onPropio(p.lat, p.lng)} className="min-h-[32px] px-2.5 rounded-lg border border-line text-[12px] font-semibold text-ink/80 hover:border-teal/50">
+                    <button type="button" onClick={(ev) => { ev.stopPropagation(); onPropio(p.lat, p.lng); }} className="min-h-[32px] px-2.5 rounded-lg border border-line text-[12px] font-semibold text-ink/80 hover:border-teal/50">
                       Es lugar propio
                     </button>
                   )}

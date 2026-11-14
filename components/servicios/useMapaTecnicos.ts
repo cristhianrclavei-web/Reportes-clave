@@ -6,6 +6,7 @@ import { FiguraAvatar, colorUniforme } from '@/components/AvatarTecnico';
 import { PerfilPublico, urlFoto, usePerfiles } from '@/lib/perfiles';
 import { EstadoSenal, PuntoRecorrido, UltimaUbicacion, estadoSenal, marcasDelRecorrido, minutosEnElLugar, MINUTOS_ENTRE_MARCAS, recorridoDelDia, ultimasUbicacionesDelDia, ultimasUbicacionesHoy, DIAS_HISTORIAL } from '@/lib/ubicacionTecnicos';
 import { useEnVivo } from '@/lib/useEnVivo';
+import { showToast } from '@/components/Toast';
 import { distanciaMetros } from '@/lib/geocerca';
 import { fechaLocal, hoyLocal, sumarDias } from '@/lib/fechaHoy';
 import { LLAVE_GOOGLE_MAPS, MarcaMapa, MotorMapa, PinMapa, Punto, RutaMapa, crearMotorBasico, crearMotorGoogle } from './motorMapa';
@@ -182,16 +183,24 @@ export function useMapaTecnicos({ zoomControl = true }: { zoomControl?: boolean 
   const esHoy = fecha !== null && fecha === hoy;
   // La carga más reciente gana si se cambia de día muy rápido.
   const pedidoRef = useRef(0);
-  // Técnico que hay que elegir en cuanto cargue el día pedido (ver verDia).
-  const pendienteRef = useRef<string | null>(null);
+  // Técnicos que hay que elegir en cuanto cargue el día pedido (ver verDia).
+  const pendientesRef = useRef<string[] | null>(null);
 
-  // Elige al técnico pendiente si aparece en la lista del día.
-  function elegirPendiente(lista: UltimaUbicacion[]) {
-    const id = pendienteRef.current;
-    pendienteRef.current = null;
-    if (!id || !lista.some((t) => t.tecnico_id === id)) return;
-    setColores((c) => ({ ...c, [id]: COLORES_RUTA[0] }));
-    setElegidos([id]);
+  // Elige a los técnicos pendientes que tengan rastreo ese día (hasta 3, cada
+  // uno con su color) para que el mapa dibuje sus recorridos.
+  function elegirPendientes(lista: UltimaUbicacion[]) {
+    const pedidos = pendientesRef.current;
+    pendientesRef.current = null;
+    if (!pedidos || pedidos.length === 0) return;
+    const conRastreo = pedidos.filter((id) => lista.some((t) => t.tecnico_id === id)).slice(0, MAX_ELEGIDOS);
+    if (conRastreo.length === 0) {
+      showToast('Ese día no hay rastreo de esa persona: no traía el teléfono de la empresa o estaba apagado.', 'error');
+      return;
+    }
+    const nuevosColores: Record<string, string> = {};
+    conRastreo.forEach((id, i) => { nuevosColores[id] = COLORES_RUTA[i]; });
+    setColores((c) => ({ ...c, ...nuevosColores }));
+    setElegidos(conRastreo);
   }
 
   function limitesDelDia(dia: string): [string, string] {
@@ -212,7 +221,7 @@ export function useMapaTecnicos({ zoomControl = true }: { zoomControl?: boolean 
       if (pedido !== pedidoRef.current) return;
       setTecnicos(lista);
       setError(null);
-      elegirPendiente(lista);
+      elegirPendientes(lista);
     } catch (e: any) {
       if (pedido === pedidoRef.current) setError(e.message);
     } finally {
@@ -406,13 +415,13 @@ export function useMapaTecnicos({ zoomControl = true }: { zoomControl?: boolean 
     setFecha(dia);
   }
 
-  // Desde el buscador de visitas: va a ese día y muestra el recorrido de ese
-  // técnico. Devuelve false si el día ya no tiene rastreo guardado.
-  function verDia(dia: string, tecnicoId: string | null): boolean {
+  // Desde el buscador de visitas: va a ese día y dibuja el recorrido de esos
+  // técnicos. Devuelve false si el día ya no tiene rastreo guardado.
+  function verDia(dia: string, tecnicoIds: string[]): boolean {
     if (!hoy || !fechaMinima || dia > hoy || dia < fechaMinima) return false;
     setElegidos([]);
-    pendienteRef.current = tecnicoId;
-    if (dia === fecha) elegirPendiente(tecnicos);
+    pendientesRef.current = tecnicoIds;
+    if (dia === fecha) elegirPendientes(tecnicos);
     else setFecha(dia);
     return true;
   }

@@ -75,8 +75,8 @@ export default function TecnicosEnCampo({ enServicios = false }: { enServicios?:
   if (error === FALTA_SQL_UBICACION && !enServicios) return null;
 
   // Desde el buscador de visitas: el mapa va a ese día y técnico, y se sube a la vista.
-  function verVisitaEnMapa(dia: string, tecnicoId: string | null): boolean {
-    const sePudo = verDia(dia, tecnicoId);
+  function verVisitaEnMapa(dia: string, tecnicoIds: string[]): boolean {
+    const sePudo = verDia(dia, tecnicoIds);
     if (sePudo) document.getElementById('mapa-tecnicos')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     return sePudo;
   }
