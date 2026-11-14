@@ -40,8 +40,15 @@ comment on column public.clientes.ubicacion is 'Punto {lat, lng, direccion?} del
 comment on column public.clientes.radio_m is 'Metros alrededor de la ubicación que cuentan como «estuvo con el cliente».';
 
 -- p_lugares: [{ "lat", "lng", "radio" }, ...]. Días en hora de México.
-create or replace function public.visitas_gps(p_lugares jsonb, p_desde date, p_hasta date)
-returns table (tecnico_id uuid, fecha date, llegada timestamptz, salida timestamptz, minutos integer)
+--
+-- El tiempo en sitio NO es «cuántos puntos hay»: el teléfono a veces deja de
+-- mandar puntos (sin señal dentro de un edificio, o Android lo duerme cuando
+-- está quieto). Se suma el tiempo entre dos puntos seguidos que están los dos
+-- dentro del lugar: si no hay ningún punto afuera entre ellos, no hay señal
+-- de que se haya ido. `sin_senal` es el hueco más largo, para que se vea.
+drop function if exists public.visitas_gps(jsonb, date, date);
+create function public.visitas_gps(p_lugares jsonb, p_desde date, p_hasta date)
+returns table (tecnico_id uuid, fecha date, llegada timestamptz, salida timestamptz, minutos integer, sin_senal integer)
 language sql
 stable
 security invoker
@@ -53,21 +60,36 @@ as $$
            least(greatest(coalesce((l ->> 'radio')::double precision, 200), 30), 2000) as radio
     from jsonb_array_elements(case when jsonb_typeof(p_lugares) = 'array' then p_lugares else '[]'::jsonb end) l
     limit 50
+  ),
+  puntos as (
+    select u.tecnico_id,
+           u.registrado_en,
+           (u.registrado_en at time zone 'America/Mexico_City')::date as fecha,
+           exists (
+             select 1 from lugares g
+             -- Distancia aproximada en metros (suficiente a esta escala).
+             where 111320 * sqrt(power(u.lat - g.lat, 2) + power((u.lng - g.lng) * cos(radians(g.lat)), 2)) <= g.radio
+           ) as dentro
+    from public.ubicaciones_tecnicos u
+    where u.registrado_en >= (p_desde::timestamp at time zone 'America/Mexico_City')
+      and u.registrado_en < ((p_hasta + 1)::timestamp at time zone 'America/Mexico_City')
+      and p_hasta - p_desde <= 120
+  ),
+  seguidos as (
+    select p.*,
+           lead(p.registrado_en) over w as siguiente,
+           lead(p.dentro) over w as siguiente_dentro
+    from puntos p
+    window w as (partition by p.tecnico_id, p.fecha order by p.registrado_en)
   )
-  select u.tecnico_id,
-         (u.registrado_en at time zone 'America/Mexico_City')::date as fecha,
-         min(u.registrado_en) as llegada,
-         max(u.registrado_en) as salida,
-         count(distinct date_trunc('minute', u.registrado_en))::integer as minutos
-  from public.ubicaciones_tecnicos u
-  where u.registrado_en >= (p_desde::timestamp at time zone 'America/Mexico_City')
-    and u.registrado_en < ((p_hasta + 1)::timestamp at time zone 'America/Mexico_City')
-    and p_hasta - p_desde <= 120
-    and exists (
-      select 1 from lugares g
-      -- Distancia aproximada en metros (suficiente a esta escala).
-      where 111320 * sqrt(power(u.lat - g.lat, 2) + power((u.lng - g.lng) * cos(radians(g.lat)), 2)) <= g.radio
-    )
+  select s.tecnico_id,
+         s.fecha,
+         min(s.registrado_en) as llegada,
+         max(s.registrado_en) as salida,
+         round(coalesce(sum(extract(epoch from s.siguiente - s.registrado_en)) filter (where s.siguiente_dentro), 0) / 60)::integer as minutos,
+         round(coalesce(max(extract(epoch from s.siguiente - s.registrado_en)) filter (where s.siguiente_dentro), 0) / 60)::integer as sin_senal
+  from seguidos s
+  where s.dentro
   group by 1, 2
   order by 2 desc, 1;
 $$;

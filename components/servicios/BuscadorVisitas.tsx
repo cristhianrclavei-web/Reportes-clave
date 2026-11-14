@@ -10,7 +10,7 @@ import { fechaLocal, hoyLocal, sumarDias } from '@/lib/fechaHoy';
 import { MARCA } from '@/lib/marca';
 import {
   DIAS_MAXIMO_CLIENTE, DIAS_MAXIMO_TECNICO, MINUTOS_PARADA, MINUTOS_VISITA, diasDeTecnico, errorDeRango, horaEnMexicoCorta,
-  textoDuracion, visitasACliente, type DiaDeTecnico, type Registro, type VisitaACliente,
+  textoDuracion, textoSinSenal, visitasACliente, type DiaDeTecnico, type Registro, type VisitaACliente,
 } from '@/lib/visitas';
 import {
   gpsEnLugares, lugaresConocidos, puntosDeTecnico, registrosDeCliente, registrosDeTecnico, tecnicosBuscables,
@@ -319,6 +319,8 @@ function ResultadoCliente({ resultado, soloAvisos, nombreTecnico, onVer }: {
             </p>
             <p className="min-w-[190px] text-[13px] font-mono">
               {f.gps ? <>{horaEnMexicoCorta(f.gps.llegada)} – {horaEnMexicoCorta(f.gps.salida)} · {textoDuracion(f.gps.minutos)}</> : <span className="font-sans text-faint">Sin rastreo</span>}
+              {/* El teléfono dejó de mandar puntos un rato estando ahí: se dice, para que la cuenta se entienda. */}
+              {f.gps && textoSinSenal(f.gps.sinSenal) && <span className="block font-sans text-[11.5px] text-muted">incluye {textoSinSenal(f.gps.sinSenal)}</span>}
             </p>
             {f.aviso && <Aviso tipo={f.aviso} />}
             <BotonVer onClick={() => onVer(f.fecha, f.tecnicoId)} />
@@ -373,7 +375,9 @@ function ResultadoTecnico({ resultado, soloAvisos, onVer }: {
               )}
               {dia.paradas.map((p, i) => (
                 <div key={i} className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
-                  <span className="font-mono w-[200px] shrink-0">{horaEnMexicoCorta(p.desde)} – {horaEnMexicoCorta(p.hasta)} · {textoDuracion(p.minutos)}</span>
+                  <span className="font-mono w-[200px] shrink-0">{horaEnMexicoCorta(p.desde)} – {horaEnMexicoCorta(p.hasta)} · {textoDuracion(p.minutos)}
+                    {textoSinSenal(p.sinSenal) && <span className="block font-sans text-[11.5px] text-muted">incluye {textoSinSenal(p.sinSenal)}</span>}
+                  </span>
                   <span className="flex-1 min-w-[150px] flex items-center gap-1.5">
                     <MapPin size={13} strokeWidth={2.3} className="shrink-0 text-muted" />
                     {p.cliente ? <b>{p.cliente}</b> : (

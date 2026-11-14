@@ -12,8 +12,8 @@ export const MINUTOS_VISITA = 10;
 // Una parada: al menos este tiempo sin salir de un círculo de este radio.
 export const MINUTOS_PARADA = 15;
 export const RADIO_PARADA_M = 120;
-// Si entre dos puntos pasa más de esto, el teléfono estuvo apagado: se corta la parada.
-const HUECO_MAXIMO_S = 45 * 60;
+// Un hueco así o mayor entre dos puntos (teléfono sin señal o dormido) se avisa junto al tiempo.
+export const MINUTOS_SIN_SENAL = 15;
 export const RADIO_CLIENTE_M = 200;
 export const RADIOS_CLIENTE = [100, 200, 300, 500, 1000] as const;
 // El rastreo se guarda 90 días; el buscador por técnico lee de 31 en 31.
@@ -36,7 +36,8 @@ export type Registro = {
 };
 
 // Lo que dice el rastreo de un técnico cerca de un cliente en un día.
-export type VisitaGps = { tecnicoId: string; fecha: string; llegada: string; salida: string; minutos: number };
+// `sinSenal`: el rato más largo, en minutos, en que el teléfono no mandó puntos estando ahí.
+export type VisitaGps = { tecnicoId: string; fecha: string; llegada: string; salida: string; minutos: number; sinSenal?: number };
 
 // Punto del recorrido compacto: [segundos desde 1970, lat, lng].
 export type PuntoCompacto = [number, number, number];
@@ -48,6 +49,8 @@ export type Parada = {
   minutos: number;
   lat: number;
   lng: number;
+  // El rato más largo, en minutos, sin puntos del teléfono durante la parada.
+  sinSenal: number;
   // Cliente conocido donde cae la parada (si alguno).
   clienteId: string | null;
   cliente: string | null;
@@ -64,6 +67,11 @@ export function diaEnMexico(instante: Date | number): string {
 
 export function horaEnMexicoCorta(iso: string): string {
   return new Date(iso).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Mexico_City' });
+}
+
+// «· 1 h 12 min sin señal» cuando el hueco es de notar; si no, nada.
+export function textoSinSenal(minutos: number | undefined): string {
+  return minutos && minutos >= MINUTOS_SIN_SENAL ? `${textoDuracion(minutos)} sin señal del teléfono` : '';
 }
 
 export function textoDuracion(minutos: number): string {
@@ -90,6 +98,8 @@ export function errorDeRango(desde: string, hasta: string, maximoDias: number): 
 
 // Paradas de un recorrido: tramos donde el técnico no salió de un círculo
 // de RADIO_PARADA_M durante MINUTOS_PARADA o más. Cada parada es de un solo día.
+// Si el teléfono deja de mandar puntos un rato y al volver sigue en el mismo
+// lugar, es la misma parada: no hay señal de que se haya ido.
 export function detectarParadas(puntos: PuntoCompacto[]): Omit<Parada, 'clienteId' | 'cliente' | 'conRegistro'>[] {
   const paradas: Omit<Parada, 'clienteId' | 'cliente' | 'conRegistro'>[] = [];
   let grupo: PuntoCompacto[] = [];
@@ -99,6 +109,8 @@ export function detectarParadas(puntos: PuntoCompacto[]): Omit<Parada, 'clienteI
       const inicio = grupo[0][0];
       const fin = grupo[grupo.length - 1][0];
       const minutos = Math.round((fin - inicio) / 60);
+      let huecoMayor = 0;
+      for (let i = 1; i < grupo.length; i++) huecoMayor = Math.max(huecoMayor, grupo[i][0] - grupo[i - 1][0]);
       if (minutos >= MINUTOS_PARADA) {
         const lat = grupo.reduce((suma, p) => suma + p[1], 0) / grupo.length;
         const lng = grupo.reduce((suma, p) => suma + p[2], 0) / grupo.length;
@@ -109,6 +121,7 @@ export function detectarParadas(puntos: PuntoCompacto[]): Omit<Parada, 'clienteI
           minutos,
           lat,
           lng,
+          sinSenal: Math.round(huecoMayor / 60),
         });
       }
     }
@@ -121,11 +134,9 @@ export function detectarParadas(puntos: PuntoCompacto[]): Omit<Parada, 'clienteI
       continue;
     }
     const ancla = grupo[0];
-    const anterior = grupo[grupo.length - 1];
     const sigueAhi = distanciaMetros({ lat: ancla[1], lng: ancla[2] }, { lat: punto[1], lng: punto[2] }) <= RADIO_PARADA_M;
     const mismoDia = diaEnMexico(ancla[0] * 1000) === diaEnMexico(punto[0] * 1000);
-    const sinHueco = punto[0] - anterior[0] <= HUECO_MAXIMO_S;
-    if (sigueAhi && mismoDia && sinHueco) {
+    if (sigueAhi && mismoDia) {
       grupo.push(punto);
     } else {
       cerrarGrupo();

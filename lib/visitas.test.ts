@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  detectarParadas, diasDeTecnico, errorDeRango, lugarEn, textoDuracion, visitasACliente,
+  detectarParadas, diasDeTecnico, errorDeRango, lugarEn, textoDuracion, textoSinSenal, visitasACliente,
   type LugarConocido, type PuntoCompacto, type Registro,
 } from './visitas';
 
@@ -24,9 +24,14 @@ describe('buscador de visitas', () => {
     expect(paradas[0].fecha).toBe('2026-11-10');
   });
 
-  it('corta la parada si el teléfono estuvo apagado más de 45 minutos', () => {
+  it('un rato sin señal en el mismo lugar es la misma parada, y se anota el hueco', () => {
+    // 20 min con puntos, 100 min sin puntos, 20 min con puntos: 2 h 20 min en total.
     const puntos = [...quieto(0, 20, 20.7, -103.4), ...quieto(120, 20, 20.7, -103.4)];
-    expect(detectarParadas(puntos)).toHaveLength(2);
+    const paradas = detectarParadas(puntos);
+    expect(paradas).toHaveLength(1);
+    expect(paradas[0]).toMatchObject({ minutos: 140, sinSenal: 100 });
+    expect(textoSinSenal(100)).toBe('1 h 40 min sin señal del teléfono');
+    expect(textoSinSenal(5)).toBe('');
   });
 
   it('reconoce al cliente dentro de su radio', () => {

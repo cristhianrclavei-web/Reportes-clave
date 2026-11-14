@@ -133,7 +133,7 @@ export async function gpsEnLugares(lugares: LugarConocido[], desde: string, hast
   const p_lugares = lugares.map((l) => ({ lat: l.lat, lng: l.lng, radio: l.radio }));
   const { data, error } = await createClient().rpc('visitas_gps', { p_lugares, p_desde: desde, p_hasta: hasta });
   if (error) throw new Error(mensajeError(error, 'consultar el rastreo'));
-  return ((data || []) as any[]).map((v) => ({ tecnicoId: v.tecnico_id, fecha: v.fecha, llegada: v.llegada, salida: v.salida, minutos: v.minutos }));
+  return ((data || []) as any[]).map((v) => ({ tecnicoId: v.tecnico_id, fecha: v.fecha, llegada: v.llegada, salida: v.salida, minutos: v.minutos, sinSenal: v.sin_senal || 0 }));
 }
 
 // Recorrido compacto de un técnico (máximo 31 días).
