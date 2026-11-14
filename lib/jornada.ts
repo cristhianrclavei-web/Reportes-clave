@@ -3,9 +3,10 @@
 // servicio, comida, traslado, compra…) y cuánto quedó sin registrar.
 //
 // Qué manda cuando dos cosas caen a la misma hora:
-//   actividad de bitácora  >  pausa del servicio  >  servicio
+//   actividad de bitácora  >  pausa del servicio  >  servicio  >  traslado del rastreo
 // Así, salir por material a mitad de un servicio descuenta ese rato del
-// servicio, y la comida dentro del servicio no cuenta como trabajo.
+// servicio, y la comida dentro del servicio no cuenta como trabajo. El
+// traslado que detecta el rastreo (GPS) solo llena lo que nadie registró.
 //
 // Puro: recibe milisegundos y el «tope» (ahora, o el fin del día si ya
 // pasó); no lee el reloj.
@@ -17,6 +18,8 @@ export type ClaseTiempo = 'servicio' | 'comida' | 'pausa' | TipoActividad | 'sin
 export type PausaDeServicio = { inicio: number; fin: number | null; tipo: string | null };
 export type ServicioDelDia = { id: string; titulo: string; inicio: number; fin: number | null; pausas: PausaDeServicio[] };
 export type ActividadDelDia = { id: string; titulo: string; tipo: TipoActividad; inicio: number; fin: number | null; dudoso?: boolean };
+// Tramo en que el rastreo del teléfono vio a la persona en movimiento.
+export type TrasladoDelDia = { inicio: number; fin: number };
 
 export type Segmento = {
   clase: ClaseTiempo;
@@ -25,6 +28,8 @@ export type Segmento = {
   // De dónde sale el tramo (para abrirlo); los huecos no tienen.
   origen?: { tipo: 'servicio' | 'actividad'; id: string; titulo: string };
   dudoso?: boolean;
+  // Traslado que puso el rastreo, no la persona.
+  automatico?: boolean;
 };
 
 const MIN = 60000;
@@ -41,9 +46,9 @@ export function claseDePausa(tipo: string | null): ClaseTiempo {
   return 'pausa';
 }
 
-type Pieza = { inicio: number; fin: number; prioridad: number; clase: ClaseTiempo; origen: Segmento['origen']; dudoso?: boolean };
+type Pieza = { inicio: number; fin: number; prioridad: number; clase: ClaseTiempo; origen: Segmento['origen']; dudoso?: boolean; automatico?: boolean };
 
-function piezasDelDia(servicios: ServicioDelDia[], actividades: ActividadDelDia[], tope: number): Pieza[] {
+function piezasDelDia(servicios: ServicioDelDia[], actividades: ActividadDelDia[], traslados: TrasladoDelDia[], tope: number): Pieza[] {
   const piezas: Pieza[] = [];
   const agregar = (p: Pieza) => {
     const fin = Math.min(p.fin, tope);
@@ -64,6 +69,9 @@ function piezasDelDia(servicios: ServicioDelDia[], actividades: ActividadDelDia[
       origen: { tipo: 'actividad', id: a.id, titulo: a.titulo }, dudoso: a.dudoso,
     });
   }
+  for (const t of traslados) {
+    agregar({ inicio: t.inicio, fin: t.fin, prioridad: 0, clase: 'traslado', origen: undefined, automatico: true });
+  }
   return piezas;
 }
 
@@ -83,11 +91,12 @@ function piezaQueManda(piezas: Pieza[], instante: number): Pieza | null {
 export function segmentosDelDia(entrada: {
   servicios: ServicioDelDia[];
   actividades: ActividadDelDia[];
+  traslados?: TrasladoDelDia[];
   // Horario de la jornada ese día; null si no aplica (fin de semana).
   jornada: { inicio: number; fin: number } | null;
   tope: number;
 }): Segmento[] {
-  const piezas = piezasDelDia(entrada.servicios, entrada.actividades, entrada.tope);
+  const piezas = piezasDelDia(entrada.servicios, entrada.actividades, entrada.traslados || [], entrada.tope);
   if (piezas.length === 0) return [];
 
   // Del inicio de la jornada (o lo primero que se registró, si fue antes)
@@ -114,10 +123,10 @@ export function segmentosDelDia(entrada: {
     const fin = orden[i + 1];
     const pieza = piezaQueManda(piezas, inicio);
     const nuevo: Segmento = pieza
-      ? { clase: pieza.clase, inicio, fin, origen: pieza.origen, dudoso: pieza.dudoso }
+      ? { clase: pieza.clase, inicio, fin, origen: pieza.origen, dudoso: pieza.dudoso, ...(pieza.automatico ? { automatico: true } : {}) }
       : { clase: 'sin_registrar', inicio, fin };
     const anterior = segmentos[segmentos.length - 1];
-    const mismoTramo = anterior && anterior.clase === nuevo.clase && anterior.origen?.id === nuevo.origen?.id && anterior.fin === inicio;
+    const mismoTramo = anterior && anterior.clase === nuevo.clase && anterior.origen?.id === nuevo.origen?.id && anterior.automatico === nuevo.automatico && anterior.fin === inicio;
     if (mismoTramo) anterior.fin = fin;
     else segmentos.push(nuevo);
   }

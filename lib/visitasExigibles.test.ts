@@ -45,6 +45,7 @@ describe('errorDeJustificacion', () => {
     expect(errorDeJustificacion('otro', '  ')).toContain('Explica');
     expect(errorDeJustificacion('otro', 'x'.repeat(501))).toContain('muy larga');
     expect(errorDeJustificacion('cliente_cercano', 'Estaba con Farmacia X')).toBeNull();
+    expect(errorDeJustificacion('compra_material', 'Recogí tubería con el proveedor')).toBeNull();
   });
 });
 

@@ -53,7 +53,7 @@ create table if not exists public.visitas_detectadas (
   sin_senal integer not null default 0,
   calculado_en timestamptz not null default now(),
   -- Justificación de por qué no hay reporte (null = nadie la ha justificado).
-  justificacion_motivo text check (justificacion_motivo in ('cliente_cercano', 'sin_trabajo', 'otro')),
+  justificacion_motivo text check (justificacion_motivo in ('cliente_cercano', 'sin_trabajo', 'compra_material', 'otro')),
   justificacion_detalle text,
   justificacion_estado text check (justificacion_estado in ('pendiente', 'aprobada', 'rechazada')),
   justificado_por uuid references public.profiles(id),

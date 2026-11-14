@@ -38,7 +38,7 @@ export type VisitaExigible = {
   cerca_con_registro: string | null;
 };
 
-export type MotivoVisita = 'cliente_cercano' | 'sin_trabajo' | 'otro';
+export type MotivoVisita = 'cliente_cercano' | 'sin_trabajo' | 'compra_material' | 'otro';
 
 export const MOTIVOS_VISITA: { valor: MotivoVisita; label: string; detalle: string; pregunta: string }[] = [
   {
@@ -52,6 +52,12 @@ export const MOTIVOS_VISITA: { valor: MotivoVisita; label: string; detalle: stri
     label: 'No hice trabajo ahí',
     detalle: 'Pasé a dejar o recoger algo, esperé, comí cerca…',
     pregunta: '¿Qué hiciste ahí?',
+  },
+  {
+    valor: 'compra_material',
+    label: 'Recolección o compra de material',
+    detalle: 'Recogí o compré material ahí o a un lado',
+    pregunta: '¿Qué material y dónde?',
   },
   { valor: 'otro', label: 'Otro', detalle: 'Explica el motivo', pregunta: 'Explica el motivo' },
 ];

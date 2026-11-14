@@ -147,6 +147,7 @@ export default function JornadaDia({
   }
   function detalleDe(s: Segmento): string {
     if (s.clase === 'sin_registrar') return 'No hay servicio ni actividad en este tramo';
+    if (s.automatico) return 'Lo detectó el rastreo del teléfono';
     if (s.origen?.tipo === 'servicio' && s.clase !== 'servicio') return `Pausa del servicio «${s.origen.titulo}»`;
     if (s.clase === 'servicio') return 'Trabajo en servicio';
     const partes = [infoClase(s.clase).nombre];

@@ -22,6 +22,23 @@ describe('segmentosDelDia', () => {
     ]);
   });
 
+  it('el traslado del rastreo llena solo lo que nadie registró', () => {
+    const seg = segmentosDelDia({
+      servicios: [{ id: 's', titulo: 'Bodega', inicio: h(9), fin: h(17), pausas: [] }],
+      actividades: [],
+      // De 8:20 a 9:10: los últimos 10 minutos caen dentro del servicio.
+      traslados: [{ inicio: h(8, 20), fin: h(9, 10) }],
+      jornada: JORNADA,
+      tope: h(23),
+    });
+    expect(seg.map((s) => [s.clase, s.inicio / 60000, s.fin / 60000, !!s.automatico])).toEqual([
+      ['sin_registrar', 480, 500, false],
+      ['traslado', 500, 540, true],
+      ['servicio', 540, 1020, false],
+      ['sin_registrar', 1020, 1080, false],
+    ]);
+  });
+
   it('la comida y la salida por material se descuentan del servicio; la actividad de bitácora encima también', () => {
     const seg = segmentosDelDia({
       servicios: [{

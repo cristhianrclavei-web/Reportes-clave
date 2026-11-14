@@ -2,7 +2,7 @@ import { createClient } from './supabaseClient';
 import { fechaLocal, hoyLocal, sumarDias } from './fechaHoy';
 import { tipoActividad } from './tiposActividad';
 import {
-  ActividadDelDia, ServicioDelDia, PausaDeServicio, Segmento, ClaseTiempo, segmentosDelDia, minutosPorClaseTiempo,
+  ActividadDelDia, ServicioDelDia, PausaDeServicio, Segmento, ClaseTiempo, TrasladoDelDia, segmentosDelDia, minutosPorClaseTiempo,
 } from './jornada';
 
 // Trae de la base lo que hace falta para armar la jornada de cada técnico
@@ -21,12 +21,15 @@ export type ActividadJornada = ActividadDelDia & {
   reportId: string | null;
 };
 export type ServicioJornada = ServicioDelDia & { fecha: string; tecnicoIds: string[]; estado: string };
+// Traslado que detectó el rastreo del teléfono (supabase/patch_traslados_gps.sql).
+export type TrasladoJornada = TrasladoDelDia & { tecnicoId: string; fecha: string };
 
 export type DatosJornadas = {
   horario: HorarioJornada;
   festivos: Set<string>;
   servicios: ServicioJornada[];
   actividades: ActividadJornada[];
+  traslados: TrasladoJornada[];
 };
 
 const ms = (iso: string | null | undefined) => (iso ? new Date(iso).getTime() : null);
@@ -67,7 +70,7 @@ export async function cargarDatosJornadas(desde: string, hasta: string): Promise
   const desdeIso = fechaLocal(sumarDias(desde, -1)).toISOString();
   const hastaIso = fechaLocal(sumarDias(hasta, 2)).toISOString();
 
-  const [ajustes, festivos, servicios, actividades] = await Promise.all([
+  const [ajustes, festivos, servicios, actividades, traslados] = await Promise.all([
     // '*': si la base todavía no tiene las columnas de jornada, no falla.
     supabase.from('ajustes_operacion').select('*').maybeSingle(),
     supabase.from('dias_festivos').select('fecha, tipo').gte('fecha', desde).lte('fecha', hasta),
@@ -82,9 +85,17 @@ export async function cargarDatosJornadas(desde: string, hasta: string): Promise
       .select('*')
       .gte('hora_inicio', desdeIso)
       .lt('hora_inicio', hastaIso),
+    // shortcut: la base entrega hasta 1,000 filas; alcanza para un mes con pocos teléfonos, paginar si crece.
+    supabase.from('traslados_detectados').select('tecnico_id, fecha, inicio, fin').gte('fecha', desde).lte('fecha', hasta),
   ]);
   if (servicios.error) throw servicios.error;
   if (actividades.error) throw actividades.error;
+  // Los traslados del rastreo son un apoyo: si no se pueden leer (o la base
+  // todavía no tiene el parche), la jornada se arma con lo registrado.
+  if (traslados.error) console.error('No se pudieron leer los traslados del rastreo:', traslados.error.message);
+  const listaTraslados: TrasladoJornada[] = ((traslados.data || []) as any[]).map((t) => ({
+    tecnicoId: t.tecnico_id, fecha: t.fecha, inicio: ms(t.inicio)!, fin: ms(t.fin)!,
+  }));
 
   const servicioIds = (servicios.data || []).map((s: any) => s.id as string);
   let eventos: any[] = [];
@@ -133,7 +144,7 @@ export async function cargarDatosJornadas(desde: string, hasta: string): Promise
     ((festivos.data || []) as any[]).filter((f) => f.tipo === 'oficial' || f.tipo === 'empresa').map((f) => f.fecha as string),
   );
 
-  return { horario, festivos: diasFestivos, servicios: listaServicios, actividades: listaActividades };
+  return { horario, festivos: diasFestivos, servicios: listaServicios, actividades: listaActividades, traslados: listaTraslados };
 }
 
 function minutosDeHora(hhmm: string): number {
@@ -171,7 +182,8 @@ export function jornadaDeTecnico(datos: DatosJornadas, tecnicoId: string, fecha:
   const finDelDia = fechaLocal(sumarDias(fecha, 1)).getTime();
   const tope = Math.min(ahora, finDelDia);
   const jornada = horarioDelDia(fecha, datos);
-  const segmentos = segmentosDelDia({ servicios, actividades, jornada, tope });
+  const traslados = datos.traslados.filter((t) => t.tecnicoId === tecnicoId && t.fecha === fecha);
+  const segmentos = segmentosDelDia({ servicios, actividades, traslados, jornada, tope });
   return { fecha, jornada, servicios, actividades, segmentos };
 }
 
