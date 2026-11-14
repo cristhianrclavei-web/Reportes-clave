@@ -1,5 +1,6 @@
 import { tuberiasDe, cablesDe, soporteriaDe, textoTuberia, textoCable, textoSoporteria, cantidadTexto } from './materialesReporte';
 import { tieneTipo } from './tiposServicio';
+import { textoManejadoPor } from './manejadoPor';
 import { fechaDMA } from './etiquetaMantenimiento';
 import { PDFDocument, PDFFont, rgb } from 'pdf-lib';
 import { evidenciasDe } from './evidencias';
@@ -241,7 +242,8 @@ export async function generateReportPdf(report: ReportRow, supabase?: any, opcio
   y = sectionTop - topBoxH - 10;
 
   // ================= VEHÍCULO / PLACAS / MANEJADO POR =================
-  if (data.vehiculo || data.placas || data.manejadoPor) {
+  const manejado = textoManejadoPor(data);
+  if (data.vehiculo || data.placas || manejado) {
     const vH = 30;
     ensureSpace(vH + 8);
     const vTop = y;
@@ -252,7 +254,11 @@ export async function generateReportPdf(report: ReportRow, supabase?: any, opcio
     page.drawText('PLACAS', { x: MARGIN + 150, y: vTop - 12, size: 6.5, font: bold, color: GRAY_TEXT });
     page.drawText(data.placas || '—', { x: MARGIN + 150, y: vTop - 24, size: 8.5, font, color: NAVY });
     page.drawText('MANEJADO POR', { x: MARGIN + contentW / 2 + 8, y: vTop - 12, size: 6.5, font: bold, color: GRAY_TEXT });
-    page.drawText(data.manejadoPor || '—', { x: MARGIN + contentW / 2 + 8, y: vTop - 24, size: 8.5, font, color: NAVY });
+    // Con ida y regreso el texto es más largo: se achica la letra para que quepa en su cuadro.
+    const anchoManejado = contentW / 2 - 16;
+    let tamManejado = 8.5;
+    while (tamManejado > 6 && font.widthOfTextAtSize(manejado || '—', tamManejado) > anchoManejado) tamManejado -= 0.25;
+    page.drawText(manejado || '—', { x: MARGIN + contentW / 2 + 8, y: vTop - 24, size: tamManejado, font, color: NAVY });
     y = vTop - vH - 8;
   }
 

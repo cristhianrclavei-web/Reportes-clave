@@ -9,6 +9,7 @@ import { anexosGuiaDeReporte, resumenCortoGuia } from '@/lib/anexoGuia';
 import { fechaDMA } from '@/lib/etiquetaMantenimiento';
 import type { MetaFoto } from '@/lib/evidencias';
 import { MARCA } from '@/lib/marca';
+import { textoManejadoPor } from '@/lib/manejadoPor';
 import { tuberiasDe, cablesDe, soporteriaDe, textoTuberia, textoCable, textoSoporteria } from '@/lib/materialesReporte';
 import { tieneTipo } from '@/lib/tiposServicio';
 import { ResumenFormatos } from './FormatoMantenimiento';
@@ -202,9 +203,9 @@ export default function ReportPreviewModal({
             </Cuadro>
           </div>
 
-          {(data.vehiculo || data.placas || data.manejadoPor) && (
+          {(data.vehiculo || data.placas || textoManejadoPor(data)) && (
             <div className="grid grid-cols-3 border border-[#8c8c8c] divide-x divide-[#8c8c8c]">
-              {[['Vehículo', data.vehiculo], ['Placas', data.placas], ['Manejado por', data.manejadoPor]].map(([etiqueta, valor]) => (
+              {[['Vehículo', data.vehiculo], ['Placas', data.placas], ['Manejado por', textoManejadoPor(data)]].map(([etiqueta, valor]) => (
                 <div key={etiqueta} className="px-2.5 py-1.5 min-w-0">
                   <p className="text-[9.5px] font-bold uppercase text-[#6b7a80]">{etiqueta}</p>
                   <p className="text-[12.5px] break-words">{valor || '—'}</p>

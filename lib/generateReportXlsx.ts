@@ -1,3 +1,4 @@
+import { textoManejadoPor } from './manejadoPor';
 import { tuberiasDe, cablesDe, soporteriaDe, cantidadTexto } from './materialesReporte';
 import ExcelJS from 'exceljs';
 import { REPORT_TEMPLATE_XLSX_BASE64 } from './reportTemplateBase64';
@@ -89,8 +90,8 @@ export async function generateReportXlsx(report: ReportRow): Promise<Buffer> {
   if (data.vehiculo) {
     setValueShrinkToFit(sheet.getCell('A15'), `VEHICULO: ${data.vehiculo}`, 22, 10, 7);
   }
-  if (data.manejadoPor) {
-    setValueShrinkToFit(sheet.getCell('C15'), `MANEJADO POR: ${data.manejadoPor}`, 24, 10, 7);
+  if (textoManejadoPor(data)) {
+    setValueShrinkToFit(sheet.getCell('C15'), `MANEJADO POR: ${textoManejadoPor(data)}`, 24, 10, 7);
   }
   if (data.placas) {
     setValueShrinkToFit(sheet.getCell('A16'), `Placas: ${data.placas}`, 22, 10, 7);

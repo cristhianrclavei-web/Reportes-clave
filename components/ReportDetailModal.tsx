@@ -23,6 +23,7 @@ import { registrarAccionGlobal } from '@/lib/auditoriaGlobal';
 import { Check, X, CircleX, FileText, FileSpreadsheet, Share2, Trash2, Unlock, LockKeyhole, MessageSquareWarning, Camera, FolderKanban, ClipboardCheck, Tag, ReceiptText, Pencil, EyeOff, SlidersHorizontal, Image as ImageIcon } from 'lucide-react';
 import { solicitarCorreccion, habilitarCorreccion, cancelarCorreccion, aplicarCorreccion } from '@/lib/correcciones';
 import { showToast } from '@/components/Toast';
+import { textoManejadoPor } from '@/lib/manejadoPor';
 import { BotonIncluir, ChipEtapa, HojaEvidencia } from '@/components/EvidenciaEditor';
 import { MetaFoto, evidenciasDe, metaLimpia, areasUsadas } from '@/lib/evidencias';
 import FacturacionSection from '@/components/FacturacionSection';
@@ -674,7 +675,7 @@ export default function ReportDetailModal({
             <Detail label="Puesto/Área" value={report.data?.puestoArea} />
             <Detail label="Vehículo" value={report.data?.vehiculo} />
             <Detail label="Placas" value={report.data?.placas} />
-            <Detail label="Manejado por" value={report.data?.manejadoPor} />
+            <Detail label="Manejado por" value={textoManejadoPor(report.data)} />
             <Detail label="Lista de conceptos" value={report.data?.listaConceptos} />
           </div>
         </Section>

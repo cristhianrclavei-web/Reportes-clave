@@ -315,6 +315,9 @@ export default function NuevoReportePage() {
   const [personal, setPersonal] = useState<Persona[]>([]);
   const [vehiculoOtro, setVehiculoOtro] = useState(false);
   const [manejadoPor, setManejadoPor] = useState('');
+  // Solo cuando al regreso manejó otra persona; vacío = la misma de la ida.
+  const [manejadoPorRegreso, setManejadoPorRegreso] = useState('');
+  const [otroAlRegreso, setOtroAlRegreso] = useState(false);
   const [ingACargo, setIngACargo] = useState('');
   const [personalAdicional, setPersonalAdicional] = useState<string[]>(['']);
   const [tipoServicio, setTipoServicio] = useState<string | null>(null);
@@ -452,7 +455,7 @@ export default function NuevoReportePage() {
   const camposBorrador = {
     empresaCliente, clienteId, contactosCliente, servicioSeleccionadoId, personalAsignado, fecha, ordCompra,
     horaLlegada, horaSalida, listaConceptos, contactoUsuario, puestoArea, vehiculo, placas, vehiculoOtro,
-    manejadoPor, ingACargo, personalAdicional, tipoServicio, subTipo, tipoServicioOtroTexto, seguridad,
+    manejadoPor, manejadoPorRegreso, ingACargo, personalAdicional, tipoServicio, subTipo, tipoServicioOtroTexto, seguridad,
     seguridadOtraTexto, tuberias, cables, soporteria, observaciones, actividades, showCaso, casoPuntos, equipos,
     firmaIngNombre, firmaClienteNombre, servicioConcluido, paso, usaFormato, formatos, fotosServicio,
     firmaIngData, firmaClienteData, fallasTierra, guiasConexion,
@@ -471,6 +474,7 @@ export default function NuevoReportePage() {
     set(setFecha, c.fecha); set(setOrdCompra, c.ordCompra); set(setHoraLlegada, c.horaLlegada); set(setHoraSalida, c.horaSalida);
     set(setListaConceptos, c.listaConceptos); set(setContactoUsuario, c.contactoUsuario); set(setPuestoArea, c.puestoArea);
     set(setVehiculo, c.vehiculo); set(setPlacas, c.placas); set(setVehiculoOtro, c.vehiculoOtro); set(setManejadoPor, c.manejadoPor);
+    set(setManejadoPorRegreso, c.manejadoPorRegreso); if (c.manejadoPorRegreso) setOtroAlRegreso(true);
     set(setIngACargo, c.ingACargo); set(setPersonalAdicional, c.personalAdicional); set(setTipoServicio, c.tipoServicio);
     set(setSubTipo, c.subTipo); set(setTipoServicioOtroTexto, c.tipoServicioOtroTexto); set(setSeguridad, c.seguridad);
     set(setSeguridadOtraTexto, c.seguridadOtraTexto);
@@ -570,7 +574,7 @@ export default function NuevoReportePage() {
       servicioSeleccionadoId: d.servicioProgramadoId || null,
       fecha: r.fecha, ordCompra: d.ordCompra || '', horaLlegada: d.horaLlegada || '', horaSalida: d.horaSalida || '',
       listaConceptos: d.listaConceptos || '', contactoUsuario: d.contactoUsuario || '', puestoArea: d.puestoArea || '',
-      vehiculo: d.vehiculo || '', placas: d.placas || '', manejadoPor: d.manejadoPor || '',
+      vehiculo: d.vehiculo || '', placas: d.placas || '', manejadoPor: d.manejadoPor || '', manejadoPorRegreso: d.manejadoPorRegreso || '',
       ingACargo: d.ingACargo || '', personalAdicional: adicional.length ? adicional : [''],
       tipoServicio: r.tipo_servicio, subTipo: r.sub_tipo_servicio, tipoServicioOtroTexto: d.tipoServicioOtroTexto || '',
       seguridad: Array.isArray(d.sistemaSeguridad) ? d.sistemaSeguridad : [], seguridadOtraTexto: d.seguridadOtraTexto || '',
@@ -1023,6 +1027,8 @@ export default function NuevoReportePage() {
       ingACargo, personal: personalList,
       ordCompra, horaLlegada, horaSalida, listaConceptos, contactoUsuario, puestoArea,
       vehiculo, placas, manejadoPor,
+      // Solo se guarda si de verdad fue otra persona.
+      ...(otroAlRegreso && manejadoPorRegreso.trim() && manejadoPorRegreso.trim() !== manejadoPor.trim() ? { manejadoPorRegreso: manejadoPorRegreso.trim() } : {}),
       tipoServicioOtroTexto: tieneTipo(tipoServicio, 'Otro') ? tipoServicioOtroTexto : '',
       sistemaSeguridad: seguridad, seguridadOtraTexto: seguridad.includes('Otra') ? seguridadOtraTexto : '',
       observaciones,
@@ -1836,7 +1842,7 @@ export default function NuevoReportePage() {
           </div>
 
           <div className="mb-3">
-            <label className={labelCls}>Manejado por</label>
+            <label className={labelCls}>{otroAlRegreso ? 'Manejado por (ida)' : 'Manejado por'}</label>
             <AutocompletarPersona
               value={manejadoPor}
               onChange={setManejadoPor}
@@ -1844,6 +1850,28 @@ export default function NuevoReportePage() {
               className={inputCls}
               placeholder="Escribe las primeras letras"
             />
+            {/* Casi siempre maneja la misma persona: el segundo campo solo aparece si se pide. */}
+            {!otroAlRegreso ? (
+              <button type="button" onClick={() => setOtroAlRegreso(true)} className="mt-1.5 text-[13px] font-semibold text-teal active:scale-95 transition-transform">
+                + Al regreso manejó otra persona
+              </button>
+            ) : (
+              <div className="mt-2.5">
+                <div className="flex items-center justify-between">
+                  <label className={labelCls}>Manejado por (regreso)</label>
+                  <button type="button" onClick={() => { setOtroAlRegreso(false); setManejadoPorRegreso(''); }} className="text-[12.5px] font-semibold text-muted mb-1.5">
+                    Quitar
+                  </button>
+                </div>
+                <AutocompletarPersona
+                  value={manejadoPorRegreso}
+                  onChange={setManejadoPorRegreso}
+                  grupos={gruposPersonal}
+                  className={inputCls}
+                  placeholder="Escribe las primeras letras"
+                />
+              </div>
+            )}
           </div>
           <div className="mb-3"><label className={labelCls}>Lista de conceptos</label><input type="text" className={inputCls} value={listaConceptos} onChange={(e) => setListaConceptos(e.target.value)} /></div>
         </div>
