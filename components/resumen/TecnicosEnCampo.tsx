@@ -10,6 +10,7 @@ import { AvatarTecnico } from '@/components/AvatarTecnico';
 import SelectorDiaMapa from '@/components/servicios/SelectorDiaMapa';
 import { fechaLocal } from '@/lib/fechaHoy';
 import BotonMotorMapa from '@/components/servicios/BotonMotorMapa';
+import BuscadorVisitas from '@/components/servicios/BuscadorVisitas';
 import { enlaceGoogleMaps } from '@/components/servicios/motorMapa';
 
 // Primera tarjeta del Resumen: el mapa con dónde está cada técnico ahora.
@@ -25,7 +26,7 @@ const MAPA_COMPLETO = '/dashboard/servicios?sub=mapa';
 export default function TecnicosEnCampo({ enServicios = false }: { enServicios?: boolean }) {
   const {
     contenedorRef, tecnicos, elegidos, colores, recorridos, error, cargando, ahora, enfocar, quitar, encuadrarTodos, motor, hayGoogle, cambiarMotor,
-    fecha, hoy, esHoy, fechaMinima, irADia,
+    fecha, hoy, esHoy, fechaMinima, irADia, verDia,
   } = useMapaTecnicos({ zoomControl: false });
   // El último elegido es el que se abre en Google Maps.
   const ultimoElegido = tecnicos.find((t) => t.tecnico_id === elegidos[elegidos.length - 1]) || null;
@@ -73,8 +74,16 @@ export default function TecnicosEnCampo({ enServicios = false }: { enServicios?:
   // el Resumen; en Servicios → Mapa sí, con el aviso al centro.
   if (error === FALTA_SQL_UBICACION && !enServicios) return null;
 
+  // Desde el buscador de visitas: el mapa va a ese día y técnico, y se sube a la vista.
+  function verVisitaEnMapa(dia: string, tecnicoId: string | null): boolean {
+    const sePudo = verDia(dia, tecnicoId);
+    if (sePudo) document.getElementById('mapa-tecnicos')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return sePudo;
+  }
+
   return (
-    <section aria-label="Técnicos en campo" className={clasesTarjeta}>
+    <>
+    <section id="mapa-tecnicos" aria-label="Técnicos en campo" className={clasesTarjeta}>
       {/* El tamaño va en la caja de afuera: el div del mapa no debe cambiar
           de clase, porque React borraría las que le pone Leaflet.
           z-0: el mapa no debe quedar encima de los menús de la app. */}
@@ -246,6 +255,11 @@ export default function TecnicosEnCampo({ enServicios = false }: { enServicios?:
         </div>
       )}
     </section>
+    {/* Solo en Servicios → Mapa y cuando el rastreo está activado. */}
+    {enServicios && !ampliado && error !== FALTA_SQL_UBICACION && (
+      <BuscadorVisitas fechaMinimaRastreo={fechaMinima} onVerEnMapa={verVisitaEnMapa} />
+    )}
+    </>
   );
 }
 

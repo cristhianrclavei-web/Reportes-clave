@@ -182,6 +182,17 @@ export function useMapaTecnicos({ zoomControl = true }: { zoomControl?: boolean 
   const esHoy = fecha !== null && fecha === hoy;
   // La carga más reciente gana si se cambia de día muy rápido.
   const pedidoRef = useRef(0);
+  // Técnico que hay que elegir en cuanto cargue el día pedido (ver verDia).
+  const pendienteRef = useRef<string | null>(null);
+
+  // Elige al técnico pendiente si aparece en la lista del día.
+  function elegirPendiente(lista: UltimaUbicacion[]) {
+    const id = pendienteRef.current;
+    pendienteRef.current = null;
+    if (!id || !lista.some((t) => t.tecnico_id === id)) return;
+    setColores((c) => ({ ...c, [id]: COLORES_RUTA[0] }));
+    setElegidos([id]);
+  }
 
   function limitesDelDia(dia: string): [string, string] {
     return [fechaLocal(dia).toISOString(), fechaLocal(sumarDias(dia, 1)).toISOString()];
@@ -201,6 +212,7 @@ export function useMapaTecnicos({ zoomControl = true }: { zoomControl?: boolean 
       if (pedido !== pedidoRef.current) return;
       setTecnicos(lista);
       setError(null);
+      elegirPendiente(lista);
     } catch (e: any) {
       if (pedido === pedidoRef.current) setError(e.message);
     } finally {
@@ -394,8 +406,19 @@ export function useMapaTecnicos({ zoomControl = true }: { zoomControl?: boolean 
     setFecha(dia);
   }
 
+  // Desde el buscador de visitas: va a ese día y muestra el recorrido de ese
+  // técnico. Devuelve false si el día ya no tiene rastreo guardado.
+  function verDia(dia: string, tecnicoId: string | null): boolean {
+    if (!hoy || !fechaMinima || dia > hoy || dia < fechaMinima) return false;
+    setElegidos([]);
+    pendienteRef.current = tecnicoId;
+    if (dia === fecha) elegirPendiente(tecnicos);
+    else setFecha(dia);
+    return true;
+  }
+
   return {
     contenedorRef, tecnicos, elegidos, colores, recorridos, error, cargando, ahora, enfocar, quitar, encuadrarTodos, motor, hayGoogle, cambiarMotor,
-    fecha, hoy, esHoy, fechaMinima, irADia,
+    fecha, hoy, esHoy, fechaMinima, irADia, verDia,
   };
 }

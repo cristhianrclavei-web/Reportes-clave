@@ -3,6 +3,7 @@
 import { avisar, confirmar } from '@/lib/dialogos';
 import TableroKanban, { ColumnaKanban, InterruptorTablero, useVistaTablero } from '@/components/TableroKanban';
 import ReportesDelCliente from '@/components/ReportesDelCliente';
+import UbicacionCliente from '@/components/clientes/UbicacionCliente';
 import FacturasDelCliente from '@/components/FacturasDelCliente';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -393,6 +394,7 @@ export default function ClienteDetalle({ clienteId, userName }: { clienteId: str
       </div>
 
       {/* Reportes de servicio del cliente */}
+      <UbicacionCliente clienteId={cliente.id} />
       <ReportesDelCliente clienteId={cliente.id} clienteNombre={cliente.nombre} />
       <FacturasDelCliente clienteId={cliente.id} />
 

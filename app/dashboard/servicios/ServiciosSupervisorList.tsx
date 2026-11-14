@@ -1,7 +1,8 @@
 'use client';
 
 import { avisar, confirmar, pedirTexto } from '@/lib/dialogos';
-import CampoUbicacionSitio, { CamposUbicacion, UBICACION_VACIA, ubicacionDeCampos } from '@/components/servicios/CampoUbicacionSitio';
+import CampoUbicacionSitio, { CamposUbicacion, UBICACION_VACIA, camposDeUbicacion, ubicacionDeCampos } from '@/components/servicios/CampoUbicacionSitio';
+import { ubicacionDeCliente } from '@/lib/visitasDatos';
 import SelectorTamanoSitio, { RADIO_SITIO_POR_DEFECTO } from '@/components/servicios/SelectorTamanoSitio';
 import DiasDelProyectoEditor from '@/components/servicios/DiasDelProyectoEditor';
 import { AjusteDia, armarDiasDelProyecto, errorEnDias } from '@/lib/diasProyecto';
@@ -245,6 +246,28 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   // Abrir el formulario completo de agendar (ubicación, tareas, lista de
   // carga, varios días) con datos ya puestos: desde el tablero «Hoy», el «+»
   // de la Semana o un mantenimiento recurrente.
+  // Al elegir un cliente con ubicación en su ficha, se llena sola la del
+  // servicio (si todavía no se ha puesto una).
+  const idClienteElegido = proyectoCliente?.id || null;
+  // Lo que hay escrito ahora en la ubicación, para no pisarlo.
+  const ubicCamposRef = useRef(ubicCampos);
+  ubicCamposRef.current = ubicCampos;
+  useEffect(() => {
+    if (!idClienteElegido) return;
+    let vigente = true;
+    ubicacionDeCliente(idClienteElegido)
+      .then(({ ubicacion }) => {
+        if (!vigente || !ubicacion) return;
+        const yaTiene = ubicCamposRef.current.lat.trim() || ubicCamposRef.current.lng.trim();
+        if (yaTiene) return;
+        setUbicCampos(camposDeUbicacion(ubicacion));
+        showToast('Se puso la ubicación guardada del cliente');
+      })
+      // Sin el patch o sin señal: el servicio se agenda igual, la ubicación se captura a mano.
+      .catch((e) => console.error('Ubicación del cliente', e));
+    return () => { vigente = false; };
+  }, [idClienteElegido]);
+
   const recurrenteRef = useRef<string | null>(null);
   const volverRef = useRef<string | null>(null);
   function abrirAgendar(p: { fecha?: string; tecnicoIds?: string[]; proyecto?: string; clienteId?: string | null; descripcion?: string; hora?: string | null } = {}) {
