@@ -10,7 +10,7 @@ export type FilaCobertura = {
   tecnico_id: string;
   tecnico: string | null;
   fecha: string;
-  estado: 'reporte' | 'justificado' | 'por_autorizar' | 'sin_reporte' | 'no_exigible';
+  estado: 'reporte' | 'levantamiento' | 'justificado' | 'por_autorizar' | 'sin_reporte' | 'no_exigible';
 };
 
 export type ServicioPendiente = {

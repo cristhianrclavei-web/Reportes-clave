@@ -192,13 +192,25 @@ export const MANUAL_TECNICO: SeccionManual[] = [
       },
       {
         titulo: 'Días sin reporte',
-        resumen: 'Cada día hábil debe tener un reporte o una justificación.',
+        resumen: 'Cada día hábil debe tener un reporte, un levantamiento o una justificación.',
         pasos: [
           'Si te falta el de algún día, verás un aviso arriba en «Reportes».',
+          'Un levantamiento que hiciste ese día también cubre el día: si solo fuiste a levantar, no necesitas justificar.',
           'Toca «Hacer reporte» o «Justificar» y elige el motivo (no saliste a servicio, vacaciones, etc.).',
           'Tu justificación le llega a supervisión para que la autorice. Si la rechaza, el día vuelve a pedirte reporte y puedes justificarlo otra vez.',
           'Si un servicio de un día anterior quedó abierto, cada mañana te llega un aviso para cerrarlo y hacer su reporte.',
         ],
+      },
+      {
+        titulo: 'Visitas sin reporte',
+        resumen: 'Si llevas el teléfono de la empresa, cada cliente que visitas pide su reporte.',
+        pasos: [
+          'Cuando el rastreo del teléfono te ubica 20 minutos o más con un cliente, esa visita necesita un reporte o un levantamiento de ese cliente ese día, aunque ya hayas hecho otro reporte.',
+          'Si falta, verás el aviso «Faltan reportes de visitas» arriba en «Reportes», con el cliente, el día y el horario que vio el rastreo. También te llega el recordatorio de las 6 de la tarde y de las 9 de la mañana.',
+          'Toca «Reporte»: se abre el reporte con la fecha y el cliente ya puestos, y el horario se llena solo con lo del rastreo.',
+          'Si no hiciste trabajo ahí, toca «Justificar» y elige el motivo: estabas con otro cliente cercano (mismo edificio o plaza), no hiciste trabajo ahí, u otro. Escribe qué pasó. Tu supervisor la autoriza; si la rechaza, la visita vuelve a pedir reporte.',
+        ],
+        nota: 'En el reporte, al elegir el cliente y la fecha, la app te dice a qué hora llegaste y te fuiste según el rastreo y llena las horas si están vacías. Revísalas: si no son correctas, cámbialas.',
       },
     ],
   },
@@ -430,11 +442,12 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
         resumen: 'Quién entregó su reporte y quién no.',
         pasos: [
           '«Control» muestra por persona los días pendientes y qué tan puntual entrega.',
-          '«Cobertura» es el calendario: cada día hábil debe tener reporte o justificación.',
+          '«Cobertura» es el calendario: cada día hábil debe tener reporte, levantamiento (cuadro con «L») o justificación.',
+          'Visitas del rastreo: si el teléfono de la empresa ubica a alguien 20 minutos o más con un cliente (el cliente debe tener ubicación en su ficha o en alguno de sus servicios), esa visita pide su propio reporte o levantamiento, aunque el día ya tenga otro. Arriba del calendario sale la lista «Visitas que detectó el rastreo» y el día lleva un punto rojo (sin reporte) o ámbar (por autorizar). Toca el día: ves cada visita con su horario; «Autorizar» o «Rechazar» lo que justificó el técnico, «No requiere reporte» para liberarla tú, o «Recordarle». Si un cliente vecino sí tiene reporte ese día, se indica. La oficina y el almacén («Lugares propios» en Servicios → Mapa) no cuentan como visita.',
           'Puedes justificar un día por alguien y marcar días festivos.',
           'Lo que justifica el técnico, o un día que solo tiene bitácora, sale «Por autorizar» (cuadro punteado con «?»). Tócalo para ver el motivo y quién lo registró, y usa «Autorizar» o «Rechazar». Si lo rechazas, el día vuelve a pedir reporte. Todo queda en Eventos.',
         ],
-        nota: 'La app le recuerda al técnico a las 6 de la tarde y a las 9 de la mañana siguiente si le falta un reporte. Cada mañana te llega un resumen con los servicios de días anteriores que siguen abiertos y los días por autorizar.',
+        nota: 'La app le recuerda al técnico a las 6 de la tarde y a las 9 de la mañana siguiente si le falta un reporte. Cada mañana te llega un resumen con los servicios de días anteriores que siguen abiertos y los días y visitas por autorizar.',
       },
       {
         titulo: 'Firma del cliente a distancia',

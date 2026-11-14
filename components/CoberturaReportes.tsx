@@ -2,24 +2,31 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight, Check, X, Minus, BellRing, FileText, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, X, Minus, BellRing, FileText, MapPin, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { createClient } from '@/lib/supabaseClient';
 import { hoyLocal, sumarDias, fechaLocal } from '@/lib/fechaHoy';
 import { INICIO_COBERTURA, HORA_CORTE_MIN, MOTIVOS, fechaCorta } from '@/lib/coberturaReportes';
 import { notificar } from '@/lib/push';
 import { showToast } from '@/components/Toast';
 import { revisarJustificacion, revisarDiaBitacora } from '@/lib/controlReportes';
+import { pedirTexto } from '@/lib/dialogos';
+import { TEXTO_CUBRE, etiquetaMotivoVisita, textoHorario, visitasPendientes, type VisitaExigible } from '@/lib/visitasExigibles';
+import { cargarVisitas, faltaElParche, justificarVisita, revisarVisita } from '@/lib/visitasExigiblesDatos';
 
 // Cobertura de reportes para el supervisor: por técnico y por día de la
 // semana, si hubo reporte, justificación, si falta o si no se exige. La
 // regla vive en SQL (cobertura_dias, mismas reglas que dias_sin_reporte, la
 // que usan los avisos de las 18:00 y 9:00).
+//
+// Además del día, se muestran las VISITAS que detectó el rastreo del teléfono
+// (20 min o más con un cliente): cada una pide su reporte o levantamiento
+// aunque el día ya tenga otro reporte (lib/visitasExigibles.ts).
 
 type Fila = {
   tecnico_id: string;
   tecnico: string | null;
   fecha: string;
-  estado: 'reporte' | 'justificado' | 'por_autorizar' | 'sin_reporte' | 'no_exigible';
+  estado: 'reporte' | 'levantamiento' | 'justificado' | 'por_autorizar' | 'sin_reporte' | 'no_exigible';
   festivo: string | null;
   motivo: string | null;
   detalle: string | null;
@@ -32,6 +39,8 @@ type Fila = {
   reviso: string | null;
   revisado_en: string | null;
   servicios: string[];
+  // Levantamientos que hizo la persona ese día (patch_visitas_exigibles.sql).
+  levantamientos: string[];
 };
 
 // Lo que se pinta: el estado de la base, salvo días que todavía no cuentan.
@@ -54,6 +63,7 @@ function etiquetaSemana(lunes: string): string {
 
 const ESTILO: Record<Vista, { cls: string; label: string }> = {
   reporte: { cls: 'bg-teal/15 text-teal border-teal/30', label: 'Con reporte' },
+  levantamiento: { cls: 'bg-teal/15 text-teal border-teal/30', label: 'Con levantamiento' },
   justificado: { cls: 'bg-amber/15 text-amber border-amber/35', label: 'Justificado' },
   por_autorizar: { cls: 'bg-transparent text-amber border-2 border-dashed border-amber/70', label: 'Por autorizar' },
   sin_reporte: { cls: 'bg-red/15 text-red border-red/35', label: 'Sin reporte' },
@@ -65,6 +75,7 @@ const ESTILO: Record<Vista, { cls: string; label: string }> = {
 
 function Icono({ v, festivo }: { v: Vista; festivo?: boolean }) {
   if (v === 'reporte') return <Check size={15} strokeWidth={3} />;
+  if (v === 'levantamiento') return <span className="text-[12px] font-bold">L</span>;
   if (v === 'justificado') return <span className="text-[12px] font-bold">J</span>;
   if (v === 'por_autorizar') return <span className="text-[12px] font-bold">?</span>;
   if (v === 'sin_reporte') return <X size={15} strokeWidth={3} />;
@@ -91,6 +102,9 @@ export default function CoberturaReportes({
   // Se incrementa para volver a cargar la semana (p. ej. tras autorizar).
   const [recarga, setRecarga] = useState(0);
   const [revisando, setRevisando] = useState(false);
+  // Visitas que detectó el rastreo en la semana, y por qué no cargaron (si pasó).
+  const [visitas, setVisitas] = useState<VisitaExigible[]>([]);
+  const [errorVisitas, setErrorVisitas] = useState<string | null>(null);
 
   useEffect(() => {
     const ahora = new Date();
@@ -114,11 +128,32 @@ export default function CoberturaReportes({
         if (cancelado) return;
         if (error) setError('No se pudo cargar la cobertura. Revisa la conexión.');
         // Sin el parche nuevo la base no trae la lista de servicios.
-        setFilas(((data as Fila[]) || []).map((f) => ({ ...f, servicios: f.servicios || [] })));
+        setFilas(((data as Fila[]) || []).map((f) => ({ ...f, servicios: f.servicios || [], levantamientos: f.levantamientos || [] })));
         setCargando(false);
       });
     return () => { cancelado = true; };
   }, [lunes, recarga]);
+
+  useEffect(() => {
+    if (!lunes) return;
+    let cancelado = false;
+    setErrorVisitas(null);
+    cargarVisitas(lunes, sumarDias(lunes, 6))
+      .then((lista) => { if (!cancelado) setVisitas(lista); })
+      .catch((e: any) => {
+        if (cancelado) return;
+        setVisitas([]);
+        // Sin el parche en la base simplemente no hay visitas que mostrar.
+        if (!faltaElParche(e)) setErrorVisitas(e?.message || 'No se pudieron cargar las visitas del rastreo.');
+      });
+    return () => { cancelado = true; };
+  }, [lunes, recarga]);
+
+  // Visitas de una persona en un día.
+  const visitasDe = (tecnicoId: string, fecha: string) => visitas.filter((x) => x.tecnico_id === tecnicoId && x.fecha === fecha);
+  // Las que ya se cobran: sin reporte, de días pasados o de hoy después de las 18:00.
+  const visitasSinReporte = useMemo(() => visitasPendientes(visitas, hoy, minutos), [visitas, hoy, minutos]);
+  const visitasPorAutorizar = useMemo(() => visitas.filter((x) => x.estado === 'por_autorizar'), [visitas]);
 
   function vista(f: Fila): Vista {
     if (f.fecha < INICIO_COBERTURA) return 'no_cuenta';
@@ -141,7 +176,8 @@ export default function CoberturaReportes({
     const t = { reporte: 0, justificado: 0, por_autorizar: 0, sin_reporte: 0 };
     for (const f of filas) {
       const v = vista(f);
-      if (v === 'reporte' || v === 'justificado' || v === 'por_autorizar' || v === 'sin_reporte') t[v]++;
+      if (v === 'levantamiento') t.reporte++;
+      else if (v === 'reporte' || v === 'justificado' || v === 'por_autorizar' || v === 'sin_reporte') t[v]++;
     }
     return t;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -184,6 +220,53 @@ export default function CoberturaReportes({
     }
   }
 
+  // Visita justificada por el técnico: autorizar o rechazar.
+  async function revisarLaVisita(visita: VisitaExigible, aprobar: boolean) {
+    setRevisando(true);
+    try {
+      await revisarVisita(visita.id, aprobar);
+      showToast(aprobar ? 'Visita autorizada sin reporte' : 'Justificación rechazada: la visita vuelve a pedir reporte', 'success');
+      setRecarga((n) => n + 1);
+    } catch (e: any) {
+      showToast(e?.message || 'No se pudo guardar. Revisa la conexión.', 'error');
+    } finally {
+      setRevisando(false);
+    }
+  }
+
+  // El supervisor decide que una visita no necesita reporte (queda autorizada y en Eventos).
+  async function liberarVisita(visita: VisitaExigible) {
+    const motivo = await pedirTexto(`¿Por qué la visita a ${visita.cliente} no requiere reporte?`, '', { textoAceptar: 'Guardar' });
+    if (motivo === null) return;
+    if (motivo.trim().length < 3) {
+      showToast('Escribe el motivo (al menos unas palabras).', 'error');
+      return;
+    }
+    setRevisando(true);
+    try {
+      await justificarVisita(visita.id, 'otro', motivo);
+      showToast('La visita quedó sin requerir reporte', 'success');
+      setRecarga((n) => n + 1);
+    } catch (e: any) {
+      showToast(e?.message || 'No se pudo guardar. Revisa la conexión.', 'error');
+    } finally {
+      setRevisando(false);
+    }
+  }
+
+  async function recordarVisita(visita: VisitaExigible) {
+    await notificar({
+      usuarios: [visita.tecnico_id],
+      tipo: 'reporte_pendiente',
+      titulo: `Falta el reporte de ${visita.cliente}`,
+      mensaje: `El rastreo te ubica con ese cliente el ${fechaCorta(visita.fecha)}. Haz el reporte o justifica la visita desde la app.`,
+      url: '/mis-reportes?pendientes=1',
+      tag: `visita-${visita.id}`,
+    });
+    setAvisados((prev) => new Set(prev).add(visita.id));
+    showToast(`Recordatorio enviado a ${visita.tecnico || 'la persona'}`, 'success');
+  }
+
   const fechaHora = (iso: string) => new Date(iso).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
 
   if (!lunes) return null;
@@ -191,7 +274,7 @@ export default function CoberturaReportes({
   return (
     <div className="px-4 lg:px-0 pt-2">
       <p className="text-[13px] text-muted mb-4 leading-relaxed max-w-2xl">
-        Cada persona debe tener cubierto con un reporte o una justificación cada día hábil, y los fines de semana en que tuvo servicio programado. Los festivos no se exigen. Lo que justifica el técnico (o solo su bitácora) queda «Por autorizar» hasta que un supervisor lo revise.
+        Cada persona debe tener cubierto con un reporte, un levantamiento o una justificación cada día hábil, y los fines de semana en que tuvo servicio programado. Los festivos no se exigen. Lo que justifica el técnico (o solo su bitácora) queda «Por autorizar» hasta que un supervisor lo revise. Además, cada visita de 20 minutos o más que detecta el rastreo del teléfono pide su propio reporte: se marca con un punto en el día.
       </p>
 
       {/* Semana */}
@@ -232,6 +315,28 @@ export default function CoberturaReportes({
       </div>
 
       {error && <p className="text-[13px] text-red font-semibold mb-3">{error}</p>}
+      {errorVisitas && <p className="text-[13px] text-red font-semibold mb-3">{errorVisitas}</p>}
+
+      {(visitasSinReporte.length > 0 || visitasPorAutorizar.length > 0) && (
+        <div className="mb-4 rounded-2xl bg-surface border border-line px-3.5 py-3">
+          <p className="text-[13px] font-semibold flex items-center gap-1.5 mb-2">
+            <MapPin size={15} className="text-amber" /> Visitas que detectó el rastreo
+          </p>
+          <ul className="flex flex-col gap-1">
+            {[...visitasSinReporte, ...visitasPorAutorizar].map((x) => (
+              <li key={x.id}>
+                <button type="button" onClick={() => setSel({ tecnico: x.tecnico_id, fecha: x.fecha })}
+                  className="w-full text-left text-[13px] py-1 flex items-baseline justify-between gap-2">
+                  <span className="min-w-0 truncate"><b>{x.tecnico}</b> · {x.cliente} · {fechaCorta(x.fecha)}</span>
+                  <span className={`shrink-0 text-[12px] font-semibold ${x.estado === 'sin_reporte' ? 'text-red' : 'text-amber'}`}>
+                    {x.estado === 'sin_reporte' ? 'Sin reporte' : 'Por autorizar'}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className={`rounded-2xl bg-surface border border-line overflow-x-auto transition-opacity ${cargando ? 'opacity-50' : ''}`}>
         <table className="w-full border-collapse min-w-[340px]">
@@ -267,9 +372,15 @@ export default function CoberturaReportes({
                           type="button"
                           onClick={() => setSel(activa ? null : { tecnico: t.id, fecha: d })}
                           title={`${ESTILO[v].label}${f.festivo ? ` · ${f.festivo}` : ''}`}
-                          className={`w-8 h-8 sm:w-9 sm:h-9 mx-auto rounded-lg border flex items-center justify-center transition-transform active:scale-90 ${ESTILO[v].cls} ${activa ? 'ring-2 ring-teal ring-offset-1 ring-offset-surface' : ''}`}
+                          className={`relative w-8 h-8 sm:w-9 sm:h-9 mx-auto rounded-lg border flex items-center justify-center transition-transform active:scale-90 ${ESTILO[v].cls} ${activa ? 'ring-2 ring-teal ring-offset-1 ring-offset-surface' : ''}`}
                         >
                           <Icono v={v} festivo={!!f.festivo} />
+                          {/* Punto: ese día hay una visita del rastreo sin reporte (rojo) o por autorizar (ámbar). */}
+                          {visitasSinReporte.some((x) => x.tecnico_id === t.id && x.fecha === d) ? (
+                            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-red border border-surface" />
+                          ) : visitasPorAutorizar.some((x) => x.tecnico_id === t.id && x.fecha === d) ? (
+                            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber border border-surface" />
+                          ) : null}
                         </button>
                       </td>
                     );
@@ -288,13 +399,15 @@ export default function CoberturaReportes({
       </div>
 
       <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-3 text-[11.5px] text-muted">
-        {(['reporte', 'justificado', 'por_autorizar', 'sin_reporte', 'no_exigible', 'a_tiempo'] as Vista[]).map((v) => (
+        {(['reporte', 'levantamiento', 'justificado', 'por_autorizar', 'sin_reporte', 'no_exigible', 'a_tiempo'] as Vista[]).map((v) => (
           <span key={v} className="flex items-center gap-1.5">
             <span className={`w-4 h-4 rounded border flex items-center justify-center ${ESTILO[v].cls}`} />
             {ESTILO[v].label}
           </span>
         ))}
         <span>F = festivo</span>
+        <span>L = levantamiento</span>
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red" /> Visita del rastreo sin reporte</span>
       </div>
 
       {seleccion && (() => {
@@ -367,6 +480,84 @@ export default function CoberturaReportes({
                     <FileText size={15} /> {nombreReporte(id)}
                   </button>
                 ))}
+              </div>
+            )}
+
+            {seleccion.levantamientos.length > 0 && (
+              <p className="mt-3 text-[13.5px]">
+                {seleccion.levantamientos.length === 1 ? 'Hizo 1 levantamiento este día.' : `Hizo ${seleccion.levantamientos.length} levantamientos este día.`}
+              </p>
+            )}
+
+            {visitasDe(seleccion.tecnico_id, seleccion.fecha).length > 0 && (
+              <div className="mt-4 pt-3 border-t border-line">
+                <p className="text-[12px] uppercase tracking-wider text-muted font-semibold mb-2 flex items-center gap-1.5">
+                  <MapPin size={13} /> Visitas según el rastreo
+                </p>
+                <ul className="flex flex-col gap-3">
+                  {visitasDe(seleccion.tecnico_id, seleccion.fecha).map((x) => {
+                    // Hoy antes de las 18:00 todavía está a tiempo de hacer el reporte.
+                    const aTiempo = x.estado === 'sin_reporte' && !visitasSinReporte.some((p) => p.id === x.id);
+                    return (
+                      <li key={x.id} className="text-[13.5px]">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-semibold leading-snug">{x.cliente}</p>
+                            <p className="text-[12.5px] text-muted">
+                              {textoHorario(x)}{x.sin_senal >= 15 ? ` · incluye ${x.sin_senal} min sin señal del teléfono` : ''}
+                            </p>
+                          </div>
+                          <span className={`shrink-0 text-[12px] font-semibold ${
+                            x.estado === 'cubierta' ? 'text-teal' : x.estado === 'sin_reporte' && !aTiempo ? 'text-red' : 'text-amber'
+                          }`}>
+                            {x.estado === 'cubierta' && x.cubre ? TEXTO_CUBRE[x.cubre] : ''}
+                            {x.estado === 'justificada' ? 'Autorizada sin reporte' : ''}
+                            {x.estado === 'por_autorizar' ? 'Por autorizar' : ''}
+                            {x.estado === 'sin_reporte' ? (aTiempo ? 'Hoy, aún a tiempo' : 'Sin reporte') : ''}
+                          </span>
+                        </div>
+
+                        {x.motivo && x.estado !== 'cubierta' && (
+                          <p className="text-[12.5px] mt-1">
+                            <span className={x.justificacion_estado === 'rechazada' ? 'text-red font-semibold' : 'text-muted'}>
+                              {x.justificacion_estado === 'rechazada' ? 'Justificación rechazada: ' : 'Justificación: '}
+                            </span>
+                            <b>{etiquetaMotivoVisita(x.motivo)}</b>{x.detalle ? ` · «${x.detalle}»` : ''}
+                            {x.justifico ? <span className="text-muted"> — {x.justifico}</span> : null}
+                          </p>
+                        )}
+                        {x.cerca_con_registro && (
+                          <p className="text-[12.5px] text-muted mt-1">Cliente vecino con reporte ese día: {x.cerca_con_registro}.</p>
+                        )}
+
+                        {x.estado === 'por_autorizar' && (
+                          <div className="mt-2 grid grid-cols-2 gap-2">
+                            <button type="button" onClick={() => revisarLaVisita(x, false)} disabled={revisando}
+                              className="min-h-[40px] rounded-xl border border-red/40 text-red text-[13px] font-semibold flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98]">
+                              <ThumbsDown size={15} /> Rechazar
+                            </button>
+                            <button type="button" onClick={() => revisarLaVisita(x, true)} disabled={revisando}
+                              className="min-h-[40px] rounded-xl bg-teal text-inkOnAccent text-[13px] font-semibold flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98]">
+                              <ThumbsUp size={15} /> Autorizar
+                            </button>
+                          </div>
+                        )}
+                        {x.estado === 'sin_reporte' && !aTiempo && (
+                          <div className="mt-2 grid grid-cols-2 gap-2">
+                            <button type="button" onClick={() => liberarVisita(x)} disabled={revisando}
+                              className="min-h-[40px] rounded-xl border border-line bg-surface-2 text-[13px] font-semibold disabled:opacity-50 active:scale-[0.98]">
+                              No requiere reporte
+                            </button>
+                            <button type="button" onClick={() => recordarVisita(x)} disabled={avisados.has(x.id)}
+                              className="min-h-[40px] rounded-xl bg-teal text-inkOnAccent text-[13px] font-semibold flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98]">
+                              <BellRing size={15} /> {avisados.has(x.id) ? 'Enviado' : 'Recordarle'}
+                            </button>
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
               </div>
             )}
 

@@ -7,6 +7,7 @@ import { avisarUsuarios } from '@/lib/cronPush';
 import { sumarDias } from '@/lib/fechaHoy';
 import { INICIO_COBERTURA, agruparPorTecnico, inicioVentana, mensajePendiente, fechaCorta } from '@/lib/coberturaReportes';
 import { MARCA, MARCA_MAYUS } from '@/lib/marca';
+import { mensajeVisitasPendientes, visitasPorTecnico, type VisitaExigible } from '@/lib/visitasExigibles';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +21,10 @@ const UMBRAL_ESCALAMIENTO = 2;
 // Qué cuenta como pendiente lo decide dias_sin_reporte() en SQL: día hábil
 // (o fin de semana con servicio programado), no festivo, sin reporte donde
 // el técnico aparezca y sin justificación.
+//
+// Además del día, cada visita de 20 min o más que detecta el rastreo del
+// teléfono pide su reporte (visitas_por_revisar() en SQL): el día puede tener
+// un reporte y aun así faltar el de otro cliente.
 //
 // 'tarde' (18:00 México): solo hoy.
 // 'manana' (9:00 México): los días anteriores que sigan pendientes; se
@@ -81,6 +86,36 @@ export async function POST(request: NextRequest) {
     const r = await avisarUsuarios(admin, [tecnicoId], 'reporte_pendiente', carga);
     enviadas += r.enviadas;
     caducadas.push(...r.caducadas);
+  }
+
+  // Visitas del rastreo sin reporte. Primero se vuelven a calcular (también
+  // lo hace pg_cron cada 15 min; aquí por si no hay pg_cron) y luego se le
+  // avisa a cada técnico las suyas. Si la base aún no tiene el parche, las
+  // dos llamadas fallan y solo se anota: los demás avisos siguen.
+  let visitasSinReporte = 0;
+  let visitasPorAutorizar = 0;
+  const { error: errDetectar } = await admin.rpc('detectar_visitas_recientes');
+  if (errDetectar) console.error('No se pudieron calcular las visitas del rastreo:', errDetectar.message);
+  const { data: filasVisitas, error: errVisitas } = await admin.rpc('visitas_por_revisar', { p_desde: desde, p_hasta: hasta });
+  if (errVisitas) {
+    console.error('No se pudieron leer las visitas del rastreo:', errVisitas.message);
+  } else {
+    const visitas = (filasVisitas as VisitaExigible[]) || [];
+    const sinReporte = visitas.filter((v) => v.estado === 'sin_reporte');
+    visitasSinReporte = sinReporte.length;
+    visitasPorAutorizar = visitas.filter((v) => v.estado === 'por_autorizar').length;
+    for (const [tecnicoId, suyas] of visitasPorTecnico(sinReporte)) {
+      const mensaje = mensajeVisitasPendientes(momento, suyas);
+      const carga = JSON.stringify({
+        titulo: mensaje.titulo,
+        cuerpo: mensaje.cuerpo,
+        url: '/mis-reportes?pendientes=1',
+        tag: `visitas-pendientes-${momento}`,
+      });
+      const r = await avisarUsuarios(admin, [tecnicoId], 'reporte_pendiente', carga);
+      enviadas += r.enviadas;
+      caducadas.push(...r.caducadas);
+    }
   }
 
   // Escalamiento (solo en la mañana): si un técnico acumula 2 días o más sin
@@ -185,18 +220,20 @@ export async function POST(request: NextRequest) {
     porAutorizar = ((cobertura as any[]) || []).filter((f) => f.estado === 'por_autorizar').length;
 
     const idsPorRevisar = [...listaSolos.map((x) => x.id), ...listaAbiertos.map((x) => x.id), ...listaSinIniciar.map((x) => x.id)];
-    if (serviciosAbiertos > 0 || cierresPorConfirmar > 0 || porAutorizar > 0 || serviciosSinIniciar > 0) {
+    if (serviciosAbiertos > 0 || cierresPorConfirmar > 0 || porAutorizar > 0 || serviciosSinIniciar > 0 || visitasPorAutorizar > 0 || visitasSinReporte > 0) {
       const partes: string[] = [];
       if (serviciosAbiertos > 0) partes.push(`${serviciosAbiertos} servicio(s) de días anteriores sin cerrar`);
       if (serviciosSinIniciar > 0) partes.push(`${serviciosSinIniciar} servicio(s) que no se iniciaron`);
       if (cierresPorConfirmar > 0) partes.push(`${cierresPorConfirmar} servicio(s) cerrados solos con la hora por confirmar`);
       if (porAutorizar > 0) partes.push(`${porAutorizar} día(s) justificados por autorizar`);
+      if (visitasPorAutorizar > 0) partes.push(`${visitasPorAutorizar} visita(s) del rastreo justificadas por autorizar`);
+      if (visitasSinReporte > 0) partes.push(`${visitasSinReporte} visita(s) del rastreo sin reporte`);
       const { data: sup } = await admin.rpc('destinatarios_notificacion_tipo', { p_destino: 'supervisores', p_tipo: 'reportes_atrasados' });
       const supIds = ((sup as any[]) || []).map((r) => (typeof r === 'string' ? r : r.destinatarios_notificacion_tipo));
       const carga = JSON.stringify({
         titulo: 'Pendientes de revisar',
         cuerpo: `${partes.join(' y ')}.`,
-        url: urlPendientes(idsPorRevisar, porAutorizar),
+        url: urlPendientes(idsPorRevisar, porAutorizar + visitasPorAutorizar + visitasSinReporte),
         tag: 'pendientes-supervisor',
       });
       const r = await avisarUsuarios(admin, supIds, 'reportes_atrasados', carga);
@@ -311,7 +348,7 @@ export async function POST(request: NextRequest) {
     await admin.from('push_suscripciones').delete().in('endpoint', caducadas);
   }
 
-  return NextResponse.json({ enviadas, tecnicos: porTecnico.size, escalados, serviciosAbiertos, serviciosSinIniciar, cierresPorConfirmar, porAutorizar, valesVencidos, equiposSinRegistro, horasPorAutorizar, limpiadas: caducadas.length });
+  return NextResponse.json({ enviadas, tecnicos: porTecnico.size, escalados, visitasSinReporte, visitasPorAutorizar, serviciosAbiertos, serviciosSinIniciar, cierresPorConfirmar, porAutorizar, valesVencidos, equiposSinRegistro, horasPorAutorizar, limpiadas: caducadas.length });
 }
 
 // Adónde lleva el resumen del supervisor: al servicio (o a la lista) si hay

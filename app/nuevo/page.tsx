@@ -14,6 +14,9 @@ import { tipoActividad } from '@/lib/tiposActividad';
 import { debeReporte } from '@/lib/visitaSinTrabajo';
 import SelectorOpciones from '@/components/SelectorOpciones';
 import { reducirFoto } from '@/lib/reducirFoto';
+import { horarioSugerido } from '@/lib/visitasExigibles';
+import { horarioGps } from '@/lib/visitasExigiblesDatos';
+import { textoDuracion } from '@/lib/visitas';
 import { fotoEnMemoria, separarEvidenciasIlegibles, avisoEvidenciasIlegibles, esErrorDeLectura, textoDeError } from '@/lib/evidenciaLegible';
 import { ContactoCatalogo, catalogoEnCache, normalizar as normalizarNombre } from '@/lib/clientesCatalogo';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
@@ -879,6 +882,81 @@ export default function NuevoReportePage() {
     const f = new URLSearchParams(window.location.search).get('fecha');
     if (f && /^\d{4}-\d{2}-\d{2}$/.test(f)) setFecha(f);
   }, []);
+
+  // Desde el aviso de «visitas sin reporte» se llega además con el cliente
+  // (?cliente=<id>&nombre=<nombre>). Se espera a saber si había un borrador:
+  // si lo hay, manda el borrador (es otro reporte a medias) y no se le cambia
+  // el cliente por debajo.
+  useEffect(() => {
+    if (!borradorListo || recuperadoEn) return;
+    const parametros = new URLSearchParams(window.location.search);
+    if (parametros.get('editar')) return;
+    const cliente = parametros.get('cliente');
+    const nombre = parametros.get('nombre');
+    const esId = cliente !== null && /^[0-9a-f-]{36}$/i.test(cliente);
+    if (esId && nombre) {
+      setClienteId(cliente);
+      setEmpresaCliente(nombre);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [borradorListo]);
+
+  // Horario según el rastreo del teléfono de la empresa: con cliente y fecha
+  // elegidos se pregunta a qué hora llegó y se fue de ahí, para no escribir
+  // las horas a mano. `sugerido` se calcula al recibirlo (no en el render).
+  const [horarioRastreo, setHorarioRastreo] = useState<{ minutos: number; sugerido: { llegada: string; salida: string } } | null>(null);
+  // Las horas que puso el rastreo (no el usuario): si después se cambia de
+  // cliente o de fecha y siguen intactas, se quitan para no dejar en el
+  // reporte el horario de otra visita.
+  const horasDelRastreoRef = useRef<{ llegada: string; salida: string } | null>(null);
+  useEffect(() => {
+    setHorarioRastreo(null);
+    const puestas = horasDelRastreoRef.current;
+    if (puestas) {
+      if (horaLlegada === puestas.llegada) setHoraLlegada('');
+      if (puestas.salida && horaSalida === puestas.salida) setHoraSalida('');
+      horasDelRastreoRef.current = null;
+    }
+    if (!clienteId || !fecha || editarId || !navigator.onLine) return;
+    let cancelado = false;
+    horarioGps(clienteId, fecha)
+      .then((gps) => {
+        if (cancelado || !gps) return;
+        setHorarioRastreo({ minutos: gps.minutos, sugerido: horarioSugerido(gps, Date.now()) });
+      })
+      .catch((error) => {
+        // Es solo una ayuda para llenar más rápido: si falla (mala señal), las
+        // horas se escriben a mano como siempre y el reporte no se detiene.
+        console.error('[reporte] No se pudo consultar el horario del rastreo:', error?.message);
+      });
+    return () => { cancelado = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clienteId, fecha, editarId]);
+
+  // Si las horas están vacías se llenan solas con lo del rastreo; si ya
+  // tienen algo no se pisan (queda el botón «Usar estas horas»).
+  useEffect(() => {
+    if (!horarioRastreo) return;
+    const puestas = { llegada: '', salida: '' };
+    if (!horaLlegada) {
+      setHoraLlegada(horarioRastreo.sugerido.llegada);
+      puestas.llegada = horarioRastreo.sugerido.llegada;
+    }
+    if (!horaSalida && horarioRastreo.sugerido.salida) {
+      setHoraSalida(horarioRastreo.sugerido.salida);
+      puestas.salida = horarioRastreo.sugerido.salida;
+    }
+    if (puestas.llegada || puestas.salida) horasDelRastreoRef.current = puestas;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [horarioRastreo]);
+
+  function usarHorarioDelRastreo() {
+    if (!horarioRastreo) return;
+    const sugerido = horarioRastreo.sugerido;
+    setHoraLlegada(sugerido.llegada);
+    if (sugerido.salida) setHoraSalida(sugerido.salida);
+    horasDelRastreoRef.current = { llegada: sugerido.llegada, salida: sugerido.salida };
+  }
 
   // Desde la bitácora se llega con ?actividad=<id>: se ponen el cliente, la
   // fecha, las horas, las notas como actividades y las fotos ya tomadas (no
@@ -1806,6 +1884,33 @@ export default function NuevoReportePage() {
               <p className="text-[11px] text-faint mt-1">Si se deja en blanco, se toma la hora actual al guardar.</p>
             </div>
           </div>
+
+          {horarioRastreo && (() => {
+            const sugerido = horarioRastreo.sugerido;
+            const llegadaIgual = horaLlegada === sugerido.llegada;
+            const salidaIgual = !sugerido.salida || horaSalida === sugerido.salida;
+            const yaAplicado = llegadaIgual && salidaIgual;
+            return (
+              <div className="mb-3 px-3.5 py-2.5 rounded-xl bg-teal/10 border border-teal/30">
+                <p className="text-[13px] leading-snug">
+                  Según el rastreo del teléfono, estuviste con este cliente desde las{' '}
+                  <span className="font-mono font-semibold">{sugerido.llegada}</span>
+                  {sugerido.salida ? (
+                    <> hasta las <span className="font-mono font-semibold">{sugerido.salida}</span> ({textoDuracion(horarioRastreo.minutos)}).</>
+                  ) : (
+                    <> y parece que sigues ahí.</>
+                  )}
+                </p>
+                {yaAplicado ? (
+                  <p className="text-[12px] text-muted mt-0.5">El horario se llenó con esas horas. Corrígelo si no es correcto.</p>
+                ) : (
+                  <button type="button" onClick={usarHorarioDelRastreo} className="mt-1 text-[13px] font-semibold text-teal underline">
+                    Usar estas horas
+                  </button>
+                )}
+              </div>
+            );
+          })()}
 
           {/* El reloj que abre el teléfono lo dibuja el sistema con a.m./p.m. y
               no se puede cambiar desde aquí. Esto repite lo capturado en 24 h y
