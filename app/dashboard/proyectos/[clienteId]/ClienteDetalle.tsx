@@ -5,6 +5,7 @@ import TableroKanban, { ColumnaKanban, InterruptorTablero, useVistaTablero } fro
 import ReportesDelCliente from '@/components/ReportesDelCliente';
 import UbicacionCliente from '@/components/clientes/UbicacionCliente';
 import FacturasDelCliente from '@/components/FacturasDelCliente';
+import CotizacionesDelCliente from '@/components/CotizacionesDelCliente';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -396,6 +397,7 @@ export default function ClienteDetalle({ clienteId, userName }: { clienteId: str
       {/* Reportes de servicio del cliente */}
       <UbicacionCliente clienteId={cliente.id} />
       <ReportesDelCliente clienteId={cliente.id} clienteNombre={cliente.nombre} />
+      <CotizacionesDelCliente clienteId={cliente.id} clienteNombre={cliente.nombre} />
       <FacturasDelCliente clienteId={cliente.id} />
 
       {/* Lazos y circuitos de detección, voceo y estrobos (app/lazos) */}
