@@ -66,7 +66,45 @@ export async function lugaresConocidos(): Promise<LugarConocido[]> {
     // El radio del servicio (120 m) es para marcar la llegada; para buscar visitas se usa al menos el del cliente.
     if (esPunto(s.ubicacion_programada)) agregar(s.cliente_id, s.ubicacion_programada, Math.max(s.radio_geocerca_m || 0, RADIO_CLIENTE_M));
   }
+  // Los lugares de la empresa. Si su tabla todavía no existe, el buscador sigue sin ellos.
+  const propios = await listarLugaresPropios().catch((e) => {
+    console.error('Lugares propios', e);
+    return [] as LugarPropio[];
+  });
+  for (const p of propios) {
+    lugares.push({ clienteId: `propio:${p.id}`, cliente: p.nombre, lat: p.lat, lng: p.lng, radio: p.radio_m, propio: true });
+  }
   return lugares;
+}
+
+// ---------- Lugares propios (oficina, almacén) ----------
+
+export type LugarPropio = { id: string; nombre: string; lat: number; lng: number; radio_m: number };
+
+export async function listarLugaresPropios(): Promise<LugarPropio[]> {
+  const { data, error } = await createClient().from('lugares_propios').select('id, nombre, lat, lng, radio_m').order('nombre');
+  if (error) {
+    if (/lugares_propios|does not exist|schema cache/i.test(error.message)) throw new Error('Los lugares propios todavía no están activados: falta correr supabase/patch_lugares_propios.sql en la base.');
+    throw new Error(mensajeError(error, 'cargar los lugares propios'));
+  }
+  return (data || []) as LugarPropio[];
+}
+
+export async function crearLugarPropio(nombre: string, lat: number, lng: number, radio: number): Promise<void> {
+  const limpio = nombre.trim();
+  if (!limpio) throw new Error('Ponle nombre al lugar, por ejemplo «Oficina».');
+  if (limpio.length > 60) throw new Error('El nombre del lugar es muy largo (máximo 60 letras).');
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) throw new Error('La ubicación del lugar no es válida.');
+  const { error } = await createClient().from('lugares_propios').insert({ nombre: limpio, lat, lng, radio_m: radio });
+  if (error) {
+    if (/lugares_propios|does not exist|schema cache/i.test(error.message)) throw new Error('Los lugares propios todavía no están activados: falta correr supabase/patch_lugares_propios.sql en la base.');
+    throw new Error(mensajeError(error, 'guardar el lugar'));
+  }
+}
+
+export async function borrarLugarPropio(id: string): Promise<void> {
+  const { error } = await createClient().from('lugares_propios').delete().eq('id', id);
+  if (error) throw new Error(mensajeError(error, 'quitar el lugar'));
 }
 
 // ---------- Técnicos ----------

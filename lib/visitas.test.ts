@@ -47,6 +47,11 @@ describe('buscador de visitas', () => {
     const [conReporte] = diasDeTecnico(puntos, [reporte], [hotel]);
     expect(conReporte).toMatchObject({ sinRegistro: 0, sinIdentificar: 1 });
     expect(conReporte.paradas[0].conRegistro).toBe(true);
+    // La segunda parada es la oficina: deja de ser «sin identificar» y no pide registro.
+    const oficina: LugarConocido = { clienteId: 'propio:1', cliente: 'Oficina', lat: 20.8, lng: -103.5, radio: 150, propio: true };
+    const [conOficina] = diasDeTecnico(puntos, [reporte], [hotel, oficina]);
+    expect(conOficina).toMatchObject({ sinRegistro: 0, sinIdentificar: 0 });
+    expect(conOficina.paradas[1]).toMatchObject({ cliente: 'Oficina', propio: true });
   });
 
   it('por cliente: avisa de la visita sin registro y del registro sin rastreo', () => {

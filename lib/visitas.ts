@@ -23,7 +23,8 @@ export const DIAS_MAXIMO_CLIENTE = 120;
 // ---------- Tipos ----------
 
 // Un lugar donde se sabe que está un cliente: su ubicación o la de uno de sus servicios.
-export type LugarConocido = { clienteId: string; cliente: string; lat: number; lng: number; radio: number };
+// `propio`: no es de un cliente sino de la empresa (oficina, almacén); ahí `cliente` es su nombre.
+export type LugarConocido = { clienteId: string; cliente: string; lat: number; lng: number; radio: number; propio?: boolean };
 
 // Algo registrado en la app ese día: un servicio agendado o un reporte.
 export type Registro = {
@@ -56,6 +57,8 @@ export type Parada = {
   cliente: string | null;
   // ¿Hay servicio o reporte de ese cliente ese día?
   conRegistro: boolean;
+  // La parada fue en un lugar de la empresa (oficina, almacén): no hay nada que revisar.
+  propio: boolean;
 };
 
 // ---------- Fechas ----------
@@ -100,8 +103,10 @@ export function errorDeRango(desde: string, hasta: string, maximoDias: number): 
 // de RADIO_PARADA_M durante MINUTOS_PARADA o más. Cada parada es de un solo día.
 // Si el teléfono deja de mandar puntos un rato y al volver sigue en el mismo
 // lugar, es la misma parada: no hay señal de que se haya ido.
-export function detectarParadas(puntos: PuntoCompacto[]): Omit<Parada, 'clienteId' | 'cliente' | 'conRegistro'>[] {
-  const paradas: Omit<Parada, 'clienteId' | 'cliente' | 'conRegistro'>[] = [];
+type ParadaSinLugar = Omit<Parada, 'clienteId' | 'cliente' | 'conRegistro' | 'propio'>;
+
+export function detectarParadas(puntos: PuntoCompacto[]): ParadaSinLugar[] {
+  const paradas: ParadaSinLugar[] = [];
   let grupo: PuntoCompacto[] = [];
 
   function cerrarGrupo() {
@@ -183,8 +188,11 @@ export function diasDeTecnico(puntos: PuntoCompacto[], registros: Registro[], lu
   for (const p of detectarParadas(puntos)) {
     const lugar = lugarEn(p.lat, p.lng, lugares);
     const delDia = dia(p.fecha);
+    const propio = Boolean(lugar?.propio);
     const conRegistro = Boolean(lugar && delDia.registros.some((r) => r.clienteId === lugar.clienteId));
-    delDia.paradas.push({ ...p, clienteId: lugar?.clienteId || null, cliente: lugar?.cliente || null, conRegistro });
+    delDia.paradas.push({ ...p, clienteId: lugar?.clienteId || null, cliente: lugar?.cliente || null, conRegistro, propio });
+    // En la oficina o el almacén no se espera servicio ni reporte.
+    if (propio) continue;
     if (!lugar) delDia.sinIdentificar += 1;
     else if (!conRegistro) delDia.sinRegistro += 1;
   }

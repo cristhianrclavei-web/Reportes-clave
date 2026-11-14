@@ -1016,6 +1016,14 @@ export default function NuevoReportePage() {
     setFotosServicio([]);
   }
 
+  // El nombre de la firma del ingeniero sigue al «Ing a cargo» mientras nadie
+  // lo haya cambiado a mano en el paso de firmas (ahí se puede corregir).
+  function cambiarIngACargo(nombre: string) {
+    const firmaSinTocar = !firmaIngNombre.trim() || firmaIngNombre === ingACargo;
+    if (firmaSinTocar) setFirmaIngNombre(nombre);
+    setIngACargo(nombre);
+  }
+
   function buildSharedData() {
     const personalList = [ingACargo.trim(), ...personalAdicional.map((p) => p.trim())].filter(Boolean);
     const tuberiasOut = tuberias.filter((t) => t.tipo || t.medida || t.cantidad || t.articuloId);
@@ -1893,7 +1901,7 @@ export default function NuevoReportePage() {
             <AutocompletarPersona
               id="ing-a-cargo"
               value={ingACargo}
-              onChange={setIngACargo}
+              onChange={cambiarIngACargo}
               grupos={gruposPersonal}
               className={inputCls}
               placeholder="Escribe las primeras letras"

@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { AlertTriangle, CalendarSearch, ExternalLink, FileDown, Loader2, MapPin, Route, Search } from 'lucide-react';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
 import { showToast } from '@/components/Toast';
+import LugaresPropios from '@/components/servicios/LugaresPropios';
+import { pedirTexto } from '@/lib/dialogos';
 import { descargarArchivo } from '@/lib/abrirArchivo';
 import { fechaLocal, hoyLocal, sumarDias } from '@/lib/fechaHoy';
 import { MARCA } from '@/lib/marca';
@@ -13,7 +15,7 @@ import {
   textoDuracion, textoSinSenal, visitasACliente, type DiaDeTecnico, type Registro, type VisitaACliente,
 } from '@/lib/visitas';
 import {
-  gpsEnLugares, lugaresConocidos, puntosDeTecnico, registrosDeCliente, registrosDeTecnico, tecnicosBuscables,
+  crearLugarPropio, gpsEnLugares, lugaresConocidos, puntosDeTecnico, registrosDeCliente, registrosDeTecnico, tecnicosBuscables,
   type TecnicoBuscable,
 } from '@/lib/visitasDatos';
 
@@ -62,6 +64,8 @@ export default function BuscadorVisitas({ fechaMinimaRastreo, onVerEnMapa }: {
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [soloAvisos, setSoloAvisos] = useState(false);
   const [exportando, setExportando] = useState(false);
+  // Sube cada vez que cambian los lugares propios, para recargar su lista.
+  const [versionLugares, setVersionLugares] = useState(0);
 
   // Las fechas se ponen al montar (no se lee el reloj en el render): último mes.
   useEffect(() => {
@@ -123,6 +127,21 @@ export default function BuscadorVisitas({ fechaMinimaRastreo, onVerEnMapa }: {
     if (!sePudo) showToast('Ese día ya no tiene rastreo guardado (se conserva 90 días).', 'error');
   }
 
+  // Desde una parada «sin identificar»: se guarda ese punto como lugar de la
+  // empresa y se repite la búsqueda para que ya salga con su nombre.
+  async function marcarComoPropio(lat: number, lng: number) {
+    const nombre = await pedirTexto('¿Cómo se llama este lugar?\n\nPor ejemplo «Oficina» o «Almacén». Las paradas aquí ya no saldrán como lugar sin identificar.', 'Oficina');
+    if (nombre === null) return;
+    try {
+      await crearLugarPropio(nombre, lat, lng, 150);
+      showToast(`«${nombre.trim()}» guardado como lugar propio`);
+      setVersionLugares((n) => n + 1);
+      buscar();
+    } catch (e: any) {
+      showToast(e?.message || 'No se pudo guardar el lugar. Intenta de nuevo.', 'error');
+    }
+  }
+
   async function exportarPdf() {
     if (!resultado) return;
     setExportando(true);
@@ -167,9 +186,9 @@ export default function BuscadorVisitas({ fechaMinimaRastreo, onVerEnMapa }: {
                 `${horaEnMexicoCorta(p.desde)} - ${horaEnMexicoCorta(p.hasta)} (${textoDuracion(p.minutos)})`,
                 'Parada',
                 p.cliente || `Lugar sin identificar (${p.lat.toFixed(5)}, ${p.lng.toFixed(5)})`,
-                p.cliente ? (p.conRegistro ? '' : 'Sin registro') : 'Revisar',
+                p.propio ? 'Lugar propio' : p.cliente ? (p.conRegistro ? '' : 'Sin registro') : 'Revisar',
               ],
-              aviso: Boolean(p.cliente) && !p.conRegistro,
+              aviso: Boolean(p.cliente) && !p.conRegistro && !p.propio,
             });
           }
         }
@@ -245,11 +264,13 @@ export default function BuscadorVisitas({ fechaMinimaRastreo, onVerEnMapa }: {
         {' '}Los servicios y reportes se buscan en cualquier fecha; el rastreo solo se guarda 90 días{fechaMinimaRastreo ? ` (desde el ${textoDia(fechaMinimaRastreo)})` : ''}.
       </p>
 
+      <LugaresPropios version={versionLugares} onCambio={() => setVersionLugares((n) => n + 1)} />
+
       {resultado && (
         <div className="mt-4 pt-4 border-t border-line">
           {resultado.modo === 'cliente'
             ? <ResultadoCliente resultado={resultado} soloAvisos={soloAvisos} nombreTecnico={nombreTecnico} onVer={verEnMapa} />
-            : <ResultadoTecnico resultado={resultado} soloAvisos={soloAvisos} onVer={(dia) => verEnMapa(dia, resultado.tecnico.id)} />}
+            : <ResultadoTecnico resultado={resultado} soloAvisos={soloAvisos} onVer={(dia) => verEnMapa(dia, resultado.tecnico.id)} onPropio={marcarComoPropio} />}
           <div className="flex flex-wrap gap-2 mt-3">
             <label className="min-h-[44px] px-3 rounded-xl border border-line bg-surface-2 flex items-center gap-2 text-[13.5px] font-semibold">
               <input type="checkbox" className="w-4 h-4 accent-teal" checked={soloAvisos} onChange={(ev) => setSoloAvisos(ev.target.checked)} /> Solo lo que hay que revisar
@@ -331,10 +352,11 @@ function ResultadoCliente({ resultado, soloAvisos, nombreTecnico, onVer }: {
   );
 }
 
-function ResultadoTecnico({ resultado, soloAvisos, onVer }: {
+function ResultadoTecnico({ resultado, soloAvisos, onVer, onPropio }: {
   resultado: Extract<Resultado, { modo: 'tecnico' }>;
   soloAvisos: boolean;
   onVer: (dia: string) => void;
+  onPropio: (lat: number, lng: number) => void;
 }) {
   const dias = soloAvisos ? resultado.dias.filter((d) => d.sinRegistro > 0 || d.sinIdentificar > 0) : resultado.dias;
   const sinRegistro = resultado.dias.reduce((suma, d) => suma + d.sinRegistro, 0);
@@ -386,8 +408,14 @@ function ResultadoTecnico({ resultado, soloAvisos, onVer }: {
                       </a>
                     )}
                   </span>
-                  {p.cliente && !p.conRegistro && <Aviso tipo="sin_registro" />}
+                  {p.propio && <span className="text-[11.5px] font-semibold px-2 py-0.5 rounded-full bg-surface-2 text-muted border border-line">Lugar propio</span>}
+                  {p.cliente && !p.conRegistro && !p.propio && <Aviso tipo="sin_registro" />}
                   {!p.cliente && <Aviso tipo="revisar" />}
+                  {!p.cliente && (
+                    <button type="button" onClick={() => onPropio(p.lat, p.lng)} className="min-h-[32px] px-2.5 rounded-lg border border-line text-[12px] font-semibold text-ink/80 hover:border-teal/50">
+                      Es lugar propio
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
