@@ -14,6 +14,7 @@ import { tipoActividad } from '@/lib/tiposActividad';
 import { debeReporte } from '@/lib/visitaSinTrabajo';
 import SelectorOpciones from '@/components/SelectorOpciones';
 import { reducirFoto } from '@/lib/reducirFoto';
+import { fotoEnMemoria, separarEvidenciasIlegibles, avisoEvidenciasIlegibles, esErrorDeLectura, textoDeError } from '@/lib/evidenciaLegible';
 import { ContactoCatalogo, catalogoEnCache, normalizar as normalizarNombre } from '@/lib/clientesCatalogo';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -824,13 +825,29 @@ export default function NuevoReportePage() {
   const serviciosVinculables = serviciosAsignados.filter((s) => evaluarVentanaServicio(s).permitido);
   const serviciosFueraDeFecha = serviciosAsignados.filter((s) => !evaluarVentanaServicio(s).permitido);
 
-  function handleFotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || []);
-    // La fecha del archivo es la de la toma (o la de ahora, si viene de la cámara).
-    const nuevas = files.map((file) => ({ file, previewUrl: URL.createObjectURL(file), caption: '', ts: new Date(file.lastModified || Date.now()).toISOString() }));
+    const nuevas: { file: File; previewUrl: string; caption: string; ts: string }[] = [];
+    let sinLeer = 0;
+    for (const original of files) {
+      try {
+        // Se copia a la memoria de la app desde ahora: si Android le quita
+        // después el permiso al archivo de la galería, el reporte ya no
+        // depende de él al guardar.
+        const file = await fotoEnMemoria(original);
+        // La fecha del archivo es la de la toma (o la de ahora, si viene de la cámara).
+        const ts = new Date(original.lastModified || Date.now()).toISOString();
+        nuevas.push({ file, previewUrl: URL.createObjectURL(file), caption: '', ts });
+      } catch (error) {
+        console.error('[reporte] No se pudo leer la foto elegida', error);
+        sinLeer++;
+      }
+    }
     setFotos((prev) => [...prev, ...nuevas]);
     if (fotoInputRef.current) fotoInputRef.current.value = '';
     if (fotoGaleriaRef.current) fotoGaleriaRef.current.value = '';
+    if (sinLeer === 1) showToast('Una foto no se pudo leer en este teléfono y no se agregó. Tómala de nuevo o elige otra.', 'error');
+    if (sinLeer > 1) showToast(`${sinLeer} fotos no se pudieron leer en este teléfono y no se agregaron. Tómalas de nuevo o elige otras.`, 'error');
   }
 
   // Video grabado en la app (ya comprimido): entra a la lista con su portada.
@@ -1147,6 +1164,9 @@ export default function NuevoReportePage() {
           fotoData.push(await subirEvidencia(supabase, String(editarId), i, fotos[i], metaLimpia(fotos[i])));
         } catch (eFoto: any) {
           // La corrección no se guarda a medias: se avisa y se puede reintentar.
+          if (esErrorDeLectura(eFoto)) {
+            throw new Error(`el teléfono ya no deja leer la evidencia ${i + 1}. Quítala, vuelve a tomarla y guarda otra vez`);
+          }
           throw new Error(`no se pudo subir la foto ${i + 1} (${eFoto?.message || 'error de red'}). Revisa tu señal e intenta de nuevo`);
         }
       }
@@ -1290,16 +1310,21 @@ export default function NuevoReportePage() {
       return;
     }
 
+    // Si el teléfono ya no deja leer alguna evidencia, se guarda el reporte
+    // con las demás y se avisa cuál faltó, en vez de tumbar todo el guardado.
+    const { legibles: fotosLegibles, numerosIlegibles } = await separarEvidenciasIlegibles(fotos);
+    const avisoIlegibles = avisoEvidenciasIlegibles(numerosIlegibles);
+
     async function saveOffline(): Promise<boolean> {
       try {
         // Usamos el userId que ya guardamos en memoria al abrir la pantalla —
         // nunca llamamos a Supabase aquí, así el guardado sin conexión no
         // depende de ninguna respuesta de red que se pueda quedar esperando.
         if (!userId) throw new Error('No se pudo identificar tu sesión. Vuelve a iniciar sesión con conexión al menos una vez.');
-        avance(35, fotos.length > 0 ? 'Sin conexión · guardando fotos en este dispositivo' : 'Sin conexión · guardando en este dispositivo');
+        avance(35, fotosLegibles.length > 0 ? 'Sin conexión · guardando fotos en este dispositivo' : 'Sin conexión · guardando en este dispositivo');
 
         const fotosForOffline = await Promise.all(
-          fotos.map(async (f) => ({
+          fotosLegibles.map(async (f) => ({
             fileName: f.file.name,
             fileType: f.file.type,
             fileDataUrl: await fileToDataUrl(f.file),
@@ -1333,13 +1358,13 @@ export default function NuevoReportePage() {
 
         avance(100, 'Guardado en este dispositivo');
         await pausaFinal();
-        setMsg('Sin conexión — el reporte se guardó en este dispositivo y se subirá automáticamente en cuanto vuelvas a tener internet.');
+        setMsg(('Sin conexión — el reporte se guardó en este dispositivo y se subirá automáticamente en cuanto vuelvas a tener internet. ' + avisoIlegibles).trim());
         setPendingCount((c) => c + 1);
         showToast('Reporte guardado localmente (sin conexión)', 'success');
         resetAll();
         return true;
       } catch (e: any) {
-        setMsg('No se pudo guardar ni en línea ni localmente: ' + (e?.message || 'error desconocido'));
+        setMsg('No se pudo guardar ni en línea ni localmente: ' + textoDeError(e, 'error desconocido'));
         return false;
       }
     }
@@ -1413,10 +1438,10 @@ export default function NuevoReportePage() {
       const subidas: Record<number, EvidenciaReporte> = {};
       const fallidas: number[] = [];
       let motivoFalla = '';
-      for (let i = 0; i < fotos.length; i++) {
-        avanceFoto(i, fotos.length, 30, 78);
+      for (let i = 0; i < fotosLegibles.length; i++) {
+        avanceFoto(i, fotosLegibles.length, 30, 78);
         try {
-          subidas[i] = await subirEvidencia(supabase, String(reportId), i, fotos[i], metaLimpia(fotos[i]));
+          subidas[i] = await subirEvidencia(supabase, String(reportId), i, fotosLegibles[i], metaLimpia(fotosLegibles[i]));
           fotoData.push(subidas[i]);
         } catch (eFoto: any) {
           console.error('[reporte] No se pudo subir la foto', i + 1, eFoto?.message);
@@ -1427,7 +1452,7 @@ export default function NuevoReportePage() {
       if (fallidas.length > 0) {
         avance(80, 'Guardando en el teléfono las fotos que no subieron');
         const fotosParaDespues = await Promise.all(
-          fotos.map(async (f, i) => {
+          fotosLegibles.map(async (f, i) => {
             // Las que ya subieron no se vuelven a guardar (el sincronizador las salta).
             if (subidas[i]) return { fileName: f.file.name, fileType: f.file.type, fileDataUrl: '', caption: f.caption.trim(), meta: metaLimpia(f) };
             return {
@@ -1518,7 +1543,10 @@ export default function NuevoReportePage() {
       resetAll();
       // Guardado completo: se cierra el formulario y se regresa a la lista.
       // (Sin conexión se queda aquí: la lista necesita red para cargar.)
-      if (fallidas.length > 0) {
+      if (avisoIlegibles) {
+        // En rojo: falta una evidencia y hay que volver a tomarla.
+        showToast(`Reporte guardado. ${avisoIlegibles}`, 'error');
+      } else if (fallidas.length > 0) {
         const cuantas = fallidas.length === 1 ? '1 foto no se pudo subir' : `${fallidas.length} fotos no se pudieron subir`;
         showToast(`Reporte guardado. ${cuantas}: quedaron en este teléfono y se subirán solas al reporte.`, 'success');
       } else {
@@ -1530,7 +1558,7 @@ export default function NuevoReportePage() {
       // el reporte localmente en vez de perder la información capturada.
       const ok = await saveOffline();
       if (!ok) {
-        setMsg('Error al guardar: ' + (e?.message || 'error de conexión'));
+        setMsg('Error al guardar: ' + textoDeError(e, 'error de conexión'));
       }
     } finally {
       setSaving(false);
