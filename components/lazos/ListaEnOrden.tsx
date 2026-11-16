@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import { Simbolo } from '@/components/lazos/DiagramaLazo';
-import { Elemento, Lazo, conteoPorNivel, conteoPorTipo, direccionVisible, hijosDe, idsSinConectar, lineaPrincipal, sinDireccion, tipoDispositivo, tramosSinConectar } from '@/lib/lazos';
+import { Elemento, Lazo, avisosDeCapacidad, faltaFinDeLinea, conteoPorNivel, conteoPorTipo, direccionVisible, hijosDe, idsSinConectar, lineaPrincipal, sinDireccion, tipoDispositivo, tramosSinConectar } from '@/lib/lazos';
 
 // Pestaña «Lista en orden»: arriba el resumen del lazo (cuántos hay y de qué
 // tipo) y abajo los dispositivos en el orden del cable. Lo que cuelga de un
@@ -91,6 +91,12 @@ function ResumenLazo({ lazo, elementos }: { lazo: Lazo; elementos: Elemento[] })
           {faltan.length === 1 ? `${faltan[0].nombre} no tiene dirección.` : `${faltan.length} dispositivos no tienen dirección.`}
         </p>
       )}
+      {[...avisosDeCapacidad(lazo, elementos), ...(faltaFinDeLinea(lazo, elementos) ? ['Falta la resistencia de fin de línea: va al final del circuito (en el diagrama se marca punteada).'] : [])].map((aviso) => (
+        <p key={aviso} className="flex items-start gap-1.5 text-[12.5px] text-amber mt-2.5">
+          <AlertTriangle size={15} strokeWidth={2.4} className="shrink-0 mt-px" />
+          {aviso}
+        </p>
+      ))}
     </section>
   );
 }

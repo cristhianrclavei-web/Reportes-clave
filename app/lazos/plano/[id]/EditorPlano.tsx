@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
-  ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, ChevronLeft, CloudOff, FileDown, Hand, ListChecks, Lock, LockOpen, Network, Search, Map as IconoPlano, Link2, Link2Off, Loader2, Minus, MoreVertical, Plus, RotateCcw, RotateCw, MousePointer2, PenLine, Ruler, Spline, Redo2, Trash2, Undo2, Waypoints, X,
+  ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, ChevronLeft, CloudOff, FileDown, FileUp, Hand, ListChecks, Lock, LockOpen, Network, Search, Map as IconoPlano, Link2, Link2Off, Loader2, Minus, MoreVertical, Plus, RotateCcw, RotateCw, MousePointer2, PenLine, Ruler, Spline, Redo2, Trash2, Undo2, Waypoints, X,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import HojaCaptura from '@/components/lazos/HojaCaptura';
@@ -22,6 +22,7 @@ import { showToast } from '@/components/Toast';
 import { confirmar, pedirTexto } from '@/lib/dialogos';
 import { catalogoEnCache, listarCatalogoClientes, normalizar } from '@/lib/clientesCatalogo';
 import RutaDiagramas from '@/components/lazos/RutaDiagramas';
+import ReimportarDxf from '@/components/lazos/ReimportarDxf';
 import {
   PANEL_EN_PLANO, TIPOS_POR_CIRCUITO, tiposParaElegir, cuantosEnRama, direccionDeTexto, direccionVisible, enOrdenDeRecorrido, esInicioSinConectar, idsSinConectar, tramosSinConectar, hijosDe, lineaPrincipal, lugarDespuesDe, tipoDispositivo,
   type Elemento, type Lugar, type Panel,
@@ -156,6 +157,18 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   const [hoja, setHoja] = useState<HojaPlano | null>(null);
   const [borrando, setBorrando] = useState(false);
   const [exportandoDxf, setExportandoDxf] = useState(false);
+  const [reimportando, setReimportando] = useState(false);
+  // Nombre del cliente para la ruta de arriba (de la copia local o de la base).
+  const [nombreCliente, setNombreCliente] = useState('');
+  const clienteDelPlano = plano?.cliente_id;
+  useEffect(() => {
+    if (!clienteDelPlano) return;
+    const enCache = catalogoEnCache().find((c) => c.id === clienteDelPlano)?.nombre;
+    if (enCache) { setNombreCliente(enCache); return; }
+    listarCatalogoClientes()
+      .then((lista) => setNombreCliente(lista.find((c) => c.id === clienteDelPlano)?.nombre || ''))
+      .catch(() => {});
+  }, [clienteDelPlano]);
   // Avance de obra: el estado de cada equipo, los elegidos para marcar, el
   // filtro y las esquinas del recuadro (null = no se elige por zona).
   const [avance, setAvance] = useState<AvancePlano>({});
@@ -1213,7 +1226,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
           <ChevronLeft size={24} strokeWidth={2.4} />
         </Link>
         <div className="flex-1 min-w-0">
-          <RutaDiagramas pasos={[{ texto: catalogoEnCache().find((c) => c.id === plano.cliente_id)?.nombre || 'Cliente', href: `/lazos?cliente=${plano.cliente_id}` }, { texto: 'Plano' }]} />
+          <RutaDiagramas pasos={[{ texto: nombreCliente || 'Cliente', href: `/lazos?cliente=${plano.cliente_id}` }, { texto: 'Plano' }]} />
           <p className="font-display font-semibold text-[16.5px] truncate">{plano.nombre}</p>
           {sinConexion
             ? <p className="text-[12px] text-amber flex items-center gap-1"><CloudOff size={12} /> Sin señal: copia guardada en este teléfono</p>
@@ -1244,8 +1257,11 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
             <MoreVertical size={20} />
           </button>
           {menu && (
-            <div className="absolute right-0 top-12 w-52 rounded-2xl bg-surface border border-line shadow-xl p-1.5 z-30">
+            <div className="absolute right-0 top-12 w-60 rounded-2xl bg-surface border border-line shadow-xl p-1.5 z-30">
               <button type="button" onClick={() => { setMenu(false); setExportandoDxf(true); }} className="w-full text-left min-h-[44px] px-3 rounded-xl hover:bg-surface-2 flex items-center gap-2 text-[14.5px]"><FileDown size={16} /> Exportar a AutoCAD (DXF)</button>
+              {plano.formato === 'dxf' && (
+                <button type="button" onClick={() => { setMenu(false); setReimportando(true); }} className="w-full text-left min-h-[44px] px-3 rounded-xl hover:bg-surface-2 flex items-center gap-2 text-[14.5px]"><FileUp size={16} /> Volver a subir el DXF</button>
+              )}
               <button type="button" onClick={renombrar} className="w-full text-left min-h-[44px] px-3 rounded-xl hover:bg-surface-2 flex items-center gap-2 text-[14.5px]"><PenLine size={16} /> Cambiar nombre</button>
               {/* En celular no cabe en la barra: aquí. */}
               {esSupervisor && (
@@ -1489,6 +1505,20 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
           </p>
         </aside>
       </div>
+
+      {reimportando && (
+        <ReimportarDxf
+          plano={plano}
+          equipos={estado.sembrado.equipos}
+          onCerrar={() => setReimportando(false)}
+          onAplicar={(equipos, resumen) => {
+            // Entra al historial: se puede deshacer como cualquier cambio.
+            cambiarSembrado({ ...estado.sembrado, equipos });
+            setReimportando(false);
+            showToast(`DXF aplicado: ${resumen}.`);
+          }}
+        />
+      )}
 
       {exportandoDxf && (
         <ExportarDxf

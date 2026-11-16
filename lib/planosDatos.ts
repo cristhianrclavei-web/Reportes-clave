@@ -401,3 +401,54 @@ export async function subirAvance(planoId: string): Promise<ResultadoAvance> {
   }
   return { pendiente: false, avance: leerAvance(data) };
 }
+
+// ---------- Plantilla de importación de DXF ----------
+
+// Qué tipo de equipo es cada bloque del DXF (nombre del bloque → código;
+// '' = no es dispositivo). Se guarda por cliente en la base
+// (patch_lazos_importacion.sql) y, de respaldo, en este equipo.
+const LLAVE_TIPOS_BLOQUE = 'planos:tiposDeBloque';
+
+export function tiposRecordados(): Record<string, string> {
+  return leerCopia<Record<string, string>>(LLAVE_TIPOS_BLOQUE) || {};
+}
+
+function recordarTipos(tipos: Record<string, string>) {
+  guardarCopia(LLAVE_TIPOS_BLOQUE, { ...tiposRecordados(), ...tipos });
+}
+
+// La plantilla del cliente; {} si no tiene o no se pudo leer (no detiene la importación).
+export async function plantillaDxf(clienteId: string): Promise<Record<string, string>> {
+  const { data, error } = await createClient().from('lazo_plantillas_dxf').select('tipos').eq('cliente_id', clienteId).maybeSingle();
+  if (error) {
+    if (!/does not exist|could not find the table|schema cache/i.test(error.message)) console.error('No se pudo leer la plantilla del DXF:', error.message);
+    return {};
+  }
+  return ((data?.tipos as Record<string, string>) || {});
+}
+
+// Junta lo elegido con lo que ya tenía la plantilla del cliente.
+export async function guardarPlantillaDxf(clienteId: string, tipos: Record<string, string>): Promise<void> {
+  recordarTipos(tipos);
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const anteriores = await plantillaDxf(clienteId);
+  const { error } = await supabase.from('lazo_plantillas_dxf').upsert({
+    cliente_id: clienteId,
+    tipos: { ...anteriores, ...tipos },
+    actualizado_por: user?.id ?? null,
+    actualizado_en: new Date().toISOString(),
+  });
+  if (error && !/does not exist|could not find the table|schema cache/i.test(error.message)) {
+    throw new Error(mensajeError(error, 'guardar la plantilla del cliente'));
+  }
+}
+
+// Tipo propuesto para cada bloque: el de la plantilla del cliente, si no lo
+// recordado en este equipo, si no la sugerencia por el nombre.
+export function tiposPropuestos(bloques: { nombre: string; sugerido: string | null }[], plantilla: Record<string, string>): Record<string, string> {
+  const recordados = tiposRecordados();
+  const tipos: Record<string, string> = {};
+  for (const b of bloques) tipos[b.nombre] = plantilla[b.nombre] ?? recordados[b.nombre] ?? b.sugerido ?? '';
+  return tipos;
+}

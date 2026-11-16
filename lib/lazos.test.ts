@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  avisosDeCapacidad, faltaFinDeLinea, tipoDispositivo,
   Cambio, Elemento, armarDiagrama, planDeMovimiento, planDeMovimientoVarios, corteSugerido, describirCambio, cortesRestantes, direccionOcupada, direccionVisible, enOrdenDeRecorrido, lineaPrincipal,
   armarUbicacion, conteoPorNivel, conteoPorTipo, lazosDelMismoPanel, sugerenciaPara, partesDe, valoresUsados, nombreSugerido, siguienteNumeroDeLazo, sinDireccion, normalizarDireccion, ordenEntre, posiciones, siguienteDireccion, zonaConFalla,
 } from './lazos';
@@ -42,7 +43,8 @@ describe('nombres y direcciones', () => {
   });
 
   it('valida y muestra la dirección como el panel', () => {
-    expect(normalizarDireccion('d', '08')).toBe('D8');
+    expect(normalizarDireccion('d', '08')).toBe('D008');
+    expect(normalizarDireccion('M', '12')).toBe('M012');
     expect(normalizarDireccion('M', '160')).toBe('M160');
     expect(normalizarDireccion('X', '1')).toBeNull();
     expect(normalizarDireccion('D', '0')).toBeNull();
@@ -57,6 +59,8 @@ describe('nombres y direcciones', () => {
     const lista = [el('1', 1, { direccion: 'D8' }), el('2', 2, { direccion: 'M3' })];
     expect(direccionOcupada('D8', lista)?.id).toBe('1');
     expect(direccionOcupada('D8', lista, '1')).toBeNull();
+    // Una vieja «D8» y una nueva «D008» son la misma.
+    expect(direccionOcupada('D008', lista)?.id).toBe('1');
     expect(siguienteDireccion('D', lista)).toBe(9);
     expect(siguienteDireccion('M', [])).toBe(1);
   });
@@ -333,5 +337,27 @@ describe('dirección escrita en el plano', () => {
     expect(direccionDeTexto('M-4')).toBe('M004');
     expect(direccionDeTexto('L01D000')).toBeNull();
     expect(direccionDeTexto('Pasillo')).toBeNull();
+  });
+});
+
+describe('capacidad y fin de línea', () => {
+  it('avisa si el SLC pasa de 159 direcciones', () => {
+    const muchos = Array.from({ length: 160 }, (_, i) => ({ direccion: `D${String(i + 1).padStart(3, '0')}` }));
+    const avisos = avisosDeCapacidad({ tipo: 'deteccion' }, muchos);
+    expect(avisos.some((a) => a.includes('160 detectores'))).toBe(true);
+    expect(avisos.some((a) => a.includes('D159'))).toBe(true);
+    expect(avisosDeCapacidad({ tipo: 'deteccion' }, [{ direccion: 'M159' }])).toEqual([]);
+    expect(avisosDeCapacidad({ tipo: 'estrobos' }, muchos)).toEqual([]);
+  });
+
+  it('pide fin de línea solo en notificación y voceo', () => {
+    expect(faltaFinDeLinea({ tipo: 'estrobos' }, [{ tipo: 'ES' }])).toBe(true);
+    expect(faltaFinDeLinea({ tipo: 'estrobos' }, [{ tipo: 'ES' }, { tipo: 'FDL' }])).toBe(false);
+    expect(faltaFinDeLinea({ tipo: 'deteccion' }, [{ tipo: 'SH' }])).toBe(false);
+    expect(faltaFinDeLinea({ tipo: 'voceo' }, [])).toBe(false);
+  });
+
+  it('el aislador no lleva dirección', () => {
+    expect(tipoDispositivo('AIS').conDireccion).toBe(false);
   });
 });

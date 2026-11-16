@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { CornerDownRight, GitBranch, Scissors } from 'lucide-react';
-import { Elemento, Lazo, armarDiagrama, colgantesEnLinea, direccionVisible, hijosDe, tipoDispositivo } from '@/lib/lazos';
+import { Elemento, Lazo, armarDiagrama, colgantesEnLinea, direccionVisible, faltaFinDeLinea, hijosDe, tipoDispositivo } from '@/lib/lazos';
 
 // Diagrama unifilar que se arma solo con el orden capturado, al estilo de
 // sus planos de CAD: el panel arriba a la izquierda, la línea del lazo corre
@@ -268,7 +268,8 @@ export default function DiagramaLazo({
   }
 
   // Una línea (la principal o una rama larga) en renglones.
-  function dibujarLinea(lista: Elemento[]) {
+  // `alFinal`: algo más al final del último renglón (la FDL que falta).
+  function dibujarLinea(lista: Elemento[], alFinal?: React.ReactNode) {
     const renglones: { desde: number; elementos: Elemento[] }[] = [];
     for (let i = 0; i < lista.length; i += porRenglon) renglones.push({ desde: i, elementos: lista.slice(i, i + porRenglon) });
     return renglones.map((renglon, r) => (
@@ -305,11 +306,26 @@ export default function DiagramaLazo({
                 </div>
               );
             })}
+            {alFinal && r === renglones.length - 1 && (
+              <div className="relative flex flex-col items-center shrink-0" style={{ minWidth: ANCHO_COLUMNA }}>
+                <div className="w-0.5 h-3" style={linea} aria-hidden="true" />
+                {alFinal}
+              </div>
+            )}
           </div>
         </div>
       </div>
     ));
   }
+
+  // Un circuito de notificación o voceo termina en su fin de línea: si no se
+  // ha capturado, se dibuja punteada al final para que se vea que falta.
+  const finFaltante = faltaFinDeLinea(lazo, elementos) ? (
+    <span className="flex flex-col items-center text-amber" title="Falta capturar la resistencia de fin de línea">
+      <span className="w-6 h-6 my-1 rounded-full border-[1.6px] border-dashed border-current flex items-center justify-center font-mono text-[8px]">FDL</span>
+      <span className="text-[10.5px] leading-tight text-center">falta</span>
+    </span>
+  ) : null;
 
   const cuantosArrastra = arrastre && mover?.seleccionados.includes(arrastre.id) ? mover.seleccionados.length : 1;
 
@@ -333,7 +349,7 @@ export default function DiagramaLazo({
           <p className="text-[13px] text-muted mt-4">Todavía no hay dispositivos. Captura el primero desde «Lista en orden».</p>
         )}
 
-        {dibujarLinea(acomodo.principal)}
+        {dibujarLinea(acomodo.principal, finFaltante)}
 
         {acomodo.bloques.map((bloque) => {
           const { origen } = bloque;

@@ -126,7 +126,7 @@ describe('revisión del lazo', () => {
   it('avisa direcciones repetidas y lo que no está en ningún plano', () => {
     const conDirecciones = [el('a', 1, { direccion: 'D1' }), el('b', 2, { direccion: 'D1' }), el('c', 3, { direccion: 'D2' })];
     const avisos = revisarLazo({ tipo: 'deteccion', clase: 'B' }, conDirecciones, new Set(['a']), texto);
-    expect(avisos).toEqual(['Dirección repetida: D1.', '2 dispositivos todavía no están en ningún plano.']);
+    expect(avisos).toEqual(['Dirección repetida: D001.', '2 dispositivos todavía no están en ningún plano.']);
   });
 });
 

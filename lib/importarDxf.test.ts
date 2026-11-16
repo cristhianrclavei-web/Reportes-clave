@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { leerDxf } from './leerDxf';
-import { bloquesDelDxf, etapaDeCapa, importarDispositivos, pareceDireccion, pasarAHoja, sinImportados, tipoSugerido } from './importarDxf';
+import { bloquesDelDxf, direccionDeAtributos, etapaDeCapa, importarDispositivos, pareceDireccion, pasarAHoja, sinImportados, tipoSugerido } from './importarDxf';
 
 function dxf(entidades: (string | number)[][]): string {
   const bloque = (nombre: string) => [0, 'BLOCK', 8, '0', 2, nombre, 70, 0, 10, 0, 20, 0, 0, 'CIRCLE', 8, '0', 10, 0, 20, 0, 40, 0.5, 0, 'ENDBLK'];
@@ -88,5 +88,25 @@ describe('pasar dispositivos del DXF a la app', () => {
     let n = 0;
     const { equipos } = importarDispositivos(leido, new Map([['DET-PHOTO', 'SH']]), () => `e${++n}`);
     expect(equipos.map((e) => e.etapa)).toEqual([3, null, 1]);
+  });
+});
+
+describe('atributos del bloque', () => {
+  const atributo = (etiqueta: string, valor: string) => [0, 'ATTRIB', 8, 'SIMB', 10, 0, 20, 0, 40, 0.2, 2, etiqueta, 1, valor];
+
+  it('toma la dirección y el lazo de los atributos, antes que el texto cercano', () => {
+    const leido = leerDxf(dxf([
+      insertar('DET-PHOTO', 10, 10, [66, 1]), atributo('DIRECCION', '17'), atributo('LAZO', '2'), [0, 'SEQEND'],
+      insertar('EMAN', 20, 10, [66, 1]), atributo('ADDR', 'M4'), [0, 'SEQEND'],
+      texto('L01D099', 10.2, 10.2),
+    ]));
+    const r = importarDispositivos(leido, new Map([['DET-PHOTO', 'SH'], ['EMAN', 'EMA']]), () => 'x');
+    expect(r.equipos.map((e) => e.etiqueta)).toEqual(['L02D017', 'M004']);
+    expect(r.conDireccion).toBe(2);
+  });
+
+  it('sin atributo de dirección no inventa nada', () => {
+    const leido = leerDxf(dxf([insertar('DET-PHOTO', 10, 10, [66, 1]), atributo('MODELO', 'FSP-951'), [0, 'SEQEND']]));
+    expect(direccionDeAtributos(leido.entidades[0], 'SH')).toBeNull();
   });
 });

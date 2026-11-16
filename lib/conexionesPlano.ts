@@ -8,6 +8,7 @@
 // que se conecta en el plano aparece en el unifilar y al revés.
 
 import {
+  avisosDeCapacidad, direccionCanonica, faltaFinDeLinea,
   esInicioSinConectar, hijosDe, lineaPrincipal, ordenEntre, tramosSinConectar, lugarAlFinal, lugarAntesDe, lugarColgandoDe, lugarDespuesDe,
   type Elemento, type Lazo, type Lugar,
 } from './lazos';
@@ -234,7 +235,10 @@ export function revisarLazo(
   }
 
   const porDireccion = new Map<string, number>();
-  for (const e of elementos) if (e.direccion) porDireccion.set(e.direccion, (porDireccion.get(e.direccion) || 0) + 1);
+  for (const e of elementos) {
+    const direccion = direccionCanonica(e.direccion);
+    if (direccion) porDireccion.set(direccion, (porDireccion.get(direccion) || 0) + 1);
+  }
   const repetidas = [...porDireccion].filter(([, cuantos]) => cuantos > 1).map(([direccion]) => textoDireccion(direccion));
   if (repetidas.length > 0) avisos.push(`Dirección repetida: ${repetidas.join(', ')}.`);
 
@@ -243,6 +247,9 @@ export function revisarLazo(
 
   const sinPlano = elementos.filter((e) => !enAlgunPlano.has(e.id)).length;
   if (sinPlano > 0) avisos.push(`${sinPlano} ${sinPlano === 1 ? 'dispositivo todavía no está' : 'dispositivos todavía no están'} en ningún plano.`);
+
+  avisos.push(...avisosDeCapacidad(lazo, elementos));
+  if (faltaFinDeLinea(lazo, elementos)) avisos.push('Falta la resistencia de fin de línea al final del circuito.');
 
   return avisos;
 }

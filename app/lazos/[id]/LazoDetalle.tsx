@@ -11,7 +11,7 @@ import PanelLazos from '@/components/lazos/PanelLazos';
 import PlanoDelLazo from '@/components/lazos/PlanoDelLazo';
 import { NuevoLazo } from '@/app/lazos/LazosList';
 import RutaDiagramas from '@/components/lazos/RutaDiagramas';
-import { catalogoEnCache } from '@/lib/clientesCatalogo';
+import { catalogoEnCache, listarCatalogoClientes } from '@/lib/clientesCatalogo';
 import VerFoto from '@/components/lazos/VerFoto';
 import HojaCaptura, { Lugar, lugarAlFinal, lugarAntesDe, lugarColgandoDe, lugarDespuesDe } from '@/components/lazos/HojaCaptura';
 import FichaElemento, { fechaHora } from '@/components/lazos/FichaElemento';
@@ -54,6 +54,17 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
   const [exportando, setExportando] = useState(false);
   // Todos los lazos, para juntar los que salen del mismo panel.
   const [todosLosLazos, setTodosLosLazos] = useState<LazoResumen[]>([]);
+  // Nombre del cliente para la ruta de arriba (de la copia local o de la base).
+  const [nombreCliente, setNombreCliente] = useState('');
+  const clienteDelLazo = datos?.lazo.cliente_id;
+  useEffect(() => {
+    if (!clienteDelLazo) return;
+    const enCache = catalogoEnCache().find((c) => c.id === clienteDelLazo)?.nombre;
+    if (enCache) { setNombreCliente(enCache); return; }
+    listarCatalogoClientes()
+      .then((lista) => setNombreCliente(lista.find((c) => c.id === clienteDelLazo)?.nombre || ''))
+      .catch(() => {});
+  }, [clienteDelLazo]);
   const [paneles, setPaneles] = useState<Panel[]>([]);
   const [verPanel, setVerPanel] = useState(true);
   const [agregandoLazo, setAgregandoLazo] = useState(false);
@@ -427,7 +438,7 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
           </Link>
           <div className="min-w-0 flex-1">
             <RutaDiagramas pasos={[
-              { texto: catalogoEnCache().find((c) => c.id === lazo.cliente_id)?.nombre || 'Cliente', href: `/lazos?cliente=${lazo.cliente_id}` },
+              { texto: nombreCliente || 'Cliente', href: `/lazos?cliente=${lazo.cliente_id}` },
               ...(panelDelLazo ? [{ texto: panelDelLazo.nombre, href: `/lazos/panel/${panelDelLazo.id}` }] : []),
               { texto: `${lazo.numero ? `${etiquetaSalida(lazo)} · ` : ''}${panelDelLazo ? '' : NOMBRE_CIRCUITO[lazo.tipo]}${lazo.clase ? `${panelDelLazo ? '' : ' · '}Clase ${lazo.clase}` : ''}` },
             ]} />

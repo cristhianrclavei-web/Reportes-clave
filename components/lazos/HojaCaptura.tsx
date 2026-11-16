@@ -37,8 +37,9 @@ function pasarAlSiguienteCampo(actual: HTMLInputElement) {
 }
 
 // Campo de texto que completa con lo ya usado: al escribir «habit» aparece
-// en gris «Habitación 30»; Enter (o tocar la sugerencia) la acepta, y si se
-// sigue escribiendo se queda lo escrito.
+// en gris «Habitación 30»; Tab (o tocar la sugerencia) la usa, y si se
+// sigue escribiendo se queda lo escrito. Enter acepta lo escrito y pasa al
+// siguiente campo (sin completar).
 function CampoConSugerencias({ id, etiqueta, valor, onCambiar, sugerencias, placeholder, maximo }: {
   id: string;
   etiqueta: string;
@@ -53,14 +54,15 @@ function CampoConSugerencias({ id, etiqueta, valor, onCambiar, sugerencias, plac
   // El botón del teclado es «Listo» y no cambia mientras se escribe: en
   // Android cambiarlo reinicia el teclado y borra la letra escrita. Con
   // «Siguiente» Android brinca de campo sin avisar, por eso no se usa.
-  // Primer toque: acepta la sugerencia. Sin sugerencia: pasa al siguiente campo.
   function alTeclear(ev: React.KeyboardEvent<HTMLInputElement>) {
-    if (ev.key !== 'Enter') return;
-    ev.preventDefault();
-    if (sugerencia) {
+    // Tab con sugerencia: la usa y se queda en el campo. Sin sugerencia, Tab hace lo normal.
+    if (ev.key === 'Tab' && !ev.shiftKey && sugerencia) {
+      ev.preventDefault();
       onCambiar(sugerencia);
       return;
     }
+    if (ev.key !== 'Enter') return;
+    ev.preventDefault();
     pasarAlSiguienteCampo(ev.currentTarget);
   }
 
@@ -81,7 +83,7 @@ function CampoConSugerencias({ id, etiqueta, valor, onCambiar, sugerencias, plac
       {sugerencia && (
         <button type="button" onClick={() => onCambiar(sugerencia)}
           className="mt-1 min-h-[30px] text-[12.5px] text-teal font-medium">
-          Enter o toca para usar «{sugerencia}»
+          Tab o toca para usar «{sugerencia}»
         </button>
       )}
     </div>

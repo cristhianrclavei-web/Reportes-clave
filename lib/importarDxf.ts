@@ -6,7 +6,7 @@
 // Lógica pura; se prueba en lib/importarDxf.test.ts.
 
 import { primitivasDe, textoLimpio, type DxfLeido } from './leerDxf';
-import { PANEL_EN_PLANO, tipoDispositivo } from './lazos';
+import { PANEL_EN_PLANO, direccionDeTexto, tipoDispositivo } from './lazos';
 import { BLOQUE_DE_TIPO } from './simbolosPlano';
 import { TAMANOS_SIMBOLO, tamanoSimbolo, type EquipoPlano } from './planos';
 import type { TransformacionDxf } from './dibujarDxf';
@@ -142,6 +142,31 @@ function zonasDeEtapa(dxf: DxfLeido): { etapa: number; contorno: [number, number
   return zonas;
 }
 
+// ---------- Atributos del bloque ----------
+
+// Si el bloque trae atributos (ATTRIB) con su dirección y su lazo, la
+// etiqueta sale de ahí: «DIRECCION = 17» + «LAZO = 1» en un detector →
+// «L01D017». Sin atributo de dirección: null (se busca el texto cercano).
+export function direccionDeAtributos(e: Entidad, tipo: string): string | null {
+  const atributos = e.atributos || [];
+  const valorDe = (patron: RegExp) => {
+    const encontrado = atributos.find((a) => patron.test((valor(a, 2) || '').trim()));
+    return encontrado ? textoLimpio(valor(encontrado, 1) || '').trim() : '';
+  };
+  const textoDireccion = valorDe(/^(DIR|DIRECCI[OÓ]N|DIRECC|ADDR|ADDRESS)$/i);
+  if (!textoDireccion) return null;
+  let direccion = direccionDeTexto(textoDireccion);
+  // Solo el número: la letra la da el equipo (detector D, módulo M).
+  if (!direccion && /^\d{1,3}$/.test(textoDireccion) && Number(textoDireccion) > 0) {
+    const letra = tipoDispositivo(tipo).forma === 'detector' ? 'D' : 'M';
+    direccion = letra + textoDireccion.padStart(3, '0');
+  }
+  if (!direccion) return null;
+  const lazoEnTexto = /^L(\d{1,2})/i.exec(textoDireccion);
+  const lazo = lazoEnTexto ? lazoEnTexto[1] : valorDe(/^(LAZO|LOOP|SLC)$/i);
+  return /^\d{1,2}$/.test(lazo) && Number(lazo) > 0 ? `L${lazo.padStart(2, '0')}${direccion}` : direccion;
+}
+
 // ---------- Importar ----------
 
 // `medida`: lo que mide el símbolo en el dibujo, para que en la app salga
@@ -159,7 +184,7 @@ export type Importado = {
 // están, no se importan). Los equipos salen en coordenadas del DIBUJO;
 // `pasarAHoja` los lleva a la hoja cuando ya se sabe cómo queda el fondo.
 export function importarDispositivos(dxf: DxfLeido, tipoPorBloque: Map<string, string>, nuevoId: () => string): Importado {
-  type Disp = { indice: number; tipo: string; X: number; Y: number; giro: number; medida: number; etapa: number | null };
+  type Disp = { indice: number; tipo: string; X: number; Y: number; giro: number; medida: number; etapa: number | null; deAtributo: string | null };
   const zonas = zonasDeEtapa(dxf);
   const dispositivos: Disp[] = [];
   dxf.entidades.forEach((e, indice) => {
@@ -176,7 +201,8 @@ export function importarDispositivos(dxf: DxfLeido, tipoPorBloque: Map<string, s
     const Y = numero(e, 20);
     // La etapa sale de la capa del bloque («DH-ETAPA 2») o de la zona que lo encierra.
     const etapa = etapaDeCapa(valor(e, 8) || '') ?? zonas.find((z) => dentroDe(X, Y, z.contorno))?.etapa ?? null;
-    dispositivos.push({ indice, tipo, X, Y, giro, medida: medidaDe(dxf, e), etapa });
+    const deAtributo = tipoDispositivo(tipo).conDireccion ? direccionDeAtributos(e, tipo) : null;
+    dispositivos.push({ indice, tipo, X, Y, giro, medida: medidaDe(dxf, e), etapa, deAtributo });
   });
 
   const textos: TextoDireccion[] = [];
@@ -192,7 +218,8 @@ export function importarDispositivos(dxf: DxfLeido, tipoPorBloque: Map<string, s
   // más cercanas. Más lejos de 6 alturas de letra ya no es suya.
   const parejas: { d: number; t: number; distancia: number }[] = [];
   dispositivos.forEach((p, d) => {
-    if (!tipoDispositivo(p.tipo).conDireccion) return;
+    // Con la dirección en sus atributos no hace falta buscar el texto cercano.
+    if (!tipoDispositivo(p.tipo).conDireccion || p.deAtributo) return;
     textos.forEach((x, t) => {
       if (!claseCompatible(x.texto, p.tipo)) return;
       const distancia = Math.hypot(x.x - p.X, x.y - p.Y);
@@ -220,13 +247,13 @@ export function importarDispositivos(dxf: DxfLeido, tipoPorBloque: Map<string, s
       tipo: p.tipo,
       x: p.X,
       y: p.Y,
-      etiqueta: t2 === undefined ? null : textos[t2].texto,
+      etiqueta: p.deAtributo ?? (t2 === undefined ? null : textos[t2].texto),
       rotacion: rotacion === 0 || rotacion === 360 ? null : rotacion,
       etapa: p.etapa,
       medida: p.medida,
     };
   });
-  return { equipos, conDireccion: direccionDe.size, usadas };
+  return { equipos, conDireccion: direccionDe.size + dispositivos.filter((p) => p.deAtributo).length, usadas };
 }
 
 // Lado mayor del símbolo ya colocado (con su escala), en unidades del dibujo.

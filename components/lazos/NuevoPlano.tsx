@@ -1,11 +1,11 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { FileUp, Loader2 } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
 import { abrirPdf, miniaturaHoja, renderizarHoja, type PdfAbierto } from '@/lib/leerPlanoPdf';
-import { crearPlano } from '@/lib/planosDatos';
+import { crearPlano, guardarPlantillaDxf, plantillaDxf, tiposPropuestos } from '@/lib/planosDatos';
 import { escalaDesdeProporcion, nombrePlanoSchema, tiposSembrables } from '@/lib/planos';
 import {
   UNIDADES, cajaDe, capaQueEstorba, cuentaPorCapa, decodificarDxf, leerDxf, primitivasDe, unidadProbable, type DxfLeido, type Primitiva,
@@ -21,26 +21,6 @@ type Errores = Partial<Record<'cliente' | 'nombre' | 'archivo' | 'escala', strin
 
 // Un DXF ya leído: lo que se dibuja, sus capas, las unidades y sus bloques.
 type DxfAbierto = { leido: DxfLeido; primitivas: Primitiva[]; capas: { nombre: string; cuantos: number }[]; unidadDetectada: number; bloques: BloqueEncontrado[] };
-
-// Lo que se eligió para cada bloque se recuerda en este equipo para el
-// siguiente plano (nombre del bloque → código, '' = no es dispositivo).
-const LLAVE_TIPOS_BLOQUE = 'planos:tiposDeBloque';
-
-function tiposRecordados(): Record<string, string> {
-  try {
-    return JSON.parse(localStorage.getItem(LLAVE_TIPOS_BLOQUE) || '{}');
-  } catch {
-    return {};
-  }
-}
-
-function recordarTipos(tipos: Record<string, string>) {
-  try {
-    localStorage.setItem(LLAVE_TIPOS_BLOQUE, JSON.stringify({ ...tiposRecordados(), ...tipos }));
-  } catch {
-    // Sin almacenamiento (ventana privada): solo no se recuerda.
-  }
-}
 
 const TIPOS_EQUIPO = tiposSembrables();
 
@@ -136,9 +116,8 @@ export default function NuevoPlano({ clienteInicial, onCerrar, onCreado }: {
       const apagar = new Set(capas.filter((c) => leido.capas.get(c.nombre)?.apagada || capaQueEstorba(c.nombre)).map((c) => c.nombre));
       const detectada = unidadProbable(leido.insunits, caja.maxX - caja.minX);
       const bloques = bloquesDelDxf(leido);
-      const recordados = tiposRecordados();
-      const tipos: Record<string, string> = {};
-      for (const b of bloques) tipos[b.nombre] = recordados[b.nombre] ?? b.sugerido ?? '';
+      // La plantilla del cliente (si ya se eligió) manda sobre lo demás.
+      const tipos = tiposPropuestos(bloques, clienteId ? await plantillaDxf(clienteId) : {});
       setArchivo(nuevo);
       setPdf(null);
       setMiniaturas([]);
@@ -153,6 +132,24 @@ export default function NuevoPlano({ clienteInicial, onCerrar, onCreado }: {
     }
     setLeyendo(false);
   }
+
+  // Si el cliente se elige después de leer el DXF, se aplica su plantilla.
+  const dxfLeido = dxf?.leido;
+  useEffect(() => {
+    if (!clienteId || !dxf) return;
+    let cancelado = false;
+    plantillaDxf(clienteId).then((plantilla) => {
+      if (cancelado || Object.keys(plantilla).length === 0) return;
+      setTipoPorBloque((actuales) => {
+        const nuevos = { ...actuales };
+        for (const b of dxf.bloques) if (b.nombre in plantilla) nuevos[b.nombre] = plantilla[b.nombre];
+        return nuevos;
+      });
+    });
+    return () => { cancelado = true; };
+    // Solo al cambiar de cliente o de archivo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clienteId, dxfLeido]);
 
   function alternarCapa(capa: string) {
     const nuevas = new Set(ocultas);
@@ -254,7 +251,8 @@ export default function NuevoPlano({ clienteInicial, onCerrar, onCreado }: {
         dxf: { ...hoja.transformacion, unidad },
         sembrado: equipos.length > 0 ? { equipos, tuberias: [] } : undefined,
       });
-      recordarTipos(tipoPorBloque);
+      // Para el siguiente plano de este cliente. Si falla, el plano ya quedó.
+      await guardarPlantillaDxf(clienteId, tipoPorBloque).catch((e) => console.error(e.message));
       onCreado(id);
     } catch (err: any) {
       setErrorGeneral(err?.message || 'No se pudo subir el plano. Revisa tu señal e intenta de nuevo.');

@@ -103,7 +103,8 @@ export const TIPOS_POR_CIRCUITO: Record<TipoCircuito, TipoDispositivo[]> = {
     { codigo: 'EMA', nombre: 'Estación manual de alarma', forma: 'cuadro', conDireccion: true },
     { codigo: 'EA', nombre: 'Estación de aborto', forma: 'cuadro', conDireccion: true },
     { codigo: 'EL', nombre: 'Estación de liberación', forma: 'cuadro', conDireccion: true },
-    { codigo: 'AIS', nombre: 'Aislador', forma: 'cuadro', conDireccion: true },
+    // Los aisladores (Fire-Lite ISO-X, Notifier ISO-X) no llevan dirección en el lazo.
+    { codigo: 'AIS', nombre: 'Aislador', forma: 'cuadro', conDireccion: false },
     { codigo: 'CO', nombre: 'Corneta / sirena', forma: 'cuadro', conDireccion: false },
     { codigo: 'AL', nombre: 'Dispositivo supervisado', forma: 'cuadro', conDireccion: false },
     CAJA,
@@ -380,8 +381,9 @@ export function nombreSugerido(codigoLazo: string, tipo: string, elementos: Elem
   return `${prefijo}${mayor + 1}`;
 }
 
-// Deja la dirección como se guarda: D o M y el número sin ceros de más
-// («d 08» → «D8»). Devuelve null si no es válida.
+// Deja la dirección como se guarda: D o M y el número a 3 dígitos, como
+// se escribe en el panel («d 8» → «D008»). Devuelve null si no es válida.
+// Antes se guardaba sin ceros («D8»); patch_lazos_direcciones.sql pasó las viejas.
 export function normalizarDireccion(letra: string, numero: string): string | null {
   const l = letra.trim().toUpperCase();
   const n = numero.trim();
@@ -389,7 +391,13 @@ export function normalizarDireccion(letra: string, numero: string): string | nul
   if (!/^\d{1,3}$/.test(n)) return null;
   const valor = Number(n);
   if (valor < 1) return null;
-  return `${l}${valor}`;
+  return `${l}${String(valor).padStart(3, '0')}`;
+}
+
+// Cualquier dirección guardada («D8», «D008») en su forma de 3 dígitos, para compararla.
+export function direccionCanonica(direccion: string | null | undefined): string | null {
+  if (!direccion) return null;
+  return normalizarDireccion(direccion[0], direccion.slice(1));
 }
 
 // Cómo se muestra: como la nombran ellos, L + número de lazo a dos dígitos,
@@ -417,7 +425,8 @@ export function direccionDeTexto(texto: string): string | null {
 
 // ¿Otro dispositivo del lazo ya tiene esa dirección?
 export function direccionOcupada(direccion: string, elementos: Elemento[], excepto?: string): Elemento | null {
-  return elementos.find((e) => e.direccion === direccion && e.id !== excepto) || null;
+  const buscada = direccionCanonica(direccion);
+  return elementos.find((e) => direccionCanonica(e.direccion) === buscada && e.id !== excepto) || null;
 }
 
 // Siguiente dirección libre de esa letra (para proponerla).
@@ -873,4 +882,33 @@ export function planDeMovimientoVarios(elementos: Elemento[], ids: string[], des
     const antes = original.get(e.id) as Elemento;
     return antes.padre_id !== e.padre_id || antes.orden !== e.orden || Boolean(antes.sin_conectar) !== Boolean(e.sin_conectar);
   });
+}
+
+// ---------- Capacidad y fin de línea ----------
+
+// Direcciones por lazo SLC en los paneles que usan (Fire-Lite ES y Notifier):
+// 159 detectores (D001–D159) y 159 módulos (M001–M159).
+export const DIRECCIONES_POR_SLC = 159;
+
+// Avisos si el lazo pasa de lo que admite el SLC del panel. No bloquean nada.
+export function avisosDeCapacidad(lazo: Pick<Lazo, 'tipo'>, elementos: Pick<Elemento, 'direccion'>[], maximo = DIRECCIONES_POR_SLC): string[] {
+  if (lazo.tipo !== 'deteccion') return [];
+  const avisos: string[] = [];
+  for (const letra of ['D', 'M'] as const) {
+    const numeros = elementos
+      .map((e) => direccionCanonica(e.direccion))
+      .filter((d): d is string => !!d && d[0] === letra)
+      .map((d) => Number(d.slice(1)));
+    const nombre = letra === 'D' ? 'detectores' : 'módulos';
+    if (numeros.length > maximo) avisos.push(`El lazo tiene ${numeros.length} ${nombre}: el SLC admite ${maximo}.`);
+    const fuera = numeros.filter((n) => n > maximo).length;
+    if (fuera > 0) avisos.push(`${fuera} ${fuera === 1 ? 'dirección pasa' : 'direcciones pasan'} de ${letra}${String(maximo).padStart(3, '0')}, la última que admite el SLC.`);
+  }
+  return avisos;
+}
+
+// Un circuito de notificación o voceo termina en su resistencia de fin de
+// línea. Los lazos SLC direccionables no llevan.
+export function faltaFinDeLinea(lazo: Pick<Lazo, 'tipo'>, elementos: Pick<Elemento, 'tipo'>[]): boolean {
+  return lazo.tipo !== 'deteccion' && elementos.length > 0 && !elementos.some((e) => e.tipo === 'FDL');
 }
