@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, ChevronLeft, CloudOff, FileDown, FileUp, Hand, ListChecks, Lock, LockOpen, Network, Search, Map as IconoPlano, Link2, Link2Off, Loader2, Minus, MoreVertical, Plus, RotateCcw, RotateCw, MousePointer2, PenLine, Ruler, Spline, Redo2, Trash2, Undo2, Waypoints, X,
 } from 'lucide-react';
@@ -35,7 +36,7 @@ import { colorDeLazo, conectarTramo, conexionesEnPlano, lugarParaConectar, lugar
 import {
   DIAMETROS, TIPOS_TUBERIA, cantidadesDeEquipos, cantidadesDeTuberia, colorTuberia, distancia,
   escalaDesdeMedida, escalaDesdeProporcion, formatoMetros, longitudEnHoja, metrosDeTuberia, nombrePlanoSchema,
-  proporcionDeEscala, siguienteTamano, tamanoDe, tamanoSimbolo, tiposSembrables,
+  ordenarPorNivel, proporcionDeEscala, siguienteTamano, tamanoDe, tamanoSimbolo, tiposSembrables,
   type EquipoPlano, type Plano, type Punto, type Sembrado, type TuberiaPlano,
 } from '@/lib/planos';
 import {
@@ -92,6 +93,9 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   lazosRef.current = lazos;
   // En qué otro plano del cliente está cada dispositivo (va en uno solo).
   const [otrosPlanos, setOtrosPlanos] = useState<Map<string, string>>(new Map());
+  // Los planos del cliente (este incluido), para cambiar de nivel desde el encabezado.
+  const [planosHermanos, setPlanosHermanos] = useState<{ id: string; nombre: string }[]>([]);
+  const router = useRouter();
   // Paneles del cliente, para sembrarlos y que de ahí salgan los lazos.
   const [paneles, setPaneles] = useState<Panel[]>([]);
   const [sinConexion, setSinConexion] = useState(false);
@@ -212,6 +216,9 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
         })
         .catch((e) => showToast(e.message, 'error'));
       otrosPlanosDelCliente(datos.cliente_id, planoId).then(setOtrosPlanos).catch((e) => showToast(e.message, 'error'));
+      planosDelCliente(datos.cliente_id)
+        .then((r) => setPlanosHermanos(ordenarPorNivel(r.planos.map((p) => ({ id: p.id, nombre: p.nombre })))))
+        .catch((e) => showToast(e.message, 'error'));
       listarPaneles()
         .then((r) => setPaneles(r.paneles.filter((p) => p.cliente_id === datos.cliente_id)))
         .catch((e) => showToast(e.message, 'error'));
@@ -241,6 +248,16 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
       }
     });
   }, [planoId]);
+
+  // Antes de cambiar de plano se sube lo que falte (si no hay señal queda en la cola).
+  async function irAPlano(id: string) {
+    if (id === planoId) return;
+    if (cambios > 0) {
+      subir();
+      await cadenaGuardar.current;
+    }
+    router.push(`/lazos/plano/${id}`);
+  }
 
   useEffect(() => {
     if (cambios === 0) return;
@@ -1369,6 +1386,17 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
           )}
         </div>
       </div>
+      {planosHermanos.length > 1 && (
+        <nav aria-label="Planos del cliente" className="glass-strong z-10 px-3 py-1.5 flex items-center gap-1.5 border-b border-line overflow-x-auto">
+          <IconoPlano size={16} className="shrink-0 text-teal" />
+          {planosHermanos.map((p) => (
+            <button key={p.id} type="button" onClick={() => irAPlano(p.id)} aria-current={p.id === planoId ? 'page' : undefined}
+              className={`shrink-0 min-h-[36px] px-3 rounded-full text-[13px] font-semibold border ${p.id === planoId ? 'bg-teal/15 border-teal text-ink' : 'border-line text-muted hover:text-ink hover:border-teal/50'}`}>
+              {p.nombre}
+            </button>
+          ))}
+        </nav>
+      )}
 
       <div className="flex-1 min-h-0 flex flex-col lg:flex-row">
         {/* Plano */}

@@ -15,5 +15,6 @@ export default async function PlanoPage(props: { params: Promise<{ id: string }>
   const { data: role } = await supabase.rpc('get_my_role');
   if (role !== 'supervisor' && role !== 'tecnico') redirect('/login');
 
-  return <EditorPlano planoId={params.id} esSupervisor={role === 'supervisor'} />;
+  // key: al cambiar de plano el editor arranca limpio (sin el deshacer del otro).
+  return <EditorPlano key={params.id} planoId={params.id} esSupervisor={role === 'supervisor'} />;
 }
