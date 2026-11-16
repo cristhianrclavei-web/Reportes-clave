@@ -66,7 +66,9 @@ export default function MapaCampo({ modo }: { modo: 'resumen' | 'servicios' }) {
   ];
   const textoDia = c.fecha ? new Date(`${c.fecha}T12:00:00`).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' }) : '';
 
-  const alturaMapa = ampliado ? 'h-full' : enServicios ? 'h-[62vh] min-h-[420px] lg:h-[700px]' : 'h-[58vh] min-h-[380px] lg:h-[600px]';
+  // Ampliado: el alto se calcula contra la pantalla (encabezado + KPIs ≈ 9.5rem);
+  // «h-full» no sirve porque el contenedor no tiene alto fijo y el mapa quedaba en 0.
+  const alturaMapa = ampliado ? 'h-[calc(100dvh-9.5rem)] min-h-[320px]' : enServicios ? 'h-[62vh] min-h-[420px] lg:h-[700px]' : 'h-[58vh] min-h-[380px] lg:h-[600px]';
   const marco = ampliado
     ? 'fixed inset-0 z-[95] bg-bg p-2 lg:p-3 overflow-y-auto'
     : 'relative isolate mb-5';
@@ -126,16 +128,9 @@ export default function MapaCampo({ modo }: { modo: 'resumen' | 'servicios' }) {
       {/* El div del mapa no cambia de clase: React borraría las que pone Leaflet. z-0: debajo de los menús. */}
       <div className="absolute inset-0 z-0"><div ref={c.contenedorRef} className="h-full w-full" /></div>
 
-      {/* Arriba: KPIs y botones */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 p-2.5 lg:p-3 flex items-start justify-between gap-2">
-        <div className="pointer-events-auto grid grid-cols-4 gap-1 sm:gap-1.5 min-w-0">
-          {kpis.map((k) => (
-            <div key={k.titulo} className="rounded-xl bg-surface/95 backdrop-blur-md border border-line shadow-diffuse px-1.5 sm:px-2.5 py-1.5 min-w-0 sm:min-w-[84px]">
-              <p className="font-display font-bold text-[16px] sm:text-[18px] leading-none tabular-nums">{k.valor}</p>
-              <p className="text-[9.5px] sm:text-[10.5px] text-muted mt-0.5 leading-tight sm:whitespace-nowrap">{k.titulo}</p>
-            </div>
-          ))}
-        </div>
+      {/* Arriba a la derecha: botones. Los KPIs van fuera del mapa para no tapar
+          el control «Mapa / Satélite» de Google (arriba a la izquierda). */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 p-2.5 lg:p-3 flex items-start justify-end gap-2">
         <div className="pointer-events-auto flex items-center gap-1.5">
           <BotonMotorMapa motor={c.motor} hayGoogle={c.hayGoogle} cambiar={c.cambiarMotor} className="max-sm:[&>span]:hidden max-sm:w-11 max-sm:px-0 max-sm:justify-center" />
           {conRastreo.length > 0 && <button type="button" onClick={c.encuadrarTodos} aria-label="Ver a todos" title="Ver a todos" className={BOTON_MAPA}><Crosshair size={18} /></button>}
@@ -151,7 +146,7 @@ export default function MapaCampo({ modo }: { modo: 'resumen' | 'servicios' }) {
       </div>
 
       {c.error && (
-        <div className="absolute inset-x-0 top-24 z-10 flex justify-center px-3">
+        <div className="absolute inset-x-0 top-16 z-10 flex justify-center px-3">
           <p className="rounded-2xl bg-surface/95 border border-red/40 px-4 py-2.5 text-[13px] font-semibold text-red">{c.error}</p>
         </div>
       )}
@@ -194,6 +189,14 @@ export default function MapaCampo({ modo }: { modo: 'resumen' | 'servicios' }) {
         {/* En el celular el mapa va primero. */}
         <div className="order-2 lg:order-1 min-w-0">{lista}</div>
         <div className="order-1 lg:order-2 min-w-0 flex flex-col gap-3">
+          <div className="grid grid-cols-4 gap-1.5">
+            {kpis.map((k) => (
+              <div key={k.titulo} className="rounded-xl bg-surface border border-line px-2 sm:px-3 py-1.5 min-w-0">
+                <p className="font-display font-bold text-[17px] sm:text-[19px] leading-none tabular-nums">{k.valor}</p>
+                <p className="text-[10.5px] sm:text-[11.5px] text-muted mt-0.5 leading-tight">{k.titulo}</p>
+              </div>
+            ))}
+          </div>
           {mapa}
           {/* Sin espacio para la tercera columna, el detalle va debajo del mapa. */}
           {c.info && <div className="xl:hidden"><PanelTecnico info={c.info} ahora={ahora} esHoy={c.esHoy} onCerrar={() => c.elegir(null)} /></div>}
