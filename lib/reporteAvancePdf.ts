@@ -6,9 +6,10 @@
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from 'pdf-lib';
 import {
   COLOR_BLOQUEADO, ESTADOS_AVANCE, colorDeAvance, contar, cuentaVacia, datosDeEstado, equiposQueCuentan, estadoDe,
-  instalados, nombreEtapa, porcentaje, resumenPorEtapa, resumenPorTipo, sumar,
+  nombreEtapa, porcentajes, resumenPorEtapa, resumenPorLazo, resumenPorTipo, sumar,
   type AvancePlano, type Cuenta,
 } from './avancePlano';
+import { ordenarPorNivel } from './planos';
 import { exportarPlanoPdf } from './exportarPlanoPdf';
 import { tipoDispositivo } from './lazos';
 import type { EquipoPlano, Plano } from './planos';
@@ -52,7 +53,19 @@ function rotuloDe(equipo: EquipoPlano, etiquetas: Map<string, string>): string {
   return (equipo.elementoId && etiquetas.get(equipo.elementoId)) || equipo.etiqueta || 'Sin dirección';
 }
 
-export async function reporteAvancePdf({ cliente, empresa, planos }: { cliente: string; empresa: string; planos: PlanoParaReporte[] }): Promise<Uint8Array> {
+export async function reporteAvancePdf({ cliente, empresa, planos: sinOrden, paneles = [], lazoDe = () => null, fotos = new Map() }: {
+  cliente: string;
+  empresa: string;
+  planos: PlanoParaReporte[];
+  // Nombres de los paneles del cliente, para la portada.
+  paneles?: string[];
+  // El lazo de un equipo (por su dispositivo ligado), para la tabla por lazo.
+  lazoDe?: (e: EquipoPlano) => { id: string; nombre: string } | null;
+  // Fotos de evidencia ya descargadas (ruta → bytes JPG o PNG).
+  fotos?: Map<string, Uint8Array>;
+}): Promise<Uint8Array> {
+  // Los planos van por nivel (-2, -1, Planta baja, 1…).
+  const planos = ordenarPorNivel(sinOrden.map((p) => ({ ...p, nombre: p.plano.nombre })));
   const pdf = await PDFDocument.create();
   pdf.setTitle(limpio(`Reporte de avance - ${cliente}`));
   const fuente = await pdf.embedFont(StandardFonts.Helvetica);
@@ -60,6 +73,7 @@ export async function reporteAvancePdf({ cliente, empresa, planos }: { cliente: 
   const fecha = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Mexico_City' });
 
   let hoja: PDFPage = pdf.addPage([ANCHO, ALTO]);
+  const imagenes: { hoja: PDFPage; x: number; y: number; ancho: number; alto: number; bytes: Uint8Array }[] = [];
   let y = ALTO - MARGEN;
 
   function pie(p: PDFPage) {
@@ -86,8 +100,9 @@ export async function reporteAvancePdf({ cliente, empresa, planos }: { cliente: 
   hoja.drawText(limpio(empresa), { x: MARGEN, y: y - 4, size: 11, font: negrita, color: GRIS });
   hoja.drawText('REPORTE DE AVANCE DE INSTALACIÓN', { x: MARGEN, y: y - 26, size: 17, font: negrita, color: TINTA });
   hoja.drawText(recortar(cliente, negrita, 14, ANCHO - MARGEN * 2), { x: MARGEN, y: y - 46, size: 14, font: negrita, color: TINTA });
-  hoja.drawText(limpio(`Fecha de corte: ${fecha} · ${planos.length} ${planos.length === 1 ? 'plano' : 'planos'}`), { x: MARGEN, y: y - 61, size: 9.5, font: fuente, color: GRIS });
-  y -= 74;
+  hoja.drawText(recortar(`${paneles.length === 1 ? 'Panel' : 'Paneles'}: ${paneles.length ? paneles.join(', ') : 'sin registrar'}`, fuente, 10, ANCHO - MARGEN * 2), { x: MARGEN, y: y - 62, size: 10, font: fuente, color: TINTA });
+  hoja.drawText(limpio(`Fecha de corte: ${fecha} · ${planos.length} ${planos.length === 1 ? 'plano' : 'planos'}`), { x: MARGEN, y: y - 76, size: 9.5, font: fuente, color: GRIS });
+  y -= 89;
   hoja.drawLine({ start: { x: MARGEN, y }, end: { x: ANCHO - MARGEN, y }, thickness: 1.5, color: TINTA });
   y -= 18;
 
@@ -95,10 +110,12 @@ export async function reporteAvancePdf({ cliente, empresa, planos }: { cliente: 
   let total: Cuenta = cuentaVacia();
   for (const p of planos) total = sumar(total, contar(p.plano.sembrado.equipos, p.avance));
 
+  // % probado y % con algún avance, sin contar lo que no se puede instalar.
+  const pctTotal = porcentajes(total);
   const cuadros: [string, string][] = [
     ['Equipos en proyecto', String(total.total)],
-    ['Instalados', `${instalados(total)} (${porcentaje(instalados(total), total.total)}%)`],
-    ['Probados y funcionando', `${total.porEstado.probado} (${porcentaje(total.porEstado.probado, total.total)}%)`],
+    ['Probado', `${pctTotal.probado}% (${pctTotal.probados} de ${pctTotal.aplicables})`],
+    ['Con algún avance', `${pctTotal.avance}% (${pctTotal.conAvance} de ${pctTotal.aplicables})`],
     ['No se pueden instalar', String(total.bloqueados)],
   ];
   const anchoCuadro = (ANCHO - MARGEN * 2 - 18) / 4;
@@ -106,25 +123,34 @@ export async function reporteAvancePdf({ cliente, empresa, planos }: { cliente: 
     const x = MARGEN + i * (anchoCuadro + 6);
     hoja.drawRectangle({ x, y: y - 46, width: anchoCuadro, height: 46, borderColor: LINEA, borderWidth: 0.8 });
     hoja.drawText(limpio(rotulo.toUpperCase()), { x: x + 7, y: y - 14, size: 6.8, font: negrita, color: GRIS });
-    hoja.drawText(limpio(valor), { x: x + 7, y: y - 35, size: 15, font: negrita, color: i === 3 && total.bloqueados > 0 ? color(COLOR_BLOQUEADO) : TINTA });
+    hoja.drawText(recortar(valor, negrita, 13, anchoCuadro - 12), { x: x + 7, y: y - 35, size: 13, font: negrita, color: i === 3 && total.bloqueados > 0 ? color(COLOR_BLOQUEADO) : TINTA });
   });
   y -= 60;
 
-  // Barra del total por estado y su leyenda (los mismos colores de los planos).
+  // Barra del total por estado, con la letra de cada tramo (no solo color).
+  const tramos = [
+    ...ESTADOS_AVANCE.map((e) => ({ nombre: e.corto, color: e.color, letra: e.letra === '✓' ? 'OK' : e.letra, n: total.porEstado[e.id] })),
+    { nombre: 'No se puede', color: COLOR_BLOQUEADO, letra: 'X', n: total.bloqueados },
+  ];
   if (total.total > 0) {
     let x = MARGEN;
-    for (const estado of ESTADOS_AVANCE) {
-      const ancho = (total.porEstado[estado.id] / total.total) * (ANCHO - MARGEN * 2);
-      if (ancho > 0) hoja.drawRectangle({ x, y: y - 10, width: ancho, height: 10, color: color(estado.color) });
+    for (const t of tramos) {
+      const ancho = (t.n / total.total) * (ANCHO - MARGEN * 2);
+      if (ancho > 0) {
+        hoja.drawRectangle({ x, y: y - 14, width: ancho, height: 14, color: color(t.color) });
+        const texto = `${t.letra} ${t.n}`;
+        if (negrita.widthOfTextAtSize(texto, 8) < ancho - 4) hoja.drawText(texto, { x: x + (ancho - negrita.widthOfTextAtSize(texto, 8)) / 2, y: y - 10, size: 8, font: negrita, color: rgb(1, 1, 1) });
+      }
       x += ancho;
     }
-    y -= 24;
+    y -= 28;
   }
   let xLeyenda = MARGEN;
-  for (const estado of [...ESTADOS_AVANCE.map((e) => ({ nombre: e.nombre, color: e.color })), { nombre: 'No se puede instalar', color: COLOR_BLOQUEADO }]) {
-    hoja.drawCircle({ x: xLeyenda + 4, y: y + 3, size: 4, color: color(estado.color) });
-    hoja.drawText(limpio(estado.nombre), { x: xLeyenda + 12, y, size: 7.8, font: fuente, color: TINTA });
-    xLeyenda += 20 + fuente.widthOfTextAtSize(limpio(estado.nombre), 7.8);
+  for (const t of tramos) {
+    const texto = limpio(`${t.letra} ${t.nombre}`);
+    hoja.drawCircle({ x: xLeyenda + 4, y: y + 3, size: 4, color: color(t.color) });
+    hoja.drawText(texto, { x: xLeyenda + 12, y, size: 7.8, font: fuente, color: TINTA });
+    xLeyenda += 22 + fuente.widthOfTextAtSize(texto, 7.8);
   }
   y -= 16;
 
@@ -154,7 +180,7 @@ export async function reporteAvancePdf({ cliente, empresa, planos }: { cliente: 
       hoja.drawText(recortar(rotulo, letra, 9, 145), { x: MARGEN, y, size: 9, font: letra, color: TINTA });
       const valores = [
         c.total, c.porEstado.pendiente, c.porEstado.canalizado, c.porEstado.instalado, c.porEstado.direccionado, c.porEstado.probado,
-        c.bloqueados, `${porcentaje(c.porEstado.probado, c.total)}%`,
+        c.bloqueados, `${porcentajes(c).probado}%`,
       ];
       valores.forEach((v, i) => {
         const t = String(v);
@@ -172,8 +198,19 @@ export async function reporteAvancePdf({ cliente, empresa, planos }: { cliente: 
 
   const todos = planos.flatMap((p) => p.plano.sembrado.equipos);
   const avanceJunto: AvancePlano = Object.assign({}, ...planos.map((p) => p.avance));
-  tabla('Avance por etapa', 'Etapa', resumenPorEtapa(todos, avanceJunto).map((r) => ({ rotulo: nombreEtapa(r.etapa), cuenta: r.cuenta })));
-  tabla('Avance por plano', 'Plano', planos.map((p) => ({ rotulo: p.plano.nombre, cuenta: contar(p.plano.sembrado.equipos, p.avance) })));
+  tabla('Avance por nivel', 'Nivel (plano)', planos.map((p) => ({ rotulo: p.plano.nombre, cuenta: contar(p.plano.sembrado.equipos, p.avance) })));
+  // Por lazo: se juntan los de todos los planos.
+  const porLazo = new Map<string, { rotulo: string; cuenta: Cuenta }>();
+  for (const p of planos) {
+    for (const r of resumenPorLazo(p.plano.sembrado.equipos, p.avance, lazoDe)) {
+      const previa = porLazo.get(r.id);
+      porLazo.set(r.id, { rotulo: r.nombre, cuenta: previa ? sumar(previa.cuenta, r.cuenta) : r.cuenta });
+    }
+  }
+  tabla('Avance por lazo', 'Lazo', [...porLazo.entries()].sort(([a, x], [b, z]) => (a === 'sin' ? 1 : b === 'sin' ? -1 : x.rotulo.localeCompare(z.rotulo, 'es', { numeric: true }))).map(([, f]) => f));
+  // Por etapa de obra solo si se usan etapas.
+  const porEtapa = resumenPorEtapa(todos, avanceJunto);
+  if (porEtapa.some((r) => r.etapa !== null)) tabla('Avance por etapa de obra', 'Etapa', porEtapa.map((r) => ({ rotulo: nombreEtapa(r.etapa), cuenta: r.cuenta })));
   tabla('Avance por tipo de equipo', 'Equipo', resumenPorTipo(todos, avanceJunto).map((r) => ({ rotulo: r.nombre, cuenta: r.cuenta })));
 
   // ---------- Lo que falta ----------
@@ -228,7 +265,64 @@ export async function reporteAvancePdf({ cliente, empresa, planos }: { cliente: 
     if (f.detalle) hoja.drawText(recortar(f.detalle, fuente, 8.5, ANCHO - MARGEN - xs.detalle), { x: xs.detalle, y, size: 8.5, font: fuente, color: TINTA });
     y -= 12;
   }
+  // ---------- Evidencias (fotos en miniatura) ----------
+  const conFoto: { ruta: string; rotulo: string; texto: string }[] = [];
+  for (const p of planos) {
+    for (const e of equiposQueCuentan(p.plano.sembrado.equipos)) {
+      const marca = p.avance[e.id];
+      const ruta = marca?.bloqueo?.foto || marca?.foto;
+      if (!ruta || !fotos.has(ruta)) continue;
+      const texto = marca?.bloqueo ? `No se puede: ${marca.bloqueo.motivo}` : datosDeEstado(estadoDe(p.avance, e.id)).corto;
+      conFoto.push({ ruta, rotulo: `${rotuloDe(e, p.etiquetas)} · ${p.plano.nombre}`, texto });
+    }
+  }
+  if (conFoto.length > 0) {
+    const porRenglon = 4;
+    const anchoFoto = (ANCHO - MARGEN * 2 - (porRenglon - 1) * 8) / porRenglon;
+    const altoFoto = anchoFoto * 0.75;
+    // El título no se queda solo al final de la hoja: va con el primer renglón de fotos.
+    espacio(altoFoto + 70);
+    titulo(`Evidencias fotográficas (${conFoto.length})`);
+    for (let i = 0; i < conFoto.length; i += porRenglon) {
+      espacio(altoFoto + 30);
+      conFoto.slice(i, i + porRenglon).forEach((f, k) => {
+        const x = MARGEN + k * (anchoFoto + 8);
+        hoja.drawRectangle({ x, y: y - altoFoto, width: anchoFoto, height: altoFoto, borderColor: LINEA, borderWidth: 0.6 });
+        const bytes = fotos.get(f.ruta)!;
+        imagenes.push({ hoja, x, y: y - altoFoto, ancho: anchoFoto, alto: altoFoto, bytes });
+        hoja.drawText(recortar(f.rotulo, negrita, 7.2, anchoFoto), { x, y: y - altoFoto - 9, size: 7.2, font: negrita, color: TINTA });
+        hoja.drawText(recortar(f.texto, fuente, 7, anchoFoto), { x, y: y - altoFoto - 18, size: 7, font: fuente, color: GRIS });
+      });
+      y -= altoFoto + 28;
+    }
+  }
+
+  // ---------- Firmas ----------
+  espacio(110);
+  titulo('Conformidad');
+  const anchoFirma = (ANCHO - MARGEN * 2 - 30) / 2;
+  (['Entrega (nombre y firma)', 'Recibe (nombre y firma)'] as const).forEach((rotulo, i) => {
+    const x = MARGEN + i * (anchoFirma + 30);
+    hoja.drawLine({ start: { x, y: y - 50 }, end: { x: x + anchoFirma, y: y - 50 }, thickness: 0.8, color: TINTA });
+    hoja.drawText(limpio(rotulo), { x, y: y - 62, size: 8.5, font: fuente, color: GRIS });
+  });
+  hoja.drawText(limpio(`Fecha: ${fecha}`), { x: MARGEN, y: y - 82, size: 8.5, font: fuente, color: GRIS });
+  y -= 92;
   pie(hoja);
+
+  // Las fotos se ponen al final (embedJpg es asíncrono); si una no se entiende, queda el recuadro vacío.
+  for (const im of imagenes) {
+    try {
+      const esPng = im.bytes[0] === 0x89 && im.bytes[1] === 0x50;
+      const imagen = esPng ? await pdf.embedPng(im.bytes) : await pdf.embedJpg(im.bytes);
+      const escala = Math.min(im.ancho / imagen.width, im.alto / imagen.height);
+      const w = imagen.width * escala;
+      const h = imagen.height * escala;
+      im.hoja.drawImage(imagen, { x: im.x + (im.ancho - w) / 2, y: im.y + (im.alto - h) / 2, width: w, height: h });
+    } catch (e) {
+      console.error('Foto del reporte que no se pudo poner:', e);
+    }
+  }
 
   // ---------- Los planos, pintados por estado ----------
   for (const p of planos) {

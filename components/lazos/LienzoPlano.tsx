@@ -42,11 +42,13 @@ export default function LienzoPlano({
   imagenUrl, ancho, alto, sembrado, etiquetaDe, seleccion, trazo, colorTrazo, medida,
   ajustarPunto, onEscala, metrosPorUnidad, onTocar, onDobleToque, onArrastreInicio, onArrastre, onArrastreFin,
   conexiones, colorPorLazo, resaltado, ayudaPuntero, guiasArrastre, verNodos, onNodoInicio, onNodo, onNodoFin,
-  bloqueado = false, enfocar = null, colorAvance = null, elegidos = null, tenues = null,
+  bloqueado = false, enfocar = null, colorAvance = null, insigniaAvance = null, elegidos = null, tenues = null,
 }: {
   // Modo avance: color de fondo de cada equipo según su estado de obra,
   // varios equipos elegidos a la vez y los que quedan fuera del filtro.
   colorAvance?: ((e: EquipoPlano) => string) | null;
+  // Modo avance: la letra del estado (P, T, I, D, ✓, ✕) junto al símbolo, para no depender solo del color.
+  insigniaAvance?: ((e: EquipoPlano) => { letra: string; color: string } | null) | null;
   elegidos?: Set<string> | null;
   tenues?: Set<string> | null;
   imagenUrl: string | null;
@@ -404,7 +406,7 @@ export default function LienzoPlano({
             {sembrado.equipos.map((e) => (
               <SimboloEnPlano key={e.id} equipo={e} r={r * tamanoDe(e)} etiqueta={etiquetaDe(e)}
                 elegido={(seleccion?.tipo === 'equipo' && seleccion.id === e.id) || Boolean(elegidos?.has(e.id))}
-                fondo={colorAvance ? colorAvance(e) : null} tenue={Boolean(tenues?.has(e.id))} />
+                fondo={colorAvance ? colorAvance(e) : null} insignia={insigniaAvance ? insigniaAvance(e) : null} tenue={Boolean(tenues?.has(e.id))} />
             ))}
 
             {conexiones && conexiones.marcas.map((m, i) => (
@@ -506,8 +508,9 @@ function LineaPunteada({ linea, color, medidas, estado }: {
 
 // El símbolo del plano (el mismo del PDF), girado y en puntos de la hoja. La
 // etiqueta no gira: se lee siempre derecha.
-function SimboloEnPlano({ equipo, r, etiqueta, elegido, fondo = null, tenue = false }: {
-  equipo: EquipoPlano; r: number; etiqueta: string; elegido: boolean; fondo?: string | null; tenue?: boolean;
+function SimboloEnPlano({ equipo, r, etiqueta, elegido, fondo = null, insignia = null, tenue = false }: {
+  equipo: EquipoPlano; r: number; etiqueta: string; elegido: boolean; fondo?: string | null;
+  insignia?: { letra: string; color: string } | null; tenue?: boolean;
 }) {
   const tinta = colorEquipo(equipo.tipo);
   return (
@@ -518,6 +521,12 @@ function SimboloEnPlano({ equipo, r, etiqueta, elegido, fondo = null, tenue = fa
       <g transform={`rotate(${equipo.rotacion || 0}) scale(${r})`}>
         <FiguraEnSvg figura={figuraDe(equipo.tipo)} />
       </g>
+      {insignia && (
+        <g transform={`translate(${-r * 1.3} ${-r * 1.3})`}>
+          <circle r={r * 0.7} fill={insignia.color} stroke="#fff" strokeWidth={r * 0.14} />
+          <text y={r * 0.3} textAnchor="middle" fontSize={r * 0.85} fontWeight={800} fontFamily="ui-sans-serif, system-ui" fill="#fff">{insignia.letra}</text>
+        </g>
+      )}
       {etiqueta && (
         <text x={r * 1.25} y={-r * 0.75} fontSize={r * 0.85} fontWeight={700} fontFamily="ui-sans-serif, system-ui" fill={tinta}
           stroke="#fff" strokeWidth={r * 0.28} paintOrder="stroke" strokeLinejoin="round">{etiqueta}</text>

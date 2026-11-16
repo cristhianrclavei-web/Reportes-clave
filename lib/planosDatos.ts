@@ -4,7 +4,9 @@ import { createClient } from './supabaseClient';
 import type { Elemento, Lazo } from './lazos';
 import { elementosConPendientes } from './lazosDatos';
 import { leerSembrado, sembradoSchema, type Plano, type Sembrado } from './planos';
-import { leerAvance, type AvancePlano } from './avancePlano';
+import { leerAvance, leerMarca, type AvancePlano, type MarcaAvance } from './avancePlano';
+import { reducirFoto } from './reducirFoto';
+import { generarUUID } from './uuid';
 
 // Datos de los planos (supabase/patch_lazos_planos.sql).
 //
@@ -451,4 +453,62 @@ export function tiposPropuestos(bloques: { nombre: string; sugerido: string | nu
   const tipos: Record<string, string> = {};
   for (const b of bloques) tipos[b.nombre] = plantilla[b.nombre] ?? recordados[b.nombre] ?? b.sugerido ?? '';
   return tipos;
+}
+
+// ---------- Fotos e historial del avance (patch_lazos_avance_historial.sql) ----------
+
+// Foto de evidencia del avance. Necesita señal: es pesada para la cola.
+export async function subirFotoAvance(planoId: string, archivo: File): Promise<string> {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    throw new Error('La foto necesita señal. Intenta cuando tengas señal; lo demás del avance sí se guarda sin señal.');
+  }
+  const reducida = await reducirFoto(archivo);
+  const ruta = `lazos/planos/${planoId}/avance/${generarUUID()}.jpg`;
+  const { error } = await createClient().storage.from('evidencias').upload(ruta, reducida, { contentType: reducida.type || 'image/jpeg' });
+  if (error) throw new Error(mensajeError(error, 'subir la foto'));
+  return ruta;
+}
+
+export async function urlFotoAvance(ruta: string): Promise<string | null> {
+  const { data, error } = await createClient().storage.from('evidencias').createSignedUrl(ruta, 3600);
+  return error ? null : data.signedUrl;
+}
+
+// Bytes de las fotos para el PDF (las que no se puedan bajar se omiten).
+export async function bytesDeFotos(rutas: string[]): Promise<Map<string, Uint8Array>> {
+  const mapa = new Map<string, Uint8Array>();
+  const supabase = createClient();
+  await Promise.all(rutas.map(async (ruta) => {
+    const { data, error } = await supabase.storage.from('evidencias').download(ruta);
+    if (error || !data) {
+      console.error('No se pudo bajar la foto para el reporte:', ruta, error?.message);
+      return;
+    }
+    mapa.set(ruta, new Uint8Array(await data.arrayBuffer()));
+  }));
+  return mapa;
+}
+
+export type CambioHistorial = { id: string; accion: 'marca' | 'revertido'; antes: MarcaAvance | null; despues: MarcaAvance | null; nombre: string | null; en: string };
+
+export async function historialDeEquipo(planoId: string, equipoId: string): Promise<CambioHistorial[]> {
+  const { data, error } = await createClient()
+    .from('lazo_avance_historial')
+    .select('id, accion, antes, despues, nombre, en')
+    .eq('plano_id', planoId)
+    .eq('equipo_id', equipoId)
+    .order('en', { ascending: false })
+    .limit(40);
+  if (error) {
+    if (/does not exist|could not find the table|schema cache/i.test(error.message)) return [];
+    throw new Error(mensajeError(error, 'cargar el historial'));
+  }
+  return ((data as any[]) || []).map((h) => ({ ...h, antes: leerMarca(h.antes), despues: leerMarca(h.despues) }));
+}
+
+// Supervisión regresa el equipo a como estaba antes de ese cambio.
+export async function revertirAvance(historialId: string): Promise<AvancePlano> {
+  const { data, error } = await createClient().rpc('revertir_avance', { p_historial: historialId });
+  if (error) throw new Error(mensajeError(error, 'revertir el cambio'));
+  return leerAvance(data);
 }

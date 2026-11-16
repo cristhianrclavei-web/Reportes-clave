@@ -10,10 +10,11 @@ import HojaCaptura from '@/components/lazos/HojaCaptura';
 import DiagramaLazo from '@/components/lazos/DiagramaLazo';
 import LienzoPlano, { type NodoTuberia, type Seleccion } from '@/components/lazos/LienzoPlano';
 import SimboloPlano from '@/components/lazos/SimboloPlano';
-import PanelAvance from '@/components/lazos/PanelAvance';
+import PanelAvance, { type ModoToque } from '@/components/lazos/PanelAvance';
+import ResumenAvance from '@/components/lazos/ResumenAvance';
 import {
-  colorDeAvance, equiposEnRecuadro, equiposQueCuentan, leerAvance, marcaNueva, pasaFiltro,
-  type AvancePlano, type Bloqueo, type EstadoAvance, type FiltroAvance,
+  colorDeAvance, datosDeEstado, equiposEnRecuadro, equiposQueCuentan, estadoDe, insigniaDe, leerAvance, marcaNueva, necesitaAutorizacion, pasaFiltro, siguienteEstado,
+  type AvancePlano, type CambioAvance, type FiltroAvance, type MarcaAvance,
 } from '@/lib/avancePlano';
 import { MARCA } from '@/lib/marca';
 import { girar } from '@/lib/simbolosPlano';
@@ -24,7 +25,7 @@ import { catalogoEnCache, listarCatalogoClientes, normalizar } from '@/lib/clien
 import RutaDiagramas from '@/components/lazos/RutaDiagramas';
 import ReimportarDxf from '@/components/lazos/ReimportarDxf';
 import {
-  PANEL_EN_PLANO, TIPOS_POR_CIRCUITO, tiposParaElegir, cuantosEnRama, direccionDeTexto, direccionVisible, enOrdenDeRecorrido, esInicioSinConectar, idsSinConectar, tramosSinConectar, hijosDe, lineaPrincipal, lugarDespuesDe, tipoDispositivo,
+  PANEL_EN_PLANO, TIPOS_POR_CIRCUITO, etiquetaSalida, tiposParaElegir, cuantosEnRama, direccionDeTexto, direccionVisible, enOrdenDeRecorrido, esInicioSinConectar, idsSinConectar, tramosSinConectar, hijosDe, lineaPrincipal, lugarDespuesDe, tipoDispositivo,
   type Elemento, type Lugar, type Panel,
 } from '@/lib/lazos';
 import { guardarElemento, listarPaneles, pendientesDeLazo, subirPendientes } from '@/lib/lazosDatos';
@@ -39,7 +40,7 @@ import {
 } from '@/lib/planos';
 import {
   borrarPlano, descargarPdfOriginal, entregarPdf, guardarCopiaLazos, guardarSembrado, imagenDelPlano, lazosDelCliente, leerPendiente,
-  avancePendienteDe, marcarAvance, obtenerPlano, otrosPlanosDelCliente, planosDelCliente, renombrarPlano, subirAvance, type LazoConElementos,
+  avancePendienteDe, bytesDeFotos, marcarAvance, obtenerPlano, otrosPlanosDelCliente, planosDelCliente, renombrarPlano, subirAvance, type LazoConElementos,
 } from '@/lib/planosDatos';
 
 type Herramienta = 'ver' | 'equipo' | 'conectar' | 'tuberia' | 'escala' | 'unifilar' | 'avance';
@@ -177,6 +178,10 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   const [recuadro, setRecuadro] = useState<Punto[] | null>(null);
   const [avancePendiente, setAvancePendiente] = useState(0);
   const [generandoReporte, setGenerandoReporte] = useState(false);
+  // Qué hace un toque en el plano y cómo estaban los equipos antes de cada cambio (para «Deshacer»).
+  const [modoToque, setModoToque] = useState<ModoToque>('ficha');
+  const [pilaAvance, setPilaAvance] = useState<Record<string, MarcaAvance | undefined>[]>([]);
+  const [verResumenAvance, setVerResumenAvance] = useState(false);
 
   // ---------- Carga ----------
 
@@ -271,26 +276,79 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     return () => window.removeEventListener('online', sincronizarAvance);
   }, [sincronizarAvance]);
 
-  // Marca los equipos elegidos: se ve de inmediato y se guarda (o queda en cola sin señal).
-  async function marcarElegidos(cambio: { estado?: EstadoAvance; bloqueo?: Bloqueo | null }) {
-    if (elegidosAvance.size === 0) return;
+  // Marca equipos: se ve de inmediato y se guarda (o queda en cola sin
+  // señal). Antes se anota cómo estaban, para «Deshacer». «Probado» sin
+  // pasar por «Direccionado» solo con motivo de supervisión.
+  async function marcarEquipos(ids: string[], cambio: CambioAvance, opciones: { deshaciendo?: boolean } = {}) {
+    if (ids.length === 0) return;
+    let permitidos = ids;
+    let forzado: string | null = null;
+    if (cambio.estado && !opciones.deshaciendo) {
+      const sinDireccionar = ids.filter((id) => necesitaAutorizacion(estadoDe(avance, id), cambio.estado!));
+      if (sinDireccionar.length > 0) {
+        const texto = `${sinDireccionar.length === 1 ? 'Ese equipo no está' : `${sinDireccionar.length} equipos no están`} «Direccionado».`;
+        if (esSupervisor) {
+          forzado = await pedirTexto(`${texto} ¿Por qué se marca «Probado» de todos modos? (queda anotado)`);
+          if (forzado === null) return;
+          if (forzado.trim().length < 3) {
+            showToast('Escribe el motivo (al menos unas palabras).', 'error');
+            return;
+          }
+        } else {
+          permitidos = ids.filter((id) => !sinDireccionar.includes(id));
+          showToast(`${texto} Primero márcalos como Direccionado; supervisión puede autorizarlo.`, 'error');
+          if (permitidos.length === 0) return;
+        }
+      }
+    }
     const ahora = new Date().toISOString();
     const cambios: AvancePlano = {};
-    for (const id of elegidosAvance) cambios[id] = marcaNueva(avance[id], cambio, ahora);
+    const antes: Record<string, MarcaAvance | undefined> = {};
+    for (const id of permitidos) {
+      antes[id] = avance[id];
+      cambios[id] = marcaNueva(avance[id], forzado ? { ...cambio, forzado: forzado.trim() } : cambio, ahora);
+    }
+    if (!opciones.deshaciendo) setPilaAvance((pila) => [...pila.slice(-30), antes]);
     setAvance((previo) => ({ ...previo, ...cambios }));
     try {
       const resultado = await marcarAvance(planoId, cambios);
       if (resultado.avance) setAvance({ ...resultado.avance, ...avancePendienteDe(planoId) });
       const cuantos = Object.keys(cambios).length;
-      showToast(resultado.pendiente
-        ? `Guardado en este teléfono (${cuantos}); sube al volver la señal`
-        : cuantos === 1 ? 'Avance guardado' : `Avance guardado en ${cuantos} equipos`);
+      if (resultado.pendiente) showToast(`Guardado en este teléfono (${cuantos}); sube al volver la señal`);
+      else if (cuantos > 1) showToast(`Avance guardado en ${cuantos} equipos`);
     } catch (e: any) {
       showToast(e?.message || 'No se pudo guardar el avance. Intenta de nuevo.', 'error');
       // El servidor lo rechazó: se vuelve a lo que tiene la base.
       obtenerPlano(planoId).then((r) => setAvance(leerAvance(r.plano.avance))).catch(() => {});
     }
     setAvancePendiente(Object.keys(avancePendienteDe(planoId)).length);
+  }
+
+  function marcarElegidos(cambio: CambioAvance) {
+    return marcarEquipos([...elegidosAvance], cambio);
+  }
+
+  // Regresa los equipos del último cambio a como estaban.
+  function deshacerAvance() {
+    const ultimo = pilaAvance[pilaAvance.length - 1];
+    if (!ultimo) return;
+    setPilaAvance((pila) => pila.slice(0, -1));
+    const ahora = new Date().toISOString();
+    const cambios: AvancePlano = {};
+    for (const [id, previa] of Object.entries(ultimo)) {
+      cambios[id] = previa
+        ? { estado: previa.estado, bloqueo: previa.bloqueo || null, en: ahora, ...(previa.comentario ? { comentario: previa.comentario } : {}), ...(previa.foto ? { foto: previa.foto } : {}), ...(previa.forzado ? { forzado: previa.forzado } : {}) }
+        : { estado: 'pendiente', bloqueo: null, en: ahora };
+    }
+    setAvance((previo) => ({ ...previo, ...cambios }));
+    marcarAvance(planoId, cambios)
+      .then((r) => { if (r.avance) setAvance({ ...r.avance, ...avancePendienteDe(planoId) }); })
+      .catch((e) => {
+        showToast(e?.message || 'No se pudo deshacer.', 'error');
+        obtenerPlano(planoId).then((r) => setAvance(leerAvance(r.plano.avance))).catch(() => {});
+      })
+      .finally(() => setAvancePendiente(Object.keys(avancePendienteDe(planoId)).length));
+    showToast('Cambio deshecho');
   }
 
   // La etapa es dato del plano (como el tamaño): va en el sembrado y se puede deshacer.
@@ -307,15 +365,36 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
         return;
       }
       const dentro = equiposEnRecuadro(equiposQueCuentan(estadoRef.current.sembrado.equipos), recuadro[0], p)
-        .filter((e) => pasaFiltro(e, avance, filtroAvance));
+        .filter((e) => pasaFiltro(e, avance, filtroAvance, (x) => lazoDeEquipo(x)?.id || null, etiquetaDe(e)));
       setElegidosAvance((previos) => new Set([...previos, ...dentro.map((e) => e.id)]));
       setRecuadro(null);
       showToast(dentro.length === 0 ? 'No hay equipos en esa zona' : `${dentro.length} ${dentro.length === 1 ? 'equipo elegido' : 'equipos elegidos'}`, dentro.length === 0 ? 'error' : 'success');
       return;
     }
     if (!equipo || equipo.tipo === PANEL_EN_PLANO) return;
+    // Un toque avanza un paso (lo bloqueado y lo probado abren su ficha).
+    if (modoToque === 'avanzar') {
+      const marca = avance[equipo.id];
+      const siguiente = marca?.bloqueo ? null : siguienteEstado(estadoDe(avance, equipo.id));
+      if (siguiente) {
+        marcarEquipos([equipo.id], { estado: siguiente });
+        showToast(`${etiquetaDe(equipo) || tipoDispositivo(equipo.tipo).nombre} → ${datosDeEstado(siguiente).corto}`);
+        return;
+      }
+      setElegidosAvance(new Set([equipo.id]));
+      setPanelAbierto(true);
+      showToast(marca?.bloqueo ? 'No se puede instalar: quita el motivo para seguir avanzando' : 'Ya está probado');
+      return;
+    }
     alternarElegido(equipo.id);
     setPanelAbierto(true);
+  }
+
+  // Desde la lista: lo elige y lo enfoca en el plano.
+  function elegirDesdeLista(id: string) {
+    alternarElegido(id);
+    const equipo = estadoRef.current.sembrado.equipos.find((e) => e.id === id);
+    if (equipo) setEnfocar((anterior) => ({ punto: [equipo.x, equipo.y], vez: (anterior?.vez || 0) + 1 }));
   }
 
   function alternarElegido(id: string) {
@@ -358,7 +437,18 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
           etiquetas,
         });
       }
-      const bytes = await reporteAvancePdf({ cliente, empresa: MARCA.nombre, planos: paraReporte });
+      // Fotos de evidencia (lo que no se puede instalar y las marcas con foto).
+      const rutas = new Set<string>();
+      for (const p of paraReporte) {
+        for (const marca of Object.values(p.avance)) {
+          const ruta = marca.bloqueo?.foto || marca.foto;
+          if (ruta) rutas.add(ruta);
+        }
+      }
+      const fotos = await bytesDeFotos([...rutas].slice(0, 60));
+      const bytes = await reporteAvancePdf({
+        cliente, empresa: MARCA.nombre, planos: paraReporte, paneles: paneles.map((p) => p.nombre), lazoDe: lazoDeEquipo, fotos,
+      });
       const nombreArchivo = `avance-${cliente}`.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/gi, '-');
       const url = await entregarPdf(plano.id, bytes, nombreArchivo);
       window.location.assign(url);
@@ -497,6 +587,13 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     for (const lazo of lazos) for (const e of lazo.elementos) mapa.set(e.id, { elemento: e, lazo });
     return mapa;
   }, [lazos]);
+
+  // El lazo de un equipo del plano (por su dispositivo ligado).
+  const nombreDeLazo = (l: LazoConElementos) => `${l.numero ? `${etiquetaSalida(l)} · ` : ''}${l.codigo}`;
+  const lazoDeEquipo = (e: EquipoPlano) => {
+    const ligado = e.elementoId ? elementosPorId.get(e.elementoId) : undefined;
+    return ligado ? { id: ligado.lazo.id, nombre: nombreDeLazo(ligado.lazo) } : null;
+  };
 
   const sembrados = useMemo(() => new Set(estado.sembrado.equipos.map((e) => e.elementoId).filter(Boolean) as string[]), [estado.sembrado]);
 
@@ -924,7 +1021,8 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     setTramoActivo({ id: null, inicio: null });
   }
   // (los demás atajos se llenan más abajo, cuando ya existen sus funciones)
-  Object.assign(atajos.current, { deshacer, rehacerCambio, soltarTramo });
+  // En la herramienta Avance, Ctrl+Z deshace la última marca de avance.
+  Object.assign(atajos.current, { deshacer: herramienta === 'avance' ? deshacerAvance : deshacer, rehacerCambio, soltarTramo });
 
   // Cambiar tipo o diámetro a medio trazo: lo que sigue es otro tramo que
   // arranca donde iba el anterior.
@@ -1213,7 +1311,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   const { sembrado, metros } = estado;
   // Modo avance: color por estado (el panel no lleva) y los que el filtro deja fuera, tenues.
   const colorAvanceDe = (e: EquipoPlano) => (e.tipo === PANEL_EN_PLANO ? 'none' : colorDeAvance(avance[e.id]));
-  const tenuesAvance = new Set(sembrado.equipos.filter((e) => !pasaFiltro(e, avance, filtroAvance)).map((e) => e.id));
+  const tenuesAvance = new Set(sembrado.equipos.filter((e) => !pasaFiltro(e, avance, filtroAvance, (x) => lazoDeEquipo(x)?.id || null, etiquetaDe(e))).map((e) => e.id));
   const equipoElegido = seleccion?.tipo === 'equipo' ? sembrado.equipos.find((e) => e.id === seleccion.id) || null : null;
   const tuberiaElegida = seleccion?.tipo === 'tuberia' ? sembrado.tuberias.find((t) => t.id === seleccion.id) || null : null;
   const metrosTrazo = metros && trazo.length > 1 ? longitudEnHoja(trazo) * metros : null;
@@ -1286,6 +1384,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
             colorTrazo={colorTuberia(diametro)}
             medida={herramienta === 'avance' ? recuadro || [] : medida}
             colorAvance={herramienta === 'avance' ? colorAvanceDe : null}
+            insigniaAvance={herramienta === 'avance' ? (e) => (e.tipo === PANEL_EN_PLANO ? null : insigniaDe(avance[e.id])) : null}
             elegidos={herramienta === 'avance' ? elegidosAvance : null}
             tenues={herramienta === 'avance' ? tenuesAvance : null}
             ajustarPunto={herramienta === 'tuberia' ? ajustarPunto : alinearEquipo}
@@ -1386,16 +1485,27 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
 
               {herramienta === 'avance' && (
                 <PanelAvance
+                  planoId={planoId}
                   equipos={sembrado.equipos}
                   avance={avance}
                   elegidos={elegidosAvance}
                   etiquetaDe={etiquetaDe}
+                  nombreDe={(e) => (e.elementoId && elementosPorId.get(e.elementoId)?.elemento.nombre) || tipoDispositivo(e.tipo).nombre}
+                  lazoDe={lazoDeEquipo}
+                  lazos={lazos.map((l) => ({ id: l.id, nombre: nombreDeLazo(l) }))}
+                  modo={modoToque}
+                  onModo={setModoToque}
+                  puedeDeshacer={pilaAvance.length > 0}
+                  onDeshacer={deshacerAvance}
+                  esSupervisor={esSupervisor}
+                  onResumen={() => setVerResumenAvance(true)}
+                  onAvanceDelServidor={(nuevo) => setAvance({ ...nuevo, ...avancePendienteDe(planoId) })}
                   filtro={filtroAvance}
                   onFiltro={setFiltroAvance}
                   puntosRecuadro={recuadro ? recuadro.length : null}
                   onRecuadro={(activo) => setRecuadro(activo ? [] : null)}
                   onElegir={(ids) => setElegidosAvance(new Set(ids))}
-                  onAlternar={alternarElegido}
+                  onAlternar={elegirDesdeLista}
                   onLimpiar={() => setElegidosAvance(new Set())}
                   onMarcar={marcarElegidos}
                   onEtapa={etapaAElegidos}
@@ -1505,6 +1615,15 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
           </p>
         </aside>
       </div>
+
+      {verResumenAvance && plano && (
+        <ResumenAvance
+          clienteId={plano.cliente_id}
+          planoActual={{ id: plano.id, equipos: estado.sembrado.equipos, avance }}
+          lazoDe={lazoDeEquipo}
+          onCerrar={() => setVerResumenAvance(false)}
+        />
+      )}
 
       {reimportando && (
         <ReimportarDxf
