@@ -5,7 +5,7 @@
 
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from 'pdf-lib';
 import {
-  COLOR_BLOQUEADO, ESTADOS_AVANCE, colorDeAvance, contar, cuentaVacia, datosDeEstado, equiposQueCuentan, estadoDe,
+  COLOR_BLOQUEADO, ESTADOS_AVANCE, alMenos, colorDeAvance, contar, cuentaVacia, datosDeEstado, equiposQueCuentan, estadoDe,
   nombreEtapa, porcentajes, resumenPorEtapa, resumenPorLazo, resumenPorTipo, sumar,
   type AvancePlano, type Cuenta,
 } from './avancePlano';
@@ -155,6 +155,9 @@ export async function reporteAvancePdf({ cliente, empresa, planos: sinOrden, pan
   y -= 16;
 
   // ---------- Tablas de resumen ----------
+  espacio(30);
+  hoja.drawText('Cada columna cuenta lo que ya llegó a esa etapa: un equipo probado también cuenta como instalado y direccionado.', { x: MARGEN, y, size: 7.8, font: fuente, color: GRIS });
+  y -= 12;
   const columnas = ['Equipos', 'Pendiente', 'Tub. y cable', 'Instalado', 'Direcc.', 'Probado', 'No se puede', '% probado'];
   const xPrimera = MARGEN + 150;
   const anchoColumna = (ANCHO - MARGEN - xPrimera) / columnas.length;
@@ -179,7 +182,8 @@ export async function reporteAvancePdf({ cliente, empresa, planos: sinOrden, pan
       const letra = fuerte ? negrita : fuente;
       hoja.drawText(recortar(rotulo, letra, 9, 145), { x: MARGEN, y, size: 9, font: letra, color: TINTA });
       const valores = [
-        c.total, c.porEstado.pendiente, c.porEstado.canalizado, c.porEstado.instalado, c.porEstado.direccionado, c.porEstado.probado,
+        // Acumulado: lo probado también cuenta como instalado y direccionado.
+        c.total, c.porEstado.pendiente, alMenos(c, 'canalizado'), alMenos(c, 'instalado'), alMenos(c, 'direccionado'), c.porEstado.probado,
         c.bloqueados, `${porcentajes(c).probado}%`,
       ];
       valores.forEach((v, i) => {
@@ -338,14 +342,29 @@ export async function reporteAvancePdf({ cliente, empresa, planos: sinOrden, pan
       // El panel no lleva estado de obra.
       colorFondo: (equipoId) => (idsQueCuentan.has(equipoId) ? colorDeAvance(p.avance[equipoId]) : null),
     });
+    // El plano completo en una hoja carta horizontal (vectorial, se puede
+    // acercar): a su tamaño real (3000 pt) el visor lo mostraba recortado.
     const origen = await PDFDocument.load(bytes);
-    const [pagina] = await pdf.copyPages(origen, [0]);
-    pdf.addPage(pagina);
-    // Rótulo del plano en su esquina, proporcional al tamaño de la hoja.
-    const tam = Math.max(10, Math.max(p.plano.ancho, p.plano.alto) / 90);
-    const rotulo = limpio(`${p.plano.nombre} · Avance al ${fecha}`);
-    pagina.drawRectangle({ x: tam, y: tam, width: negrita.widthOfTextAtSize(rotulo, tam) + tam, height: tam * 1.8, color: rgb(1, 1, 1), opacity: 0.85 });
-    pagina.drawText(rotulo, { x: tam * 1.5, y: tam * 1.5, size: tam, font: negrita, color: TINTA });
+    const [embebida] = await pdf.embedPdf(origen, [0]);
+    const pagina = pdf.addPage([ALTO, ANCHO]);
+    const encabezado = 40;
+    const escala = Math.min((ALTO - MARGEN * 2) / embebida.width, (ANCHO - MARGEN * 2 - encabezado) / embebida.height);
+    const w = embebida.width * escala;
+    const h = embebida.height * escala;
+    const x = (ALTO - w) / 2;
+    const yPlano = MARGEN + (ANCHO - MARGEN * 2 - encabezado - h) / 2;
+    pagina.drawText(recortar(`${p.plano.nombre} · Avance al ${fecha}`, negrita, 12, ALTO - MARGEN * 2), { x: MARGEN, y: ANCHO - MARGEN - 12, size: 12, font: negrita, color: TINTA });
+    pagina.drawPage(embebida, { x, y: yPlano, width: w, height: h });
+    pagina.drawRectangle({ x, y: yPlano, width: w, height: h, borderColor: LINEA, borderWidth: 0.6 });
+    // Leyenda con la letra de cada estado (no solo el color).
+    let xLey = MARGEN;
+    for (const t of tramos) {
+      const texto = limpio(`${t.letra} ${t.nombre}`);
+      pagina.drawCircle({ x: xLey + 4, y: ANCHO - MARGEN - 27, size: 4, color: color(t.color) });
+      pagina.drawText(texto, { x: xLey + 12, y: ANCHO - MARGEN - 30, size: 7.8, font: fuente, color: TINTA });
+      xLey += 22 + fuente.widthOfTextAtSize(texto, 7.8);
+    }
+    pie(pagina);
   }
 
   return pdf.save();

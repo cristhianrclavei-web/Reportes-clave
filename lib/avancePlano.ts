@@ -178,9 +178,17 @@ export function sumar(a: Cuenta, b: Cuenta): Cuenta {
   return suma;
 }
 
-// Instalados = instalado, direccionado o probado (cada estado incluye al anterior).
+// Los que ya pasaron por `estado`: un equipo probado también está instalado
+// y direccionado (cada estado incluye a los anteriores).
+export function alMenos(c: Cuenta, estado: EstadoAvance): number {
+  const desde = ESTADOS_AVANCE.findIndex((e) => e.id === estado);
+  let suma = 0;
+  for (const e of ESTADOS_AVANCE.slice(desde)) suma += c.porEstado[e.id];
+  return suma;
+}
+
 export function instalados(c: Cuenta): number {
-  return c.porEstado.instalado + c.porEstado.direccionado + c.porEstado.probado;
+  return alMenos(c, 'instalado');
 }
 
 export function porcentaje(parte: number, total: number): number {

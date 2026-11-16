@@ -31,4 +31,14 @@ describe('reporte de avance', () => {
     expect(doc.getPageCount()).toBeGreaterThanOrEqual(1);
     expect(doc.getTitle()).toContain('HSMCH');
   });
+
+  it('pone el plano completo en una hoja carta horizontal', async () => {
+    const bytes = await reporteAvancePdf({
+      cliente: 'Cliente', empresa: 'Clave',
+      planos: [{ plano: { ...plano('n1', 'Nivel 1'), ancho: 3000, alto: 1170 }, avance: {}, pdfOriginal: null, fondoPng: PNG, etiquetas: new Map() }],
+    });
+    const doc = await PDFDocument.load(bytes);
+    const ultima = doc.getPage(doc.getPageCount() - 1);
+    expect(ultima.getSize()).toEqual({ width: 792, height: 612 });
+  });
 });

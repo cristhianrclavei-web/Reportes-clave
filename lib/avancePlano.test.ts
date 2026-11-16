@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   insigniaDe, necesitaAutorizacion, ordenarParaLista, porcentajes, resumenPorLazo, siguienteEstado, errorDeBloqueo,
-  colorDeAvance, contar, equiposEnRecuadro, instalados, leerAvance, marcaNueva, pasaFiltro, porcentaje,
+  colorDeAvance, contar, equiposEnRecuadro, alMenos, instalados, leerAvance, marcaNueva, pasaFiltro, porcentaje,
   resumenPorEtapa, COLOR_BLOQUEADO, type AvancePlano,
 } from './avancePlano';
 import type { EquipoPlano } from './planos';
@@ -29,6 +29,8 @@ describe('avancePlano', () => {
     const total = contar(equipos, avance);
     expect(total.total).toBe(4);
     expect(instalados(total)).toBe(2);
+    // Lo probado también cuenta como direccionado.
+    expect(alMenos(total, 'direccionado')).toBe(total.porEstado.direccionado + total.porEstado.probado);
     expect(total.bloqueados).toBe(1);
     // El bloqueado no cuenta en su estado.
     expect(total.porEstado.pendiente).toBe(1);
