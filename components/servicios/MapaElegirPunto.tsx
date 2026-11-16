@@ -5,7 +5,7 @@ import 'leaflet/dist/leaflet.css';
 import type { Punto } from '@/lib/geocerca';
 import { LLAVE_GOOGLE_MAPS, prepararGoogle, soltarAvisoGoogle } from './motorMapa';
 import BotonMotorMapa from './BotonMotorMapa';
-import type { TipoMotor } from './useMapaTecnicos';
+import type { TipoMotor } from './motorMapa';
 
 // Mapa para marcar el punto exacto del sitio: se toca el mapa o se arrastra
 // el pin. Usa Google Maps si hay llave y, si no (o si Google falla), el mapa

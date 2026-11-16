@@ -31,9 +31,9 @@ import BitacoraSupervisorSection from '@/components/BitacoraSupervisorSection';
 import SupervisorShell from '@/components/SupervisorShell';
 import dynamic from 'next/dynamic';
 // Leaflet usa `window`: el mapa se carga solo en el navegador.
-const TecnicosEnCampo = dynamic(() => import('@/components/resumen/TecnicosEnCampo'), {
+const MapaCampo = dynamic(() => import('@/components/campo/MapaCampo'), {
   ssr: false,
-  loading: () => <div className="mb-5 h-[320px] lg:h-[400px] rounded-3xl border border-line bg-surface-2 animate-pulse" />,
+  loading: () => <div className="mb-5 h-[58vh] min-h-[380px] lg:h-[640px] rounded-3xl border border-line bg-surface-2 animate-pulse" />,
 });
 import { CalendarClock, MessageSquareWarning, PackagePlus, AlertTriangle, PackageOpen, ChevronRight, CalendarCheck, BarChart3, Receipt, Users, FileText } from 'lucide-react';
 import { listarSolicitudesPendientes, resolverSolicitudInsumo } from '@/lib/insumos';
@@ -152,7 +152,7 @@ export default function ResumenList({
         <AvisoCuentaPrueba />
 
         {/* Lo primero que ve supervisión: dónde está cada técnico ahora. */}
-        <TecnicosEnCampo />
+        <MapaCampo modo="resumen" />
 
         <NotificacionesToggle />
 

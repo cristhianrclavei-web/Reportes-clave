@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, CalendarSearch, ExternalLink, FileDown, Loader2, MapPin, Route, Search } from 'lucide-react';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
+import type { VisitasEnMapa } from '@/components/campo/useCampo';
 import { showToast } from '@/components/Toast';
 import LugaresPropios from '@/components/servicios/LugaresPropios';
 import { pedirTexto } from '@/lib/dialogos';
@@ -47,11 +48,13 @@ function textoRegistros(registros: Registro[]): string {
   return partes.join(' y ') || 'Sin registro';
 }
 
-export default function BuscadorVisitas({ fechaMinimaRastreo, onVerEnMapa }: {
+export default function BuscadorVisitas({ fechaMinimaRastreo, onVerEnMapa, onVisitasCliente }: {
   // Primer día con rastreo guardado (los puntos se borran a los 90 días).
   fechaMinimaRastreo: string | null;
-  // Lleva el mapa a ese día y dibuja el recorrido de esos técnicos (hasta 3).
+  // Lleva el mapa a ese día y dibuja el recorrido de ese técnico.
   onVerEnMapa: (dia: string, tecnicoIds: string[]) => boolean;
+  // Por cliente: los pines de sus visitas en el mapa (null los quita).
+  onVisitasCliente?: (visitas: VisitasEnMapa) => void;
 }) {
   const [modo, setModo] = useState<Modo>('cliente');
   const [clienteTexto, setClienteTexto] = useState('');
@@ -78,6 +81,9 @@ export default function BuscadorVisitas({ fechaMinimaRastreo, onVerEnMapa }: {
 
   const nombreTecnico = (id: string) => tecnicos.find((t) => t.id === id)?.nombre || 'Técnico';
   const maximoDias = modo === 'cliente' ? DIAS_MAXIMO_CLIENTE : DIAS_MAXIMO_TECNICO;
+  // Se avisa antes de buscar: el rango no cabe, o una parte ya no tiene rastreo.
+  const errorDeFechas = desde && hasta ? errorDeRango(desde, hasta, maximoDias) : null;
+  const antesDelRastreo = Boolean(fechaMinimaRastreo && desde && desde < fechaMinimaRastreo);
 
   async function buscar() {
     setError(null);
@@ -108,13 +114,32 @@ export default function BuscadorVisitas({ fechaMinimaRastreo, onVerEnMapa }: {
           registrosDeCliente(cliente.id, cliente.nombre, desde, hasta),
           gpsEnLugares(suyos, desde, hasta),
         ]);
-        setResultado({ modo: 'cliente', cliente, desde, hasta, filas: visitasACliente(registros, gps, suyos.length > 0, { desde: fechaMinimaRastreo, hoy: hoyLocal() }), hayLugares: suyos.length > 0 });
+        const filas = visitasACliente(registros, gps, suyos.length > 0, { desde: fechaMinimaRastreo, hoy: hoyLocal() });
+        setResultado({ modo: 'cliente', cliente, desde, hasta, filas, hayLugares: suyos.length > 0 });
+        // En el mapa: un pin donde está el cliente, con sus visitas y enlaces al servicio y al reporte.
+        onVisitasCliente?.(suyos.length === 0 ? null : {
+          cliente: cliente.nombre,
+          lugares: suyos.map((l) => ({ lat: l.lat, lng: l.lng })),
+          filas: filas.map((f) => ({
+            fecha: textoDia(f.fecha),
+            texto: [nombreTecnico(f.tecnicoId), f.gps ? `${horaEnMexicoCorta(f.gps.llegada)}–${horaEnMexicoCorta(f.gps.salida)} · ${textoDuracion(f.gps.minutos)}` : 'sin rastreo', f.registros.some((r) => r.tipo === 'reporte') ? 'con reporte' : 'sin reporte'].join(' · '),
+            enlaces: f.registros.map((r) => (r.tipo === 'servicio'
+              ? { texto: 'Servicio', href: `/dashboard/servicios/${r.id}` }
+              : { texto: 'Reporte', href: `/api/reports/${r.id}/pdf` })),
+          })),
+        });
+        if (suyos.length === 0) showToast('Este cliente no tiene ubicación: no hay dónde poner sus visitas en el mapa.');
       } else if (tecnico) {
         const [registros, puntos] = await Promise.all([
           registrosDeTecnico(tecnico.id, desde, hasta),
           puntosDeTecnico(tecnico.id, desde, hasta),
         ]);
-        setResultado({ modo: 'tecnico', tecnico, desde, hasta, dias: diasDeTecnico(puntos, registros, lugares), puntos: puntos.length });
+        const dias = diasDeTecnico(puntos, registros, lugares);
+        setResultado({ modo: 'tecnico', tecnico, desde, hasta, dias, puntos: puntos.length });
+        onVisitasCliente?.(null);
+        // Dibuja de una vez el día más reciente con recorrido.
+        const conRecorrido = dias.find((d) => d.paradas.length > 0 && (!fechaMinimaRastreo || d.fecha >= fechaMinimaRastreo));
+        if (conRecorrido) onVerEnMapa(conRecorrido.fecha, [tecnico.id]);
       }
       setSoloAvisos(false);
     } catch (e: any) {
@@ -254,12 +279,18 @@ export default function BuscadorVisitas({ fechaMinimaRastreo, onVerEnMapa }: {
           <label className={ETIQUETA} htmlFor="visitas-hasta">Hasta</label>
           <input id="visitas-hasta" type="date" className={CAMPO} value={hasta} onChange={(ev) => setHasta(ev.target.value)} />
         </div>
-        <button type="button" onClick={buscar} disabled={buscando}
+        <button type="button" onClick={buscar} disabled={buscando || Boolean(errorDeFechas)}
           className="min-h-[46px] px-5 rounded-xl bg-teal text-inkOnAccent font-semibold text-[14.5px] flex items-center justify-center gap-2 disabled:opacity-60">
           {buscando ? <Loader2 size={17} className="animate-spin" /> : <Search size={17} strokeWidth={2.4} />} Buscar
         </button>
       </div>
       {error && <p className="text-red font-semibold text-[13px] mt-2">{error}</p>}
+      {!error && errorDeFechas && <p className="text-red font-semibold text-[13px] mt-2">{errorDeFechas}</p>}
+      {antesDelRastreo && fechaMinimaRastreo && (
+        <p className="mt-2 rounded-xl border border-amber/40 bg-amber/10 p-3 text-[13px] leading-snug">
+          El rastreo solo se guarda 90 días, desde el {textoDia(fechaMinimaRastreo)}. Los servicios y reportes sí se buscan en cualquier fecha.
+        </p>
+      )}
       <p className="text-[12px] text-muted mt-2">
         {modo === 'cliente' ? `Hasta ${DIAS_MAXIMO_CLIENTE} días por búsqueda.` : `Hasta ${DIAS_MAXIMO_TECNICO} días por búsqueda.`}
         {' '}Los servicios y reportes se buscan en cualquier fecha; el rastreo solo se guarda 90 días{fechaMinimaRastreo ? ` (desde el ${textoDia(fechaMinimaRastreo)})` : ''}.

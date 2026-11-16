@@ -754,3 +754,44 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .tarjeta-proyecto, .barra-avance { animation: none; }
 }
+
+/* Mapa de técnicos en campo (components/campo): paradas numeradas, inicio
+   (I) y fin (F), grupos de marcas encimadas («2·3»), lugares propios y el
+   pin atenuado cuando hay otro técnico elegido. */
+.marca-hora.parada { transform: translate(-50%, -50%); }
+.marca-hora.parada .marca-hora-detalle { bottom: calc(100% + 6px); max-height: 260px; overflow-y: auto; }
+.parada-num {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 3px solid var(--color-ruta, #3b82f6);
+  color: #0f172a;
+  font: 800 13px/22px Inter, system-ui, sans-serif;
+  text-align: center;
+  white-space: nowrap;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.35);
+  transition: transform 0.15s ease;
+}
+.parada-num.relleno { background: var(--color-ruta); color: #ffffff; }
+.parada-num.grupo { background: #334155; color: #ffffff; border-color: #ffffff; }
+.marca-hora.parada:hover .parada-num,
+.marca-hora.parada.abierta .parada-num { transform: scale(1.12); }
+.parada-detalle-uno + .parada-detalle-uno { margin-top: 8px; padding-top: 8px; border-top: 1px solid #e2e8f0; }
+.parada-detalle-uno em { display: block; margin-top: 2px; font-style: normal; color: #334155; font-size: 11.5px; }
+.parada-detalle-uno a { display: inline-block; margin-top: 4px; margin-right: 8px; color: #2563eb; font-weight: 700; font-size: 11.5px; text-decoration: underline; }
+.lugar-marca {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #ffffff;
+  border: 2px solid #ffffff;
+  font: 700 15px/22px Inter, system-ui, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.35);
+}
+.lugar-pendiente .lugar-marca { background: #ffffff; color: #64748b; border: 2px dashed #64748b; border-radius: 50%; font-size: 12px; }
+.pin-tec.atenuado { opacity: 0.4; }
+.pin-tec.atenuado .pin-tec-halo { display: none; }

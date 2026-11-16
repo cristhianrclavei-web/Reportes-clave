@@ -1,9 +1,8 @@
 'use client';
 
-import TecnicosEnCampo from '@/components/resumen/TecnicosEnCampo';
+import MapaCampo from '@/components/campo/MapaCampo';
 
-// Servicios → Mapa: la misma tarjeta del Resumen («Técnicos en campo»),
-// más alta y sin el botón «Abrir mapa» (ya se está en el mapa completo).
+// Servicios → Mapa: la vista operativa (en vivo e historial con el buscador de visitas).
 export default function MapaTecnicos() {
-  return <TecnicosEnCampo enServicios />;
+  return <MapaCampo modo="servicios" />;
 }

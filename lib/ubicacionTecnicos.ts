@@ -11,6 +11,8 @@ export type UltimaUbicacion = {
   lat: number;
   lng: number;
   precision_m: number | null;
+  // Batería del teléfono en ese punto (0–100), si la mandó.
+  bateria?: number | null;
 };
 
 export type PuntoRecorrido = { lat: number; lng: number; registrado_en: string };
@@ -44,7 +46,7 @@ export async function ultimasUbicacionesDelDia(desdeIso: string, hastaIso: strin
   // shortcut: tope de 8,000 puntos (unos 12 técnicos); con más personal, pasar a una función en la base.
   const { data, error } = await supabase
     .from('ubicaciones_tecnicos')
-    .select('tecnico_id, lat, lng, precision_m, registrado_en')
+    .select('tecnico_id, lat, lng, precision_m, bateria, registrado_en')
     .gte('registrado_en', desdeIso)
     .lt('registrado_en', hastaIso)
     .order('registrado_en', { ascending: false })

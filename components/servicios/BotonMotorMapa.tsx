@@ -1,7 +1,7 @@
 'use client';
 
 import { Layers } from 'lucide-react';
-import type { TipoMotor } from './useMapaTecnicos';
+import type { TipoMotor } from './motorMapa';
 
 // Cambia entre Google Maps y el mapa básico (OpenStreetMap). Solo aparece si
 // hay llave de Google; si Google llega a su tope del día, el básico sigue.
