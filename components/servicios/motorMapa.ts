@@ -202,6 +202,7 @@ export async function crearMotorGoogle(div: HTMLDivElement, zoomControl: boolean
     center: { lat: CENTRO_GUADALAJARA[0], lng: CENTRO_GUADALAJARA[1] },
     zoom: ZOOM_GUADALAJARA,
     zoomControl,
+    gestureHandling: gestosGoogle(),
     // Mapa / Satélite. Street View se cobra aparte: apagado.
     mapTypeControl: true,
     streetViewControl: false,
@@ -352,6 +353,15 @@ export async function crearMotorGoogle(div: HTMLDivElement, zoomControl: boolean
       div.innerHTML = '';
     },
   };
+}
+
+// Cómo toma Google la rueda del mouse y los dedos. Con mouse: la rueda
+// siempre hace zoom en el mapa (con 'auto', si la página tiene scroll, Google
+// pide Ctrl + rueda y la rueda movía la página). En el celular: un dedo
+// desliza la página y dos mueven el mapa, para no quedar atrapado en él.
+export function gestosGoogle(): 'greedy' | 'cooperative' {
+  if (typeof window === 'undefined' || !window.matchMedia) return 'greedy';
+  return window.matchMedia('(pointer: fine)').matches ? 'greedy' : 'cooperative';
 }
 
 // Enlace que abre la ubicación en la app de Google Maps (gratis: no usa la llave).

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import 'leaflet/dist/leaflet.css';
 import type { Punto } from '@/lib/geocerca';
-import { LLAVE_GOOGLE_MAPS, prepararGoogle, soltarAvisoGoogle } from './motorMapa';
+import { LLAVE_GOOGLE_MAPS, gestosGoogle, prepararGoogle, soltarAvisoGoogle } from './motorMapa';
 import BotonMotorMapa from './BotonMotorMapa';
 import type { TipoMotor } from './motorMapa';
 
@@ -163,6 +163,7 @@ async function crearMapaGoogle(div: HTMLDivElement, inicio: Punto, zoom: number,
   const { Marker } = await google.maps.importLibrary('marker');
 
   const mapa = new Map(div, {
+    gestureHandling: gestosGoogle(),
     center: inicio,
     zoom,
     // Mapa / Satélite con nombres de calles. Street View se cobra aparte: apagado.
