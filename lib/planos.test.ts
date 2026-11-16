@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   cantidadesDeEquipos, cantidadesDeTuberia, colocacionDePagina, equipoEn, escalaDesdeMedida, siguienteTamano,
-  escalaDesdeProporcion, leerSembrado, longitudEnHoja, proporcionDeEscala, sembradoSchema, tuberiaEn, type Sembrado,
+  escalaDesdeProporcion, leerSembrado, longitudEnHoja, nivelDePlano, ordenarPorNivel, proporcionDeEscala, sembradoSchema, tuberiaEn, type Sembrado,
 } from './planos';
 
 const sembrado: Sembrado = {
@@ -83,5 +83,22 @@ describe('colocación de la página girada', () => {
     expect(colocacionDePagina(90, 600, 400)).toEqual({ x: 0, y: 600, giro: -90 });
     expect(colocacionDePagina(180, 600, 400)).toEqual({ x: 600, y: 400, giro: 180 });
     expect(colocacionDePagina(-90, 600, 400)).toEqual({ x: 400, y: 0, giro: 90 });
+  });
+});
+
+describe('ordenarPorNivel', () => {
+  it('lee el nivel del nombre', () => {
+    expect(nivelDePlano('Nivel -2')).toBe(-2);
+    expect(nivelDePlano('Nivel 0 (Planta baja)')).toBe(0);
+    expect(nivelDePlano('Planta Baja')).toBe(0);
+    expect(nivelDePlano('Sótano 2')).toBe(-2);
+    expect(nivelDePlano('N3 oficinas')).toBe(3);
+    expect(nivelDePlano('Azotea')).toBeNull();
+  });
+
+  it('ordena de -2 a 4 y deja al final los que no dicen nivel', () => {
+    const nombres = ['Nivel 4', 'Azotea', 'Nivel -1', 'Nivel 0 (Planta baja)', 'Nivel 10', 'Nivel -2', 'Nivel 1'];
+    expect(ordenarPorNivel(nombres.map((nombre) => ({ nombre }))).map((p) => p.nombre))
+      .toEqual(['Nivel -2', 'Nivel -1', 'Nivel 0 (Planta baja)', 'Nivel 1', 'Nivel 4', 'Nivel 10', 'Azotea']);
   });
 });

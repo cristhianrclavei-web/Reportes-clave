@@ -13,7 +13,12 @@ import { leerAvance, type AvancePlano } from './avancePlano';
 // que ya se abrió en este teléfono se puede volver a abrir sin señal (se
 // guarda copia del plano, de su imagen y de los lazos del cliente).
 
-export type PlanoResumen = Pick<Plano, 'id' | 'cliente_id' | 'nombre' | 'actualizado_en'>;
+export type PlanoResumen = Pick<Plano, 'id' | 'cliente_id' | 'nombre' | 'actualizado_en'> & {
+  // Equipos colocados y paneles de sus dispositivos (patch_lazos_jerarquia.sql).
+  // Sin ese patch vienen en null.
+  equipos_en_plano: number | null;
+  paneles_en_plano: string[] | null;
+};
 
 export type LazoConElementos = Lazo & { elementos: Elemento[] };
 
@@ -52,16 +57,22 @@ function mensajeError(error: { message?: string } | null | undefined, accion: st
 // ---------- Lista ----------
 
 export async function listarPlanos(): Promise<{ planos: PlanoResumen[]; faltaPatch: boolean }> {
-  const { data, error } = await createClient()
+  const supabase = createClient();
+  let { data, error }: { data: any[] | null; error: { message: string } | null } = await supabase
     .from('lazo_planos')
-    .select('id, cliente_id, nombre, actualizado_en')
+    .select('id, cliente_id, nombre, actualizado_en, equipos_en_plano, paneles_en_plano')
     .order('nombre');
+  // Sin patch_lazos_jerarquia.sql: la lista sale igual, sin los conteos.
+  if (error && /equipos_en_plano|paneles_en_plano/.test(error.message)) {
+    ({ data, error } = await supabase.from('lazo_planos').select('id, cliente_id, nombre, actualizado_en').order('nombre'));
+  }
   if (error) {
     // Sin el patch la sección de lazos sigue funcionando, solo sin planos.
     if (/does not exist|could not find the table|schema cache/i.test(error.message)) return { planos: [], faltaPatch: true };
     throw new Error(mensajeError(error, 'cargar los planos'));
   }
-  return { planos: (data || []) as PlanoResumen[], faltaPatch: false };
+  const planos = ((data || []) as any[]).map((p) => ({ ...p, equipos_en_plano: p.equipos_en_plano ?? null, paneles_en_plano: p.paneles_en_plano ?? null }));
+  return { planos: planos as PlanoResumen[], faltaPatch: false };
 }
 
 const copiaPlano = (id: string) => `planoCopia:${id}`;

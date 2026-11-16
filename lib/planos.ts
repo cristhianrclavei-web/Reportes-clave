@@ -279,3 +279,29 @@ export function colocacionDePagina(rotacion: number, anchoOriginal: number, alto
   if (r === 270) return { x: altoOriginal, y: 0, giro: 90 };
   return { x: 0, y: 0, giro: 0 };
 }
+
+// ---------- Orden por nivel ----------
+
+// Nivel del edificio que dice el nombre del plano: «Nivel -2» → -2,
+// «N1» → 1, «Planta baja» o «PB» → 0, «Sótano 1» → -1. null si no dice.
+export function nivelDePlano(nombre: string): number | null {
+  const texto = nombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const nivel = texto.match(/(?:nivel|niv\.?|piso|^n)\s*(-?\d+)/);
+  if (nivel) return Number(nivel[1]);
+  const sotano = texto.match(/sotano\s*(\d+)?/);
+  if (sotano) return -Number(sotano[1] || 1);
+  if (/planta baja|\bpb\b/.test(texto)) return 0;
+  return null;
+}
+
+// Del nivel más bajo al más alto; los que no dicen nivel van al final por nombre.
+export function ordenarPorNivel<T extends { nombre: string }>(planos: T[]): T[] {
+  return [...planos].sort((a, b) => {
+    const na = nivelDePlano(a.nombre);
+    const nb = nivelDePlano(b.nombre);
+    if (na !== null && nb !== null && na !== nb) return na - nb;
+    if (na !== null && nb === null) return -1;
+    if (na === null && nb !== null) return 1;
+    return a.nombre.localeCompare(b.nombre, 'es', { numeric: true });
+  });
+}

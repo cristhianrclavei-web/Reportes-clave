@@ -10,6 +10,7 @@ import ListaEnOrden from '@/components/lazos/ListaEnOrden';
 import PanelLazos from '@/components/lazos/PanelLazos';
 import PlanoDelLazo from '@/components/lazos/PlanoDelLazo';
 import { NuevoLazo } from '@/app/lazos/LazosList';
+import RutaDiagramas from '@/components/lazos/RutaDiagramas';
 import { catalogoEnCache } from '@/lib/clientesCatalogo';
 import VerFoto from '@/components/lazos/VerFoto';
 import HojaCaptura, { Lugar, lugarAlFinal, lugarAntesDe, lugarColgandoDe, lugarDespuesDe } from '@/components/lazos/HojaCaptura';
@@ -425,9 +426,11 @@ export default function LazoDetalle({ lazoId, esSupervisor }: { lazoId: string; 
             <ChevronLeft size={24} strokeWidth={2.4} />
           </Link>
           <div className="min-w-0 flex-1">
-            <p className="text-[11.5px] text-faint uppercase tracking-[0.06em] truncate">
-              {lazo.numero ? `${etiquetaSalida(lazo)} · ` : ''}{panelDelLazo ? panelDelLazo.nombre : NOMBRE_CIRCUITO[lazo.tipo]}{lazo.clase ? ` · Clase ${lazo.clase}` : ''}
-            </p>
+            <RutaDiagramas pasos={[
+              { texto: catalogoEnCache().find((c) => c.id === lazo.cliente_id)?.nombre || 'Cliente', href: `/lazos?cliente=${lazo.cliente_id}` },
+              ...(panelDelLazo ? [{ texto: panelDelLazo.nombre, href: `/lazos/panel/${panelDelLazo.id}` }] : []),
+              { texto: `${lazo.numero ? `${etiquetaSalida(lazo)} · ` : ''}${panelDelLazo ? '' : NOMBRE_CIRCUITO[lazo.tipo]}${lazo.clase ? `${panelDelLazo ? '' : ' · '}Clase ${lazo.clase}` : ''}` },
+            ]} />
             <h1 className="font-display font-bold text-[22px] leading-tight truncate">
               <span className="font-mono text-[16px] text-teal mr-1.5">{lazo.codigo}</span>{lazo.nombre}
             </h1>

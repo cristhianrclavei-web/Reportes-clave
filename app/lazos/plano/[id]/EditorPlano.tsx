@@ -21,6 +21,7 @@ import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
 import { confirmar, pedirTexto } from '@/lib/dialogos';
 import { catalogoEnCache, listarCatalogoClientes, normalizar } from '@/lib/clientesCatalogo';
+import RutaDiagramas from '@/components/lazos/RutaDiagramas';
 import {
   PANEL_EN_PLANO, TIPOS_POR_CIRCUITO, tiposParaElegir, cuantosEnRama, direccionDeTexto, direccionVisible, enOrdenDeRecorrido, esInicioSinConectar, idsSinConectar, tramosSinConectar, hijosDe, lineaPrincipal, lugarDespuesDe, tipoDispositivo,
   type Elemento, type Lugar, type Panel,
@@ -1212,6 +1213,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
           <ChevronLeft size={24} strokeWidth={2.4} />
         </Link>
         <div className="flex-1 min-w-0">
+          <RutaDiagramas pasos={[{ texto: catalogoEnCache().find((c) => c.id === plano.cliente_id)?.nombre || 'Cliente', href: `/lazos?cliente=${plano.cliente_id}` }, { texto: 'Plano' }]} />
           <p className="font-display font-semibold text-[16.5px] truncate">{plano.nombre}</p>
           {sinConexion
             ? <p className="text-[12px] text-amber flex items-center gap-1"><CloudOff size={12} /> Sin señal: copia guardada en este teléfono</p>
@@ -1408,6 +1410,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
               {herramienta === 'conectar' && (
                 <PanelConectar
                   lazos={lazos}
+                  paneles={paneles}
                   lazoActivo={lazoActivo}
                   colorPorLazo={colorPorLazo}
                   onElegirLazo={elegirLazo}
@@ -1968,11 +1971,21 @@ function buscarElemento(faltantesPorLazo: { lazo: LazoConElementos; faltan: Elem
   return null;
 }
 
+// Los lazos del cliente agrupados por su panel (los que no tienen panel, al final).
+function gruposPorPanel(lazos: LazoConElementos[], paneles: Panel[]): { clave: string; titulo: string; lazos: LazoConElementos[] }[] {
+  const grupos = paneles.map((p) => ({ clave: p.id, titulo: p.nombre, lazos: lazos.filter((l) => l.panel_id === p.id) }));
+  const sinPanel = lazos.filter((l) => !l.panel_id || !paneles.some((p) => p.id === l.panel_id));
+  if (sinPanel.length > 0) grupos.push({ clave: 'sin-panel', titulo: 'Sin panel', lazos: sinPanel });
+  return grupos.filter((g) => g.lazos.length > 0);
+}
+
 function PanelConectar({
   lazos, lazoActivo, colorPorLazo, onElegirLazo, desde, elementoDesde, onDesde, onUnirTramo, enMedio, onEnMedio, tipoNuevo, onTipoNuevo,
-  textoDe, planoDe, sembrados, pendientes, rechazo, clienteId,
+  textoDe, planoDe, sembrados, pendientes, rechazo, clienteId, paneles,
 }: {
   lazos: LazoConElementos[];
+  // Paneles del cliente: con más de uno, los lazos se eligen agrupados por panel.
+  paneles: Panel[];
   lazoActivo: LazoConElementos | null;
   colorPorLazo: Map<string, string>;
   onElegirLazo: (l: LazoConElementos) => void;
@@ -2031,15 +2044,21 @@ function PanelConectar({
       {rechazo && <p className="mb-2 text-[12.5px] text-red font-semibold">{rechazo} Ábrelo en el lazo para corregirlo.</p>}
 
       <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-faint mb-1.5">Lazo</p>
-      <div className="flex flex-wrap gap-1.5">
-        {lazos.map((l) => (
-          <button key={l.id} type="button" onClick={() => onElegirLazo(l)} aria-pressed={lazoActivo?.id === l.id}
-            className={`min-h-[40px] px-3 rounded-xl border text-[13.5px] font-semibold flex items-center gap-2 ${lazoActivo?.id === l.id ? 'border-teal bg-teal/15' : 'border-line bg-surface-2'}`}>
-            <span className="w-4 border-t-2 border-dashed" style={{ borderColor: colorPorLazo.get(l.id) }} />
-            {l.codigo}
-          </button>
-        ))}
-      </div>
+      {/* Con varios paneles, cada lazo bajo su panel: así no se conecta un equipo al panel equivocado. */}
+      {gruposPorPanel(lazos, paneles).map((grupo) => (
+        <div key={grupo.clave} className="mb-1.5">
+          {paneles.length > 1 && <p className="text-[12px] text-muted mb-1">{grupo.titulo}</p>}
+          <div className="flex flex-wrap gap-1.5">
+            {grupo.lazos.map((l) => (
+              <button key={l.id} type="button" onClick={() => onElegirLazo(l)} aria-pressed={lazoActivo?.id === l.id}
+                className={`min-h-[40px] px-3 rounded-xl border text-[13.5px] font-semibold flex items-center gap-2 ${lazoActivo?.id === l.id ? 'border-teal bg-teal/15' : 'border-line bg-surface-2'}`}>
+                <span className="w-4 border-t-2 border-dashed" style={{ borderColor: colorPorLazo.get(l.id) }} />
+                {l.codigo}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
 
       {lazoActivo && (
         <>

@@ -9,6 +9,7 @@ import FrentePanel, { COLOR_TIPO, DESCRIPCION_TIPO, ICONO_TIPO, fondo } from '@/
 import FormPanel from '@/components/lazos/FormPanel';
 import PanelLazos from '@/components/lazos/PanelLazos';
 import { NuevoLazo } from '@/app/lazos/LazosList';
+import RutaDiagramas from '@/components/lazos/RutaDiagramas';
 import { catalogoEnCache, listarCatalogoClientes } from '@/lib/clientesCatalogo';
 import { NOMBRE_CIRCUITO, Panel, SALIDA_CIRCUITO, TipoCircuito, ordenarCircuitos, siguienteNumeroDeLazo } from '@/lib/lazos';
 import { useEsAncho } from '@/lib/useEsAncho';
@@ -100,7 +101,7 @@ export default function PanelDetalle({ panelId, esSupervisor }: { panelId: strin
             <ChevronLeft size={24} strokeWidth={2.4} />
           </Link>
           <div className="min-w-0 flex-1">
-            <p className="text-[11.5px] text-faint uppercase tracking-[0.06em] truncate">Panel{nombreCliente ? ` · ${nombreCliente}` : ''}</p>
+            <RutaDiagramas pasos={[{ texto: nombreCliente || 'Cliente', href: `/lazos?cliente=${panel.cliente_id}` }, { texto: 'Panel' }]} />
             <h1 className="font-display font-bold text-[22px] leading-tight truncate">{panel.nombre}</h1>
           </div>
           <button type="button" onClick={() => setEditando(true)} aria-label="Datos del panel" className="w-10 h-10 rounded-full flex items-center justify-center text-muted hover:bg-surface-2">
