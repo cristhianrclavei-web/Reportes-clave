@@ -437,7 +437,11 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
       if (!clientes.some((c) => c.id === plano.cliente_id)) clientes = await listarCatalogoClientes().catch(() => clientes);
       const cliente = clientes.find((c) => c.id === plano.cliente_id)?.nombre || 'Cliente';
       const etiquetas = new Map<string, string>();
-      for (const [id, { elemento, lazo }] of elementosPorId) etiquetas.set(id, etiquetaDeElemento(elemento, lazo));
+      const ubicaciones = new Map<string, string>();
+      for (const [id, { elemento, lazo }] of elementosPorId) {
+        etiquetas.set(id, etiquetaDeElemento(elemento, lazo));
+        if (elemento.ubicacion) ubicaciones.set(id, elemento.ubicacion);
+      }
 
       const paraReporte = [];
       for (const otro of delCliente) {
@@ -464,7 +468,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
       }
       const fotos = await bytesDeFotos([...rutas].slice(0, 60));
       const bytes = await reporteAvancePdf({
-        cliente, empresa: MARCA.nombre, planos: paraReporte, paneles: paneles.map((p) => p.nombre), lazoDe: lazoDeEquipo, fotos,
+        cliente, empresa: MARCA.nombre, planos: paraReporte, paneles: paneles.map((p) => p.nombre), lazoDe: lazoDeEquipo, fotos, ubicaciones,
       });
       const nombreArchivo = `avance-${cliente}`.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/gi, '-');
       const url = await entregarPdf(plano.id, bytes, nombreArchivo);

@@ -53,7 +53,7 @@ function rotuloDe(equipo: EquipoPlano, etiquetas: Map<string, string>): string {
   return (equipo.elementoId && etiquetas.get(equipo.elementoId)) || equipo.etiqueta || 'Sin dirección';
 }
 
-export async function reporteAvancePdf({ cliente, empresa, planos: sinOrden, paneles = [], lazoDe = () => null, fotos = new Map() }: {
+export async function reporteAvancePdf({ cliente, empresa, planos: sinOrden, paneles = [], lazoDe = () => null, fotos = new Map(), ubicaciones = new Map() }: {
   cliente: string;
   empresa: string;
   planos: PlanoParaReporte[];
@@ -63,6 +63,8 @@ export async function reporteAvancePdf({ cliente, empresa, planos: sinOrden, pan
   lazoDe?: (e: EquipoPlano) => { id: string; nombre: string } | null;
   // Fotos de evidencia ya descargadas (ruta → bytes JPG o PNG).
   fotos?: Map<string, Uint8Array>;
+  // Dónde está cada dispositivo del lazo (id del dispositivo → «Cocina · Planta baja»).
+  ubicaciones?: Map<string, string>;
 }): Promise<Uint8Array> {
   // Los planos van por nivel (-2, -1, Planta baja, 1…).
   const planos = ordenarPorNivel(sinOrden.map((p) => ({ ...p, nombre: p.plano.nombre })));
@@ -217,58 +219,81 @@ export async function reporteAvancePdf({ cliente, empresa, planos: sinOrden, pan
   if (porEtapa.some((r) => r.etapa !== null)) tabla('Avance por etapa de obra', 'Etapa', porEtapa.map((r) => ({ rotulo: nombreEtapa(r.etapa), cuenta: r.cuenta })));
   tabla('Avance por tipo de equipo', 'Equipo', resumenPorTipo(todos, avanceJunto).map((r) => ({ rotulo: r.nombre, cuenta: r.cuenta })));
 
-  // ---------- Lo que falta ----------
-  type Faltante = { rotulo: string; tipo: string; plano: string; etapa: string; estado: string; detalle: string; bloqueado: boolean; grupo: string };
-  const faltantes: Faltante[] = [];
-  for (const p of planos) {
+  // ---------- Lo que falta y lo terminado ----------
+  // Cada renglón va sombreado con el color de su estado y dice dónde está el equipo.
+  type Renglon = { orden: number; rotulo: string; tipo: string; ubicacion: string; plano: string; estado: string; color: string; bloqueado: boolean; grupo: string };
+  const faltantes: Renglon[] = [];
+  const terminados: Renglon[] = [];
+  planos.forEach((p, orden) => {
     for (const e of equiposQueCuentan(p.plano.sembrado.equipos)) {
       const marca = p.avance[e.id];
       const estado = estadoDe(p.avance, e.id);
-      if (estado === 'probado' && !marca?.bloqueo) continue;
-      faltantes.push({
+      const bloqueado = Boolean(marca?.bloqueo);
+      const datos = datosDeEstado(estado);
+      const renglon: Renglon = {
+        orden,
         rotulo: rotuloDe(e, p.etiquetas),
         tipo: tipoDispositivo(e.tipo).nombre,
-        plano: p.plano.nombre,
-        etapa: e.etapa ? `E${e.etapa}` : '-',
-        estado: datosDeEstado(estado).corto,
-        detalle: marca?.bloqueo ? [marca.bloqueo.motivo, marca.bloqueo.nota].filter(Boolean).join(': ') : '',
-        bloqueado: Boolean(marca?.bloqueo),
-        grupo: marca?.bloqueo ? `No se puede instalar - ${marca.bloqueo.motivo}` : `Falta terminar - ${datosDeEstado(estado).nombre}`,
-      });
+        ubicacion: (e.elementoId && ubicaciones.get(e.elementoId)) || '-',
+        plano: e.etapa ? `${p.plano.nombre} · E${e.etapa}` : p.plano.nombre,
+        estado: bloqueado ? [marca!.bloqueo!.motivo, marca!.bloqueo!.nota].filter(Boolean).join(': ') : datos.corto,
+        color: bloqueado ? COLOR_BLOQUEADO : datos.color,
+        bloqueado,
+        grupo: bloqueado ? `No se puede instalar - ${marca!.bloqueo!.motivo}` : estado === 'probado' ? `Probado y funcionando` : `Falta terminar - ${datos.nombre}`,
+      };
+      if (estado === 'probado' && !bloqueado) terminados.push(renglon);
+      else faltantes.push(renglon);
+    }
+  });
+  // Los planos en orden de nivel (-2, -1, Planta baja, 1…).
+  const porPlanoYDireccion = (a: Renglon, b: Renglon) => a.orden - b.orden || a.rotulo.localeCompare(b.rotulo, 'es', { numeric: true });
+  // Primero lo bloqueado (es lo que hay que explicar), luego por estado.
+  faltantes.sort((a, b) => Number(b.bloqueado) - Number(a.bloqueado) || a.grupo.localeCompare(b.grupo) || porPlanoYDireccion(a, b));
+  terminados.sort(porPlanoYDireccion);
+
+  const xs = { rotulo: MARGEN + 6, tipo: MARGEN + 70, ubicacion: MARGEN + 170, plano: MARGEN + 345, estado: MARGEN + 428 };
+  function listaDeEquipos(renglones: Renglon[]) {
+    let grupoActual = '';
+    for (const f of renglones) {
+      if (f.grupo !== grupoActual) {
+        espacio(40);
+        grupoActual = f.grupo;
+        const cuantos = renglones.filter((x) => x.grupo === f.grupo).length;
+        y -= 4;
+        hoja.drawText(limpio(`${f.grupo} (${cuantos})`), { x: MARGEN, y, size: 9.5, font: negrita, color: f.bloqueado ? color(COLOR_BLOQUEADO) : TINTA });
+        y -= 13;
+        (['Dirección', 'Equipo', 'Ubicación', 'Plano', f.bloqueado ? 'Qué falta' : 'Estado'] as const).forEach((c, i) => {
+          hoja.drawText(limpio(c.toUpperCase()), { x: Object.values(xs)[i], y, size: 6.5, font: negrita, color: GRIS });
+        });
+        y -= 11;
+      }
+      espacio(14);
+      // Sombreado claro del color del estado, con una franja más fuerte a la izquierda.
+      hoja.drawRectangle({ x: MARGEN, y: y - 3.5, width: ANCHO - MARGEN * 2, height: 13, color: color(f.color), opacity: 0.16 });
+      hoja.drawRectangle({ x: MARGEN, y: y - 3.5, width: 3, height: 13, color: color(f.color) });
+      hoja.drawText(recortar(f.rotulo, negrita, 8.5, 62), { x: xs.rotulo, y, size: 8.5, font: negrita, color: TINTA });
+      hoja.drawText(recortar(f.tipo, fuente, 8.5, 97), { x: xs.tipo, y, size: 8.5, font: fuente, color: TINTA });
+      hoja.drawText(recortar(f.ubicacion, fuente, 8.5, 172), { x: xs.ubicacion, y, size: 8.5, font: fuente, color: TINTA });
+      hoja.drawText(recortar(f.plano, fuente, 8.5, 80), { x: xs.plano, y, size: 8.5, font: fuente, color: TINTA });
+      hoja.drawText(recortar(f.estado, fuente, 8.5, ANCHO - MARGEN - xs.estado - 2), { x: xs.estado, y, size: 8.5, font: fuente, color: TINTA });
+      y -= 14;
     }
   }
-  // Primero lo bloqueado (es lo que hay que explicar), luego por estado.
-  faltantes.sort((a, b) => Number(b.bloqueado) - Number(a.bloqueado) || a.grupo.localeCompare(b.grupo) || a.plano.localeCompare(b.plano) || a.rotulo.localeCompare(b.rotulo, 'es', { numeric: true }));
 
   titulo(`Detalle de lo que falta (${faltantes.length})`);
   if (faltantes.length === 0) {
     hoja.drawText('Todos los equipos están probados y funcionando.', { x: MARGEN, y, size: 10, font: fuente, color: TINTA });
     y -= 16;
   }
-  const xs = { rotulo: MARGEN, tipo: MARGEN + 78, plano: MARGEN + 205, etapa: MARGEN + 300, estado: MARGEN + 328, detalle: MARGEN + 405 };
-  let grupoActual = '';
-  for (const f of faltantes) {
-    if (f.grupo !== grupoActual) {
-      espacio(40);
-      grupoActual = f.grupo;
-      const cuantos = faltantes.filter((x) => x.grupo === f.grupo).length;
-      y -= 4;
-      hoja.drawText(limpio(`${f.grupo} (${cuantos})`), { x: MARGEN, y, size: 9.5, font: negrita, color: f.bloqueado ? color(COLOR_BLOQUEADO) : TINTA });
-      y -= 13;
-      (['Dirección', 'Equipo', 'Plano', 'Et.', 'Estado', f.bloqueado ? 'Qué falta' : ''] as const).forEach((c, i) => {
-        hoja.drawText(limpio(c.toUpperCase()), { x: Object.values(xs)[i], y, size: 6.5, font: negrita, color: GRIS });
-      });
-      y -= 11;
-    }
-    espacio(13);
-    hoja.drawText(recortar(f.rotulo, negrita, 8.5, 74), { x: xs.rotulo, y, size: 8.5, font: negrita, color: TINTA });
-    hoja.drawText(recortar(f.tipo, fuente, 8.5, 122), { x: xs.tipo, y, size: 8.5, font: fuente, color: TINTA });
-    hoja.drawText(recortar(f.plano, fuente, 8.5, 90), { x: xs.plano, y, size: 8.5, font: fuente, color: TINTA });
-    hoja.drawText(limpio(f.etapa), { x: xs.etapa, y, size: 8.5, font: fuente, color: TINTA });
-    hoja.drawText(recortar(f.estado, fuente, 8.5, 74), { x: xs.estado, y, size: 8.5, font: fuente, color: TINTA });
-    if (f.detalle) hoja.drawText(recortar(f.detalle, fuente, 8.5, ANCHO - MARGEN - xs.detalle), { x: xs.detalle, y, size: 8.5, font: fuente, color: TINTA });
-    y -= 12;
+  listaDeEquipos(faltantes);
+
+  titulo(`Lo que ya está terminado (${terminados.length})`);
+  if (terminados.length === 0) {
+    hoja.drawText('Todavía no hay equipos probados.', { x: MARGEN, y, size: 10, font: fuente, color: TINTA });
+    y -= 16;
   }
+  listaDeEquipos(terminados);
+
   // ---------- Evidencias (fotos en miniatura) ----------
   const conFoto: { ruta: string; rotulo: string; texto: string }[] = [];
   for (const p of planos) {
