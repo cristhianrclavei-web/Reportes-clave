@@ -4,10 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, ChevronLeft, CloudOff, FileDown, FileUp, Hand, ListChecks, Lock, LockOpen, Network, Search, Map as IconoPlano, Link2, Link2Off, Loader2, Minus, MoreVertical, Plus, RotateCcw, RotateCw, MousePointer2, PenLine, Ruler, Spline, Redo2, Trash2, Undo2, Waypoints, X,
+  ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, ChevronLeft, CloudOff, CornerDownRight, GitFork, Pencil, ArrowUpToLine, ArrowDownToLine, MapPin, FileDown, FileUp, Hand, ListChecks, Lock, LockOpen, Network, Search, Map as IconoPlano, Link2, Link2Off, Loader2, Minus, MoreVertical, Plus, RotateCcw, RotateCw, MousePointer2, PenLine, Ruler, Spline, Redo2, Trash2, Undo2, Waypoints, X,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import HojaCaptura from '@/components/lazos/HojaCaptura';
+import CejaDivisor, { useAnchoPanel } from '@/components/lazos/CejaDivisor';
 import DiagramaLazo from '@/components/lazos/DiagramaLazo';
 import LienzoPlano, { type NodoTuberia, type Seleccion } from '@/components/lazos/LienzoPlano';
 import SimboloPlano from '@/components/lazos/SimboloPlano';
@@ -26,7 +27,7 @@ import { catalogoEnCache, listarCatalogoClientes, normalizar } from '@/lib/clien
 import RutaDiagramas from '@/components/lazos/RutaDiagramas';
 import ReimportarDxf from '@/components/lazos/ReimportarDxf';
 import {
-  PANEL_EN_PLANO, TIPOS_POR_CIRCUITO, etiquetaSalida, tiposParaElegir, cuantosEnRama, direccionDeTexto, direccionVisible, enOrdenDeRecorrido, esInicioSinConectar, idsSinConectar, tramosSinConectar, hijosDe, lineaPrincipal, lugarDespuesDe, tipoDispositivo,
+  PANEL_EN_PLANO, TIPOS_POR_CIRCUITO, etiquetaSalida, tiposParaElegir, cuantosEnRama, direccionDeTexto, direccionVisible, enOrdenDeRecorrido, esInicioSinConectar, idsSinConectar, tramosSinConectar, hijosDe, lineaPrincipal, lugarAlFinal, lugarAntesDe, lugarColgandoDe, lugarDespuesDe, tipoDispositivo,
   type Elemento, type Lugar, type Panel,
 } from '@/lib/lazos';
 import { guardarElemento, listarPaneles, pendientesDeLazo, subirPendientes } from '@/lib/lazosDatos';
@@ -63,6 +64,8 @@ type HojaPlano = {
   tipo: string | null;
   // La dirección escrita junto al equipo suelto (importado del DXF).
   direccion?: string | null;
+  // Abierta desde el unifilar: solo cambia el lazo, no el plano.
+  desdeUnifilar?: boolean;
 };
 
 const HISTORIAL_MAXIMO = 60;
@@ -85,7 +88,12 @@ function nuevoId(): string {
   return crypto.randomUUID();
 }
 
-export default function EditorPlano({ planoId, esSupervisor }: { planoId: string; esSupervisor: boolean }) {
+export default function EditorPlano({ planoId, esSupervisor, inicio }: {
+  planoId: string;
+  esSupervisor: boolean;
+  // Al llegar desde el diagrama del lazo: abre el unifilar en ese lazo y ubica el dispositivo.
+  inicio?: { lazoId: string | null; elementoId: string | null };
+}) {
   const [plano, setPlano] = useState<Plano | null>(null);
   const [imagenUrl, setImagenUrl] = useState<string | null>(null);
   const [lazos, setLazos] = useState<LazoConElementos[]>([]);
@@ -115,7 +123,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   const [errorGuardar, setErrorGuardar] = useState<string | null>(null);
   const cadenaGuardar = useRef<Promise<void>>(Promise.resolve());
 
-  const [herramienta, setHerramienta] = useState<Herramienta>('ver');
+  const [herramienta, setHerramienta] = useState<Herramienta>(inicio?.lazoId ? 'unifilar' : 'ver');
   // Los equipos y las tuberías abren bloqueados: al recorrer el plano con el
   // dedo no se mueven sin querer. Todo lo demás se edita igual. El candado
   // de arriba los suelta para arrastrarlos.
@@ -123,6 +131,10 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
   // Pedido para centrar el plano en un equipo (al tocarlo en el unifilar).
   const [enfocar, setEnfocar] = useState<{ punto: Punto; vez: number } | null>(null);
   const [lazoUnifilarId, setLazoUnifilarId] = useState<string | null>(null);
+  // Dispositivo elegido en el unifilar: ahí salen sus acciones (editar, agregar…).
+  const [elegidoUnifilar, setElegidoUnifilar] = useState<string | null>(inicio?.elementoId || null);
+  // Ancho del panel de la derecha (en computadora), ajustable con la ceja.
+  const [anchoPanel, setAnchoPanel] = useAnchoPanel();
   // Lazo del último dispositivo sembrado: de ahí sale la sugerencia del
   // siguiente (ya no se arma solo, hay que elegirlo).
   const [lazoSembrando, setLazoSembrando] = useState<string | null>(null);
@@ -862,6 +874,32 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     setTipoNuevo(elemento.tipo);
   }
 
+  // ---------- Editar el lazo desde el unifilar ----------
+
+  // Abre la hoja de captura sobre el lazo, sin tocar el plano: corregir un
+  // dispositivo o agregar uno nuevo antes, después o en rama.
+  function capturarEnUnifilar(lazo: LazoConElementos, lugar: Lugar, editando: Elemento | null) {
+    setHoja({ lazo, lugar, editando, equipoId: null, punto: null, tipo: null, desdeUnifilar: true });
+  }
+
+  function accionUnifilar(lazo: LazoConElementos, elemento: Elemento | null, accion: AccionUnifilar) {
+    const elementos = lazo.elementos;
+    if (accion === 'final' || !elemento) capturarEnUnifilar(lazo, lugarAlFinal(elementos), null);
+    else if (accion === 'editar') capturarEnUnifilar(lazo, lugarDespuesDe(elementos, elemento), elemento);
+    else if (accion === 'antes') capturarEnUnifilar(lazo, lugarAntesDe(elementos, elemento), null);
+    else if (accion === 'despues') capturarEnUnifilar(lazo, lugarDespuesDe(elementos, elemento), null);
+    else if (accion === 'rama') capturarEnUnifilar(lazo, lugarColgandoDe(elementos, elemento), null);
+    else if (accion === 'colocar') colocarDesdeUnifilar(elemento);
+  }
+
+  // Un dispositivo del lazo que no está en ningún plano: se elige para
+  // ponerlo con un toque en el plano (herramienta «Equipos»).
+  function colocarDesdeUnifilar(elemento: Elemento) {
+    elegirHerramienta('equipo');
+    setPorColocar({ tipo: elemento.tipo, elementoId: elemento.id });
+    showToast(`Toca en el plano dónde va ${elemento.nombre}`);
+  }
+
   function editarDatos(equipo: EquipoPlano) {
     const ligado = equipo.elementoId ? elementosPorId.get(equipo.elementoId) : null;
     if (!ligado) return;
@@ -1007,6 +1045,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     // En el unifilar se muestra el lazo del equipo tocado.
     const lazoDelEquipo = equipo?.elementoId ? elementosPorId.get(equipo.elementoId)?.lazo : null;
     if (lazoDelEquipo) setLazoUnifilarId(lazoDelEquipo.id);
+    setElegidoUnifilar(equipo?.elementoId || null);
     if (equipo || tuberia) setPanelAbierto(true);
   }
 
@@ -1175,6 +1214,7 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
 
   // Tocar un dispositivo en el unifilar lleva el plano hasta él.
   function buscarEnPlano(elemento: Elemento) {
+    setElegidoUnifilar(elemento.id);
     const equipo = estadoRef.current.sembrado.equipos.find((e) => e.elementoId === elemento.id);
     if (equipo) {
       setSeleccion({ tipo: 'equipo', id: equipo.id });
@@ -1184,6 +1224,16 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
     const otro = otrosPlanos.get(elemento.id);
     showToast(otro ? `${elemento.nombre} está en el plano «${otro}»` : `${elemento.nombre} todavía no está colocado en este plano`);
   }
+
+  // Al llegar desde el diagrama del lazo: se ubica una vez el dispositivo que venía marcado.
+  const yaUbicado = useRef(false);
+  useEffect(() => {
+    if (yaUbicado.current || !inicio?.elementoId || !plano || lazos.length === 0) return;
+    const elemento = lazos.flatMap((l) => l.elementos).find((e) => e.id === inicio.elementoId);
+    if (!elemento) return;
+    yaUbicado.current = true;
+    buscarEnPlano(elemento);
+  }, [plano, lazos]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function elegirHerramienta(h: Herramienta) {
     setHerramienta(h);
@@ -1447,8 +1497,11 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
           })() : porColocar ? tipoDispositivo(porColocar.tipo).nombre : ''} />
         </div>
 
-        {/* Herramientas y panel: abajo en celular, a la derecha en computadora */}
-        <aside className="shrink-0 lg:w-[380px] border-t lg:border-t-0 lg:border-l border-line bg-surface flex flex-col min-h-0 lg:h-full">
+        <CejaDivisor ancho={anchoPanel} onAncho={setAnchoPanel} />
+
+        {/* Herramientas y panel: abajo en celular, a la derecha en computadora (ancho con la ceja) */}
+        <aside style={{ '--ancho-panel': `${anchoPanel}px` } as React.CSSProperties}
+          className="shrink-0 lg:w-[var(--ancho-panel)] border-t lg:border-t-0 border-line bg-surface flex flex-col min-h-0 lg:h-full">
           <div className="grid grid-cols-7 gap-0.5 sm:gap-1 p-2" role="tablist" aria-label="Herramientas">
             {HERRAMIENTAS.map((h) => {
               const activa = herramienta === h.id;
@@ -1548,8 +1601,9 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
               )}
 
               {herramienta === 'unifilar' && (
-                <PanelUnifilar lazos={lazos} lazoId={lazoUnifilarId} onElegirLazo={setLazoUnifilarId} colorPorLazo={colorPorLazo}
-                  resaltado={equipoElegido?.elementoId || null} enEstePlano={sembrados} onTocar={buscarEnPlano} />
+                <PanelUnifilar lazos={lazos} lazoId={lazoUnifilarId ?? inicio?.lazoId ?? null} onElegirLazo={setLazoUnifilarId} colorPorLazo={colorPorLazo}
+                  elegido={elegidoUnifilar} enEstePlano={sembrados} otrosPlanos={otrosPlanos} onTocar={buscarEnPlano}
+                  onSoltar={() => setElegidoUnifilar(null)} onAccion={accionUnifilar} />
               )}
 
               {herramienta === 'equipo' && (
@@ -1705,7 +1759,10 @@ export default function EditorPlano({ planoId, esSupervisor }: { planoId: string
           nivelInicial={plano.nombre.slice(0, 40)}
           direccionInicial={hoja.direccion}
           unoSolo
-          onGuardado={(elemento, pendiente) => alGuardarDesdeHoja(hoja, elemento, pendiente)}
+          onGuardado={(elemento, pendiente) => {
+            alGuardarDesdeHoja(hoja, elemento, pendiente);
+            if (hoja.desdeUnifilar) setElegidoUnifilar(elemento.id);
+          }}
           onCerrar={() => setHoja(null)}
         />
       )}
@@ -2616,19 +2673,28 @@ function BotonCandado({ bloqueado, onCambiar }: { bloqueado: boolean; onCambiar:
   );
 }
 
-// El diagrama unifilar del lazo junto al plano. Tocar un dispositivo lleva
-// el plano hasta él; tocar un equipo en el plano lo marca aquí. Los que no
-// están sembrados en este plano salen tenues.
-function PanelUnifilar({ lazos, lazoId, onElegirLazo, colorPorLazo, resaltado, enEstePlano, onTocar }: {
+// Lo que se puede hacer con un dispositivo desde el unifilar.
+type AccionUnifilar = 'editar' | 'antes' | 'despues' | 'rama' | 'colocar' | 'final';
+
+// El diagrama unifilar del lazo junto al plano, y desde aquí también se
+// edita: tocar un dispositivo lo ubica en el plano y abre sus acciones
+// (corregir datos, agregar antes / después / en rama, colocarlo en el plano).
+// Los que no están sembrados en este plano salen tenues.
+function PanelUnifilar({ lazos, lazoId, onElegirLazo, colorPorLazo, elegido, enEstePlano, otrosPlanos, onTocar, onSoltar, onAccion }: {
   lazos: LazoConElementos[];
   lazoId: string | null;
   onElegirLazo: (id: string) => void;
   colorPorLazo: Map<string, string>;
-  resaltado: string | null;
+  elegido: string | null;
   enEstePlano: Set<string>;
+  otrosPlanos: Map<string, string>;
   onTocar: (elemento: Elemento) => void;
+  onSoltar: () => void;
+  onAccion: (lazo: LazoConElementos, elemento: Elemento | null, accion: AccionUnifilar) => void;
 }) {
-  const lazo = lazos.find((l) => l.id === lazoId) || lazos[0] || null;
+  // Si el elegido es de otro lazo (se tocó en el plano), se muestra ese lazo.
+  const lazoDelElegido = elegido ? lazos.find((l) => l.elementos.some((e) => e.id === elegido)) : null;
+  const lazo = lazoDelElegido || lazos.find((l) => l.id === lazoId) || lazos[0] || null;
   const tenues = useMemo(() => {
     const mapa = new Map<string, 'descartado'>();
     for (const e of lazo?.elementos || []) if (!enEstePlano.has(e.id)) mapa.set(e.id, 'descartado');
@@ -2647,6 +2713,7 @@ function PanelUnifilar({ lazos, lazoId, onElegirLazo, colorPorLazo, resaltado, e
 
   const enPlano = lazo.elementos.filter((e) => enEstePlano.has(e.id)).length;
   const color = colorPorLazo.get(lazo.id);
+  const elemento = elegido ? lazo.elementos.find((e) => e.id === elegido) || null : null;
   return (
     <div className="pt-1">
       {lazos.length > 1 && (
@@ -2654,7 +2721,7 @@ function PanelUnifilar({ lazos, lazoId, onElegirLazo, colorPorLazo, resaltado, e
           {lazos.map((l) => {
             const activo = l.id === lazo.id;
             return (
-              <button key={l.id} type="button" role="tab" aria-selected={activo} onClick={() => onElegirLazo(l.id)}
+              <button key={l.id} type="button" role="tab" aria-selected={activo} onClick={() => { onSoltar(); onElegirLazo(l.id); }}
                 className={`shrink-0 min-h-[38px] px-3 rounded-full border text-[13px] font-semibold flex items-center gap-1.5 transition-colors ${activo ? 'bg-surface-2 border-line-strong text-ink' : 'border-line text-muted hover:bg-surface-2'}`}>
                 <span className="w-2.5 h-2.5 rounded-full" style={{ background: colorPorLazo.get(l.id) }} />
                 {l.codigo}
@@ -2667,18 +2734,98 @@ function PanelUnifilar({ lazos, lazoId, onElegirLazo, colorPorLazo, resaltado, e
         <span className="w-1.5 h-8 rounded-full" style={{ background: color }} />
         <div className="flex-1 min-w-0">
           <p className="text-[14.5px] font-semibold truncate">{lazo.codigo} · {lazo.nombre}</p>
-          <p className="text-[12.5px] text-muted">{enPlano} de {lazo.elementos.length} en este plano · toca uno para ubicarlo</p>
+          <p className="text-[12.5px] text-muted">{enPlano} de {lazo.elementos.length} en este plano · toca uno para ubicarlo y editarlo</p>
         </div>
         <Link href={`/lazos/${lazo.id}`} className="shrink-0 min-h-[38px] px-3 rounded-xl border border-line text-[13px] font-semibold flex items-center">Abrir</Link>
       </div>
+
+      <AnimatePresence initial={false}>
+        {elemento && (
+          <TarjetaUnifilar key={elemento.id} lazo={lazo} elemento={elemento} color={color}
+            dondeEsta={enEstePlano.has(elemento.id) ? 'aqui' : otrosPlanos.get(elemento.id) || null}
+            onAccion={(accion) => onAccion(lazo, elemento, accion)} onCerrar={onSoltar} />
+        )}
+      </AnimatePresence>
+
       {lazo.elementos.length === 0 ? (
-        <p className="text-[13px] text-muted rounded-2xl border border-line bg-surface-2 p-3.5">El lazo está vacío. Con «Conectar» lo armas tocando los equipos del plano.</p>
+        <p className="text-[13px] text-muted rounded-2xl border border-line bg-surface-2 p-3.5">El lazo está vacío. Agrega el primero aquí abajo o ármalo con «Conectar» tocando los equipos del plano.</p>
       ) : (
         <motion.div key={lazo.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}
           className="rounded-2xl bg-surface-2 border border-line p-3 overflow-x-auto">
-          <DiagramaLazo lazo={lazo} elementos={lazo.elementos} onTocar={onTocar} colorLinea={color} estados={tenues} resaltado={resaltado} />
+          <DiagramaLazo lazo={lazo} elementos={lazo.elementos} onTocar={onTocar} colorLinea={color} estados={tenues} resaltado={elegido} />
         </motion.div>
       )}
+      <button type="button" onClick={() => onAccion(lazo, null, 'final')}
+        className="mt-2.5 w-full min-h-[46px] rounded-xl border border-dashed border-line-strong hover:border-teal/60 hover:bg-teal/5 text-[13.5px] font-semibold flex items-center justify-center gap-2">
+        <Plus size={17} strokeWidth={2.6} className="text-teal" /> Agregar dispositivo al final de {lazo.codigo}
+      </button>
     </div>
+  );
+}
+
+// Las acciones del dispositivo elegido en el unifilar.
+function TarjetaUnifilar({ lazo, elemento, color, dondeEsta, onAccion, onCerrar }: {
+  lazo: LazoConElementos;
+  elemento: Elemento;
+  color: string | undefined;
+  // 'aqui' = en este plano; texto = nombre del otro plano; null = en ninguno.
+  dondeEsta: 'aqui' | string | null;
+  onAccion: (accion: AccionUnifilar) => void;
+  onCerrar: () => void;
+}) {
+  const direccion = direccionVisible(elemento.direccion, lazo.numero);
+  let textoDonde = 'Todavía no está en ningún plano';
+  if (dondeEsta === 'aqui') textoDonde = 'En este plano';
+  else if (dondeEsta) textoDonde = `En el plano «${dondeEsta}»`;
+
+  const agregar: { accion: AccionUnifilar; texto: string; Icono: typeof Plus }[] = [
+    { accion: 'antes', texto: 'Antes', Icono: ArrowUpToLine },
+    { accion: 'despues', texto: 'Después', Icono: ArrowDownToLine },
+    { accion: 'rama', texto: 'En rama', Icono: GitFork },
+  ];
+
+  return (
+    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.18 }}
+      className="overflow-hidden">
+      <div className="mb-2.5 rounded-2xl border border-teal/50 bg-teal/[0.07] p-3">
+        <div className="flex items-center gap-2.5">
+          <span className="w-10 h-10 shrink-0 rounded-xl bg-surface border border-line flex items-center justify-center text-ink" style={{ boxShadow: color ? `inset 3px 0 0 ${color}` : undefined }}>
+            <SimboloPlano tipo={elemento.tipo} tamano={26} />
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="block text-[14.5px] font-semibold truncate">
+              {elemento.nombre}{direccion ? <span className="font-mono text-teal"> · {direccion}</span> : null}
+            </span>
+            <span className="block text-[12.5px] text-muted truncate">{elemento.ubicacion || tipoDispositivo(elemento.tipo).nombre}</span>
+            <span className={`flex items-center gap-1 text-[12px] ${dondeEsta === 'aqui' ? 'text-teal' : 'text-faint'}`}>
+              <MapPin size={12} strokeWidth={2.4} /> {textoDonde}
+            </span>
+          </span>
+          <button type="button" onClick={onCerrar} aria-label="Cerrar" className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-muted hover:bg-surface-2"><X size={15} /></button>
+        </div>
+
+        <div className="mt-2.5 flex flex-wrap gap-1.5">
+          <button type="button" onClick={() => onAccion('editar')}
+            className="min-h-[38px] px-3 rounded-xl bg-teal text-inkOnAccent text-[13px] font-semibold flex items-center gap-1.5">
+            <Pencil size={14} strokeWidth={2.4} /> Editar datos
+          </button>
+          {!dondeEsta && (
+            <button type="button" onClick={() => onAccion('colocar')}
+              className="min-h-[38px] px-3 rounded-xl border border-teal text-teal text-[13px] font-semibold flex items-center gap-1.5">
+              <CornerDownRight size={14} strokeWidth={2.4} /> Colocar en el plano
+            </button>
+          )}
+        </div>
+        <p className="mt-2.5 mb-1 text-[11px] font-semibold uppercase tracking-wide text-faint">Agregar un dispositivo</p>
+        <div className="grid grid-cols-3 gap-1.5">
+          {agregar.map(({ accion, texto, Icono }) => (
+            <button key={accion} type="button" onClick={() => onAccion(accion)}
+              className="min-h-[38px] rounded-xl border border-line bg-surface hover:border-teal/60 text-[12.5px] font-semibold flex items-center justify-center gap-1.5">
+              <Icono size={14} strokeWidth={2.4} className="text-teal" /> {texto}
+            </button>
+          ))}
+        </div>
+      </div>
+    </motion.div>
   );
 }

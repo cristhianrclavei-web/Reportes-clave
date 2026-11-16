@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { FileText, Loader2, Map as IconoPlano, X } from 'lucide-react';
+import { FileText, Loader2, Map as IconoPlano, PenLine, X } from 'lucide-react';
 import LienzoPlano from '@/components/lazos/LienzoPlano';
 import SimboloPlano from '@/components/lazos/SimboloPlano';
 import { colorDeLazo, conexionesEnPlano } from '@/lib/conexionesPlano';
@@ -10,7 +10,8 @@ import { direccionVisible, tipoDispositivo, type Elemento, type Lazo } from '@/l
 import { tamanoSimbolo, type EquipoPlano, type Plano, type Punto } from '@/lib/planos';
 import { imagenDelPlano, planosDelCliente } from '@/lib/planosDatos';
 
-// El plano junto al diagrama unifilar, solo para ver (nada se mueve). Sale
+// El plano junto al diagrama unifilar, solo para ver (nada se mueve); para
+// editarlo, «Editar en el plano» abre el editor con este diagrama al lado. Sale
 // el plano donde están los dispositivos del lazo; si el lazo pasa por varios
 // niveles, se elige cuál arriba. Tocar un equipo lo marca en el diagrama;
 // tocar uno en el diagrama (`enfocar`) trae el plano hasta él.
@@ -177,7 +178,11 @@ export default function PlanoDelLazo({ lazo, elementos, enfocar, onTocarEquipo, 
           </button>
         )) : <span className="text-[13px] font-semibold truncate">{plano?.nombre || 'Plano'}</span>}
         {plano && (
-          <Link href={`/lazos/plano/${plano.id}`} className="ml-auto shrink-0 min-h-[32px] px-2.5 rounded-lg border border-line text-[12.5px] font-semibold flex items-center">Abrir</Link>
+          <Link href={`/lazos/plano/${plano.id}?lazo=${lazo.id}${marcado ? `&elemento=${marcado}` : ''}`}
+            title="Abre el plano con este diagrama al lado: ahí mueves equipos, tubería y los datos del lazo"
+            className="ml-auto shrink-0 min-h-[32px] px-2.5 rounded-lg bg-teal text-inkOnAccent text-[12.5px] font-semibold flex items-center gap-1.5">
+            <PenLine size={14} strokeWidth={2.4} /> Editar en el plano
+          </Link>
         )}
       </div>
       <div className="relative flex-1 min-h-0">{contenido}</div>
