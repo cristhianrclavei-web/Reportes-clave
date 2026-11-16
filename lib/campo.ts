@@ -88,9 +88,10 @@ export function aCompacto(recorrido: PuntoRecorrido[]): PuntoCompacto[] {
   return recorrido.map((p) => [Math.round(Date.parse(p.registrado_en) / 1000), p.lat, p.lng]);
 }
 
-export type EstadoReporte = 'entregado' | 'pendiente' | 'sin_reporte';
+// 'levantamiento': no hubo reporte pero sí un levantamiento de ese cliente ese día (también cubre la visita).
+export type EstadoReporte = 'entregado' | 'levantamiento' | 'pendiente' | 'sin_reporte';
 
-export const TEXTO_REPORTE: Record<EstadoReporte, string> = { entregado: 'Entregado', pendiente: 'Pendiente', sin_reporte: 'Sin reporte' };
+export const TEXTO_REPORTE: Record<EstadoReporte, string> = { entregado: 'Entregado', levantamiento: 'Levantamiento', pendiente: 'Pendiente', sin_reporte: 'Sin reporte' };
 
 export type ParadaCampo = {
   numero: number;
@@ -115,6 +116,8 @@ const MINUTOS_EN_LINEA = 15;
 // Paradas del día numeradas (1, 2, 3…), con el cliente, el servicio y si hay reporte.
 export function paradasDelDia(
   recorrido: PuntoRecorrido[], lugares: LugarConocido[], servicios: ServicioCampo[], reportes: ReporteCampo[], esHoy: boolean, ahoraMs: number,
+  // Clientes con levantamiento ese día (de quien sea, como en la cobertura de visitas).
+  clientesConLevantamiento: Set<string> = new Set(),
 ): ParadaCampo[] {
   const ultimo = recorrido[recorrido.length - 1];
   const reciente = Boolean(ultimo) && (ahoraMs - Date.parse(ultimo.registrado_en)) / 60000 <= MINUTOS_EN_LINEA;
@@ -127,7 +130,9 @@ export function paradasDelDia(
     let reporte: EstadoReporte | null = null;
     if (servicio || clienteId) {
       const conReporte = Boolean(servicio?.report_id) || reportes.some((r) => clienteId && r.cliente_id === clienteId);
+      const deCliente = clienteId || servicio?.cliente_id || null;
       if (conReporte) reporte = 'entregado';
+      else if (deCliente && clientesConLevantamiento.has(deCliente)) reporte = 'levantamiento';
       else reporte = esHoy ? 'pendiente' : 'sin_reporte';
     }
     const enCurso = esHoy && reciente && p.hasta === ultimo?.registrado_en;

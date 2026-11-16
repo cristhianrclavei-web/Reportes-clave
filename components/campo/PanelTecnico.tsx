@@ -12,7 +12,7 @@ import type { InfoTecnico } from './useCampo';
 // Detalle del técnico elegido (los dos mapas): contacto, «Ahora mismo», la
 // línea de tiempo del día (inicio, cada parada, fin), acciones y números.
 
-const COLOR_REPORTE: Record<EstadoReporte, string> = { entregado: '#16a34a', pendiente: '#f59e0b', sin_reporte: '#dc2626' };
+const COLOR_REPORTE: Record<EstadoReporte, string> = { entregado: '#16a34a', levantamiento: '#16a34a', pendiente: '#f59e0b', sin_reporte: '#dc2626' };
 
 function hora(iso: string): string {
   return new Date(iso).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Mexico_City' });

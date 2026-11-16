@@ -10,7 +10,7 @@ import {
   type Alerta, type EstadoTecnico, type ParadaCampo, type Punto, type ReporteCampo, type ServicioCampo,
 } from '@/lib/campo';
 import { DIAS_HISTORIAL, estadoSenal, recorridoDelDia, ultimasUbicacionesDelDia, ultimasUbicacionesHoy, type PuntoRecorrido, type UltimaUbicacion } from '@/lib/ubicacionTecnicos';
-import { reportesDelDia, serviciosDelDia, telefonos, ultimosPuntosConocidos } from '@/lib/campoDatos';
+import { clientesConLevantamiento, reportesDelDia, serviciosDelDia, telefonos, ultimosPuntosConocidos } from '@/lib/campoDatos';
 import { lugaresConocidos } from '@/lib/visitasDatos';
 import type { LugarConocido } from '@/lib/visitas';
 import { LLAVE_GOOGLE_MAPS, crearMotorBasico, crearMotorGoogle, type MarcaMapa, type MotorMapa, type RutaMapa, type TipoMotor } from '@/components/servicios/motorMapa';
@@ -89,6 +89,7 @@ export function useCampo({ conConocidos = false }: { conConocidos?: boolean } = 
   const [recorridos, setRecorridos] = useState<Record<string, PuntoRecorrido[]>>({});
   const [servicios, setServicios] = useState<ServicioCampo[]>([]);
   const [reportes, setReportes] = useState<ReporteCampo[]>([]);
+  const [levantamientos, setLevantamientos] = useState<Set<string>>(new Set());
   const [lugares, setLugares] = useState<LugarConocido[]>([]);
   const [tels, setTels] = useState<Record<string, string>>({});
   const [conocidos, setConocidos] = useState<UltimaUbicacion[]>([]);
@@ -109,10 +110,12 @@ export function useCampo({ conConocidos = false }: { conConocidos?: boolean } = 
     if (!silencioso) setCargando(true);
     try {
       const [desde, hasta] = limitesDelDia(dia);
-      const [lista, delDia, reps] = await Promise.all([
+      const [lista, delDia, reps, levs] = await Promise.all([
         dia === hoyLocal() ? ultimasUbicacionesHoy() : ultimasUbicacionesDelDia(desde, hasta),
         serviciosDelDia(dia),
         reportesDelDia(dia),
+        // Sin levantamientos el mapa sigue (la parada solo diría «sin reporte»).
+        clientesConLevantamiento(dia).catch((e) => { console.error('Levantamientos del día:', e?.message); return new Set<string>(); }),
       ]);
       // Un recorrido por técnico con rastreo ese día (son pocos: uno por teléfono de la empresa).
       const rutas = await Promise.all(lista.map((t) => recorridoDelDia(t.tecnico_id, desde, hasta)));
@@ -123,6 +126,7 @@ export function useCampo({ conConocidos = false }: { conConocidos?: boolean } = 
       setRecorridos(nuevos);
       setServicios(delDia);
       setReportes(reps);
+      setLevantamientos(levs);
       setError(null);
     } catch (e: any) {
       if (pedido === pedidoRef.current) setError(e?.message || 'No se pudo cargar el mapa.');
@@ -184,7 +188,7 @@ export function useCampo({ conConocidos = false }: { conConocidos?: boolean } = 
       const suyos = serviciosDe(id, servicios);
       const nombre = ultimo?.nombre || conocido?.nombre || perfiles[id]?.full_name || 'Técnico';
       const misReportes = reportes.filter((r) => r.created_by === id || r.personal.includes(nombre));
-      const paradas = paradasDelDia(recorrido, lugares, suyos, misReportes, esHoy, ahora);
+      const paradas = paradasDelDia(recorrido, lugares, suyos, misReportes, esHoy, ahora, levantamientos);
       const posicion: Punto | null = ultimo ? [ultimo.lat, ultimo.lng] : null;
       return {
         id, nombre, ultimo, conocido, recorrido, servicios: suyos,
@@ -196,7 +200,7 @@ export function useCampo({ conConocidos = false }: { conConocidos?: boolean } = 
         telefono: tels[id] || null,
       };
     }).sort((a, b) => Number(b.recorrido.length > 0) - Number(a.recorrido.length > 0) || a.nombre.localeCompare(b.nombre, 'es'));
-  }, [ids, ultimos, conocidos, recorridos, servicios, reportes, lugares, perfiles, tels, esHoy, ahora]);
+  }, [ids, ultimos, conocidos, recorridos, servicios, reportes, levantamientos, lugares, perfiles, tels, esHoy, ahora]);
 
   const info = infos.find((t) => t.id === elegido) || null;
 

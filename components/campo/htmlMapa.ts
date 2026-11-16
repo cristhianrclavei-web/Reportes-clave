@@ -40,7 +40,7 @@ export function htmlPin(opciones: { nombre: string; perfil?: PerfilPublico; colo
     + `<div class="pin-tec-nombre">${sinEtiquetas(opciones.etiqueta)}</div></div>`;
 }
 
-const COLOR_REPORTE = { entregado: '#16a34a', pendiente: '#f59e0b', sin_reporte: '#dc2626' };
+const COLOR_REPORTE = { entregado: '#16a34a', levantamiento: '#16a34a', pendiente: '#f59e0b', sin_reporte: '#dc2626' };
 
 // Una marca del día: «I» inicio, número de parada o «F» fin.
 export type MarcaDelDia =

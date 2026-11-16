@@ -76,3 +76,10 @@ export async function ultimosPuntosConocidos(): Promise<UltimaUbicacion[]> {
   }));
   return puntos.filter((x): x is UltimaUbicacion => x !== null).sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
 }
+
+// Clientes con levantamiento ese día (cuentan como visita cubierta en la línea de tiempo).
+export async function clientesConLevantamiento(fecha: string): Promise<Set<string>> {
+  const { data, error } = await createClient().from('levantamientos').select('cliente_id').eq('fecha', fecha).not('cliente_id', 'is', null);
+  if (error) throw new Error(mensajeError(error, 'cargar los levantamientos del día'));
+  return new Set(((data as any[]) || []).map((l) => l.cliente_id as string));
+}

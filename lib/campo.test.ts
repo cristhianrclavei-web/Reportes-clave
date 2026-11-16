@@ -53,6 +53,8 @@ describe('paradas y tramos', () => {
     expect(paradas.map((p) => [p.numero, p.lugar, p.reporte])).toEqual([[1, 'Oficina', null], [2, 'Plaza', 'entregado']]);
     const sinReporte = paradasDelDia(ruta, lugares, [servicio({})], [], false, 0);
     expect(sinReporte[1].reporte).toBe('sin_reporte');
+    // Sin reporte pero con levantamiento de ese cliente ese día.
+    expect(paradasDelDia(ruta, lugares, [], [], false, 0, new Set(['c1']))[1].reporte).toBe('levantamiento');
   });
 
   it('hoy separa lo recorrido del tramo actual desde la última parada', () => {
