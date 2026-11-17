@@ -251,10 +251,14 @@ export async function reporteAvancePdf({ cliente, empresa, planos: sinOrden, pan
   // ---------- Cómo se mide: los pasos de cada equipo ----------
   espacio(130);
   titulo('Cómo se mide el avance');
-  hoja.drawText('Cada equipo pasa por estos 5 pasos, en orden. El número grande es cuántos equipos van hoy en ese paso.', { x: MARGEN, y, size: 8.5, font: fuente, color: GRIS });
-  y -= 12;
+  for (const linea of lineas('Cada equipo pasa por estos 5 pasos, en orden. El número grande dice cuántos equipos ya cumplieron ese paso: un equipo probado también está instalado y direccionado, aunque no se haya marcado cada paso.', fuente, 8.5, ANCHO - MARGEN * 2)) {
+    hoja.drawText(linea, { x: MARGEN, y, size: 8.5, font: fuente, color: GRIS });
+    y -= 11;
+  }
+  y -= 1;
+  // «Pendiente» son los que no han empezado; los demás pasos se acumulan.
   const pasos = [
-    ...ESTADOS_AVANCE.map((e, i) => ({ titulo: `${i + 1}. ${e.corto}`, color: e.color, n: total.porEstado[e.id], texto: QUE_SIGNIFICA[e.id] })),
+    ...ESTADOS_AVANCE.map((e, i) => ({ titulo: `${i + 1}. ${e.corto}`, color: e.color, n: e.id === 'pendiente' ? total.porEstado.pendiente : alMenos(total, e.id), texto: QUE_SIGNIFICA[e.id] })),
     { titulo: 'No se puede', color: COLOR_BLOQUEADO, n: total.bloqueados, texto: 'Detenido por algo ajeno (plafón, acceso...). El motivo va en la lista.' },
   ];
   const separacion = 6;
