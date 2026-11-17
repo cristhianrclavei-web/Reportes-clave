@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
-import { reporteAvancePdf } from './reporteAvancePdf';
+import { frasesDelResumen, reporteAvancePdf } from './reporteAvancePdf';
+import { cuentaVacia } from './avancePlano';
 import type { Plano } from './planos';
 
 // PNG de 1×1 para la foto de evidencia.
@@ -40,5 +41,16 @@ describe('reporte de avance', () => {
     const doc = await PDFDocument.load(bytes);
     const ultima = doc.getPage(doc.getPageCount() - 1);
     expect(ultima.getSize()).toEqual({ width: 792, height: 612 });
+  });
+
+  it('dice el estado del proyecto en palabras', () => {
+    const nivel1 = { ...cuentaVacia(), total: 10, bloqueados: 2, porEstado: { pendiente: 3, canalizado: 1, instalado: 1, direccionado: 1, probado: 2 } };
+    const nivel2 = { ...cuentaVacia(), total: 4, porEstado: { pendiente: 0, canalizado: 0, instalado: 0, direccionado: 0, probado: 4 } };
+    const total = { total: 14, bloqueados: 2, porEstado: { pendiente: 3, canalizado: 1, instalado: 1, direccionado: 1, probado: 6 } };
+    const frases = frasesDelResumen(total, [{ nombre: 'Nivel 1', cuenta: nivel1 }, { nombre: 'Nivel 2', cuenta: nivel2 }], [['Falta plafón', 2]]);
+    expect(frases[0]).toBe('El proyecto tiene 14 equipos. 6 de 12 ya están probados y funcionando (sin contar 2 equipos que no se pueden instalar).');
+    expect(frases[1]).toBe('3 equipos están en proceso (ya tienen trabajo, falta terminarlos) y 3 no se han empezado.');
+    expect(frases[2]).toContain('Falta plafón (2)');
+    expect(frases[3]).toBe('Más avanzado: Nivel 2 (100% terminado). Más atrasado: Nivel 1 (25%).');
   });
 });
