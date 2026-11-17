@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { AlertTriangle, Building2, Cable, ChevronRight, CircuitBoard, Map as IconoPlano, MapPin, Plus, Search, WifiOff } from 'lucide-react';
+import { AlertTriangle, Building2, Cable, ChevronRight, CircuitBoard, FileDown, Map as IconoPlano, MapPin, Plus, Search, WifiOff } from 'lucide-react';
 import FormPanel from '@/components/lazos/FormPanel';
+import DocumentosCliente from '@/components/lazos/DocumentosCliente';
 import NuevoPlano from '@/components/lazos/NuevoPlano';
 import { COLOR_TIPO, fondo } from '@/components/lazos/FrentePanel';
 import MenuCuenta from '@/components/MenuCuenta';
@@ -300,6 +301,20 @@ export default function LazosList({ userName, esSupervisor, clienteInicial, verI
                     {p.nombre}
                   </button>
                 ))}
+              </div>
+            )}
+
+            {/* Los PDF del cliente a la mano: reporte de avance y diagramas. */}
+            {((!faltaPatchPlanos && planosDelCliente.length > 0) || circuitosDelCliente.length > 0) && (
+              <div className="mb-5">
+                <SubtituloGrupo icono={<FileDown size={14} strokeWidth={2.4} />} titulo="Documentos para descargar" cuenta={0} accion={null} />
+                <DocumentosCliente
+                  clienteId={filtroCliente}
+                  cliente={nombreCliente(filtroCliente)}
+                  paneles={panelesDelCliente.map((p) => p.nombre)}
+                  circuitos={filtroPanel ? circuitosDelCliente.filter((l) => l.panel_id === filtroPanel) : circuitosDelCliente}
+                  hayPlanos={!faltaPatchPlanos && planosDelCliente.length > 0}
+                />
               </div>
             )}
 

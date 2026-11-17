@@ -18,7 +18,7 @@ import {
   colorDeAvance, datosDeEstado, equiposEnRecuadro, equiposQueCuentan, estadoDe, insigniaDe, leerAvance, marcaNueva, necesitaAutorizacion, pasaFiltro, siguienteEstado,
   type AvancePlano, type CambioAvance, type FiltroAvance, type MarcaAvance,
 } from '@/lib/avancePlano';
-import { MARCA } from '@/lib/marca';
+import { aPng, generarReporteAvanceCliente } from '@/lib/reporteAvanceCliente';
 import { girar } from '@/lib/simbolosPlano';
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
@@ -42,7 +42,7 @@ import {
 } from '@/lib/planos';
 import {
   borrarPlano, descargarPdfOriginal, entregarPdf, guardarCopiaLazos, guardarSembrado, imagenDelPlano, lazosDelCliente, leerPendiente,
-  avancePendienteDe, bytesDeFotos, marcarAvance, obtenerPlano, otrosPlanosDelCliente, planosDelCliente, renombrarPlano, subirAvance, type LazoConElementos,
+  avancePendienteDe, marcarAvance, obtenerPlano, otrosPlanosDelCliente, planosDelCliente, renombrarPlano, subirAvance, type LazoConElementos,
 } from '@/lib/planosDatos';
 
 type Herramienta = 'ver' | 'equipo' | 'conectar' | 'tuberia' | 'escala' | 'unifilar' | 'avance';
@@ -444,46 +444,13 @@ export default function EditorPlano({ planoId, esSupervisor, inicio }: {
     }
     setGenerandoReporte(true);
     try {
-      const [{ reporteAvancePdf }, { planos: delCliente }] = await Promise.all([import('@/lib/reporteAvancePdf'), planosDelCliente(plano.cliente_id)]);
       let clientes = catalogoEnCache();
       if (!clientes.some((c) => c.id === plano.cliente_id)) clientes = await listarCatalogoClientes().catch(() => clientes);
       const cliente = clientes.find((c) => c.id === plano.cliente_id)?.nombre || 'Cliente';
-      const etiquetas = new Map<string, string>();
-      const ubicaciones = new Map<string, string>();
-      for (const [id, { elemento, lazo }] of elementosPorId) {
-        etiquetas.set(id, etiquetaDeElemento(elemento, lazo));
-        if (elemento.ubicacion) ubicaciones.set(id, elemento.ubicacion);
-      }
-
-      const paraReporte = [];
-      for (const otro of delCliente) {
-        // Este plano va con lo que se ve en pantalla (puede traer cambios sin subir).
-        const esEste = otro.id === plano.id;
-        const datos = esEste ? { ...otro, sembrado: estado.sembrado } : otro;
-        const esDxf = datos.formato === 'dxf';
-        const original = await descargarPdfOriginal(esDxf ? datos.imagen_path : datos.pdf_path);
-        paraReporte.push({
-          plano: datos,
-          avance: esEste ? avance : leerAvance(otro.avance),
-          pdfOriginal: esDxf ? null : original,
-          fondoPng: esDxf ? await aPng(original) : null,
-          etiquetas,
-        });
-      }
-      // Fotos de evidencia (lo que no se puede instalar y las marcas con foto).
-      const rutas = new Set<string>();
-      for (const p of paraReporte) {
-        for (const marca of Object.values(p.avance)) {
-          const ruta = marca.bloqueo?.foto || marca.foto;
-          if (ruta) rutas.add(ruta);
-        }
-      }
-      const fotos = await bytesDeFotos([...rutas].slice(0, 60));
-      const bytes = await reporteAvancePdf({
-        cliente, empresa: MARCA.nombre, planos: paraReporte, paneles: paneles.map((p) => p.nombre), lazoDe: lazoDeEquipo, fotos, ubicaciones,
+      const url = await generarReporteAvanceCliente({
+        clienteId: plano.cliente_id, cliente, paneles: paneles.map((p) => p.nombre),
+        enPantalla: { planoId: plano.id, sembrado: estado.sembrado, avance },
       });
-      const nombreArchivo = `avance-${cliente}`.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/gi, '-');
-      const url = await entregarPdf(plano.id, bytes, nombreArchivo);
       window.location.assign(url);
       showToast('Descargando el reporte de avance');
     } catch (e: any) {
@@ -1768,19 +1735,6 @@ export default function EditorPlano({ planoId, esSupervisor, inicio }: {
       )}
     </div>
   );
-}
-
-// La imagen del plano (WebP) convertida a PNG para meterla al PDF.
-async function aPng(bytes: ArrayBuffer): Promise<Uint8Array> {
-  const mapa = await createImageBitmap(new Blob([bytes]));
-  const lienzo = document.createElement('canvas');
-  lienzo.width = mapa.width;
-  lienzo.height = mapa.height;
-  lienzo.getContext('2d')?.drawImage(mapa, 0, 0);
-  const png = await new Promise<Blob>((resolver, rechazar) => lienzo.toBlob((b) => (b ? resolver(b) : rechazar(new Error('No se pudo preparar la imagen del plano.'))), 'image/png'));
-  lienzo.width = 0;
-  lienzo.height = 0;
-  return new Uint8Array(await png.arrayBuffer());
 }
 
 // ---------- Piezas ----------
