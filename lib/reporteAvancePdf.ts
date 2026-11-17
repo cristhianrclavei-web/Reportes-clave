@@ -3,7 +3,8 @@
 // estado, y la lista de lo que falta con el motivo de lo que no se puede
 // instalar. Se arma en el navegador, igual que el PDF del plano.
 
-import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from 'pdf-lib';
+import { PDFDocument, PDFFont, PDFPage, rgb } from 'pdf-lib';
+import { LINEA_MARCA, MARGIN, NAVY, drawBadge, drawIconStrip, drawWatermark, drawWordmark, embedBrandFonts } from './pdfBranding';
 import {
   COLOR_BLOQUEADO, ESTADOS_AVANCE, alMenos, colorDeAvance, contar, cuentaVacia, datosDeEstado, equiposQueCuentan, estadoDe,
   nombreEtapa, porcentajes, resumenPorEtapa, resumenPorLazo, resumenPorTipo, sumar,
@@ -26,8 +27,8 @@ export type PlanoParaReporte = {
 
 const ANCHO = 612;
 const ALTO = 792;
-const MARGEN = 40;
-const TINTA = rgb(0.06, 0.15, 0.23);
+const MARGEN = MARGIN;
+const TINTA = NAVY;
 const GRIS = rgb(0.42, 0.46, 0.5);
 const LINEA = rgb(0.78, 0.8, 0.82);
 
@@ -161,11 +162,12 @@ export async function reporteAvancePdf({ cliente, empresa, planos: sinOrden, pan
   const planos = ordenarPorNivel(sinOrden.map((p) => ({ ...p, nombre: p.plano.nombre })));
   const pdf = await PDFDocument.create();
   pdf.setTitle(limpio(`Reporte de avance - ${cliente}`));
-  const fuente = await pdf.embedFont(StandardFonts.Helvetica);
-  const negrita = await pdf.embedFont(StandardFonts.HelveticaBold);
+  // Las mismas fuentes y logo que el reporte de servicio.
+  const { font: fuente, bold: negrita, display } = await embedBrandFonts(pdf);
   const fecha = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Mexico_City' });
 
   let hoja: PDFPage = pdf.addPage([ANCHO, ALTO]);
+  drawWatermark(hoja, display);
   const imagenes: { hoja: PDFPage; x: number; y: number; ancho: number; alto: number; bytes: Uint8Array }[] = [];
   let y = ALTO - MARGEN;
 
@@ -175,6 +177,7 @@ export async function reporteAvancePdf({ cliente, empresa, planos: sinOrden, pan
   function hojaNueva() {
     pie(hoja);
     hoja = pdf.addPage([ANCHO, ALTO]);
+    drawWatermark(hoja, display);
     y = ALTO - MARGEN;
   }
   function espacio(alto: number) {
@@ -183,21 +186,33 @@ export async function reporteAvancePdf({ cliente, empresa, planos: sinOrden, pan
   function titulo(t: string) {
     espacio(40);
     y -= 16;
-    hoja.drawText(limpio(t.toUpperCase()), { x: MARGEN, y, size: 10, font: negrita, color: TINTA });
+    hoja.drawText(limpio(t.toUpperCase()), { x: MARGEN, y, size: 12, font: display, color: TINTA });
     y -= 5;
     hoja.drawLine({ start: { x: MARGEN, y }, end: { x: ANCHO - MARGEN, y }, thickness: 1, color: TINTA });
     y -= 14;
   }
 
-  // ---------- Encabezado ----------
-  hoja.drawText(limpio(empresa), { x: MARGEN, y: y - 4, size: 11, font: negrita, color: GRIS });
-  hoja.drawText('REPORTE DE AVANCE DE INSTALACIÓN', { x: MARGEN, y: y - 26, size: 17, font: negrita, color: TINTA });
-  hoja.drawText(recortar(cliente, negrita, 14, ANCHO - MARGEN * 2), { x: MARGEN, y: y - 46, size: 14, font: negrita, color: TINTA });
-  hoja.drawText(recortar(`${paneles.length === 1 ? 'Panel' : 'Paneles'}: ${paneles.length ? paneles.join(', ') : 'sin registrar'}`, fuente, 10, ANCHO - MARGEN * 2), { x: MARGEN, y: y - 62, size: 10, font: fuente, color: TINTA });
-  hoja.drawText(limpio(`Fecha de corte: ${fecha} · ${planos.length} ${planos.length === 1 ? 'plano' : 'planos'}`), { x: MARGEN, y: y - 76, size: 9.5, font: fuente, color: GRIS });
-  y -= 89;
+  // ---------- Encabezado (igual que el reporte de servicio) ----------
+  const arriba = y;
+  const tamEscudo = 46;
+  drawBadge(hoja, display, MARGEN, arriba, tamEscudo);
+  const xNombre = MARGEN + tamEscudo + 12;
+  const anchoMarca = drawWordmark(hoja, display, xNombre, arriba - 15, 15);
+  const yRaya = arriba - 24;
+  hoja.drawLine({ start: { x: xNombre, y: yRaya }, end: { x: xNombre + anchoMarca, y: yRaya }, thickness: 1, color: LINEA_MARCA });
+  drawIconStrip(hoja, xNombre, yRaya - 8, 14, GRIS);
+  const xTitulo = ANCHO - MARGEN - 210;
+  hoja.drawText('REPORTE DE AVANCE', { x: xTitulo, y: arriba - 10, size: 14, font: display, color: TINTA });
+  hoja.drawText('DE INSTALACIÓN', { x: xTitulo, y: arriba - 24, size: 14, font: display, color: TINTA });
+  hoja.drawText(limpio(`Corte al ${fecha}`), { x: xTitulo, y: arriba - 37, size: 7.5, font: fuente, color: GRIS });
+
+  const yCliente = arriba - tamEscudo - 20;
+  hoja.drawText(recortar(cliente, display, 17, ANCHO - MARGEN * 2), { x: MARGEN, y: yCliente, size: 17, font: display, color: TINTA });
+  const datosObra = `${paneles.length === 1 ? 'Panel' : 'Paneles'}: ${paneles.length ? paneles.join(', ') : 'sin registrar'}  ·  ${planos.length} ${planos.length === 1 ? 'plano' : 'planos'}`;
+  hoja.drawText(recortar(datosObra, fuente, 8.5, ANCHO - MARGEN * 2), { x: MARGEN, y: yCliente - 14, size: 8.5, font: fuente, color: GRIS });
+  y = yCliente - 26;
   hoja.drawLine({ start: { x: MARGEN, y }, end: { x: ANCHO - MARGEN, y }, thickness: 1.5, color: TINTA });
-  y -= 18;
+  y -= 6;
 
   // ---------- Resumen para quien lo ve por primera vez ----------
   let total: Cuenta = cuentaVacia();
@@ -551,7 +566,9 @@ export async function reporteAvancePdf({ cliente, empresa, planos: sinOrden, pan
     const h = embebida.height * escala;
     const x = (ALTO - w) / 2;
     const yPlano = MARGEN + (ANCHO - MARGEN * 2 - encabezado - h) / 2;
-    pagina.drawText(recortar(`${p.plano.nombre} · Avance al ${fecha}`, negrita, 12, ALTO - MARGEN * 2), { x: MARGEN, y: ANCHO - MARGEN - 12, size: 12, font: negrita, color: TINTA });
+    // El escudo chico a la derecha, como en las demás hojas de la marca.
+    drawBadge(pagina, display, ALTO - MARGEN - 26, ANCHO - MARGEN + 4, 26);
+    pagina.drawText(recortar(`${p.plano.nombre} · Avance al ${fecha}`, display, 14, ALTO - MARGEN * 2 - 40), { x: MARGEN, y: ANCHO - MARGEN - 12, size: 14, font: display, color: TINTA });
     pagina.drawPage(embebida, { x, y: yPlano, width: w, height: h });
     pagina.drawRectangle({ x, y: yPlano, width: w, height: h, borderColor: LINEA, borderWidth: 0.6 });
     // Leyenda con la letra de cada estado (no solo el color).

@@ -56,9 +56,10 @@ export type BrandFonts = { font: PDFFont; bold: PDFFont; display: PDFFont };
 export async function embedBrandFonts(pdfDoc: PDFDocument): Promise<BrandFonts> {
   try {
     pdfDoc.registerFontkit(fontkit);
-    const font = await pdfDoc.embedFont(Buffer.from(INTER_REGULAR_BASE64, 'base64'));
-    const bold = await pdfDoc.embedFont(Buffer.from(INTER_SEMIBOLD_BASE64, 'base64'));
-    const display = await pdfDoc.embedFont(Buffer.from(BARLOW_CONDENSED_BOLD_BASE64, 'base64'));
+    // El base64 va directo (sin Buffer) para que también funcione en el navegador.
+    const font = await pdfDoc.embedFont(INTER_REGULAR_BASE64);
+    const bold = await pdfDoc.embedFont(INTER_SEMIBOLD_BASE64);
+    const display = await pdfDoc.embedFont(BARLOW_CONDENSED_BOLD_BASE64);
     return { font, bold, display };
   } catch (e) {
     console.error('No se pudieron incrustar las fuentes de marca, usando Helvetica:', e);
