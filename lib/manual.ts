@@ -501,6 +501,8 @@ export const MANUAL_SUPERVISOR: SeccionManual[] = [
           'En «Firma» elige quién sale en «Atentamente» del PDF (las personas que aprueban cotizaciones); el nombre y el correo se pueden escribir a mano.',
           'Descarga el PDF o compártelo. Cambia el estado conforme avance: enviada, aprobada, rechazada.',
           'Si aprobaste una cotización y falta corregir algo, usa «Quitar aprobación para corregir»: vuelve a borrador para editarla y luego la firmas otra vez.',
+          'Pedir aprobación por WhatsApp: en «Aprobación» toca el nombre de quien aprueba (Everardo, Clara…) y luego «Mandar por WhatsApp». Le llega un enlace para ver el PDF y firmar desde su celular sin entrar a la app, o pedir cambios con un comentario. Te llega el aviso y ahí mismo ves a quién se le pidió y qué contestó. El enlace es solo de esa persona, vence en 7 días y sirve una vez; si editas la cotización después de mandarlo, hay que mandarlo de nuevo.',
+          'Ya aprobada, cualquiera de supervisión la puede mandar al cliente con el botón de WhatsApp, y al mandarla queda como «Enviada» sola.',
           'Puedes copiar una cotización existente para no empezar de cero.',
         ],
       },

@@ -16,6 +16,7 @@ import {
 } from '@/lib/cotizaciones';
 import { showToast } from '@/components/Toast';
 import type { FirmanteSugerido } from '@/lib/firmantesCotizacion';
+import PedirAprobacion from '@/components/cotizaciones/PedirAprobacion';
 import { FileText, Pencil, Trash2, ChevronLeft, X, Check, Send, Ban, MessageCircle, ExternalLink, Copy, Network, Sparkles, Undo2 } from 'lucide-react';
 import { MARCA, MARCA_MAYUS } from '@/lib/marca';
 
@@ -185,6 +186,13 @@ export default function CotizacionDetalle({
     // tenerlo capturado para poder mandarla.
     const tel = cotizacion.telefono ? limpiarTelefonoWhatsapp(cotizacion.telefono) : '';
     window.open(`https://wa.me/${tel}?text=${encodeURIComponent(mensaje)}`, '_blank');
+    // Ya aprobada y mandada al cliente: queda como enviada sin otro paso
+    // (antes se quedaban en borrador o aprobada aunque ya se hubieran mandado).
+    if (cotizacion.estado === 'aprobada') {
+      marcarEnviada(cotizacion.id)
+        .then(() => setCotizacion((prev) => ({ ...prev, estado: 'enviada' })))
+        .catch((e: any) => avisar('Se abrió WhatsApp, pero no se pudo marcar como enviada: ' + (e?.message || 'revisa tu señal') + '. Márcala a mano.'));
+    }
   }
 
   async function handleGuardadoEdicion() {
@@ -417,6 +425,7 @@ export default function CotizacionDetalle({
               </p>
             )}
             <img src={cotizacion.aprobada_firma} alt="Firma de aprobación" className="w-full max-w-[300px] rounded-xl border border-line bg-white" />
+            <PedirAprobacion cotizacion={{ id: cotizacion.id, folio: cotizacion.folio, empresa: cotizacion.empresa }} soloHistorial />
           </div>
         ) : (
           <div>
@@ -425,7 +434,7 @@ export default function CotizacionDetalle({
             </p>
 
             {!puedeAprobar && (
-              <p className="text-[12.5px] text-muted">No tienes permiso para aprobar cotizaciones.</p>
+              <p className="text-[12.5px] text-muted">No tienes permiso para aprobar cotizaciones: pídele la aprobación a quien sí.</p>
             )}
 
             {puedeAprobar && !mostrandoFirma && (
@@ -466,6 +475,8 @@ export default function CotizacionDetalle({
                 </div>
               </div>
             )}
+
+            <PedirAprobacion cotizacion={{ id: cotizacion.id, folio: cotizacion.folio, empresa: cotizacion.empresa }} />
           </div>
         )}
       </div>
@@ -508,10 +519,9 @@ export default function CotizacionDetalle({
         </div>
       )}
 
-      {/* Compartir: ver el PDF (para todos) o mandarlo directo por WhatsApp
-          (solo quien aprueba cotizaciones) — el de WhatsApp queda activo
-          siempre, sin importar el estado, para poder reenviarla cuando haga
-          falta. */}
+      {/* Compartir: ver el PDF (para todos) o mandarlo por WhatsApp al
+          cliente: quien aprueba, siempre; los demás, ya que está aprobada.
+          Mandarla ya aprobada la deja como «enviada». */}
       <div className="flex gap-2.5 mb-1.5">
         <a
           // La versión sale de updated_at y no de Date.now(): el reloj en el
@@ -527,7 +537,7 @@ export default function CotizacionDetalle({
           <FileText size={18} strokeWidth={2.4} />
           Ver PDF
         </a>
-        {puedeAprobar && (
+        {(puedeAprobar || !!cotizacion.aprobada_firma) && (
           <button
             onClick={handleEnviarWhatsapp}
             className="flex-1 min-h-[52px] rounded-2xl bg-[#25D366] text-white font-display font-semibold text-[15px] flex items-center justify-center gap-2 active:scale-95 transition-transform"
