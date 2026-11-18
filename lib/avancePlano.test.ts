@@ -78,11 +78,10 @@ describe('avance: flujo y cuentas', () => {
     expect(insigniaDe({ estado: 'instalado', bloqueo: { motivo: 'Dañado' } })).toMatchObject({ letra: '✕', color: COLOR_BLOQUEADO });
   });
 
-  it('pide motivo, nota con «Otro» y foto para «no se puede instalar»', () => {
-    expect(errorDeBloqueo({ motivo: '', nota: '', foto: null })).toContain('Elige');
-    expect(errorDeBloqueo({ motivo: 'Otro', nota: '', foto: 'x' })).toContain('Otro');
-    expect(errorDeBloqueo({ motivo: 'Sin acceso', nota: '', foto: null })).toContain('foto');
-    expect(errorDeBloqueo({ motivo: 'Sin acceso', nota: '', foto: 'x' })).toBeNull();
+  it('pide motivo y nota con «Otro» para «no se puede instalar»; la foto es opcional', () => {
+    expect(errorDeBloqueo({ motivo: '', nota: '' })).toContain('Elige');
+    expect(errorDeBloqueo({ motivo: 'Otro', nota: '' })).toContain('Otro');
+    expect(errorDeBloqueo({ motivo: 'Sin acceso', nota: '' })).toBeNull();
   });
 
   it('ordena lo que falta primero y filtra por estado, lazo, tipo y dirección', () => {

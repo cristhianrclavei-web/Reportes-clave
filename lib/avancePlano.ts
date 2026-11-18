@@ -27,7 +27,7 @@ export const MOTIVOS_BLOQUEO = ['Falta material', 'Sin acceso', 'Dañado', 'Obra
 // Etapas de obra que se pueden elegir.
 export const ETAPAS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
 
-// `foto`: ruta en el bucket (obligatoria al marcarlo desde patch_lazos_avance_historial.sql).
+// `foto`: ruta en el bucket (opcional desde patch_radio_25_foto_opcional.sql).
 export type Bloqueo = { motivo: string; nota?: string | null; foto?: string | null };
 
 export type MarcaAvance = {
@@ -131,11 +131,10 @@ export function insigniaDe(marca: MarcaAvance | undefined): { letra: string; col
   return { letra: datos.letra, color: datos.color, nombre: datos.corto };
 }
 
-export function errorDeBloqueo(bloqueo: { motivo: string; nota: string; foto: File | string | null }): string | null {
+export function errorDeBloqueo(bloqueo: { motivo: string; nota: string }): string | null {
   if (!bloqueo.motivo) return 'Elige por qué no se puede instalar.';
   if (bloqueo.motivo === 'Otro' && bloqueo.nota.trim().length < 3) return 'Con «Otro», escribe qué impide instalarlo.';
   if (bloqueo.nota.trim().length > 300) return 'La nota es muy larga (máximo 300 letras).';
-  if (!bloqueo.foto) return 'Toma la foto de evidencia.';
   return null;
 }
 

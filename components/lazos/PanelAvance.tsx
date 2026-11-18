@@ -174,14 +174,15 @@ export default function PanelAvance({
   }
 
   async function guardarBloqueo() {
-    const problema = errorDeBloqueo({ motivo, nota, foto: fotoBloqueo });
+    const problema = errorDeBloqueo({ motivo, nota });
     if (problema) {
       setErrorBloqueo(problema);
       return;
     }
     setTrabajando(true);
     try {
-      const foto = await subirFotoAvance(planoId, fotoBloqueo!);
+      // La foto es opcional: sin foto, el bloqueo se guarda solo con el motivo.
+      const foto = fotoBloqueo ? await subirFotoAvance(planoId, fotoBloqueo) : null;
       await onMarcar({ bloqueo: { motivo, nota: nota.trim() || null, foto } });
       setBloqueando(false);
       setMotivo('');
@@ -432,7 +433,7 @@ export default function PanelAvance({
             </button>
           )}
 
-          {/* No se puede instalar: motivo y foto obligatorios */}
+          {/* No se puede instalar: motivo obligatorio, foto opcional */}
           {!bloqueando ? (
             <div className="flex flex-wrap gap-1.5 mt-3">
               <button type="button" onClick={() => setBloqueando(true)}
@@ -454,7 +455,7 @@ export default function PanelAvance({
               <input type="text" value={nota} maxLength={300} onChange={(ev) => { setNota(ev.target.value); setErrorBloqueo(null); }}
                 placeholder={motivo === 'Otro' ? 'Qué lo impide (obligatorio)' : 'Nota (opcional): qué falta para instalarlo'} aria-label="Nota"
                 className="w-full px-3 min-h-[46px] rounded-xl bg-surface border border-line focus:border-teal focus:outline-none text-[15px]" />
-              <CampoFoto titulo="Foto de evidencia (obligatoria; necesita señal)" archivo={fotoBloqueo} onCambiar={(f) => { setFotoBloqueo(f); setErrorBloqueo(null); }} />
+              <CampoFoto titulo="Foto de evidencia (opcional; necesita señal)" archivo={fotoBloqueo} onCambiar={(f) => { setFotoBloqueo(f); setErrorBloqueo(null); }} />
               {errorBloqueo && <p role="alert" className="text-red font-semibold text-[13px]">{errorBloqueo}</p>}
               <div className="flex gap-2">
                 <button type="button" onClick={() => { setBloqueando(false); setErrorBloqueo(null); }} disabled={trabajando} className="min-h-[48px] px-4 rounded-xl border border-line bg-surface text-[14px] font-semibold">Cancelar</button>

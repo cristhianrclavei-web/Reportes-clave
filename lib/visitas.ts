@@ -15,8 +15,8 @@ export const RADIO_PARADA_M = 120;
 // Un hueco así o mayor entre dos puntos (teléfono sin señal o dormido) se avisa junto al tiempo.
 export const MINUTOS_SIN_SENAL = 15;
 export const RADIO_CLIENTE_M = 200;
-// 50 m es para casas vecinas, donde 100 m alcanza a la de junto.
-export const RADIOS_CLIENTE = [50, 100, 200, 300, 500, 1000] as const;
+// 25 y 50 m son para casas vecinas, donde 100 m alcanza a la de junto.
+export const RADIOS_CLIENTE = [25, 50, 100, 200, 300, 500, 1000] as const;
 // El rastreo se guarda 90 días; el buscador por técnico lee de 31 en 31.
 export const DIAS_MAXIMO_TECNICO = 31;
 export const DIAS_MAXIMO_CLIENTE = 120;

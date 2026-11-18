@@ -105,7 +105,7 @@ export default function UbicacionCliente({ clienteId }: { clienteId: string }) {
               </button>
             ))}
           </div>
-          <p className="text-[12px] text-muted mt-1.5 leading-snug">Usa 50 m en casas o locales pegados a otro cliente. 200 m va bien para un edificio o una nave. Usa 500 m o 1 km solo en sitios muy grandes (un parque industrial, un fraccionamiento): mientras más grande, más fácil confundirlo con un vecino.</p>
+          <p className="text-[12px] text-muted mt-1.5 leading-snug">Usa 25 o 50 m en casas o locales pegados a otro cliente (con 25 m, si el GPS falla, pueden quedar minutos fuera). 200 m va bien para un edificio o una nave. Usa 500 m o 1 km solo en sitios muy grandes (un parque industrial, un fraccionamiento): mientras más grande, más fácil confundirlo con un vecino.</p>
           {error && <p className="text-red font-semibold text-[13px] mt-2">{error}</p>}
           <div className="flex gap-2 mt-3">
             <button type="button" onClick={() => { setEditando(false); setError(null); }} disabled={guardando} className="flex-1 min-h-[42px] rounded-xl border border-line-strong text-[13.5px]">Cancelar</button>
