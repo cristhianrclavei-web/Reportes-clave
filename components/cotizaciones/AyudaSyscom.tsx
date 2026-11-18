@@ -31,6 +31,7 @@ export type Sugerencia = {
   costo: number | null;
   foto: string | null;
   modelo: string | null;
+  marca: string | null;
   existencia: number | null;
   // Solo del catálogo: de qué cotización salió el costo.
   folio?: string | null;
@@ -38,10 +39,10 @@ export type Sugerencia = {
 };
 
 // Lo que se cambia en el concepto al aceptar.
-export type CambioConcepto = { enlace: string; costo?: string; foto?: string };
+export type CambioConcepto = { enlace: string; costo?: string; foto?: string; modelo?: string; marca?: string };
 
 export function cambioDeSugerencia(s: Sugerencia, costoActual: string): CambioConcepto {
-  const cambio: CambioConcepto = { enlace: s.enlace };
+  const cambio: CambioConcepto = { enlace: s.enlace, modelo: s.modelo || '', marca: s.marca || '' };
   // El costo se llena solo si estaba vacío; para actualizarlo está «Revisar precios».
   if (!costoActual.trim() && s.costo !== null) cambio.costo = String(s.costo);
   if (s.foto && /^https:\/\//i.test(s.foto)) cambio.foto = s.foto;
@@ -49,12 +50,12 @@ export function cambioDeSugerencia(s: Sugerencia, costoActual: string): CambioCo
 }
 
 function sugerenciaDeCatalogo(p: ProductoCotizado): Sugerencia {
-  return { fuente: 'catalogo', titulo: p.descripcion.split('\n')[0], enlace: p.enlace, costo: p.costo, foto: null, modelo: null, existencia: null, folio: p.folio, fecha: p.fecha };
+  return { fuente: 'catalogo', titulo: p.descripcion.split('\n')[0], enlace: p.enlace, costo: p.costo, foto: p.foto, modelo: p.modelo, marca: p.marca, existencia: null, folio: p.folio, fecha: p.fecha };
 }
 
 function sugerenciaDeSyscom(p: ProductoSyscom): Sugerencia | null {
   if (!p.link) return null;
-  return { fuente: 'syscom', titulo: p.titulo, enlace: p.link, costo: p.precio, foto: p.imagen, modelo: p.modelo, existencia: p.existencia };
+  return { fuente: 'syscom', titulo: p.titulo, enlace: p.link, costo: p.precio, foto: p.imagen, modelo: p.modelo, marca: p.marca, existencia: p.existencia };
 }
 
 // ---------- Datos ----------
@@ -66,7 +67,7 @@ export function useCatalogoCotizado(): { catalogo: ProductoCotizado[]; error: st
   useEffect(() => {
     let cancelado = false;
     createClient().from('cotizacion_lineas')
-      .select('descripcion, enlace, costo, unidad, cotizaciones(folio, created_at)')
+      .select('descripcion, enlace, costo, unidad, foto, modelo, marca, cotizaciones(folio, created_at)')
       .not('enlace', 'is', null).neq('enlace', '').limit(3000)
       .then(({ data, error: e }) => {
         if (cancelado) return;
@@ -77,6 +78,7 @@ export function useCatalogoCotizado(): { catalogo: ProductoCotizado[]; error: st
         }
         setCatalogo(construirCatalogo((data || []).map((f: any) => ({
           descripcion: f.descripcion || '', enlace: f.enlace, costo: f.costo, unidad: f.unidad,
+          foto: f.foto, modelo: f.modelo, marca: f.marca,
           fecha: f.cotizaciones?.created_at || '', folio: f.cotizaciones?.folio || null,
         }))));
       });

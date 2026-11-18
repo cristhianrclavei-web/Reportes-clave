@@ -51,6 +51,7 @@ import EtiquetasMantenimiento from '@/components/EtiquetasMantenimiento';
 import { guardarCamposBorrador, guardarFotosBorrador, leerBorrador, borrarBorrador } from '@/lib/borradorReporte';
 import EquipoInstaladoRenglon, { EquipoFila, ArticuloCatalogo, faltaModelo, renglonEquipoVacio, textoEquiposAviso } from '@/components/EquipoInstaladoRenglon';
 import { cargarModelosEquipo, ModeloEquipo } from '@/lib/sugerenciasEquipos';
+import { cargarEquiposCotizados, type EquipoCotizado } from '@/lib/equiposCotizados';
 import { cargarConceptosMateriales, ConceptosAprendidos } from '@/lib/conceptosMateriales';
 import { sinRegistroDeReporte } from '@/lib/equiposInstalados';
 import { FilaTuberia, FilaCable, FilaSoporteria, tuberiasDe, cablesDe, soporteriaDe } from '@/lib/materialesReporte';
@@ -353,6 +354,12 @@ export default function NuevoReportePage() {
   // Modelos ya instalados antes, para sugerirlos (también sin señal).
   const [modelosEquipo, setModelosEquipo] = useState<ModeloEquipo[]>([]);
   useEffect(() => cargarModelosEquipo(setModelosEquipo), []);
+  // Lo cotizado para el cliente elegido: primero en las sugerencias de equipo.
+  const [equiposCotizados, setEquiposCotizados] = useState<EquipoCotizado[]>([]);
+  useEffect(() => {
+    setEquiposCotizados([]);
+    if (clienteId) cargarEquiposCotizados(clienteId, setEquiposCotizados);
+  }, [clienteId]);
   // Lo que ya se escribió en tubería, cable y soportería de otros reportes.
   const [conceptosMateriales, setConceptosMateriales] = useState<ConceptosAprendidos>({});
   useEffect(() => cargarConceptosMateriales(setConceptosMateriales), []);
@@ -2192,6 +2199,7 @@ export default function NuevoReportePage() {
               eq={eq}
               catalogo={catalogoEquipos}
               modelos={modelosEquipo}
+              cotizados={equiposCotizados}
               inputCls={inputCls}
               onCambiar={(nuevo) => setEquipos((eqs) => eqs.map((e, idx) => (idx === i ? nuevo : e)))}
               onQuitar={equipos.length > 1 ? () => setEquipos((eqs) => eqs.filter((_, idx) => idx !== i)) : undefined}

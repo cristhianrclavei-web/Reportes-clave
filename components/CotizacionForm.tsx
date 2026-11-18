@@ -44,7 +44,8 @@ const labelCls = 'block text-[11px] font-semibold uppercase tracking-wider text-
 const cardCls = 'glass rounded-2xl p-4';
 const cardTitleCls = 'font-display font-semibold text-[13px] uppercase tracking-wider text-teal mb-3.5 flex items-center gap-2';
 
-type ItemForm = { id: string; descripcion: string; unidad: string; cantidad: string; costo: string; margenPct: string; enlace?: string; foto?: string };
+// modelo y marca vienen del producto de SYSCOM ligado (no se capturan a mano).
+type ItemForm = { id: string; descripcion: string; unidad: string; cantidad: string; costo: string; margenPct: string; enlace?: string; foto?: string; modelo?: string; marca?: string };
 type GrupoForm = { id: string; sistema: string; items: ItemForm[] };
 
 function nuevoItem(): ItemForm {
@@ -171,6 +172,8 @@ export default function CotizacionForm({
         margenPct: String(tieneMargenGuardado ? l.margen_pct : 0),
         enlace: l.enlace || '',
         foto: l.foto || '',
+        modelo: l.modelo || '',
+        marca: l.marca || '',
       });
     }
     return orden.map((s) => porSistema.get(s)!);
@@ -192,6 +195,8 @@ export default function CotizacionForm({
     };
     // El enlace guarda la ficha completa del equipo (no sale en el PDF).
     if (producto.link) datos.enlace = producto.link;
+    datos.modelo = producto.modelo || '';
+    datos.marca = producto.marca || '';
     // La imagen de SYSCOM queda como foto del concepto; se puede cambiar
     // o quitar después. Solo se usa si la imagen es https.
     if (producto.imagen && /^https:\/\//i.test(producto.imagen)) datos.foto = producto.imagen;
@@ -384,6 +389,9 @@ export default function CotizacionForm({
               precio_unitario: precioUnitarioDesdeCosto(costo, margen_pct),
               enlace: it.enlace?.trim() || null,
               foto: it.foto || null,
+              // Sin enlace, el modelo guardado ya no corresponde a nada.
+              modelo: it.enlace?.trim() ? it.modelo || null : null,
+              marca: it.enlace?.trim() ? it.marca || null : null,
             };
           })
       ),

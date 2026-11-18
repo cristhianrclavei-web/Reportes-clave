@@ -3,7 +3,7 @@
 import { alTocarEnlace } from '@/lib/abrirArchivo';
 import { arreglarEnlaceSyscom } from '@/lib/syscomEnlace';
 import { avisar, confirmar } from '@/lib/dialogos';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import SupervisorShell from '@/components/SupervisorShell';
@@ -85,6 +85,18 @@ export default function CotizacionDetalle({
   const [errorFirma, setErrorFirma] = useState<string | null>(null);
   const [procesandoAccion, setProcesandoAccion] = useState(false);
   const firmaRef = useRef<SignaturePadHandle>(null);
+
+  // Conceptos ligados a SYSCOM sin modelo (de antes de guardarlo): se completan
+  // una vez para que el reporte se los sugiera al técnico. Si falla, no pasa
+  // nada visible: solo no habrá modelo en la sugerencia.
+  useEffect(() => {
+    if (!lineas.some((l) => l.enlace && !l.modelo)) return;
+    fetch(`/api/cotizaciones/${cotizacion.id}/modelos`, { method: 'POST' })
+      .then((r) => (r.ok ? null : r.json().then((d) => console.error('Completar modelos:', d?.error))))
+      .catch((e) => console.error('Completar modelos:', e));
+    // Solo al abrir la cotización.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cotizacion.id]);
 
   async function handleAprobar() {
     if (!nombreAprobador.trim()) {

@@ -13,6 +13,9 @@ export type FilaCotizada = {
   unidad: string | null;
   fecha: string;
   folio: string | null;
+  foto?: string | null;
+  modelo?: string | null;
+  marca?: string | null;
 };
 
 export type ProductoCotizado = {
@@ -24,6 +27,9 @@ export type ProductoCotizado = {
   // Cuándo y en qué cotización se usó por última vez.
   fecha: string;
   folio: string | null;
+  foto: string | null;
+  modelo: string | null;
+  marca: string | null;
 };
 
 // Uno por producto de SYSCOM, el más reciente (su descripción y costo).
@@ -34,7 +40,12 @@ export function construirCatalogo(filas: FilaCotizada[]): ProductoCotizado[] {
     if (!id || !fila.descripcion.trim()) continue;
     const actual = porId.get(id);
     if (actual && actual.fecha >= fila.fecha) continue;
-    porId.set(id, { id, enlace: fila.enlace as string, descripcion: fila.descripcion, costo: fila.costo, unidad: fila.unidad, fecha: fila.fecha, folio: fila.folio });
+    porId.set(id, {
+      id, enlace: fila.enlace as string, descripcion: fila.descripcion, costo: fila.costo, unidad: fila.unidad, fecha: fila.fecha, folio: fila.folio,
+      // Solo la foto de SYSCOM (https); las subidas a mano son de esa cotización.
+      foto: fila.foto && /^https:\/\//i.test(fila.foto) ? fila.foto : null,
+      modelo: fila.modelo || null, marca: fila.marca || null,
+    });
   }
   return [...porId.values()];
 }

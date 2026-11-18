@@ -36,6 +36,10 @@ export type LineaCotizacion = {
   // Foto del concepto para el PDF (patch_cotizacion_fotos.sql): ruta en el
   // bucket «cotizaciones» si se subió a mano, o enlace https de SYSCOM.
   foto?: string | null;
+  // Modelo y marca del producto ligado (patch_equipos_cotizados.sql): los
+  // usa el reporte para sugerir el equipo al técnico.
+  modelo?: string | null;
+  marca?: string | null;
 };
 
 export type Cotizacion = {
@@ -106,6 +110,8 @@ export type LineaInput = {
   precio_unitario: number;
   enlace?: string | null;
   foto?: string | null;
+  modelo?: string | null;
+  marca?: string | null;
 };
 
 export type CotizacionInput = {
@@ -236,6 +242,8 @@ function filasDeLineas(cotizacionId: string, lineas: LineaInput[]) {
     importe: redondear(l.cantidad * l.precio_unitario),
     enlace: normalizarEnlace(l.enlace),
     foto: l.foto || null,
+    modelo: l.modelo?.trim().slice(0, 80) || null,
+    marca: l.marca?.trim().slice(0, 80) || null,
   }));
 }
 

@@ -6,6 +6,7 @@ import { Check, AlertTriangle, X, Search, ScanLine, ExternalLink, Package } from
 import { coincideBusqueda } from '@/lib/busqueda';
 import { soloNumero, UNIDADES_EQUIPO } from '@/lib/materialesReporte';
 import { buscarModelos, ModeloEquipo } from '@/lib/sugerenciasEquipos';
+import { descripcionDeCotizado, filtrarCotizados, type EquipoCotizado } from '@/lib/equiposCotizados';
 import { descripcionCorta } from '@/lib/descripcionEquipo';
 import { formaCanonica } from '@/lib/conceptosMateriales';
 import SelectorProductoSyscom from '@/components/SelectorProductoSyscom';
@@ -71,11 +72,13 @@ function coincideCatalogo(eq: EquipoFila, catalogo: ArticuloCatalogo[]): Articul
 }
 
 export default function EquipoInstaladoRenglon({
-  eq, catalogo, modelos, inputCls, onCambiar, onQuitar,
+  eq, catalogo, modelos, cotizados = [], inputCls, onCambiar, onQuitar,
 }: {
   eq: EquipoFila;
   catalogo: ArticuloCatalogo[] | null;
   modelos: ModeloEquipo[];
+  // Lo cotizado para el cliente del reporte: va primero en las sugerencias.
+  cotizados?: EquipoCotizado[];
   inputCls: string;
   onCambiar: (nuevo: EquipoFila) => void;
   onQuitar?: () => void;
@@ -101,7 +104,13 @@ export default function EquipoInstaladoRenglon({
     return catalogo.filter((a) => coincideBusqueda(`${a.descripcion} ${a.marca || ''} ${a.modelo || ''}`, q)).slice(0, 4);
   }, [catalogo, eq.modelo, eq.articuloId]);
 
-  const haySugerencias = yaInstalados.length > 0 || delAlmacen.length > 0;
+  // Con el campo vacío salen todos (lo cotizado para un cliente es poco).
+  const delCliente = useMemo(() => {
+    if (eq.articuloId || eq.enlace) return [];
+    return filtrarCotizados(cotizados, eq.modelo, 6);
+  }, [cotizados, eq.modelo, eq.articuloId, eq.enlace]);
+
+  const haySugerencias = delCliente.length > 0 || yaInstalados.length > 0 || delAlmacen.length > 0;
   const marcasConocidas = useMemo(() => modelos.map((m) => m.marca || '').filter(Boolean), [modelos]);
 
   function cambiarModelo(valor: string) {
@@ -114,6 +123,18 @@ export default function EquipoInstaladoRenglon({
     onCambiar({
       ...eq, modelo: m.modelo, marca: m.marca || eq.marca, desc: m.descripcion ? descripcionCorta(m.descripcion) : eq.desc,
       imagen: m.imagen, enlace: m.enlace, articuloId: null, sinModelo: false,
+    });
+    setAbierto(false);
+  }
+
+  function elegirCotizado(c: EquipoCotizado) {
+    onCambiar({
+      ...eq,
+      modelo: c.modelo || eq.modelo,
+      marca: c.marca || eq.marca,
+      desc: descripcionCorta(descripcionDeCotizado(c.descripcion)),
+      cant: eq.cant || (c.cantidad ? String(c.cantidad) : ''),
+      imagen: c.foto, enlace: c.enlace, articuloId: null, sinModelo: false,
     });
     setAbierto(false);
   }
@@ -162,7 +183,30 @@ export default function EquipoInstaladoRenglon({
             />
             {abierto && haySugerencias && (
               <div className="absolute z-30 left-0 w-[min(320px,80vw)] mt-1 rounded-xl bg-surface border border-line-strong shadow-diffuse overflow-hidden max-h-[320px] overflow-y-auto">
-                {yaInstalados.length > 0 && <p className="px-3 pt-2 pb-1 text-[11px] uppercase tracking-wider text-muted">Ya instalados</p>}
+                {delCliente.length > 0 && <p className="px-3 pt-2 pb-1 text-[11px] uppercase tracking-wider text-teal font-semibold">Cotizado para este cliente</p>}
+                {delCliente.map((c) => (
+                  <button
+                    key={'c' + c.folio + c.descripcion}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => elegirCotizado(c)}
+                    className="w-full text-left px-3 py-2 hover:bg-surface-2 border-t border-line flex items-center gap-2.5"
+                  >
+                    {c.foto ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={c.foto} alt="" className="w-9 h-9 rounded-md bg-white object-contain shrink-0" />
+                    ) : (
+                      <span className="w-9 h-9 rounded-md bg-teal/10 flex items-center justify-center shrink-0"><Package size={15} className="text-teal" /></span>
+                    )}
+                    <span className="min-w-0">
+                      <span className="block text-[13.5px] font-semibold truncate">{c.modelo || descripcionDeCotizado(c.descripcion)}</span>
+                      <span className="block text-[11.5px] text-muted truncate">
+                        {[c.marca, c.modelo ? descripcionDeCotizado(c.descripcion) : 'sin modelo en la cotización', `${c.folio}${c.cantidad ? ` · ${c.cantidad} ${c.unidad || ''}` : ''}`].filter(Boolean).join(' · ')}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+                {yaInstalados.length > 0 && <p className={`px-3 pt-2 pb-1 text-[11px] uppercase tracking-wider text-muted ${delCliente.length > 0 ? 'border-t border-line' : ''}`}>Ya instalados</p>}
                 {yaInstalados.map((m) => (
                   <button
                     key={'m' + m.modelo}
