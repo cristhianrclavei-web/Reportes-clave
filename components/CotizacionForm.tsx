@@ -18,7 +18,7 @@ import { hoyLocal } from '@/lib/fechaHoy';
 import { showToast } from '@/components/Toast';
 import { useAvanceGuardado, pausaFinal } from '@/lib/useAvanceGuardado';
 import SavingOverlay from '@/components/SavingOverlay';
-import { Plus, Trash2, Link2, FileText, ImagePlus, X, GripVertical, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Trash2, Link2, FileText, ImagePlus, X, GripVertical, ArrowUp, ArrowDown, BadgeDollarSign } from 'lucide-react';
 import { moverElemento } from '@/lib/moverElemento';
 import { motion } from 'motion/react';
 import { useArrastreLista } from '@/lib/useArrastreLista';
@@ -26,6 +26,10 @@ import SelectorProductoSyscom from '@/components/SelectorProductoSyscom';
 import FichaProductoSyscom, { BotonSyscom, leerFichaSyscom } from '@/components/FichaProductoSyscom';
 import { idProductoDeEnlace } from '@/lib/syscomEnlace';
 import type { ProductoSyscom } from '@/lib/syscom';
+import {
+  buscarSugerencia, cambioDeSugerencia, ModalLigarSyscom, ModalPreciosSyscom, TarjetaSugerencia, TextoUso, useCatalogoCotizado, useUsoSyscom, vaLaPenaBuscar,
+  type CambioConcepto, type ConceptoParaAyuda, type Sugerencia,
+} from '@/components/cotizaciones/AyudaSyscom';
 import type { FirmanteSugerido } from '@/lib/firmantesCotizacion';
 
 const SISTEMAS_SUGERIDOS = [
@@ -136,6 +140,13 @@ export default function CotizacionForm({
   const [fichaAbierta, setFichaAbierta] = useState<{ grupoId: string; itemId: string; id: string } | null>(null);
   // Concepto que se está llenando desde un enlace de SYSCOM pegado a mano.
   const [leyendoEnlace, setLeyendoEnlace] = useState<{ itemId: string; error: string | null } | null>(null);
+  // Sugerencia de SYSCOM por concepto (al terminar de escribir sin enlace).
+  const [sugerencias, setSugerencias] = useState<Record<string, Sugerencia>>({});
+  // Último texto ya revisado de cada concepto: no se vuelve a consultar lo mismo.
+  const textosRevisados = useRef(new Map<string, string>());
+  const [ayudaAbierta, setAyudaAbierta] = useState<'ligar' | 'precios' | null>(null);
+  const { catalogo } = useCatalogoCotizado();
+  const uso = useUsoSyscom();
 
   const [grupos, setGrupos] = useState<GrupoForm[]>(() => {
     if (!inicial || inicial.lineas.length === 0) return [nuevoGrupo()];
@@ -208,6 +219,52 @@ export default function CotizacionForm({
     } catch (e: any) {
       setLeyendoEnlace({ itemId: item.id, error: e?.message || 'No se pudo leer el producto de SYSCOM.' });
     }
+  }
+
+  // Al salir de la descripción de un concepto sin enlace se busca si ya se
+  // cotizó antes o si está en SYSCOM, y se propone ligarlo.
+  async function revisarConcepto(item: ItemForm) {
+    const texto = item.descripcion.trim();
+    if (item.enlace || !vaLaPenaBuscar(texto)) return;
+    if (textosRevisados.current.get(item.id) === texto) return;
+    textosRevisados.current.set(item.id, texto);
+    const r = await buscarSugerencia(texto, catalogo, true);
+    if (r.error) console.error('Sugerencia de SYSCOM:', r.error);
+    if (r.sugerencia?.fuente === 'syscom') uso.recargar();
+    const sugerencia = r.sugerencia;
+    setSugerencias((prev) => {
+      const siguiente = { ...prev };
+      if (sugerencia) siguiente[item.id] = sugerencia;
+      else delete siguiente[item.id];
+      return siguiente;
+    });
+  }
+
+  function quitarSugerencia(itemId: string) {
+    setSugerencias((prev) => {
+      const siguiente = { ...prev };
+      delete siguiente[itemId];
+      return siguiente;
+    });
+  }
+
+  function usarSugerencia(grupoId: string, item: ItemForm) {
+    const sugerencia = sugerencias[item.id];
+    if (!sugerencia) return;
+    actualizarItem(grupoId, item.id, cambioDeSugerencia(sugerencia, item.costo));
+    quitarSugerencia(item.id);
+  }
+
+  function aplicarLigas(cambios: { grupoId: string; itemId: string; cambio: CambioConcepto }[]) {
+    for (const c of cambios) actualizarItem(c.grupoId, c.itemId, c.cambio);
+    setAyudaAbierta(null);
+    showToast(`${cambios.length} ${cambios.length === 1 ? 'concepto ligado' : 'conceptos ligados'} a SYSCOM`, 'success');
+  }
+
+  function aplicarPrecios(cambios: { grupoId: string; itemId: string; costo: string }[]) {
+    for (const c of cambios) actualizarItem(c.grupoId, c.itemId, { costo: c.costo });
+    setAyudaAbierta(null);
+    showToast(`${cambios.length} ${cambios.length === 1 ? 'costo actualizado' : 'costos actualizados'} al precio de hoy`, 'success');
   }
 
   // Enter en la descripción busca en SYSCOM; Shift+Enter hace otra línea.
@@ -559,6 +616,8 @@ export default function CotizacionForm({
         </div>
       </div>
 
+      <BarraSyscom grupos={grupos} usadas={uso.usadas} onAbrir={setAyudaAbierta} />
+
       {grupos.map((g, gi) => {
         const subtotalGrupo = g.items.reduce((acc, it) => {
           const precio = precioUnitarioDesdeCosto(parseFloat(it.costo) || 0, parseFloat(it.margenPct) || 0);
@@ -669,11 +728,15 @@ export default function CotizacionForm({
                       value={it.descripcion}
                       onChange={(e) => actualizarItem(g.id, it.id, { descripcion: e.target.value })}
                       onKeyDown={(e) => teclaEnDescripcion(e, g.id, it)}
+                      onBlur={() => revisarConcepto(it)}
                       placeholder="Descripción del concepto: equipo, mano de obra, tubería… (Enter busca en SYSCOM)"
                       className={`${inputCls} min-h-[70px] flex-1`}
                     />
                     <BotonSyscom onClick={() => setBuscandoParaItem({ grupoId: g.id, itemId: it.id, texto: it.descripcion })} />
                   </div>
+                  {sugerencias[it.id] && !it.enlace && (
+                    <TarjetaSugerencia sugerencia={sugerencias[it.id]} onUsar={() => usarSugerencia(g.id, it)} onDescartar={() => quitarSugerencia(it.id)} />
+                  )}
                   <div className="grid grid-cols-2 gap-2.5 mb-2.5">
                     <div>
                       <label className={labelCls}>Unidad</label>
@@ -983,6 +1046,12 @@ export default function CotizacionForm({
         </button>
       </div>
 
+      {ayudaAbierta === 'ligar' && (
+        <ModalLigarSyscom conceptos={conceptosSinEnlace(grupos)} catalogo={catalogo} onAplicar={aplicarLigas} onClose={() => setAyudaAbierta(null)} onUso={uso.recargar} />
+      )}
+      {ayudaAbierta === 'precios' && (
+        <ModalPreciosSyscom conceptos={conceptosLigados(grupos)} onAplicar={aplicarPrecios} onClose={() => setAyudaAbierta(null)} onUso={uso.recargar} />
+      )}
       {buscandoParaItem && (
         <SelectorProductoSyscom
           busquedaInicial={buscandoParaItem.texto}
@@ -1155,6 +1224,44 @@ function SelectorIva({
           Revisa que de verdad no se cobre IVA: el cliente verá que esta cotización no lleva IVA.
         </p>
       )}
+    </div>
+  );
+}
+
+// ---------- Ayudas de SYSCOM ----------
+
+function aConcepto(g: GrupoForm, it: ItemForm): ConceptoParaAyuda {
+  return { grupoId: g.id, itemId: it.id, descripcion: it.descripcion, costo: it.costo, enlace: it.enlace };
+}
+
+function conceptosSinEnlace(grupos: GrupoForm[]): ConceptoParaAyuda[] {
+  return grupos.flatMap((g) => g.items.filter((it) => !it.enlace && vaLaPenaBuscar(it.descripcion)).map((it) => aConcepto(g, it)));
+}
+
+function conceptosLigados(grupos: GrupoForm[]): ConceptoParaAyuda[] {
+  return grupos.flatMap((g) => g.items.filter((it) => idProductoDeEnlace(it.enlace || '')).map((it) => aConcepto(g, it)));
+}
+
+// Botones «Ligar con SYSCOM» y «Revisar precios», con las consultas del mes.
+function BarraSyscom({ grupos, usadas, onAbrir }: { grupos: GrupoForm[]; usadas: number | null; onAbrir: (cual: 'ligar' | 'precios') => void }) {
+  const sinEnlace = conceptosSinEnlace(grupos).length;
+  const ligados = conceptosLigados(grupos).length;
+  if (sinEnlace === 0 && ligados === 0) return null;
+  return (
+    <div className="mb-4 rounded-2xl border border-line bg-surface px-3.5 py-3">
+      <div className="flex flex-wrap gap-2">
+        {sinEnlace > 0 && (
+          <button type="button" onClick={() => onAbrir('ligar')} className="min-h-[42px] px-3.5 rounded-xl border border-teal/60 bg-teal/10 text-teal text-[13.5px] font-semibold flex items-center gap-1.5">
+            <Link2 size={15} strokeWidth={2.4} /> Ligar con SYSCOM ({sinEnlace} sin enlace)
+          </button>
+        )}
+        {ligados > 0 && (
+          <button type="button" onClick={() => onAbrir('precios')} className="min-h-[42px] px-3.5 rounded-xl border border-line-strong text-[13.5px] font-semibold flex items-center gap-1.5">
+            <BadgeDollarSign size={15} strokeWidth={2.4} /> Revisar precios ({ligados} ligados)
+          </button>
+        )}
+      </div>
+      <div className="mt-2"><TextoUso usadas={usadas} /></div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabaseServer';
-import { syscomConfigurado, buscarProductosSyscom } from '@/lib/syscom';
+import { AVISO_SYSCOM_MES, consultasDelMes, syscomConfigurado, buscarProductosSyscom } from '@/lib/syscom';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +26,15 @@ export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams.get('q') || '';
   if (q.trim().length < 3) {
     return NextResponse.json({ configurado: true, productos: [] });
+  }
+
+  // La sugerencia automática de las cotizaciones (?auto=1) se detiene cerca
+  // del cupo mensual de Fixie; buscar a mano sigue funcionando.
+  if (request.nextUrl.searchParams.get('auto') === '1') {
+    const usadas = await consultasDelMes();
+    if (usadas !== null && usadas >= AVISO_SYSCOM_MES) {
+      return NextResponse.json({ configurado: true, productos: [], pausado: true });
+    }
   }
 
   if (role !== 'supervisor') {

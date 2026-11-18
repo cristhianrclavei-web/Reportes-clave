@@ -10,6 +10,33 @@
 
 import { fetch as fetchUndici, ProxyAgent } from 'undici';
 import { arreglarEnlaceSyscom, enlaceDeProducto } from './syscomEnlace';
+import { createAdminClient, hayClienteAdmin } from './supabaseAdmin';
+
+// Cupo mensual de Fixie (plan Commuter). Al llegar al aviso, la sugerencia
+// automática se detiene; buscar a mano sigue funcionando hasta el tope.
+export const CUPO_SYSCOM_MES = 2500;
+export const AVISO_SYSCOM_MES = 2000;
+
+// Cada llamada real a SYSCOM suma 1 al mes (patch_syscom_uso.sql). No se
+// espera: contar nunca debe frenar ni tumbar una búsqueda.
+function contarConsulta() {
+  if (!hayClienteAdmin()) return;
+  createAdminClient().rpc('sumar_consulta_syscom').then(({ error }) => {
+    if (error) console.error('[syscom] No se pudo contar la consulta:', error.message);
+  });
+}
+
+// Consultas de este mes (hora de México). null si no se pudo leer.
+export async function consultasDelMes(): Promise<number | null> {
+  if (!hayClienteAdmin()) return null;
+  const mes = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City', year: 'numeric', month: '2-digit' }).format(new Date()).slice(0, 7);
+  const { data, error } = await createAdminClient().from('syscom_uso_mes').select('cuenta').eq('mes', mes).maybeSingle();
+  if (error) {
+    console.error('[syscom] No se pudo leer el uso del mes:', error.message);
+    return null;
+  }
+  return data?.cuenta ?? 0;
+}
 
 const BASE_URL = 'https://developers.syscom.mx/api/v1';
 
@@ -19,6 +46,7 @@ const BASE_URL = 'https://developers.syscom.mx/api/v1';
 // para no gastar el cupo mensual de Fixie. Sin la variable, van directo.
 let proxyFixie: ProxyAgent | null = null;
 function fetchSyscom(url: string, opciones: { method?: string; headers?: Record<string, string>; body?: URLSearchParams }) {
+  contarConsulta();
   const urlProxy = process.env.FIXIE_URL;
   if (!urlProxy) return fetchUndici(url, opciones);
   if (!proxyFixie) proxyFixie = new ProxyAgent(urlProxy);
