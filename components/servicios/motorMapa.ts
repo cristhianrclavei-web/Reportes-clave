@@ -68,7 +68,16 @@ export async function crearMotorBasico(div: HTMLDivElement, zoomControl: boolean
   const L = await import('leaflet');
   const mapa = L.map(div, { zoomControl }).setView(CENTRO_GUADALAJARA, ZOOM_GUADALAJARA);
   if (!zoomControl) L.control.zoom({ position: 'bottomright' }).addTo(mapa);
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(mapa);
+  // Abre en satélite (Esri, gratis) con nombres de calles y lugares encima,
+  // como el de Google; el selector de arriba regresa al mapa de calles.
+  const calles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' });
+  const esri = 'https://server.arcgisonline.com/ArcGIS/rest/services';
+  const satelite = L.layerGroup([
+    L.tileLayer(`${esri}/World_Imagery/MapServer/tile/{z}/{y}/{x}`, { maxZoom: 19, attribution: '© Esri' }),
+    L.tileLayer(`${esri}/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}`, { maxZoom: 19 }),
+    L.tileLayer(`${esri}/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}`, { maxZoom: 19 }),
+  ]).addTo(mapa);
+  L.control.layers({ 'Mapa': calles, 'Satélite': satelite }, undefined, { collapsed: false, position: 'topleft' }).addTo(mapa);
   const pines = L.layerGroup().addTo(mapa);
   const marcasCapa = L.layerGroup().addTo(mapa);
   mapa.on('click', () => cerrarDetalles(div));
