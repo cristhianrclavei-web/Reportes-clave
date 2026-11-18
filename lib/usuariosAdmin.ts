@@ -13,6 +13,8 @@ export const PERMISOS = [
   'can_approve_review', 'can_approve_cotizacion', 'can_approve_personal',
   // Supervisión que sale a campo (patch_sale_a_servicios.sql).
   'sale_a_servicios',
+  // El ingeniero que aprueba las guías de conexión (patch_guias_aprobacion.sql).
+  'can_approve_guias',
 ] as const;
 export type Permiso = (typeof PERMISOS)[number];
 

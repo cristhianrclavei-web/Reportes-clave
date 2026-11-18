@@ -162,6 +162,19 @@ export async function borrarGuia(id: string): Promise<void> {
   }
 }
 
+// ---------- Aprobación del ingeniero ----------
+
+// aprobar = false quita la aprobación. El servidor revisa el permiso.
+export async function aprobarGuia(id: string, aprobar: boolean): Promise<Guia> {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) throw new Error('Aprobar necesita señal. Intenta cuando tengas señal.');
+  const { error } = await createClient().rpc('aprobar_guia', { p_guia: id, p_aprobar: aprobar });
+  if (error) {
+    if (/could not find the function|does not exist|schema cache/i.test(error.message)) throw new Error('Falta correr supabase/patch_guias_aprobacion.sql en la base.');
+    throw new Error(error.message.startsWith('No ') ? error.message : mensajeError(error, 'aprobar la guía'));
+  }
+  return (await leerGuia(id)).guia;
+}
+
 // ---------- Marcar conexiones y pruebas ----------
 
 function cola(): MarcaPendiente[] {

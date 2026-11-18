@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, Check, ChevronLeft, CloudUpload, ExternalLink, Lightbulb, PenLine, Trash2, WifiOff } from 'lucide-react';
+import { AlertTriangle, BadgeCheck, Check, ChevronLeft, CloudUpload, ExternalLink, Lightbulb, PenLine, ShieldAlert, Trash2, WifiOff } from 'lucide-react';
 import DiagramaConexion, { type Elegido } from '@/components/guias/DiagramaConexion';
 import EditorGuia from '@/components/guias/EditorGuia';
 import { showToast } from '@/components/Toast';
@@ -11,15 +11,17 @@ import {
   estadoDePrueba, nombreSistema, progresoDe, rangoDePrueba, textoPunta, tonosDeCable,
   type ConexionGuia, type Guia, type PruebaGuia,
 } from '@/lib/guias';
-import { borrarGuia, leerGuia, marcar, marcasPendientes, subirMarcasPendientes, urlDeFotoGuia } from '@/lib/guiasDatos';
+import { aprobarGuia, borrarGuia, leerGuia, marcar, marcasPendientes, subirMarcasPendientes, urlDeFotoGuia } from '@/lib/guiasDatos';
 
 type Vista = 'diagrama' | 'conexiones' | 'pruebas' | 'notas';
 
-export default function GuiaDetalle({ guiaId, usuarioId, usuarioNombre, esSupervisor }: {
+export default function GuiaDetalle({ guiaId, usuarioId, usuarioNombre, esSupervisor, puedeAprobar = false }: {
   guiaId: string;
   usuarioId: string;
   usuarioNombre: string;
   esSupervisor: boolean;
+  // Permiso «Aprobar guías de conexión» (el ingeniero).
+  puedeAprobar?: boolean;
 }) {
   const [guia, setGuia] = useState<Guia | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +30,7 @@ export default function GuiaDetalle({ guiaId, usuarioId, usuarioNombre, esSuperv
   const [vista, setVista] = useState<Vista>('diagrama');
   const [elegido, setElegido] = useState<Elegido>(null);
   const [editando, setEditando] = useState(false);
+  const [aprobando, setAprobando] = useState(false);
   // Recién creada en blanco llega con ?editar=1: abre directo en el editor.
   useEffect(() => {
     if (!esSupervisor || new URLSearchParams(window.location.search).get('editar') !== '1') return;
@@ -121,6 +124,23 @@ export default function GuiaDetalle({ guiaId, usuarioId, usuarioNombre, esSuperv
     }
   }
 
+  async function cambiarAprobacion(aprobar: boolean) {
+    if (!guia) return;
+    if (!aprobar) {
+      const seguro = await confirmar('¿Quitar la aprobación?\nLos técnicos dejan de ver esta guía hasta que se vuelva a aprobar.');
+      if (!seguro) return;
+    }
+    setAprobando(true);
+    try {
+      setGuia(await aprobarGuia(guia.id, aprobar));
+      showToast(aprobar ? 'Guía aprobada: ya la ven los técnicos' : 'Aprobación quitada', 'success');
+    } catch (e: any) {
+      showToast(e?.message || 'No se pudo cambiar la aprobación', 'error');
+    } finally {
+      setAprobando(false);
+    }
+  }
+
   async function borrar() {
     if (!guia) return;
     const seguro = await confirmar(`¿Borrar la guía «${guia.nombre}»?\nSe borra el diagrama con todo lo que se marcó. No se puede deshacer.`);
@@ -191,6 +211,7 @@ export default function GuiaDetalle({ guiaId, usuarioId, usuarioNombre, esSuperv
       </div>
 
       <div className="px-4 lg:px-8 pt-4">
+        {!guia.es_plantilla && <AvisoAprobacion guia={guia} puedeAprobar={puedeAprobar} ocupado={aprobando} onCambiar={cambiarAprobacion} />}
         {(sinConexion || pendientes > 0) && (
           <p className="flex items-center gap-2 rounded-xl bg-amber/10 text-amber text-[13px] px-3 py-2 mb-3">
             {sinConexion ? <WifiOff size={16} strokeWidth={2.4} /> : <CloudUpload size={16} strokeWidth={2.4} />}
@@ -359,5 +380,42 @@ function FotoReferencia({ path, pie }: { path: string; pie: string }) {
         : <div className="w-full h-40 flex items-center justify-center text-[12.5px] text-muted">Cargando foto…</div>}
       {pie && <figcaption className="text-[12.5px] px-2.5 py-1.5">{pie}</figcaption>}
     </figure>
+  );
+}
+
+// Si la guía ya está aprobada por el ingeniero. Sin aprobar, los técnicos no la ven.
+function AvisoAprobacion({ guia, puedeAprobar, ocupado, onCambiar }: {
+  guia: Guia;
+  puedeAprobar: boolean;
+  ocupado: boolean;
+  onCambiar: (aprobar: boolean) => void;
+}) {
+  if (guia.aprobada_en) {
+    const fecha = new Date(guia.aprobada_en).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+    return (
+      <div className="flex items-center gap-2 rounded-xl bg-green-500/10 text-green-600 dark:text-green-400 text-[13px] px-3 py-2 mb-3">
+        <BadgeCheck size={17} strokeWidth={2.3} className="shrink-0" />
+        <span className="flex-1 min-w-0">Aprobada por <b>{guia.aprobada_nombre || 'el ingeniero'}</b> · {fecha}</span>
+        {puedeAprobar && (
+          <button type="button" onClick={() => onCambiar(false)} disabled={ocupado} className="shrink-0 min-h-[36px] px-2.5 rounded-lg text-[12.5px] font-semibold text-muted hover:text-ink disabled:opacity-60">
+            Quitar
+          </button>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-xl border border-amber/40 bg-amber/10 px-3 py-2.5 mb-3">
+      <p className="flex items-start gap-2 text-[13px] text-amber">
+        <ShieldAlert size={17} strokeWidth={2.3} className="shrink-0 mt-px" />
+        <span><b>Por aprobar.</b> Los técnicos no ven esta guía hasta que el ingeniero la revise y la apruebe. Si se edita el dibujo, hay que volver a aprobarla.</span>
+      </p>
+      {puedeAprobar && (
+        <button type="button" onClick={() => onCambiar(true)} disabled={ocupado}
+          className="mt-2.5 w-full sm:w-auto min-h-[44px] px-4 rounded-xl bg-teal text-inkOnAccent text-[14px] font-semibold flex items-center justify-center gap-2 disabled:opacity-60">
+          <BadgeCheck size={17} strokeWidth={2.4} /> {ocupado ? 'Aprobando…' : 'Revisé la guía: aprobar'}
+        </button>
+      )}
+    </div>
   );
 }

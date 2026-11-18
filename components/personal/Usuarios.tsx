@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Check, ChevronRight, Copy, KeyRound, Mail, Phone, Plus, Search, ShieldCheck, Trash2, UserCheck, UserMinus, UserRound, Wrench, X,
-  Warehouse, ReceiptText, FileCheck, Receipt, CalendarClock, UsersRound, AlertTriangle, HardHat,
+  Warehouse, ReceiptText, FileCheck, Receipt, CalendarClock, UsersRound, AlertTriangle, HardHat, Cable,
 } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
 import { AvatarTecnico } from '@/components/AvatarTecnico';
@@ -16,7 +16,7 @@ import { cargarPerfiles } from '@/lib/perfiles';
 // usuarios; todo pasa por /api/usuarios, que lo vuelve a comprobar.
 
 type Rol = 'tecnico' | 'supervisor';
-type ClavePermiso = 'can_manage_usuarios' | 'can_manage_almacen' | 'can_manage_billing' | 'can_approve_review' | 'can_approve_cotizacion' | 'can_approve_personal' | 'sale_a_servicios';
+type ClavePermiso = 'can_manage_usuarios' | 'can_manage_almacen' | 'can_manage_billing' | 'can_approve_review' | 'can_approve_cotizacion' | 'can_approve_personal' | 'sale_a_servicios' | 'can_approve_guias';
 
 type Usuario = {
   id: string;
@@ -38,6 +38,7 @@ const PERMISOS: { clave: ClavePermiso; nombre: string; detalle: string; Icono: a
   { clave: 'can_approve_review', nombre: 'Firmar revisión de reportes', detalle: 'Aprueba y firma la revisión final de los reportes de servicio.', Icono: FileCheck },
   { clave: 'can_approve_cotizacion', nombre: 'Aprobar cotizaciones', detalle: 'Firma la aprobación interna antes de enviarlas al cliente.', Icono: Receipt },
   { clave: 'can_approve_personal', nombre: 'Autorizar solicitudes de personal', detalle: 'Horas extra, vacaciones y permisos.', Icono: CalendarClock },
+  { clave: 'can_approve_guias', nombre: 'Aprobar guías de conexión', detalle: 'Revisa los diagramas antes de que los vean los técnicos.', Icono: Cable },
   { clave: 'can_manage_almacen', nombre: 'Almacén', detalle: 'Entradas, salidas, vales, conteos y catálogo.', Icono: Warehouse },
   { clave: 'can_manage_billing', nombre: 'Facturación', detalle: 'Prefacturas y registro de facturas.', Icono: ReceiptText },
   // Para supervisión que a veces sale a campo (el personal técnico ya lo hace).

@@ -73,6 +73,11 @@ export type Guia = {
   creado_por: string;
   creado_en: string;
   actualizado_en: string;
+  // Aprobación del ingeniero (patch_guias_aprobacion.sql). Sin aprobar, los
+  // técnicos no la ven; cambiar el dibujo la quita sola.
+  aprobada_por?: string | null;
+  aprobada_nombre?: string | null;
+  aprobada_en?: string | null;
 };
 
 // Los sistemas, con los mismos nombres del reporte de servicio.

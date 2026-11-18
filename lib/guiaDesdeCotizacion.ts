@@ -6,10 +6,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SISTEMAS_GUIA, type DatosGuia, type EquipoGuia } from './guias';
 import { arreglarEnlaceSyscom } from './syscomEnlace';
+import { datosSolarAislado, esSistemaSolarAislado } from './guiaSolar';
 
 export type GuiaInicial = { nombre: string; sistema: string; datos: DatosGuia; clienteId: string | null; clienteNombre: string };
 
-type Linea = { descripcion: string; sistema: string | null; enlace: string | null; orden: number };
+type Linea = { descripcion: string; sistema: string | null; enlace: string | null; orden: number; cantidad?: number | null };
 
 // La cotización nombra los sistemas un poco distinto («Control de Acceso
 // Vehicular», «Alarma & Detección de Humo»): se lleva al nombre de la guía.
@@ -51,13 +52,19 @@ export function equiposDeLineas(lineas: Linea[]): EquipoGuia[] {
 export async function guiaDesdeCotizacion(supabase: SupabaseClient, cotizacionId: string): Promise<GuiaInicial | null> {
   const { data: cotizacion, error } = await supabase.from('cotizaciones').select('id, cliente_id, empresa, titulo_proyecto').eq('id', cotizacionId).maybeSingle();
   if (error || !cotizacion) return null;
-  const { data: lineas, error: errorLineas } = await supabase.from('cotizacion_lineas').select('descripcion, sistema, enlace, orden').eq('cotizacion_id', cotizacionId).order('orden');
+  const { data: lineas, error: errorLineas } = await supabase.from('cotizacion_lineas').select('descripcion, sistema, enlace, orden, cantidad').eq('cotizacion_id', cotizacionId).order('orden');
   if (errorLineas || !lineas || lineas.length === 0) return null;
   const sistemaDeLaCotizacion = (lineas as Linea[]).map((l) => sistemaDeGuia(l.sistema || '')).find((s) => s !== null);
+  // Solar aislado (inversor + batería): la guía sale armada, con conexiones y
+  // pruebas; las demás solo con los equipos para que el ingeniero la dibuje.
+  const solar = sistemaDeLaCotizacion === 'Paneles solares' && esSistemaSolarAislado(lineas as Linea[]);
+  const datos = solar
+    ? datosSolarAislado((lineas as Linea[]).map((l) => ({ ...l, enlace: l.enlace ? arreglarEnlaceSyscom(l.enlace) : null })))
+    : { equipos: equiposDeLineas(lineas as Linea[]), conexiones: [], pruebas: [], notas: [], fotos: [] };
   return {
     nombre: (cotizacion.titulo_proyecto || cotizacion.empresa || 'Guía de conexión').slice(0, 120),
     sistema: sistemaDeLaCotizacion || 'Otro',
-    datos: { equipos: equiposDeLineas(lineas as Linea[]), conexiones: [], pruebas: [], notas: [], fotos: [] },
+    datos,
     clienteId: cotizacion.cliente_id || null,
     clienteNombre: cotizacion.empresa || '',
   };

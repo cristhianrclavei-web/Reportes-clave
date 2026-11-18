@@ -16,7 +16,7 @@ export default async function GuiaPage(props: { params: Promise<{ id: string }> 
   const { data: role } = await supabase.rpc('get_my_role');
   if (role !== 'supervisor' && role !== 'tecnico') redirect('/login');
 
-  const { data: perfil } = await supabase.from('profiles').select('full_name').eq('id', user.id).single();
+  const { data: perfil } = await supabase.from('profiles').select('full_name, can_approve_guias').eq('id', user.id).single();
 
-  return <GuiaDetalle guiaId={id} usuarioId={user.id} usuarioNombre={perfil?.full_name || user.email || 'Sin nombre'} esSupervisor={role === 'supervisor'} />;
+  return <GuiaDetalle guiaId={id} usuarioId={user.id} usuarioNombre={perfil?.full_name || user.email || 'Sin nombre'} esSupervisor={role === 'supervisor'} puedeAprobar={!!perfil?.can_approve_guias} />;
 }

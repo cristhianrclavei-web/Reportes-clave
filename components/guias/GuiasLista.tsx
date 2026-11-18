@@ -117,6 +117,7 @@ export default function GuiasLista({ esSupervisor, inicial }: { esSupervisor: bo
                     <Link key={g.id} href={`/guias/${g.id}`} className="block rounded-2xl bg-surface border border-line p-3.5 transition-colors hover:border-teal/60">
                       <div className="flex items-center gap-2.5">
                         <span className="flex-1 min-w-0 text-[15px] font-semibold truncate">{g.nombre}</span>
+                        {!g.aprobada_en && <span className="shrink-0 rounded-full bg-amber/15 text-amber text-[11.5px] font-semibold px-2 py-0.5">Por aprobar</span>}
                         <ChevronRight size={18} className="text-muted shrink-0" />
                       </div>
                       <p className="text-[12.5px] text-muted mt-0.5">{nombreSistema(g.sistema)} · {g.datos.equipos.length} equipos · {g.datos.conexiones.length} conexiones</p>
@@ -250,8 +251,10 @@ function NuevaGuia({ plantilla, plantillas, inicial, onCerrar, onCreada }: {
         es_plantilla: comoPlantilla, cliente_id: clienteId, servicio_grupo_id: grupoId || null,
         datos: inicial?.datos || elegida?.datos || DATOS_VACIOS,
       });
-      // En blanco o desde una cotización hay que dibujarla: se abre ya en edición.
-      onCreada(guia.id, !elegida);
+      // En blanco o desde una cotización sin conexiones hay que dibujarla: se
+      // abre ya en edición. La solar llega armada: se abre para revisarla.
+      const yaArmada = (inicial?.datos.conexiones.length || 0) > 0;
+      onCreada(guia.id, !elegida && !yaArmada);
     } catch (e: any) {
       showToast(e?.message || 'No se pudo crear la guía', 'error');
       setGuardando(false);
