@@ -3,7 +3,7 @@
 // clientes. La lógica que cruza todo está en lib/visitas.ts.
 
 import { createClient } from './supabaseClient';
-import { RADIO_CLIENTE_M, type LugarConocido, type PuntoCompacto, type Registro, type VisitaGps } from './visitas';
+import { RADIO_CLIENTE_M, radioDeServicio, type LugarConocido, type PuntoCompacto, type Registro, type VisitaGps } from './visitas';
 
 export type UbicacionCliente = { lat: number; lng: number; direccion?: string };
 
@@ -58,13 +58,15 @@ export async function lugaresConocidos(): Promise<LugarConocido[]> {
     vistos.add(clave);
     lugares.push({ clienteId, cliente: nombres.get(clienteId) || 'Cliente', lat: u.lat, lng: u.lng, radio });
   };
+  const radioDeCliente = new Map<string, number>();
   for (const c of rClientes.data || []) {
     nombres.set(c.id, c.nombre);
+    radioDeCliente.set(c.id, c.radio_m || RADIO_CLIENTE_M);
     if (esPunto(c.ubicacion)) agregar(c.id, c.ubicacion, c.radio_m || RADIO_CLIENTE_M);
   }
   for (const s of rServicios.data || []) {
-    // El radio del servicio (120 m) es para marcar la llegada; para buscar visitas se usa al menos el del cliente.
-    if (esPunto(s.ubicacion_programada)) agregar(s.cliente_id, s.ubicacion_programada, Math.max(s.radio_geocerca_m || 0, RADIO_CLIENTE_M));
+    if (!esPunto(s.ubicacion_programada)) continue;
+    agregar(s.cliente_id, s.ubicacion_programada, radioDeServicio(s.radio_geocerca_m, radioDeCliente.get(s.cliente_id)));
   }
   // Los lugares de la empresa. Si su tabla todavía no existe, el buscador sigue sin ellos.
   const propios = await listarLugaresPropios().catch((e) => {

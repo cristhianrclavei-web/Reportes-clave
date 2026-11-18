@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  detectarParadas, diasDeTecnico, errorDeRango, lugarEn, textoDuracion, textoSinSenal, visitasACliente,
+  detectarParadas, diasDeTecnico, errorDeRango, lugarEn, radioDeServicio, textoDuracion, textoSinSenal, visitasACliente,
   type LugarConocido, type PuntoCompacto, type Registro,
 } from './visitas';
 
@@ -78,5 +78,18 @@ describe('buscador de visitas', () => {
     expect(errorDeRango('2026-11-01', '2026-11-10', 31)).toBeNull();
     expect(textoDuracion(45)).toBe('45 min');
     expect(textoDuracion(125)).toBe('2 h 5 min');
+  });
+});
+
+describe('radioDeServicio', () => {
+  it('usa el radio chico del cliente para no cubrir al vecino', () => {
+    expect(radioDeServicio(120, 50)).toBe(50);
+    expect(radioDeServicio(120, 100)).toBe(100);
+  });
+  it('si el cliente tiene 200 m o más, usa el mayor', () => {
+    expect(radioDeServicio(120, 200)).toBe(200);
+    expect(radioDeServicio(400, 200)).toBe(400);
+    expect(radioDeServicio(null, 300)).toBe(300);
+    expect(radioDeServicio(null)).toBe(200);
   });
 });

@@ -15,7 +15,8 @@ export const RADIO_PARADA_M = 120;
 // Un hueco así o mayor entre dos puntos (teléfono sin señal o dormido) se avisa junto al tiempo.
 export const MINUTOS_SIN_SENAL = 15;
 export const RADIO_CLIENTE_M = 200;
-export const RADIOS_CLIENTE = [100, 200, 300, 500, 1000] as const;
+// 50 m es para casas vecinas, donde 100 m alcanza a la de junto.
+export const RADIOS_CLIENTE = [50, 100, 200, 300, 500, 1000] as const;
 // El rastreo se guarda 90 días; el buscador por técnico lee de 31 en 31.
 export const DIAS_MAXIMO_TECNICO = 31;
 export const DIAS_MAXIMO_CLIENTE = 120;
@@ -24,6 +25,15 @@ export const DIAS_MAXIMO_CLIENTE = 120;
 
 // Un lugar donde se sabe que está un cliente: su ubicación o la de uno de sus servicios.
 // `propio`: no es de un cliente sino de la empresa (oficina, almacén); ahí `cliente` es su nombre.
+// El radio del servicio (120 m) es para marcar la llegada; para buscar visitas
+// se usa el del cliente. Si el cliente se achicó a propósito (casas vecinas),
+// sus servicios también, para no volver a cubrir al vecino. Misma regla que
+// lugares_de_clientes() en supabase/patch_radio_cliente_50.sql.
+export function radioDeServicio(radioGeocerca: number | null, radioCliente = RADIO_CLIENTE_M): number {
+  if (radioCliente < RADIO_CLIENTE_M) return radioCliente;
+  return Math.max(radioGeocerca || 0, radioCliente);
+}
+
 export type LugarConocido = { clienteId: string; cliente: string; lat: number; lng: number; radio: number; propio?: boolean };
 
 // Algo registrado en la app ese día: un servicio agendado o un reporte.
