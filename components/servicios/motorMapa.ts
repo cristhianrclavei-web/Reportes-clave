@@ -203,8 +203,11 @@ export async function crearMotorGoogle(div: HTMLDivElement, zoomControl: boolean
     zoom: ZOOM_GUADALAJARA,
     zoomControl,
     gestureHandling: gestosGoogle(),
-    // Mapa / Satélite. Street View se cobra aparte: apagado.
+    // Abre en satélite con nombres de calles; el botón regresa al mapa normal.
+    // Street View se cobra aparte: apagado.
+    mapTypeId: 'hybrid',
     mapTypeControl: true,
+    mapTypeControlOptions: { mapTypeIds: ['roadmap', 'hybrid'] },
     streetViewControl: false,
     fullscreenControl: false,
     clickableIcons: false,
