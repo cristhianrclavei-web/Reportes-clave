@@ -7,7 +7,7 @@ import { showToast } from '@/components/Toast';
 import { confirmar } from '@/lib/dialogos';
 import { tipoDispositivo } from '@/lib/lazos';
 import {
-  COLOR_BLOQUEADO, ESTADOS_AVANCE, ETAPAS, LETRA_BLOQUEADO, MOTIVOS_BLOQUEO, contar, datosDeEstado, equiposQueCuentan,
+  COLOR_BLOQUEADO, ESTADOS_AVANCE, ETAPAS, LETRA_BLOQUEADO, MOTIVOS_BLOQUEO, contar, cuentaDeEstado, datosDeEstado, equiposQueCuentan,
   errorDeBloqueo, estadoDe, insigniaDe, nombreEtapa, ordenarParaLista, pasaFiltro, porcentajes,
   type AvancePlano, type CambioAvance, type EstadoAvance, type FiltroAvance, type MarcaAvance,
 } from '@/lib/avancePlano';
@@ -243,7 +243,7 @@ export default function PanelAvance({
               className={`flex items-center gap-2 text-[13px] rounded-lg px-1 py-0.5 text-left ${filtro.estado === estado.id ? 'bg-teal/15' : ''}`}>
               <Insignia marca={{ estado: estado.id }} />
               <span className="flex-1 min-w-0">{estado.corto}</span>
-              <span className="font-mono font-semibold">{cuenta.porEstado[estado.id]}</span>
+              <span className="font-mono font-semibold">{cuentaDeEstado(cuenta, estado.id)}</span>
             </button>
           ))}
           <button type="button" onClick={() => onFiltro({ ...filtro, estado: filtro.estado === 'bloqueado' ? null : 'bloqueado' })}

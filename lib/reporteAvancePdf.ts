@@ -321,7 +321,10 @@ export async function reporteAvancePdf({ cliente, empresa, planos: sinOrden, pan
 
   function tabla(nombre: string, primera: string, filas: { rotulo: string; cuenta: Cuenta }[]) {
     if (filas.length === 0) return;
-    espacio(80);
+    // Si la tabla completa cabe en una hoja, que no se parta: se empieza en otra
+    // hoja cuando no cabe en lo que queda. Título 40, encabezado 34, renglón 17.
+    const altoCompleta = 40 + 34 + (filas.length + 1) * 17;
+    espacio(altoCompleta <= ALTO - MARGEN * 2 - 20 ? altoCompleta : 80);
     titulo(nombre);
     const encabezado = () => {
       // Banda gris con los títulos en dos renglones, centrados sobre su columna.
@@ -340,8 +343,9 @@ export async function reporteAvancePdf({ cliente, empresa, planos: sinOrden, pan
       y -= 34;
     };
     encabezado();
-    const renglon = (rotulo: string, c: Cuenta, esTotal: boolean) => {
-      if (y - 16 < MARGEN + 10) {
+    // `renglones`: cuántos deben caber juntos (el último y el Total no se separan).
+    const renglon = (rotulo: string, c: Cuenta, esTotal: boolean, renglones = 1) => {
+      if (y - 17 * renglones < MARGEN + 10) {
         hojaNueva();
         encabezado();
       }
@@ -364,8 +368,9 @@ export async function reporteAvancePdf({ cliente, empresa, planos: sinOrden, pan
       if (!esTotal) hoja.drawLine({ start: { x: MARGEN, y }, end: { x: ANCHO - MARGEN, y }, thickness: 0.4, color: LINEA });
       y -= 12;
     };
-    filas.forEach((f) => renglon(f.rotulo, f.cuenta, false));
-    if (filas.length > 1) renglon('Total', filas.reduce((suma, f) => sumar(suma, f.cuenta), cuentaVacia()), true);
+    const conTotal = filas.length > 1;
+    filas.forEach((f, i) => renglon(f.rotulo, f.cuenta, false, conTotal && i === filas.length - 1 ? 2 : 1));
+    if (conTotal) renglon('Total', filas.reduce((suma, f) => sumar(suma, f.cuenta), cuentaVacia()), true);
     y -= 8;
   }
 

@@ -62,22 +62,47 @@ function tocarMarca(contenedor: HTMLElement, marca: Element | null | undefined, 
   if (!estabaAbierta) marca.classList.add('abierta');
 }
 
+// ---------- Vista elegida (Mapa o Satélite) ----------
+
+// Se recuerda en este dispositivo: así el mapa abre como lo dejó cada quien.
+const LLAVE_VISTA = 'mapa-vista';
+type VistaMapa = 'mapa' | 'satelite';
+
+function vistaGuardada(): VistaMapa {
+  try {
+    return localStorage.getItem(LLAVE_VISTA) === 'mapa' ? 'mapa' : 'satelite';
+  } catch {
+    return 'satelite'; // sin acceso al almacenamiento (modo privado): abre en satélite
+  }
+}
+
+function guardarVista(vista: VistaMapa) {
+  try {
+    localStorage.setItem(LLAVE_VISTA, vista);
+  } catch {
+    // Sin almacenamiento solo se pierde la preferencia; el mapa sigue funcionando.
+  }
+}
+
 // ---------- Mapa básico (Leaflet + OpenStreetMap) ----------
 
 export async function crearMotorBasico(div: HTMLDivElement, zoomControl: boolean): Promise<MotorMapa> {
   const L = await import('leaflet');
   const mapa = L.map(div, { zoomControl }).setView(CENTRO_GUADALAJARA, ZOOM_GUADALAJARA);
   if (!zoomControl) L.control.zoom({ position: 'bottomright' }).addTo(mapa);
-  // Abre en satélite (Esri, gratis) con nombres de calles y lugares encima,
-  // como el de Google; el selector de arriba regresa al mapa de calles.
+  // Satélite (Esri, gratis) con nombres de calles y lugares encima, como el de
+  // Google; abre en la vista que se eligió la última vez.
   const calles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' });
   const esri = 'https://server.arcgisonline.com/ArcGIS/rest/services';
   const satelite = L.layerGroup([
     L.tileLayer(`${esri}/World_Imagery/MapServer/tile/{z}/{y}/{x}`, { maxZoom: 19, attribution: '© Esri' }),
     L.tileLayer(`${esri}/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}`, { maxZoom: 19 }),
     L.tileLayer(`${esri}/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}`, { maxZoom: 19 }),
-  ]).addTo(mapa);
+  ]);
+  if (vistaGuardada() === 'mapa') calles.addTo(mapa);
+  else satelite.addTo(mapa);
   L.control.layers({ 'Mapa': calles, 'Satélite': satelite }, undefined, { collapsed: false, position: 'topleft' }).addTo(mapa);
+  mapa.on('baselayerchange', (e: { name: string }) => guardarVista(e.name === 'Mapa' ? 'mapa' : 'satelite'));
   const pines = L.layerGroup().addTo(mapa);
   const marcasCapa = L.layerGroup().addTo(mapa);
   mapa.on('click', () => cerrarDetalles(div));
@@ -212,9 +237,9 @@ export async function crearMotorGoogle(div: HTMLDivElement, zoomControl: boolean
     zoom: ZOOM_GUADALAJARA,
     zoomControl,
     gestureHandling: gestosGoogle(),
-    // Abre en satélite con nombres de calles; el botón regresa al mapa normal.
+    // Satélite con nombres de calles o mapa normal, según lo último elegido.
     // Street View se cobra aparte: apagado.
-    mapTypeId: 'hybrid',
+    mapTypeId: vistaGuardada() === 'mapa' ? 'roadmap' : 'hybrid',
     mapTypeControl: true,
     mapTypeControlOptions: { mapTypeIds: ['roadmap', 'hybrid'] },
     streetViewControl: false,
@@ -222,6 +247,7 @@ export async function crearMotorGoogle(div: HTMLDivElement, zoomControl: boolean
     clickableIcons: false,
   });
   mapa.addListener('click', () => cerrarDetalles(div));
+  mapa.addListener('maptypeid_changed', () => guardarVista(mapa.getMapTypeId() === 'roadmap' ? 'mapa' : 'satelite'));
 
   // Pin con HTML propio (las iniciales y el color de la señal), igual que en
   // el mapa básico. Los marcadores nuevos de Google piden un «Map ID».

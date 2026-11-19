@@ -90,7 +90,9 @@ describe('avance: flujo y cuentas', () => {
     expect(ordenarParaLista(equipos, avance, (e) => e.etiqueta || '').map((e) => e.id)).toEqual(['c', 'b', 'a']);
     const lazoDe = (e: EquipoPlano) => (e.id === 'c' ? 'lz2' : 'lz1');
     expect(equipos.filter((e) => pasaFiltro(e, avance, { etapa: 'todas', soloFaltan: false, lazo: 'lz1' }, lazoDe)).map((e) => e.id)).toEqual(['a', 'b']);
-    expect(equipos.filter((e) => pasaFiltro(e, avance, { etapa: 'todas', soloFaltan: false, estado: 'instalado' })).map((e) => e.id)).toEqual(['b']);
+    expect(equipos.filter((e) => pasaFiltro(e, avance, { etapa: 'todas', soloFaltan: false, estado: 'instalado' })).map((e) => e.id)).toEqual(['a', 'b']);
+    expect(equipos.filter((e) => pasaFiltro(e, avance, { etapa: 'todas', soloFaltan: false, estado: 'probado' })).map((e) => e.id)).toEqual(['a']);
+    expect(equipos.filter((e) => pasaFiltro(e, avance, { etapa: 'todas', soloFaltan: false, estado: 'pendiente' })).map((e) => e.id)).toEqual(['c']);
     expect(equipos.filter((e) => pasaFiltro(e, avance, { etapa: 'todas', soloFaltan: false, tipo: 'EMA' })).map((e) => e.id)).toEqual(['c']);
     expect(equipos.filter((e) => pasaFiltro(e, avance, { etapa: 'todas', soloFaltan: false, texto: 'd00 1' })).map((e) => e.id)).toEqual(['b']);
     expect(resumenPorLazo(equipos, avance, (e) => ({ id: lazoDe(e), nombre: lazoDe(e).toUpperCase() })).map((r) => [r.nombre, r.cuenta.total])).toEqual([['LZ1', 2], ['LZ2', 1]]);

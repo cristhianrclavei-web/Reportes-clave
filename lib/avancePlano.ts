@@ -227,15 +227,30 @@ export type FiltroAvance = {
   texto?: string;
 };
 
+// Igual que los números del resumen: «Instalado» incluye lo ya direccionado y
+// probado (cada paso incluye a los anteriores); «Pendiente» es solo lo que no
+// ha empezado y «No se puede» solo lo bloqueado.
+function cumpleEstado(equipo: EquipoPlano, avance: AvancePlano, estado: EstadoAvance | 'bloqueado'): boolean {
+  const bloqueado = Boolean(avance[equipo.id]?.bloqueo);
+  if (estado === 'bloqueado') return bloqueado;
+  if (bloqueado) return false;
+  const actual = estadoDe(avance, equipo.id);
+  if (estado === 'pendiente') return actual === 'pendiente';
+  const paso = (id: EstadoAvance) => ESTADOS_AVANCE.findIndex((e) => e.id === id);
+  return paso(actual) >= paso(estado);
+}
+
+// Lo que se muestra junto a cada estado en el resumen (misma regla que el filtro).
+export function cuentaDeEstado(c: Cuenta, estado: EstadoAvance): number {
+  return estado === 'pendiente' ? c.porEstado.pendiente : alMenos(c, estado);
+}
+
 // `lazoDe`: el lazo del equipo (por su dispositivo ligado), para filtrar por lazo.
 export function pasaFiltro(equipo: EquipoPlano, avance: AvancePlano, filtro: FiltroAvance, lazoDe?: (e: EquipoPlano) => string | null, rotulo?: string): boolean {
   if (filtro.etapa === 'sin' && equipo.etapa) return false;
   if (typeof filtro.etapa === 'number' && equipo.etapa !== filtro.etapa) return false;
   if (filtro.soloFaltan && estadoDe(avance, equipo.id) === 'probado' && !avance[equipo.id]?.bloqueo) return false;
-  if (filtro.estado) {
-    const bloqueado = Boolean(avance[equipo.id]?.bloqueo);
-    if (filtro.estado === 'bloqueado' ? !bloqueado : bloqueado || estadoDe(avance, equipo.id) !== filtro.estado) return false;
-  }
+  if (filtro.estado && !cumpleEstado(equipo, avance, filtro.estado)) return false;
   if (filtro.lazo && lazoDe && (lazoDe(equipo) || 'sin') !== filtro.lazo) return false;
   if (filtro.tipo && equipo.tipo !== filtro.tipo) return false;
   const buscado = (filtro.texto || '').trim().toUpperCase().replace(/\s+/g, '');
