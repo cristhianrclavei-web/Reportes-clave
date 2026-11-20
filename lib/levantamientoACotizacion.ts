@@ -23,9 +23,6 @@ export type ConceptoPropuesto = {
   foto: string;
   modelo: string;
   marca: string;
-  // Foto del levantamiento elegida para el concepto (ruta en «evidencias»);
-  // al armar la cotización se copia al bucket de cotizaciones.
-  fotoLevantamiento: string;
 };
 
 // Unidades de medida que, junto a un número, dicen cuánto se cotiza.
@@ -84,7 +81,7 @@ function esEnlace(texto: string): boolean {
 // se ofrecen sin marcar (no siempre se cotizan).
 export function propuestasDeLevantamiento(sistemas: SistemaLevantamiento[], nuevoId: () => string): ConceptoPropuesto[] {
   const propuestas: ConceptoPropuesto[] = [];
-  const vacio = { enlace: '', costo: null, foto: '', modelo: '', marca: '', fotoLevantamiento: '' };
+  const vacio = { enlace: '', costo: null, foto: '', modelo: '', marca: '' };
 
   for (const s of sistemas) {
     const sistema = s.sistema.trim() || 'General';
@@ -175,8 +172,6 @@ export function cotizacionDesdeLevantamiento(
     iva_pct: 16,
     moneda: 'MXN',
     presentacion_precios: 'desglose',
-    // Si se eligieron fotos (del levantamiento o de SYSCOM), que salgan en el PDF.
-    mostrar_fotos: lineas.some((l) => l.foto),
     tipo_cambio: 1,
     subtotal: 0,
     iva: 0,
