@@ -7,7 +7,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Check, CircleCheck, CircleDashed, ClipboardList, Plus, Trash2, Wrench, X } from 'lucide-react';
-import { obtenerLevantamiento, type Levantamiento, type SistemaLevantamiento } from '@/lib/levantamientos';
+import { obtenerLevantamiento, urlsDeFotos, type Levantamiento, type SistemaLevantamiento } from '@/lib/levantamientos';
+import { subirFotoConcepto } from '@/lib/cotizaciones';
 import { propuestasDeLevantamiento, type ConceptoPropuesto, type OrigenPropuesta } from '@/lib/levantamientoACotizacion';
 import { buscarEnCatalogo } from '@/lib/catalogoCotizaciones';
 import { useCatalogoCotizado } from './AyudaSyscom';
@@ -42,6 +43,9 @@ export default function CotizarLevantamiento({
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const { catalogo } = useCatalogoCotizado();
+  // Direcciones firmadas de las fotos del levantamiento (bucket privado).
+  const [urlsFotos, setUrlsFotos] = useState<Record<string, string>>({});
+  const [copiando, setCopiando] = useState<string | null>(null);
 
   useEffect(() => {
     obtenerLevantamiento(levantamientoId)
@@ -49,6 +53,11 @@ export default function CotizarLevantamiento({
         setLevantamiento(lev);
         setSistemas(sis);
         setConceptos(propuestasDeLevantamiento(sis, generarUUID));
+        const rutas = [...lev.fotos, ...sis.flatMap((x) => x.fotos)].map((f) => f.path);
+        urlsDeFotos(rutas).then((mapa) => {
+          setUrlsFotos(mapa);
+          if (rutas.length > 0 && Object.keys(mapa).length === 0) setAviso('No se pudieron cargar las fotos del levantamiento. Revisa tu conexión y vuelve a abrir esta ventana.');
+        });
       })
       .catch((e) => setError((e?.message || 'No se pudo cargar el levantamiento') + '. Revisa tu conexión e inténtalo de nuevo.'));
   }, [levantamientoId]);
@@ -79,7 +88,7 @@ export default function CotizarLevantamiento({
   function agregar(sistema: string) {
     const nuevo: ConceptoPropuesto = {
       id: generarUUID(), sistema, origen: 'manual', textoOriginal: '', descripcion: '', cantidad: 1, unidad: 'Pza',
-      incluir: true, enlace: '', costo: null, foto: '', modelo: '', marca: '',
+      incluir: true, enlace: '', costo: null, foto: '', modelo: '', marca: '', fotoLevantamiento: '',
     };
     // Va antes de la mano de obra del sistema, que queda al final.
     setConceptos((prev) => {
@@ -93,7 +102,34 @@ export default function CotizarLevantamiento({
     setConceptos((prev) => prev.filter((c) => c.id !== id));
   }
 
-  function armar() {
+  // Fotos que se pueden elegir para un concepto: las de su sistema y las generales del sitio.
+  function fotosPara(sistema: string): string[] {
+    const delSistema = sistemas.filter((x) => (x.sistema.trim() || 'General') === sistema).flatMap((x) => x.fotos);
+    return [...delSistema, ...(levantamiento?.fotos || [])].map((f) => f.path).filter((ruta) => urlsFotos[ruta]);
+  }
+
+  // Copia las fotos elegidas al bucket de cotizaciones (el PDF del cliente
+  // se arma sin sesión y no puede leer las del levantamiento).
+  async function copiarFotos(elegidos: ConceptoPropuesto[]): Promise<ConceptoPropuesto[]> {
+    const conFoto = elegidos.filter((c) => c.fotoLevantamiento);
+    const copiadas = new Map<string, string>();
+    let hechas = 0;
+    for (const c of conFoto) {
+      setCopiando(`Copiando fotos · ${hechas + 1} de ${conFoto.length}`);
+      // La misma foto elegida en dos conceptos se copia una sola vez.
+      if (!copiadas.has(c.fotoLevantamiento)) {
+        const respuesta = await fetch(urlsFotos[c.fotoLevantamiento]);
+        if (!respuesta.ok) throw new Error(`no se pudo descargar una foto (${respuesta.status})`);
+        const blob = await respuesta.blob();
+        const archivo = new File([blob], 'foto.jpg', { type: blob.type || 'image/jpeg' });
+        copiadas.set(c.fotoLevantamiento, await subirFotoConcepto(archivo));
+      }
+      hechas++;
+    }
+    return conceptos.map((c) => (c.incluir && c.fotoLevantamiento ? { ...c, foto: copiadas.get(c.fotoLevantamiento) || c.foto } : c));
+  }
+
+  async function armar() {
     const elegidos = conceptos.filter((c) => c.incluir);
     if (elegidos.length === 0) {
       setAviso('Marca al menos un concepto para cotizar.');
@@ -111,7 +147,18 @@ export default function CotizarLevantamiento({
       document.getElementById(`cantidad-${sinCantidad.id}`)?.focus();
       return;
     }
-    if (levantamiento) onListo(levantamiento, conceptos);
+    if (!levantamiento) return;
+    try {
+      const listos = await copiarFotos(elegidos);
+      onListo(levantamiento, listos);
+    } catch (e: any) {
+      const sinRed = typeof navigator !== 'undefined' && !navigator.onLine;
+      setAviso(sinRed
+        ? 'Sin conexión: no se pudieron copiar las fotos. Inténtalo cuando tengas señal, o quita las fotos elegidas.'
+        : 'No se pudieron copiar las fotos: ' + (e?.message || 'error desconocido') + '. Vuelve a intentarlo o quita las fotos elegidas.');
+    } finally {
+      setCopiando(null);
+    }
   }
 
   const nombresSistemas = [...new Set(conceptos.map((c) => c.sistema))];
@@ -158,6 +205,8 @@ export default function CotizarLevantamiento({
                       key={c.id}
                       concepto={c}
                       parecido={parecidos[c.id] || null}
+                      fotos={fotosPara(c.sistema)}
+                      urlsFotos={urlsFotos}
                       onCambiar={(cambio) => cambiar(c.id, cambio)}
                       onUsarParecido={() => usarParecido(c)}
                       onQuitar={c.origen === 'manual' ? () => quitar(c.id) : undefined}
@@ -178,9 +227,9 @@ export default function CotizarLevantamiento({
             <p className="text-[12px] text-muted">{ligados > 0 ? `${ligados} ya con producto. ` : ''}Los demás se ligan con «Ligar con SYSCOM» en la cotización.</p>
             {aviso && <p className="text-[12.5px] text-red font-semibold mt-1">{aviso}</p>}
           </div>
-          <button type="button" onClick={armar} disabled={!levantamiento}
+          <button type="button" onClick={armar} disabled={!levantamiento || Boolean(copiando)}
             className="min-h-[48px] px-5 rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15px] flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-glow-teal disabled:opacity-50">
-            <ClipboardList size={17} /> Armar cotización
+            <ClipboardList size={17} /> {copiando || 'Armar cotización'}
           </button>
         </div>
       </div>
@@ -191,12 +240,16 @@ export default function CotizarLevantamiento({
 function TarjetaConcepto({
   concepto: c,
   parecido,
+  fotos,
+  urlsFotos,
   onCambiar,
   onUsarParecido,
   onQuitar,
 }: {
   concepto: ConceptoPropuesto;
   parecido: ReturnType<typeof buscarEnCatalogo>;
+  fotos: string[];
+  urlsFotos: Record<string, string>;
   onCambiar: (cambio: Partial<ConceptoPropuesto>) => void;
   onUsarParecido: () => void;
   onQuitar?: () => void;
@@ -250,6 +303,26 @@ function TarjetaConcepto({
             />
             <datalist id="unidades-levantamiento">{UNIDADES.map((u) => <option key={u} value={u} />)}</datalist>
           </div>
+          {fotos.length > 0 && (
+            <div className="mt-2">
+              <p className="text-[11.5px] text-muted mb-1">
+                {c.fotoLevantamiento ? 'Foto del levantamiento para este concepto (sale en el PDF):' : 'Foto del levantamiento para el PDF (opcional):'}
+              </p>
+              <div className="flex gap-1.5 overflow-x-auto pb-1">
+                {fotos.map((ruta) => {
+                  const elegida = c.fotoLevantamiento === ruta;
+                  return (
+                    <button key={ruta} type="button" aria-pressed={elegida} aria-label={elegida ? 'Quitar esta foto' : 'Usar esta foto'}
+                      onClick={() => onCambiar({ fotoLevantamiento: elegida ? '' : ruta })}
+                      className={`relative w-14 h-14 shrink-0 rounded-lg overflow-hidden border-2 ${elegida ? 'border-teal' : 'border-transparent opacity-80'}`}>
+                      <img src={urlsFotos[ruta]} alt="" className="w-full h-full object-cover" />
+                      {elegida && <span className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-teal text-inkOnAccent flex items-center justify-center"><Check size={11} strokeWidth={3} /></span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           {parecido && !conProducto && (
             <div className="mt-2 rounded-xl border border-teal/40 bg-teal/8 p-2 flex items-center gap-2">
               <p className="flex-1 min-w-0 text-[12px] leading-snug">

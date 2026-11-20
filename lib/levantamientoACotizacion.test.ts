@@ -63,5 +63,8 @@ describe('cotizacionDesdeLevantamiento', () => {
     expect(cotizacion.titulo_proyecto).toBe('CCTV, Paneles Solares');
     expect(lineas.map((l) => l.sistema)).toEqual(['CCTV', 'CCTV', 'Paneles Solares']);
     expect(lineas[2].unidad).toBe('Serv');
+    expect(cotizacion.mostrar_fotos).toBe(false);
+    conceptos[0].foto = 'conceptos/a.jpg';
+    expect(cotizacionDesdeLevantamiento(lev, conceptos, '2026-11-19', { nombre: '', correo: '' }).cotizacion.mostrar_fotos).toBe(true);
   });
 });
