@@ -8,6 +8,9 @@ import SupervisorShell from '@/components/SupervisorShell';
 import TablaLista, { ColumnaTabla } from '@/components/TablaLista';
 import EmptyIllustration from '@/components/EmptyIllustration';
 import CotizacionForm from '@/components/CotizacionForm';
+import CotizarLevantamiento from '@/components/cotizaciones/CotizarLevantamiento';
+import { cotizacionDesdeLevantamiento } from '@/lib/levantamientoACotizacion';
+import type { Levantamiento } from '@/lib/levantamientos';
 import { VistaCondicional } from '@/lib/vistaSupervisor';
 import type { FirmanteSugerido } from '@/lib/firmantesCotizacion';
 import { Cotizacion, EstadoCotizacion, LineaCotizacion, obtenerCotizacion, copiaParaOtroCliente, actualizarEstadoCotizacion } from '@/lib/cotizaciones';
@@ -18,7 +21,7 @@ import { descartarBorradorFormulario } from '@/lib/useBorradorFormulario';
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
 import SubTabs from '@/components/SubTabs';
-import { Plus, Search, Receipt, Copy, X, History } from 'lucide-react';
+import { Plus, Search, Receipt, Copy, X, History, ClipboardList } from 'lucide-react';
 import SelectorSemana, { RangoSeleccionado } from '@/components/SelectorSemana';
 import { useSubseccionUrl } from '@/lib/useSubseccionUrl';
 import ActividadSeccion from '@/components/ActividadSeccion';
@@ -101,6 +104,7 @@ export default function CotizacionesList({
       // conserva el firmante de la original.
       const firmante = puedeAprobar ? { nombre: userName, correo: correoUsuario } : undefined;
       setCopia({ origen: origen.cotizacion, datos: copiaParaOtroCliente(origen, hoyLocal(), firmante) });
+      setDesdeLevantamiento(null);
       setSeccion('nueva');
       setEligiendoCopia(false);
       window.scrollTo({ top: 0 });
@@ -111,13 +115,33 @@ export default function CotizacionesList({
     }
   }
 
+  // Cotizar un levantamiento: primero la revisión de conceptos, luego el
+  // formulario ya llenado (y ligado al levantamiento al guardar).
+  const [revisandoLevantamiento, setRevisandoLevantamiento] = useState<string | null>(null);
+  const [desdeLevantamiento, setDesdeLevantamiento] = useState<{ levantamiento: Levantamiento; datos: { cotizacion: Cotizacion; lineas: LineaCotizacion[] }; vez: number } | null>(null);
+
+  function armarDesdeLevantamiento(levantamiento: Levantamiento, conceptos: Parameters<typeof cotizacionDesdeLevantamiento>[1]) {
+    // Igual que en la copia: quien no aprueba elige después quién firma.
+    const firmante = puedeAprobar ? { nombre: userName || '', correo: correoUsuario || '' } : { nombre: '', correo: '' };
+    // Una revisión nueva reemplaza el borrador de una anterior del mismo levantamiento.
+    descartarBorradorFormulario(`cotizacion:levantamiento:${levantamiento.id}`);
+    // «vez» vuelve a montar el formulario si se eligen otra vez los conceptos.
+    setDesdeLevantamiento((anterior) => ({ levantamiento, datos: cotizacionDesdeLevantamiento(levantamiento, conceptos, hoyLocal(), firmante), vez: (anterior?.vez || 0) + 1 }));
+    setCopia(null);
+    setRevisandoLevantamiento(null);
+    setSeccion('nueva');
+    window.scrollTo({ top: 0 });
+  }
+
   // Desde el detalle: /dashboard/cotizaciones?copiar=<id>
+  // Desde un levantamiento: /dashboard/cotizaciones?levantamiento=<id>
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get('copiar');
-    if (id) {
-      copiarDe(id);
-      window.history.replaceState(null, '', window.location.pathname);
-    }
+    const parametros = new URLSearchParams(window.location.search);
+    const id = parametros.get('copiar');
+    const levantamientoId = parametros.get('levantamiento');
+    if (id) copiarDe(id);
+    if (levantamientoId) setRevisandoLevantamiento(levantamientoId);
+    if (id || levantamientoId) window.history.replaceState(null, '', window.location.pathname);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [search, setSearch] = useState('');
@@ -209,7 +233,23 @@ export default function CotizacionesList({
 
       {seccion === 'nueva' && (
         <>
-          {copia ? (
+          {desdeLevantamiento ? (
+            <div className="mb-4 rounded-2xl border border-teal/40 bg-teal/8 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+              <span className="w-10 h-10 rounded-xl bg-teal/15 text-teal flex items-center justify-center shrink-0"><ClipboardList size={18} /></span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[14px] font-semibold">Desde el levantamiento {desdeLevantamiento.levantamiento.folio} · {desdeLevantamiento.levantamiento.empresa}</p>
+                <p className="text-[12.5px] text-muted">Revisa las descripciones, usa «Ligar con SYSCOM» para los conceptos sin producto y pon los precios. Al guardar queda ligada al levantamiento.</p>
+              </div>
+              <button type="button" onClick={() => setRevisandoLevantamiento(desdeLevantamiento.levantamiento.id)}
+                className="shrink-0 h-9 px-3.5 rounded-full border border-line text-[13px] font-semibold flex items-center gap-1.5 hover:bg-surface-2">
+                Volver a elegir conceptos
+              </button>
+              <button type="button" onClick={() => { descartarBorradorFormulario(`cotizacion:levantamiento:${desdeLevantamiento.levantamiento.id}`); setDesdeLevantamiento(null); }}
+                className="shrink-0 h-9 px-3.5 rounded-full border border-line text-[13px] font-semibold flex items-center gap-1.5 hover:bg-surface-2">
+                <X size={14} /> Empezar en blanco
+              </button>
+            </div>
+          ) : copia ? (
             <div className="mb-4 rounded-2xl border border-teal/40 bg-teal/8 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
               <span className="w-10 h-10 rounded-xl bg-teal/15 text-teal flex items-center justify-center shrink-0"><Copy size={18} /></span>
               <div className="min-w-0 flex-1">
@@ -228,16 +268,25 @@ export default function CotizacionesList({
             </button>
           )}
           <CotizacionForm
-            key={copia ? `copia-${copia.origen.id}` : 'nueva'}
+            key={desdeLevantamiento ? `levantamiento-${desdeLevantamiento.levantamiento.id}-${desdeLevantamiento.vez}` : copia ? `copia-${copia.origen.id}` : 'nueva'}
             modo="crear"
-            inicial={copia?.datos}
-            claveBorrador={copia ? `cotizacion:copia:${copia.origen.id}` : undefined}
+            inicial={desdeLevantamiento?.datos || copia?.datos}
+            levantamientoId={desdeLevantamiento?.levantamiento.id}
+            claveBorrador={desdeLevantamiento ? `cotizacion:levantamiento:${desdeLevantamiento.levantamiento.id}` : copia ? `cotizacion:copia:${copia.origen.id}` : undefined}
             nombreUsuario={userName}
             correoUsuario={correoUsuario}
             firmantes={firmantes}
             puedeAprobar={puedeAprobar}
           />
         </>
+      )}
+
+      {revisandoLevantamiento && (
+        <CotizarLevantamiento
+          levantamientoId={revisandoLevantamiento}
+          onListo={armarDesdeLevantamiento}
+          onClose={() => setRevisandoLevantamiento(null)}
+        />
       )}
 
       {eligiendoCopia && (

@@ -203,11 +203,18 @@ async function guardarSistemas(levantamientoId: string, sistemas: SistemaInput[]
   if (error) throw error;
 }
 
-export async function listarLevantamientos(soloPropios: boolean): Promise<Levantamiento[]> {
+// Cotización armada desde un levantamiento (patch_cotizacion_desde_levantamiento.sql).
+export type CotizacionDeLevantamiento = { id: string; folio: string; estado: string };
+
+export async function listarLevantamientos(soloPropios: boolean): Promise<(Levantamiento & { cotizaciones?: CotizacionDeLevantamiento[] })[]> {
   const supabase = createClient();
+  // Supervisión ve también las cotizaciones que salieron de cada uno.
+  const campos = soloPropios
+    ? '*, profiles!levantamientos_created_by_profiles_fkey(full_name)'
+    : '*, profiles!levantamientos_created_by_profiles_fkey(full_name), cotizaciones(id, folio, estado)';
   let query = supabase
     .from('levantamientos')
-    .select('*, profiles!levantamientos_created_by_profiles_fkey(full_name)')
+    .select(campos)
     .order('created_at', { ascending: false });
   if (soloPropios) {
     const { data: { user } } = await supabase.auth.getUser();
@@ -217,6 +224,13 @@ export async function listarLevantamientos(soloPropios: boolean): Promise<Levant
   const { data, error } = await query;
   if (error) throw error;
   return (data as any[]) || [];
+}
+
+export async function cotizacionesDeLevantamiento(id: string): Promise<CotizacionDeLevantamiento[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase.from('cotizaciones').select('id, folio, estado').eq('levantamiento_id', id).order('created_at');
+  if (error) throw error;
+  return data || [];
 }
 
 export async function obtenerLevantamiento(id: string): Promise<{ levantamiento: Levantamiento; sistemas: SistemaLevantamiento[] }> {

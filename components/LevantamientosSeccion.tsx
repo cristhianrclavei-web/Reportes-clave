@@ -5,7 +5,7 @@ import { VistaCondicional } from '@/lib/vistaSupervisor';
 import { useAliasClientes } from '@/lib/useAliasClientes';
 import { coincideBusqueda } from '@/lib/busqueda';
 import { useEffect, useMemo, useState } from 'react';
-import { Levantamiento, listarLevantamientos } from '@/lib/levantamientos';
+import { Levantamiento, listarLevantamientos, type CotizacionDeLevantamiento } from '@/lib/levantamientos';
 import LevantamientoForm from './LevantamientoForm';
 import LevantamientoDetalleModal from './LevantamientoDetalleModal';
 import SelectorSemana, { RangoSeleccionado } from '@/components/SelectorSemana';
@@ -22,13 +22,21 @@ function nombreCreador(profiles: Levantamiento['profiles']): string {
   return Array.isArray(profiles) ? profiles[0]?.full_name || '—' : profiles.full_name || '—';
 }
 
+// «Sin cotizar» o el folio de la última cotización que salió del levantamiento.
+function EtiquetaCotizado({ cotizaciones }: { cotizaciones?: CotizacionDeLevantamiento[] }) {
+  const ultima = cotizaciones && cotizaciones.length > 0 ? [...cotizaciones].sort((a, b) => a.folio.localeCompare(b.folio)).at(-1) : null;
+  if (!ultima) return <span className="text-[11.5px] font-semibold text-amber whitespace-nowrap">Sin cotizar</span>;
+  const otras = cotizaciones!.length > 1 ? ` +${cotizaciones!.length - 1}` : '';
+  return <span className="text-[11.5px] font-semibold text-teal whitespace-nowrap">Cotizado · {ultima.folio}{otras}</span>;
+}
+
 // Sección embebida en Reportes (técnico y supervisor). `soloPropios` decide
 // el alcance de la consulta: el técnico solo ve lo suyo, el supervisor ve
 // de todos — la misma pantalla sirve para los dos, ver
 // lib/levantamientos.ts#listarLevantamientos.
 export default function LevantamientosSeccion({ soloPropios }: { soloPropios: boolean }) {
   const [seccion, setSeccion] = useState<'nuevo' | 'lista'>('lista');
-  const [levantamientos, setLevantamientos] = useState<Levantamiento[]>([]);
+  const [levantamientos, setLevantamientos] = useState<(Levantamiento & { cotizaciones?: CotizacionDeLevantamiento[] })[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -148,7 +156,10 @@ export default function LevantamientosSeccion({ soloPropios }: { soloPropios: bo
                 { header: 'Fecha', render: (l) => <span className="tabular-nums whitespace-nowrap">{formatFecha(l.fecha)}</span> },
                 { header: 'Cliente / empresa', render: (l) => <span className="font-semibold">{l.empresa}</span> },
                 { header: 'Folio', render: (l) => <span className="font-mono text-teal">{l.folio}</span> },
-                ...(soloPropios ? [] : [{ header: 'Elaboró', render: (l: (typeof filtrados)[number]) => nombreCreador(l.profiles) }]),
+                ...(soloPropios ? [] : [
+                  { header: 'Elaboró', render: (l: (typeof filtrados)[number]) => nombreCreador(l.profiles) },
+                  { header: 'Cotización', render: (l: (typeof filtrados)[number]) => <EtiquetaCotizado cotizaciones={l.cotizaciones} /> },
+                ]),
               ]}
             />
           }
@@ -173,7 +184,10 @@ export default function LevantamientosSeccion({ soloPropios }: { soloPropios: bo
               {!soloPropios && (
                 <p className="text-[12px] text-muted mb-2 truncate">{nombreCreador(l.profiles)}</p>
               )}
-              <div className="text-[13px] font-medium">{formatFecha(l.fecha)}</div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-[13px] font-medium">{formatFecha(l.fecha)}</div>
+                {!soloPropios && <EtiquetaCotizado cotizaciones={l.cotizaciones} />}
+              </div>
             </button>
           ))}
         </div>
@@ -185,6 +199,7 @@ export default function LevantamientosSeccion({ soloPropios }: { soloPropios: bo
         <LevantamientoDetalleModal
           levantamientoId={abierto}
           puedeEditar
+          puedeCotizar={!soloPropios}
           onClose={() => setAbierto(null)}
           onEliminado={() => cargar()}
           onActualizado={() => cargar()}

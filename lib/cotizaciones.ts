@@ -93,6 +93,8 @@ export type Cotizacion = {
   // se avisa en la app que hay que revisarlo. Nunca sale en el PDF.
   generada_por_ia?: boolean;
   notas_ia?: string | null;
+  // Levantamiento del que salió (patch_cotizacion_desde_levantamiento.sql).
+  levantamiento_id?: string | null;
   profiles?: { full_name: string } | { full_name: string }[] | null;
 };
 
@@ -137,6 +139,8 @@ export type CotizacionInput = {
   total_neto: boolean;
   tipo_cambio: number;
   lineas: LineaInput[];
+  // Solo al crear desde un levantamiento; al editar no se toca.
+  levantamiento_id?: string;
 };
 
 function redondear(n: number): number {
@@ -281,6 +285,7 @@ function datosCotizacion(input: CotizacionInput) {
     subtotal,
     iva,
     total,
+    ...(input.levantamiento_id ? { levantamiento_id: input.levantamiento_id } : {}),
   };
 }
 

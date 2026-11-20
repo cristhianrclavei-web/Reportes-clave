@@ -5,10 +5,12 @@ import { avisar, confirmar } from '@/lib/dialogos';
 import { useEffect, useState } from 'react';
 import {
   Levantamiento, SistemaLevantamiento, obtenerLevantamiento, eliminarLevantamiento, urlsDeFotos,
+  cotizacionesDeLevantamiento, type CotizacionDeLevantamiento,
 } from '@/lib/levantamientos';
+import Link from 'next/link';
 import LevantamientoForm from './LevantamientoForm';
 import { showToast } from '@/components/Toast';
-import { X, Pencil, Trash2, FileText } from 'lucide-react';
+import { X, Pencil, Trash2, FileText, Receipt } from 'lucide-react';
 
 const cardCls = 'glass rounded-2xl p-4';
 
@@ -44,12 +46,15 @@ function GaleriaFotos({ fotos }: { fotos: { path: string; caption: string }[] })
 export default function LevantamientoDetalleModal({
   levantamientoId,
   puedeEditar,
+  puedeCotizar = false,
   onClose,
   onEliminado,
   onActualizado,
 }: {
   levantamientoId: string;
   puedeEditar: boolean;
+  // Supervisión: botón para armar la cotización desde el levantamiento.
+  puedeCotizar?: boolean;
   onClose: () => void;
   onEliminado?: (id: string) => void;
   onActualizado?: () => void;
@@ -60,6 +65,15 @@ export default function LevantamientoDetalleModal({
   const [sistemas, setSistemas] = useState<SistemaLevantamiento[]>([]);
   const [editando, setEditando] = useState(false);
   const [eliminando, setEliminando] = useState(false);
+  const [cotizaciones, setCotizaciones] = useState<CotizacionDeLevantamiento[] | null>(null);
+  const [errorCotizaciones, setErrorCotizaciones] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!puedeCotizar) return;
+    cotizacionesDeLevantamiento(levantamientoId)
+      .then(setCotizaciones)
+      .catch((e) => setErrorCotizaciones('No se pudo revisar si ya tiene cotización: ' + (e?.message || 'error de red')));
+  }, [levantamientoId, puedeCotizar]);
 
   async function cargar() {
     setCargando(true);
@@ -206,6 +220,39 @@ export default function LevantamientoDetalleModal({
                 <p className="font-display font-semibold text-[13px] uppercase tracking-wider text-teal mb-2.5">Notas generales del sitio</p>
                 {levantamiento.notas && <p className="text-[13.5px] leading-relaxed whitespace-pre-wrap">{levantamiento.notas}</p>}
                 <GaleriaFotos fotos={levantamiento.fotos} />
+              </div>
+            )}
+
+            {puedeCotizar && (
+              <div className={cardCls}>
+                <p className="font-display font-semibold text-[13px] uppercase tracking-wider text-teal mb-2">Cotización</p>
+                {errorCotizaciones && <p className="text-[13px] text-red mb-2">{errorCotizaciones}</p>}
+                {cotizaciones && cotizaciones.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {cotizaciones.map((c) => (
+                      <Link key={c.id} href={`/dashboard/cotizaciones/${c.id}`} className="h-9 px-3 rounded-full border border-teal/40 text-[13px] font-semibold flex items-center gap-1.5 hover:bg-teal/5">
+                        <span className="font-mono text-teal">{c.folio}</span> <span className="text-muted font-normal">· {c.estado}</span>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+                {cotizaciones && cotizaciones.length === 0 && (
+                  <p className="text-[13px] text-muted mb-3">Todavía no se cotiza. Revisa las recomendaciones una por una y se arma el borrador.</p>
+                )}
+                <button
+                  disabled={cotizaciones === null && !errorCotizaciones}
+                  onClick={async () => {
+                    if (cotizaciones && cotizaciones.length > 0) {
+                      const folios = cotizaciones.map((c) => c.folio).join(', ');
+                      if (!await confirmar(`Este levantamiento ya tiene cotización (${folios}).\n\n¿Crear otra versión? Si solo quieres cambiar la que existe, ábrela y edítala.`)) return;
+                    }
+                    window.location.href = `/dashboard/cotizaciones?levantamiento=${levantamientoId}`;
+                  }}
+                  className="w-full min-h-[48px] rounded-2xl bg-teal text-inkOnAccent font-semibold text-[14.5px] flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-glow-teal disabled:opacity-60"
+                >
+                  <Receipt size={16} strokeWidth={2.3} />
+                  {cotizaciones && cotizaciones.length > 0 ? 'Crear otra cotización' : 'Cotizar'}
+                </button>
               </div>
             )}
 

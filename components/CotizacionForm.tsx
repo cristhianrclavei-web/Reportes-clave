@@ -69,7 +69,10 @@ export default function CotizacionForm({
   claveBorrador,
   firmantes = [],
   puedeAprobar = false,
+  levantamientoId,
 }: {
+  // Cotización armada desde un levantamiento: queda ligada a él al crearla.
+  levantamientoId?: string;
   // Personas que aprueban cotizaciones: botones rápidos para «Atentamente».
   firmantes?: FirmanteSugerido[];
   // Quien no aprueba (p. ej. quien solo captura) no sale como firmante por
@@ -493,6 +496,7 @@ export default function CotizacionForm({
       total_neto: totalNeto,
       tipo_cambio: tipoCambioNum,
       lineas: lineasValidas,
+      levantamiento_id: levantamientoId,
     };
     try {
       if (modo === 'editar' && cotizacionId) {

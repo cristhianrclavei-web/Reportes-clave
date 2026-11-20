@@ -17,6 +17,7 @@ import {
 import { showToast } from '@/components/Toast';
 import type { FirmanteSugerido } from '@/lib/firmantesCotizacion';
 import PedirAprobacion from '@/components/cotizaciones/PedirAprobacion';
+import OrigenLevantamiento from '@/components/cotizaciones/OrigenLevantamiento';
 import { FileText, Pencil, Trash2, ChevronLeft, X, Check, Send, Ban, MessageCircle, ExternalLink, Copy, Network, Sparkles, Undo2 } from 'lucide-react';
 import { MARCA, MARCA_MAYUS } from '@/lib/marca';
 
@@ -271,6 +272,8 @@ export default function CotizacionDetalle({
         <ChevronLeft size={16} strokeWidth={2.4} />
         Todas las cotizaciones
       </Link>
+
+      {cotizacion.levantamiento_id && <OrigenLevantamiento levantamientoId={cotizacion.levantamiento_id} />}
 
       {/* Solo en pantalla y mientras siga en borrador: es un recordatorio
           para quien la revisa, no parte de la cotización. */}
