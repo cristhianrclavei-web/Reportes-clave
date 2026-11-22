@@ -75,13 +75,14 @@ const MARGEN_ARRIBA = 8;
 const tinte = (color: string, pct: number) => `color-mix(in srgb, ${color} ${pct}%, transparent)`;
 
 export default function JornadaDia({
-  dia, esHoy, ahora, hrefServicio, hrefActividad, onLlenar, onEditar, onBorrar,
+  dia, esHoy, ahora, hrefServicio, hrefActividad, hrefReporte, onLlenar, onEditar, onBorrar,
 }: {
   dia: DiaDeTecnico;
   esHoy: boolean;
   ahora: number;
   hrefServicio: (id: string) => string;
   hrefActividad: (id: string) => string;
+  hrefReporte?: (id: string) => string;
   // Solo el técnico: abre el registro a mano con ese tramo ya puesto
   // (sin tramo cuando el día está vacío).
   onLlenar?: (tramo: { inicio: number; fin: number } | null) => void;
@@ -139,15 +140,32 @@ export default function JornadaDia({
   const sinRegistrar = porClase.sin_registrar || 0;
   const registrado = Object.entries(porClase).reduce((n, [k, v]) => (k === 'sin_registrar' ? n : n + (v || 0)), 0);
 
+  // Dónde va cada tramo. Uno corto se dibuja con ALTO_MINIMO para poder
+  // tocarlo; si así ya no cabe antes del siguiente, el siguiente se recorre
+  // hacia abajo (y se acorta) en vez de encimarse.
+  const posiciones: { top: number; alto: number }[] = [];
+  {
+    let libreDesde = -Infinity;
+    for (const s of segmentos) {
+      const top = Math.max(y(s.inicio), libreDesde);
+      const alto = Math.max(ALTO_MINIMO, y(s.fin) - top - 2);
+      posiciones.push({ top, alto });
+      libreDesde = top + alto + 2;
+    }
+  }
+
   function tituloDe(s: Segmento): string {
     if (s.clase === 'sin_registrar') return 'Sin registrar';
     if (s.clase === 'comida' || s.clase === 'pausa') return infoClase(s.clase).nombre;
     if (s.clase === 'compra' && s.origen?.tipo === 'servicio') return 'Salida por material';
-    return s.origen?.titulo || infoClase(s.clase).nombre;
+    return s.origen?.titulo || s.titulo || infoClase(s.clase).nombre;
   }
   function detalleDe(s: Segmento): string {
     if (s.clase === 'sin_registrar') return 'No hay servicio ni actividad en este tramo';
+    if (s.automatico && s.clase === 'servicio') return 'Con el cliente según el GPS (no hay reporte de este rato)';
+    if (s.automatico && s.clase === 'oficina') return 'En la oficina según el GPS';
     if (s.automatico) return 'Lo detectó el rastreo del teléfono';
+    if (s.origen?.tipo === 'reporte') return 'Reporte de servicio (llegada y salida, ajustadas con el GPS si lo hay)';
     if (s.origen?.tipo === 'servicio' && s.clase !== 'servicio') return `Pausa del servicio «${s.origen.titulo}»`;
     if (s.clase === 'servicio') return 'Trabajo en servicio';
     const partes = [infoClase(s.clase).nombre];
@@ -158,6 +176,7 @@ export default function JornadaDia({
   }
   function hrefDe(s: Segmento): string | null {
     if (!s.origen) return null;
+    if (s.origen.tipo === 'reporte') return hrefReporte ? hrefReporte(s.origen.id) : null;
     return s.origen.tipo === 'servicio' ? hrefServicio(s.origen.id) : hrefActividad(s.origen.id);
   }
   function editableDe(s: Segmento): ActividadJornada | null {
@@ -220,7 +239,7 @@ export default function JornadaDia({
       )}
 
       {/* Línea de tiempo: horas a la izquierda, cada tramo a su altura. */}
-      <div className="relative select-none" style={{ height: altoTotal + 8 }} aria-label="Línea de tiempo del día">
+      <div className="relative select-none" style={{ height: Math.max(altoTotal, ...posiciones.map((q) => q.top + q.alto)) + 8 }} aria-label="Línea de tiempo del día">
         {/* Fuera del horario de la jornada, el fondo va más tenue. */}
         {dia.jornada && (
           <span
@@ -240,8 +259,7 @@ export default function JornadaDia({
         ))}
 
         {segmentos.map((s, i) => {
-          const top = y(s.inicio);
-          const alto = Math.max(ALTO_MINIMO, y(s.fin) - top - 2);
+          const { top, alto } = posiciones[i];
           const color = infoClase(s.clase).color;
           const hueco = s.clase === 'sin_registrar';
           const compacto = alto < 44;
@@ -368,7 +386,7 @@ export default function JornadaDia({
               })()}
               {hrefDe(elegido) && (
                 <Link href={hrefDe(elegido)!} className="min-h-[48px] rounded-2xl border border-line-strong text-ink/85 font-semibold text-[14.5px] flex items-center justify-center gap-1.5 active:scale-95 transition-transform">
-                  Abrir {elegido.origen?.tipo === 'servicio' ? 'el servicio' : 'la actividad'} <ChevronRight size={16} strokeWidth={2.4} />
+                  Abrir {elegido.origen?.tipo === 'servicio' ? 'el servicio' : elegido.origen?.tipo === 'reporte' ? 'el reporte' : 'la actividad'} <ChevronRight size={16} strokeWidth={2.4} />
                 </Link>
               )}
             </div>

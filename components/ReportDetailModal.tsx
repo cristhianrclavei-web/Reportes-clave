@@ -667,6 +667,14 @@ export default function ReportDetailModal({
           </div>
         )}
         <AutorReporte id={report.created_by} nombre={techName(report.profiles)} variante="recuadro" />
+        {/* Horario ajustado solo (supabase/patch_bitacora_gps.sql): se dice de dónde salió. */}
+        {report.data?.horarioAjuste && report.data?.horarioCapturado && (
+          <p className="mt-3 rounded-xl bg-teal/10 border border-teal/25 px-3 py-2 text-[12.5px] text-ink/85">
+            Horario ajustado {report.data.horarioAjuste.fuente === 'gps' ? 'con el GPS' : 'a la hora de la firma del cliente'}:
+            {' '}<b>{report.data.horaLlegada}–{report.data.horaSalida}</b>
+            <span className="text-muted"> (se había capturado {report.data.horarioCapturado.llegada}–{report.data.horarioCapturado.salida})</span>
+          </p>
+        )}
         {/* El reporte como hoja, igual al PDF y a lo que ve el cliente al firmar. */}
         <div className="mt-3 rounded-2xl bg-[#0b1520] p-1.5 sm:p-4" data-tour="hoja-reporte">
           <HojaReporte

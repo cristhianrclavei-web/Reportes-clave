@@ -189,6 +189,7 @@ export default function JornadasEquipo() {
         ahora={ahora}
         hrefServicio={(id) => `/dashboard/servicios/${id}`}
         hrefActividad={(id) => `/bitacora/${id}`}
+        hrefReporte={(id) => `/dashboard/reportes?reporte=${id}`}
       />
     );
   }

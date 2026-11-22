@@ -97,6 +97,7 @@ export default function MiJornada({ onRegistrado, solicitudRegistro = 0 }: {
             ahora={ahora}
             hrefServicio={(id) => `/servicios/${id}`}
             hrefActividad={(id) => `/bitacora/${id}`}
+            hrefReporte={(id) => `/mis-reportes?reporte=${id}`}
             onLlenar={fecha >= sumarDias(hoy, -7) ? (tramo) => setRegistro({ tramo }) : undefined}
             onBorrar={async (actividad) => {
               const aviso = actividad.origen === 'manual'

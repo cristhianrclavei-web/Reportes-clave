@@ -1377,7 +1377,17 @@ export default function NuevoReportePage() {
     // ese cambio de estado no se reflejaría a tiempo aquí abajo (React lo
     // aplica hasta el siguiente render); horaSalidaFinal es lo que de verdad
     // se guarda.
-    const horaSalidaFinal = horaSalida || horaActualStr();
+    const ahoraHHMM = horaActualStr();
+    const firmaCliente = !clienteAusente && sigClienteRef.current && !sigClienteRef.current.isEmpty() ? sigClienteRef.current.getDataURL() : null;
+    let horaSalidaFinal = horaSalida || ahoraHHMM;
+    // El cliente firma al guardar: la salida no puede ser después de la
+    // firma (se capturó «16:30» estimando y se firmó a las 16:07 → 16:07).
+    // Si el GPS ve después la salida real, la base la ajusta sola
+    // (supabase/patch_bitacora_gps.sql).
+    if (firmaCliente && !editarId && fecha === hoyLocal() && horaSalidaFinal > ahoraHHMM) {
+      showToast(`La salida quedó a la hora de la firma (${ahoraHHMM}); si el GPS ve otra hora, se ajusta sola.`);
+      horaSalidaFinal = ahoraHHMM;
+    }
 
     avance(3, editarId ? 'Preparando la corrección' : 'Preparando el reporte');
     setSaving(true);
@@ -1396,7 +1406,9 @@ export default function NuevoReportePage() {
       facturaEstado: quedoConcluido ? 'pendiente' : null,
       fechaConcluido: quedoConcluido ? fecha : null,
       firmaIngData: sigIngRef.current && !sigIngRef.current.isEmpty() ? sigIngRef.current.getDataURL() : null,
-      firmaClienteData: !clienteAusente && sigClienteRef.current && !sigClienteRef.current.isEmpty() ? sigClienteRef.current.getDataURL() : null,
+      firmaClienteData: firmaCliente,
+      // Hora de la firma: el tope de la salida cuando no hay GPS.
+      ...(firmaCliente && !editarId ? { firmaClienteEn: new Date().toISOString() } : {}),
       ...(clienteAusente ? { firmaClienteNombre: '' } : {}),
     };
 

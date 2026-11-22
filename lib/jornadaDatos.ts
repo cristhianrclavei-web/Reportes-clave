@@ -2,7 +2,7 @@ import { createClient } from './supabaseClient';
 import { fechaLocal, hoyLocal, sumarDias } from './fechaHoy';
 import { tipoActividad } from './tiposActividad';
 import {
-  ActividadDelDia, ServicioDelDia, PausaDeServicio, Segmento, ClaseTiempo, TrasladoDelDia, segmentosDelDia, minutosPorClaseTiempo,
+  ActividadDelDia, ServicioDelDia, PausaDeServicio, Segmento, ClaseTiempo, TrasladoDelDia, ReporteDelDia, EstanciaGps, segmentosDelDia, minutosPorClaseTiempo,
 } from './jornada';
 
 // Trae de la base lo que hace falta para armar la jornada de cada técnico
@@ -24,12 +24,19 @@ export type ServicioJornada = ServicioDelDia & { fecha: string; tecnicoIds: stri
 // Traslado que detectó el rastreo del teléfono (supabase/patch_traslados_gps.sql).
 export type TrasladoJornada = TrasladoDelDia & { tecnicoId: string; fecha: string };
 
+// Reporte de servicio de un técnico (quien lo hizo), con su fecha.
+export type ReporteJornada = ReporteDelDia & { tecnicoId: string; fecha: string; servicioId: string | null };
+// Visita a un cliente u oficina que vio el rastreo.
+export type EstanciaJornada = EstanciaGps & { tecnicoId: string; fecha: string };
+
 export type DatosJornadas = {
   horario: HorarioJornada;
   festivos: Set<string>;
   servicios: ServicioJornada[];
   actividades: ActividadJornada[];
   traslados: TrasladoJornada[];
+  reportes: ReporteJornada[];
+  estancias: EstanciaJornada[];
 };
 
 const ms = (iso: string | null | undefined) => (iso ? new Date(iso).getTime() : null);
@@ -70,7 +77,7 @@ export async function cargarDatosJornadas(desde: string, hasta: string): Promise
   const desdeIso = fechaLocal(sumarDias(desde, -1)).toISOString();
   const hastaIso = fechaLocal(sumarDias(hasta, 2)).toISOString();
 
-  const [ajustes, festivos, servicios, actividades, traslados] = await Promise.all([
+  const [ajustes, festivos, servicios, actividades, traslados, reportes, visitas, oficina] = await Promise.all([
     // '*': si la base todavía no tiene las columnas de jornada, no falla.
     supabase.from('ajustes_operacion').select('*').maybeSingle(),
     supabase.from('dias_festivos').select('fecha, tipo').gte('fecha', desde).lte('fecha', hasta),
@@ -87,12 +94,39 @@ export async function cargarDatosJornadas(desde: string, hasta: string): Promise
       .lt('hora_inicio', hastaIso),
     // shortcut: la base entrega hasta 1,000 filas; alcanza para un mes con pocos teléfonos, paginar si crece.
     supabase.from('traslados_detectados').select('tecnico_id, fecha, inicio, fin').gte('fecha', desde).lte('fecha', hasta),
+    // Reportes: su llegada y salida cuentan como servicio (los que no vienen
+    // de un servicio programado no tenían otra forma de aparecer).
+    supabase.from('reports')
+      .select('id, created_by, fecha, empresa_cliente, llegada:data->>horaLlegada, salida:data->>horaSalida, servicio:data->>servicioProgramadoId')
+      .gte('fecha', desde).lte('fecha', hasta),
+    supabase.from('visitas_detectadas').select('tecnico_id, fecha, llegada, salida, clientes(nombre)').gte('fecha', desde).lte('fecha', hasta),
+    supabase.rpc('gps_en_lugares_propios', { p_desde: desde, p_hasta: hasta }),
   ]);
   if (servicios.error) throw servicios.error;
   if (actividades.error) throw actividades.error;
   // Los traslados del rastreo son un apoyo: si no se pueden leer (o la base
   // todavía no tiene el parche), la jornada se arma con lo registrado.
   if (traslados.error) console.error('No se pudieron leer los traslados del rastreo:', traslados.error.message);
+  // Reportes y GPS también son apoyo: sin ellos la jornada sale como antes.
+  if (reportes.error) console.error('No se pudieron leer los reportes para la bitácora:', reportes.error.message);
+  if (visitas.error) console.error('No se pudieron leer las visitas del rastreo:', visitas.error.message);
+  if (oficina.error) console.error('No se pudo leer el tiempo en la oficina del rastreo:', oficina.error.message);
+  const listaReportes: ReporteJornada[] = [];
+  for (const r of (reportes.data || []) as any[]) {
+    const inicio = horaDelDia(r.fecha, r.llegada);
+    const fin = horaDelDia(r.fecha, r.salida);
+    if (inicio === null || fin === null || fin <= inicio) continue;
+    listaReportes.push({ id: r.id, titulo: r.empresa_cliente || 'Reporte', inicio, fin, tecnicoId: r.created_by, fecha: r.fecha, servicioId: r.servicio || null });
+  }
+  const listaEstancias: EstanciaJornada[] = [
+    ...((visitas.data || []) as any[]).map((v) => ({
+      tecnicoId: v.tecnico_id, fecha: v.fecha, inicio: ms(v.llegada)!, fin: ms(v.salida)!,
+      titulo: (Array.isArray(v.clientes) ? v.clientes[0]?.nombre : v.clientes?.nombre) || 'Con un cliente', clase: 'servicio' as const,
+    })),
+    ...((oficina.data || []) as any[]).map((o) => ({
+      tecnicoId: o.tecnico_id, fecha: o.fecha, inicio: ms(o.inicio)!, fin: ms(o.fin)!, titulo: o.lugar || 'Oficina', clase: 'oficina' as const,
+    })),
+  ].filter((e) => e.fin > e.inicio);
   const listaTraslados: TrasladoJornada[] = ((traslados.data || []) as any[]).map((t) => ({
     tecnicoId: t.tecnico_id, fecha: t.fecha, inicio: ms(t.inicio)!, fin: ms(t.fin)!,
   }));
@@ -144,7 +178,13 @@ export async function cargarDatosJornadas(desde: string, hasta: string): Promise
     ((festivos.data || []) as any[]).filter((f) => f.tipo === 'oficial' || f.tipo === 'empresa').map((f) => f.fecha as string),
   );
 
-  return { horario, festivos: diasFestivos, servicios: listaServicios, actividades: listaActividades, traslados: listaTraslados };
+  return { horario, festivos: diasFestivos, servicios: listaServicios, actividades: listaActividades, traslados: listaTraslados, reportes: listaReportes, estancias: listaEstancias };
+}
+
+// «10:11» del día `fecha` en milisegundos (hora de México); null si no es una hora.
+export function horaDelDia(fecha: string, hhmm: string | null | undefined): number | null {
+  if (!hhmm || !/^\d{1,2}:\d{2}/.test(hhmm)) return null;
+  return fechaLocal(fecha).getTime() + minutosDeHora(hhmm) * 60000;
 }
 
 function minutosDeHora(hhmm: string): number {
@@ -183,7 +223,12 @@ export function jornadaDeTecnico(datos: DatosJornadas, tecnicoId: string, fecha:
   const tope = Math.min(ahora, finDelDia);
   const jornada = horarioDelDia(fecha, datos);
   const traslados = datos.traslados.filter((t) => t.tecnicoId === tecnicoId && t.fecha === fecha);
-  const segmentos = segmentosDelDia({ servicios, actividades, traslados, jornada, tope });
+  // El reporte de un servicio programado que ya está en la bitácora no se
+  // repite: el servicio ya cuenta ese tiempo.
+  const idsServicios = new Set(servicios.map((s) => s.id));
+  const reportes = (datos.reportes || []).filter((r) => r.tecnicoId === tecnicoId && r.fecha === fecha && !(r.servicioId && idsServicios.has(r.servicioId)));
+  const estancias = (datos.estancias || []).filter((e) => e.tecnicoId === tecnicoId && e.fecha === fecha);
+  const segmentos = segmentosDelDia({ servicios, actividades, traslados, reportes, estancias, jornada, tope });
   return { fecha, jornada, servicios, actividades, segmentos };
 }
 

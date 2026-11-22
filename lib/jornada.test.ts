@@ -22,6 +22,32 @@ describe('segmentosDelDia', () => {
     ]);
   });
 
+  it('el viernes de MAQUISA: el reporte cuenta como servicio y el GPS llena oficina y traslados', () => {
+    const seg = segmentosDelDia({
+      servicios: [],
+      actividades: [{ id: 'c', titulo: 'Compra de material', tipo: 'compra', inicio: h(8, 59), fin: h(9, 14) }],
+      // Reporte ya ajustado con el GPS: 10:11–16:15.
+      reportes: [{ id: 'r', titulo: 'MAQUISA', inicio: h(10, 11), fin: h(16, 15) }],
+      traslados: [{ inicio: h(8, 31), fin: h(8, 59) }, { inicio: h(9, 14), fin: h(10, 13) }, { inicio: h(16, 15), fin: h(16, 59) }],
+      estancias: [
+        { inicio: h(8, 2), fin: h(8, 31), titulo: 'Oficina', clase: 'oficina' },
+        { inicio: h(16, 59), fin: h(17, 58), titulo: 'Oficina', clase: 'oficina' },
+      ],
+      jornada: JORNADA,
+      tope: h(23),
+    });
+    expect(seg.map((s) => [s.clase, s.inicio / 60000, s.fin / 60000, s.origen?.tipo || s.titulo || ''])).toEqual([
+      ['oficina', 482, 511, 'Oficina'],
+      ['traslado', 511, 539, ''],
+      ['compra', 539, 554, 'actividad'],
+      // El traslado del GPS se pasa 2 min del inicio del reporte: manda el reporte.
+      ['traslado', 554, 611, ''],
+      ['servicio', 611, 975, 'reporte'],
+      ['traslado', 975, 1019, ''],
+      ['oficina', 1019, 1078, 'Oficina'],
+    ]);
+  });
+
   it('el traslado del rastreo llena solo lo que nadie registró', () => {
     const seg = segmentosDelDia({
       servicios: [{ id: 's', titulo: 'Bodega', inicio: h(9), fin: h(17), pausas: [] }],
