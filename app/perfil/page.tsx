@@ -92,8 +92,7 @@ export default async function PerfilPage() {
 
         {/* Las secciones que no son del formulario de perfil van dentro, al
             final de la columna derecha, para compartir el mismo acomodo. */}
-        <PersonalizarPerfil profile={profile}>
-          <ProfileForm user={user} profile={profile} />
+        <PersonalizarPerfil profile={profile} contacto={<ProfileForm user={user} profile={profile} />}>
 
           <SelectorAcento />
 

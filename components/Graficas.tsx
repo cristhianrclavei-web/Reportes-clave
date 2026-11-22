@@ -191,9 +191,17 @@ export function Punto({
 export function Marco({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const enVista = useInView(ref, { once: true, amount: 0.2 });
+  // Lo que nunca entra a la pantalla (una captura de toda la página, al
+  // imprimir) se quedaba en 0 % junto a un texto que dice otra cosa: a los
+  // 1.2 s se muestra el valor real aunque no se haya visto.
+  const [yaEsTiempo, setYaEsTiempo] = useState(false);
+  useEffect(() => {
+    const espera = setTimeout(() => setYaEsTiempo(true), 1200);
+    return () => clearTimeout(espera);
+  }, []);
   return (
     <div ref={ref} className={className}>
-      <VistaCtx.Provider value={enVista}>{children}</VistaCtx.Provider>
+      <VistaCtx.Provider value={enVista || yaEsTiempo}>{children}</VistaCtx.Provider>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, useRef, useState } from 'react';
+import { createContext, ReactNode, useCallback, useRef, useState } from 'react';
 import { Camera, Images, Trash2, Check, HeartPulse, Shirt, Sparkles, BriefcaseBusiness, Eye, ChevronDown } from 'lucide-react';
 import SelectorOpciones from '@/components/SelectorOpciones';
 import { showToast } from '@/components/Toast';
@@ -19,6 +19,12 @@ const labelCls = 'block text-[11px] font-semibold uppercase tracking-wider text-
 const chipCls = (sel: boolean) =>
   `px-3 py-1.5 rounded-full text-[13px] font-medium border transition-colors ${sel ? 'bg-teal text-inkOnAccent border-teal' : 'bg-surface-2 border-line text-ink/80 hover:border-line-strong'}`;
 
+// Un solo botón de guardar en Mi perfil: el formulario de contacto
+// (ProfileForm, que llega como `children`) registra aquí cómo se guarda, y
+// «Guardar cambios» guarda las dos cosas.
+export type GuardadoContacto = { guardar: () => Promise<boolean>; hayCambios: boolean; valido: boolean };
+export const GuardadoPerfilCtx = createContext<((g: GuardadoContacto | null) => void) | null>(null);
+
 function Seccion({ Icono, titulo, nota, children }: { Icono: any; titulo: string; nota?: string; children: ReactNode }) {
   return (
     <section className="rounded-2xl bg-surface border border-line p-5">
@@ -34,7 +40,7 @@ function Seccion({ Icono, titulo, nota, children }: { Icono: any; titulo: string
   );
 }
 
-export default function PersonalizarPerfil({ profile, children }: { profile: any; children?: ReactNode }) {
+export default function PersonalizarPerfil({ profile, contacto: formContacto, children }: { profile: any; contacto?: ReactNode; children?: ReactNode }) {
   const [foto, setFoto] = useState<string | null>(profile?.foto_path || null);
   const [color, setColor] = useState<number | null>(profile?.avatar_color ?? null);
   const [estilo, setEstilo] = useState<number>(profile?.avatar_estilo ?? 0);
@@ -48,6 +54,12 @@ export default function PersonalizarPerfil({ profile, children }: { profile: any
   const [calzado, setCalzado] = useState(profile?.talla_calzado || '');
   const [subiendo, setSubiendo] = useState(false);
   const [guardando, setGuardando] = useState(false);
+  const contacto = useRef<GuardadoContacto | null>(null);
+  const [, setVersionContacto] = useState(0);
+  const registrarContacto = useCallback((g: GuardadoContacto | null) => {
+    contacto.current = g;
+    setVersionContacto((v) => v + 1);
+  }, []);
   const camara = useRef<HTMLInputElement>(null);
   const galeria = useRef<HTMLInputElement>(null);
 
@@ -80,8 +92,14 @@ export default function PersonalizarPerfil({ profile, children }: { profile: any
 
   async function guardar() {
     if (emTel && emTel.replace(/\D/g, '').length < 10) { showToast('Al teléfono de emergencia le faltan dígitos', 'error'); return; }
+    if (contacto.current && !contacto.current.valido) { showToast('Revisa tu correo o teléfono: hay un dato incompleto', 'error'); return; }
     setGuardando(true);
     try {
+      // Primero el contacto (correo y teléfono), si cambió; si falla, no se sigue.
+      if (contacto.current?.hayCambios) {
+        const ok = await contacto.current.guardar();
+        if (!ok) return;
+      }
       await guardarMiPerfil({
         avatar_color: color, avatar_estilo: estilo,
         puesto: puesto.trim() || null, especialidades: esp,
@@ -104,7 +122,7 @@ export default function PersonalizarPerfil({ profile, children }: { profile: any
   const botonGuardar = (
     <button type="button" onClick={guardar} disabled={guardando}
       className="w-full min-h-[50px] rounded-2xl bg-teal text-inkOnAccent font-semibold text-[15px] shadow-glow-teal disabled:opacity-50 active:scale-[0.98] transition-transform">
-      {guardando ? 'Guardando…' : 'Guardar perfil'}
+      {guardando ? 'Guardando…' : 'Guardar cambios'}
     </button>
   );
 
@@ -248,6 +266,8 @@ export default function PersonalizarPerfil({ profile, children }: { profile: any
             </div>
           </div>
         </Seccion>
+
+        {formContacto && <GuardadoPerfilCtx.Provider value={registrarContacto}>{formContacto}</GuardadoPerfilCtx.Provider>}
 
         <div className="lg:hidden">{botonGuardar}</div>
 

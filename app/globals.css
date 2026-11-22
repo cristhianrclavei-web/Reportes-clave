@@ -154,6 +154,19 @@ input::placeholder, textarea::placeholder {
   padding-top: calc(0.875rem + env(safe-area-inset-top));
 }
 
+/* Barras fijas (encabezados y barras de abajo): casi opacas. Con el vidrio
+   de las tarjetas (6 % en tema oscuro) el contenido se leía a través del
+   encabezado al desplazar, y en campo con sol era ilegible. Se queda el
+   desenfoque y se marca el borde que la separa del contenido. */
+.sticky.glass-strong,
+.fixed.glass-strong {
+  background: rgb(var(--c-bg) / 0.97);
+  border-left-width: 0;
+  border-right-width: 0;
+}
+.sticky.top-0.glass-strong { border-top-width: 0; }
+.fixed.bottom-0.glass-strong { border-bottom-width: 0; }
+
 /* subtle glass surface used across cards/panels — adapts per theme */
 .glass {
   background: rgb(var(--c-glass-bg) / var(--c-glass-a));

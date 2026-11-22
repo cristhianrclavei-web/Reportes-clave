@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
+import { GuardadoPerfilCtx } from '@/components/PersonalizarPerfil';
 import { useProfileMutation } from '@/lib/useProfileMutation';
 import { showToast } from '@/components/Toast';
 import { Mail, Phone, Check, AlertCircle } from 'lucide-react';
@@ -34,8 +35,13 @@ export default function ProfileForm({ user, profile }: ProfileFormProps) {
   const hayCambios =
     (email !== savedEmail && !emailError) || (telefono !== savedTelefono && !telefonoError);
 
-  const handleSave = async () => {
-    if (guardando || loading || !hayCambios) return;
+  // Dentro de Mi perfil el botón es el de abajo («Guardar cambios»), que
+  // guarda esto junto con lo demás; aquí solo se registra cómo guardar.
+  const registrar = useContext(GuardadoPerfilCtx);
+
+  // Devuelve si se guardó (o si no había nada que guardar).
+  const handleSave = async (): Promise<boolean> => {
+    if (guardando || loading || !hayCambios) return true;
     setGuardando(true);
 
     const cambios: any = {};
@@ -60,7 +66,17 @@ export default function ProfileForm({ user, profile }: ProfileFormProps) {
     }
 
     setGuardando(false);
+    return result.success;
   };
+
+  const guardarRef = useRef(handleSave);
+  guardarRef.current = handleSave;
+  const valido = !emailError && !telefonoError;
+  useEffect(() => {
+    if (!registrar) return;
+    registrar({ guardar: () => guardarRef.current(), hayCambios, valido });
+  }, [registrar, hayCambios, valido]);
+  useEffect(() => () => registrar?.(null), [registrar]);
 
   return (
     <div className="rounded-2xl bg-surface border border-line p-5">
@@ -133,7 +149,7 @@ export default function ProfileForm({ user, profile }: ProfileFormProps) {
           )}
         </div>
 
-        <button
+        {!registrar && <button
           onClick={handleSave}
           disabled={!hayCambios || guardando}
           className={`w-full min-h-[56px] rounded-2xl font-display font-semibold text-[16px] tracking-wide flex items-center justify-center gap-2 transition-transform ${
@@ -150,7 +166,7 @@ export default function ProfileForm({ user, profile }: ProfileFormProps) {
               Guardar cambios
             </>
           )}
-        </button>
+        </button>}
       </div>
     </div>
   );

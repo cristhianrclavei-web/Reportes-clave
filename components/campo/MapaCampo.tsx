@@ -86,7 +86,7 @@ export default function MapaCampo({ modo }: { modo: 'resumen' | 'servicios' }) {
                 className="min-h-[46px] rounded-xl border border-line bg-surface-2 text-[13px] font-semibold">Ver {c.esHoy ? 'ayer' : 'el día anterior'}</button>
             )}
             <button type="button" onClick={() => c.setVerConocidos(!c.verConocidos)} aria-pressed={c.verConocidos}
-              className={`min-h-[46px] rounded-xl border text-[13px] font-semibold ${c.verConocidos ? 'border-teal bg-teal/15' : 'border-line bg-surface-2'}`}>Última ubicación conocida</button>
+              className={`min-h-[46px] rounded-xl border px-2 leading-tight text-[13px] font-semibold ${c.verConocidos ? 'border-teal bg-teal/15' : 'border-line bg-surface-2'}`}>Última ubicación</button>
           </div>
           {c.verConocidos && c.conocidos.length > 0 && (
             <ul className="mt-2.5 flex flex-col gap-1 text-[12.5px]">

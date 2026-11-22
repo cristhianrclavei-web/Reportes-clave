@@ -13,7 +13,7 @@ import { DEMO, MARCA } from '@/lib/marca';
 import PortadaDemo, { ClaveAcceso, cuentaDemo } from '@/components/PortadaDemo';
 import FondoFotovoltaico from '@/components/FondoFotovoltaico';
 import { CamaraVigilancia, SirenaAlarma, ModoVigilancia, sonarSirena, SEGUNDOS_ALARMA } from '@/components/VigilanciaAcceso';
-import { AlertTriangle, Eye, EyeOff, Loader2, Lock, Mail, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, Check, Eye, EyeOff, Loader2, Lock, Mail, ShieldAlert } from 'lucide-react';
 
 // Límite de intentos en este dispositivo: tras 5 fallos seguidos hay que
 // esperar, y la espera se duplica con cada fallo más (1, 2, 4… hasta 15 min).
@@ -59,6 +59,9 @@ function LoginForm() {
   // está sonando (unos segundos tras una contraseña equivocada).
   const [foco, setFoco] = useState<'correo' | 'clave' | null>(null);
   const [alarma, setAlarma] = useState(false);
+  // Errores de cada campo, con mensajes propios (no el globo del navegador).
+  const [errorCorreo, setErrorCorreo] = useState<string | null>(null);
+  const [errorClave, setErrorClave] = useState<string | null>(null);
   const relojAlarma = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sinMovimiento = !!useReducedMotion();
 
@@ -101,8 +104,22 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const theme = useTheme();
 
+  // Revisa los campos antes de mandar nada al servidor. Devuelve si se puede seguir.
+  function camposValidos(conClave: boolean): boolean {
+    const correo = email.trim();
+    let mensajeCorreo: string | null = null;
+    if (!correo) mensajeCorreo = 'Escribe tu correo.';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) mensajeCorreo = 'Ese correo no está completo (ejemplo: nombre@empresa.com).';
+    let mensajeClave: string | null = null;
+    if (conClave && !password) mensajeClave = 'Escribe tu contraseña.';
+    setErrorCorreo(mensajeCorreo);
+    setErrorClave(mensajeClave);
+    return !mensajeCorreo && !mensajeClave;
+  }
+
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
+    if (!camposValidos(true)) return;
     if (leerIntentos().hasta > Date.now()) return;
     prepararAudio();
     await entrar(email.trim(), password, true);
@@ -186,6 +203,7 @@ function LoginForm() {
 
   async function handleRecuperar(e: React.FormEvent) {
     e.preventDefault();
+    if (!camposValidos(false)) return;
     setLoading(true);
     setError(null);
     const supabase = createClient();
@@ -236,12 +254,24 @@ function LoginForm() {
           completa arriba del formulario; en computadora el formulario va a la
           izquierda y la animación ocupa el lado derecho. */}
       <div className="min-h-screen flex flex-col items-center justify-center gap-3 px-5 pt-14 pb-6 lg:flex-row lg:justify-start lg:gap-0 lg:p-5 lg:pl-[6%] xl:pl-[8%] relative z-10">
+      {/* En computadora, arriba a la derecha (sobre la animación): para qué
+          sirve la app, en vez de un hueco vacío. */}
+      <div className="hidden lg:block absolute top-[11%] right-[6%] xl:right-[8%] w-[42%] xl:w-[44%] max-w-[560px] pointer-events-none">
+        <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-teal mb-3">{MARCA.nombre}</p>
+        <h1 className="font-display font-bold text-[40px] xl:text-[48px] leading-[1.05] text-ink">
+          Reportes de servicio firmados en el sitio.
+        </h1>
+        <p className="mt-4 text-[16px] text-muted leading-relaxed max-w-[460px]">
+          Fotos, materiales y firma del cliente desde el celular, aunque no haya señal. Supervisión lo ve al momento.
+        </p>
+      </div>
       <FondoFotovoltaico className="w-full max-w-md shrink-0 lg:absolute lg:max-w-none lg:w-[50%] xl:w-[56%] 2xl:w-[64%] lg:right-[2%] lg:bottom-[8%]" />
 
       {/* mt-9 en celular: espacio para las cámaras y la sirena, que sobresalen
           por arriba del formulario. */}
       <motion.form
         onSubmit={modoOlvido ? handleRecuperar : handleLogin}
+        noValidate
         className="ambient-glow edge-highlight relative z-10 w-full max-w-sm lg:max-w-[400px] mt-9 lg:mt-0 glass-strong rounded-3xl p-8 shadow-diffuse border-white/10"
         // Contraseña equivocada: el formulario se sacude un instante.
         animate={alarma && !sinMovimiento ? { x: [0, -10, 9, -7, 5, -3, 0] } : { x: 0 }}
@@ -274,24 +304,27 @@ function LoginForm() {
         </div>
 
         <label htmlFor="acceso-correo" className="block text-[11px] font-semibold uppercase tracking-wider text-muted mb-1.5">Correo</label>
-        <div className="relative mb-4">
+        <div className={`relative ${errorCorreo ? '' : 'mb-4'}`}>
           <Mail size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
           <input
             id="acceso-correo"
             type="email"
             required
+            aria-invalid={errorCorreo ? true : undefined}
+            aria-describedby={errorCorreo ? 'acceso-correo-error' : undefined}
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => { setEmail(e.target.value); if (errorCorreo) setErrorCorreo(null); }}
             onFocus={() => setFoco('correo')}
             onBlur={() => setFoco(null)}
             placeholder="usuario@empresa.com"
-            className="w-full pl-10 pr-3.5 py-3 rounded-2xl bg-surface-2 border border-line focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal-glow text-[15px] transition-colors"
+            className={`w-full pl-10 pr-3.5 py-3 rounded-2xl bg-surface-2 border ${errorCorreo ? 'border-red' : 'border-line'} focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal-glow text-[15px] transition-colors`}
             autoComplete="email"
             autoCapitalize="none"
             spellCheck={false}
             inputMode="email"
           />
         </div>
+        {errorCorreo && <MensajeCampo id="acceso-correo-error" texto={errorCorreo} />}
 
         {!modoOlvido && (
           <>
@@ -302,13 +335,15 @@ function LoginForm() {
                 id="acceso-clave"
                 type={verClave ? 'text' : 'password'}
                 required
+                aria-invalid={errorClave ? true : undefined}
+                aria-describedby={errorClave ? 'acceso-clave-error' : undefined}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => { setPassword(e.target.value); if (errorClave) setErrorClave(null); }}
                 onKeyUp={(e) => setMayusculas(e.getModifierState?.('CapsLock') === true)}
                 onFocus={() => setFoco('clave')}
                 onBlur={() => { setMayusculas(false); setFoco(null); }}
                 placeholder="••••••••"
-                className="w-full pl-10 pr-12 py-3 rounded-2xl bg-surface-2 border border-line focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal-glow text-[15px] transition-colors"
+                className={`w-full pl-10 pr-12 py-3 rounded-2xl bg-surface-2 border ${errorClave ? 'border-red' : 'border-line'} focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal-glow text-[15px] transition-colors`}
                 autoComplete="current-password"
                 autoCapitalize="none"
                 spellCheck={false}
@@ -319,19 +354,25 @@ function LoginForm() {
                 aria-label={verClave ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                 aria-pressed={verClave}
                 title={verClave ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center text-muted hover:text-ink active:scale-90 transition"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl flex items-center justify-center text-muted hover:text-ink hover:bg-surface aria-pressed:text-teal active:scale-90 transition"
               >
                 {verClave ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
+            {errorClave && <MensajeCampo id="acceso-clave-error" texto={errorClave} />}
             {mayusculas && (
               <p className="text-[12.5px] text-amber font-medium mt-1.5 flex items-center gap-1.5">
                 <AlertTriangle size={14} /> Bloq Mayús está activado
               </p>
             )}
 
-            <label className="flex items-center gap-2.5 mt-3.5 mb-5 cursor-pointer select-none w-fit">
-              <input type="checkbox" checked={recordar} onChange={(e) => setRecordar(e.target.checked)} className="w-[18px] h-[18px] accent-teal" />
+            <label className="flex items-center gap-2.5 mt-3.5 mb-5 cursor-pointer select-none w-fit min-h-[44px]">
+              {/* Casilla con el diseño de la app; la de verdad queda para el teclado y los lectores. */}
+              <input type="checkbox" checked={recordar} onChange={(e) => setRecordar(e.target.checked)} className="peer sr-only" />
+              <span aria-hidden="true"
+                className="w-[22px] h-[22px] rounded-[7px] border-2 border-line-strong bg-surface-2 flex items-center justify-center transition-colors peer-checked:bg-teal peer-checked:border-teal peer-focus-visible:ring-2 peer-focus-visible:ring-teal-glow text-transparent peer-checked:text-inkOnAccent">
+                <Check size={14} strokeWidth={3.2} />
+              </span>
               <span className="text-[13.5px] text-ink/85">Recordar mi correo en este dispositivo</span>
             </label>
           </>
@@ -406,15 +447,35 @@ function LoginForm() {
           {modoOlvido ? 'Volver a entrar' : '¿Olvidaste tu contraseña?'}
         </button>
 
-        <Link
-          href="/aviso-privacidad"
-          className="block text-center text-[12px] text-faint hover:text-muted mt-4 active:scale-95 transition-all duration-150"
-        >
-          Aviso de privacidad
-        </Link>
+        {!modoOlvido && (
+          <p className="text-center text-[12.5px] text-muted mt-2 leading-snug">
+            ¿Eres nuevo? Tu supervisor crea tu cuenta y te manda tu correo de acceso.
+          </p>
+        )}
+
+        <div className="mt-5 pt-4 border-t border-line text-center text-[12px] text-faint leading-relaxed">
+          <p>
+            Soporte:{' '}
+            <a href={`mailto:${MARCA.correoSoporte}`} className="text-muted hover:text-ink underline-offset-2 hover:underline">{MARCA.correoSoporte}</a>
+          </p>
+          <p className="mt-1">
+            <Link href="/aviso-privacidad" className="hover:text-muted underline-offset-2 hover:underline">Aviso de privacidad</Link>
+            <span aria-hidden="true"> · </span>
+            <span>Versión {process.env.NEXT_PUBLIC_VERSION_WEB}</span>
+          </p>
+        </div>
       </motion.form>
       </div>
     </div>
+  );
+}
+
+// Mensaje de error debajo de un campo, con el estilo de la app.
+function MensajeCampo({ id, texto }: { id: string; texto: string }) {
+  return (
+    <p id={id} role="alert" className="text-[12.5px] text-red font-medium mt-1.5 mb-3 flex items-start gap-1.5">
+      <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {texto}
+    </p>
   );
 }
 
