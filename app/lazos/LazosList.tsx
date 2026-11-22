@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { AlertTriangle, Building2, Cable, ChevronRight, CircuitBoard, FileDown, Map as IconoPlano, MapPin, Plus, Search, WifiOff } from 'lucide-react';
+import { AlertTriangle, Building2, Cable, ChevronRight, CircuitBoard, FileDown, GitPullRequestArrow, Map as IconoPlano, MapPin, Plus, Search, WifiOff } from 'lucide-react';
 import FormPanel from '@/components/lazos/FormPanel';
 import DocumentosCliente from '@/components/lazos/DocumentosCliente';
 import NuevoPlano from '@/components/lazos/NuevoPlano';
@@ -26,6 +26,7 @@ import { catalogoEnCache, listarCatalogoClientes, normalizar, ClienteCatalogo } 
 import { NOMBRE_CIRCUITO, PREFIJO_CIRCUITO, Panel, TipoCircuito, etiquetaSalida, ordenarCircuitos } from '@/lib/lazos';
 import { crearLazo, listarLazos, listarPaneles, LazoResumen } from '@/lib/lazosDatos';
 import { listarPlanos, type PlanoResumen } from '@/lib/planosDatos';
+import { propuestasPorRevisar } from '@/lib/propuestasDatos';
 import { ordenarPorNivel } from '@/lib/planos';
 import { useEsAncho } from '@/lib/useEsAncho';
 
@@ -46,6 +47,12 @@ export default function LazosList({ userName, esSupervisor, clienteInicial, verI
   guiaInicial: GuiaInicial | null;
 }) {
   const [ver, setVer] = useState<'lazos' | 'guias' | 'unifilares'>(verInicial);
+  const [porRevisar, setPorRevisar] = useState(0);
+  useEffect(() => {
+    if (!esSupervisor) return;
+    // Solo es un aviso: si falla, no se muestra.
+    propuestasPorRevisar().then((l) => setPorRevisar(l.length)).catch(() => {});
+  }, [esSupervisor]);
   const [lazos, setLazos] = useState<LazoResumen[]>([]);
   const [clientes, setClientes] = useState<ClienteCatalogo[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -214,6 +221,12 @@ export default function LazosList({ userName, esSupervisor, clienteInicial, verI
           <DiagramasUnifilares lazos={lazos} paneles={paneles} esSupervisor={esSupervisor} clienteId={filtroCliente} proyectoId={filtroProyecto} />
         )}
 
+        {esSupervisor && porRevisar > 0 && (
+          <Link href="/dashboard/proyectos?sub=revisiones" className="flex items-center gap-2 text-[13.5px] rounded-xl bg-amber/10 border border-amber/40 px-3 py-2 mb-3 font-semibold">
+            <GitPullRequestArrow size={16} className="text-amber" />
+            {porRevisar} {porRevisar === 1 ? 'propuesta de cambio' : 'propuestas de cambio'} de técnicos por revisar
+          </Link>
+        )}
         {!filtroProyecto && ver === 'lazos' && (
           <p className="text-[13px] rounded-xl bg-surface-2 border border-line px-3 py-2 mb-4 text-muted" data-tour="diagramas-consulta">
             Aquí se consulta y se corrige lo que ya existe (abrir un plano, sembrar, marcar avance). Lo nuevo se agrega

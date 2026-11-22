@@ -44,7 +44,7 @@ export default function BarraLateral({
   const [abiertas, setAbiertas] = useState<Partial<Record<DashboardTabKey, boolean>>>({});
   // «Diagramas y planos» vive en su propia ruta, pero es subsección de Proyectos.
   const ruta = usePathname();
-  const subActual = useSearchParams().get('sub') || (ruta.startsWith('/dashboard/diagramas') ? 'diagramas' : null);
+  const subActual = useSearchParams().get('sub') || (ruta.startsWith('/dashboard/diagramas') ? 'diagramas' : ruta.startsWith('/dashboard/revisiones') ? 'revisiones' : null);
   const miId = useMiId();
   const miPerfil = usePerfil(miId);
   const miFoto = urlFoto(miPerfil?.foto_path);

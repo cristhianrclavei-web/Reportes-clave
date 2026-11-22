@@ -31,10 +31,13 @@ function aNumero(texto: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export default function EditorGuia({ guia, onCancelar, onGuardada }: {
+export default function EditorGuia({ guia, onCancelar, onGuardada, alGuardarCopia }: {
   guia: Guia;
   onCancelar: () => void;
   onGuardada: (guia: Guia) => void;
+  // Técnico: lo que edita es su copia (propuesta de cambio); el original
+  // no se toca hasta que supervisión la acepte.
+  alGuardarCopia?: (datos: DatosGuia) => Promise<void>;
 }) {
   const [nombre, setNombre] = useState(guia.nombre);
   const [sistema, setSistema] = useState(guia.sistema);
@@ -137,6 +140,11 @@ export default function EditorGuia({ guia, onCancelar, onGuardada }: {
     const limpio: DatosGuia = { ...datos, notas: datos.notas.map((n) => n.trim()).filter(Boolean) };
     setGuardando(true);
     try {
+      if (alGuardarCopia) {
+        await alGuardarCopia(limpio);
+        onGuardada(guia);
+        return;
+      }
       const guardada = await guardarGuia(guia.id, { nombre, sistema, descripcion: descripcion.trim() || null, servicio_grupo_id: guia.servicio_grupo_id, datos: limpio });
       onGuardada(guardada);
     } catch (e: any) {
@@ -152,9 +160,9 @@ export default function EditorGuia({ guia, onCancelar, onGuardada }: {
         <button type="button" onClick={onCancelar} aria-label="Cancelar la edición" className="shrink-0 w-11 h-11 -ml-1.5 rounded-full flex items-center justify-center">
           <ChevronLeft size={24} strokeWidth={2.4} />
         </button>
-        <h1 className="flex-1 font-display font-bold text-[19px] truncate">Editar guía</h1>
+        <h1 className="flex-1 font-display font-bold text-[19px] truncate">{alGuardarCopia ? 'Proponer cambios' : 'Editar guía'}</h1>
         <button type="button" onClick={guardar} disabled={guardando} className="min-h-[44px] px-5 rounded-xl bg-teal text-inkOnAccent font-semibold text-[14.5px] disabled:opacity-60">
-          {guardando ? 'Guardando…' : 'Guardar'}
+          {guardando ? 'Guardando…' : alGuardarCopia ? 'Guardar mi copia' : 'Guardar'}
         </button>
       </div>
 

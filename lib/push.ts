@@ -169,7 +169,8 @@ export type TipoAviso =
   | 'reportes_atrasados'
   | 'vale_almacen'
   | 'equipo_sin_registro'
-  | 'solicitud_personal';
+  | 'solicitud_personal'
+  | 'cambio_propuesto';
 
 export const TIPOS_AVISO: { valor: TipoAviso; label: string; detalle: string; paraTecnico?: boolean }[] = [
   { valor: 'aviso_servicio', label: 'Avisos sobre días programados', detalle: 'Cuando alguien del personal avisa que un día no se va a poder' },
@@ -201,6 +202,7 @@ export const TIPOS_AVISO: { valor: TipoAviso; label: string; detalle: string; pa
   { valor: 'recordatorio_confirmar_servicio', label: 'Recordatorio de confirmar servicio', detalle: 'A las 6pm del día anterior (o 1 h después de asignado) si no has tocado «Enterado»', paraTecnico: true },
   { valor: 'servicio_confirmado', label: 'Servicios confirmados', detalle: 'Cuando alguien del personal toca «Enterado» en un servicio asignado' },
   { valor: 'servicio_sin_confirmar', label: 'Servicios sin confirmar', detalle: 'Cuando alguien del personal sigue sin confirmar 1 h después de su recordatorio' },
+  { valor: 'cambio_propuesto', label: 'Cambios en planos y diagramas', detalle: 'Cuando alguien propone cambios a un plano, unifilar o guía, y cuando supervisión los acepta o rechaza', paraTecnico: true },
   { valor: 'correccion_resuelta', label: 'Respuesta a tus correcciones', detalle: 'Cuando autorizan o cierran una corrección que pediste', paraTecnico: true },
 ];
 

@@ -32,6 +32,7 @@ const TIPOS_VALIDOS = new Set([
   'vale_almacen',
   'equipo_sin_registro',
   'solicitud_personal',
+  'cambio_propuesto',
   'general',
 ]);
 

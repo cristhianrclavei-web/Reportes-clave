@@ -3,13 +3,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
-  AlertTriangle, Cable, Check, ChevronLeft, CloudOff, FileDown, Loader2, Maximize, Minus, Plus, Settings2, Trash2, Undo2,
+  AlertTriangle, Cable, Check, History, ChevronLeft, CloudOff, FileDown, Loader2, Maximize, Minus, Plus, Settings2, Trash2, Undo2,
 } from 'lucide-react';
 import { showToast } from '@/components/Toast';
+import { BarraCopia, useCopiaTecnico } from '@/components/propuestas/CopiaTecnico';
+import HistorialVersiones from '@/components/propuestas/HistorialVersiones';
 import { confirmar } from '@/lib/dialogos';
 import { descargarArchivo, nombreSeguro } from '@/lib/abrirArchivo';
 import {
-  definicion, nuevoEquipo, nuevoTramo, puertosDe, revisar, tamanoDe,
+  definicion, leerDatos, nuevoEquipo, nuevoTramo, puertosDe, revisar, tamanoDe,
   type Aviso, type DatosUnifilar, type EquipoUnifilar, type Punta, type TipoEquipo, type TramoUnifilar, type Unifilar,
 } from '@/lib/unifilar';
 import {
@@ -40,7 +42,10 @@ type Arrastre =
 
 type EstadoGuardado = 'guardado' | 'pendiente' | 'guardando' | 'error';
 
-export default function EditorUnifilar({ unifilarId }: { unifilarId: string }) {
+export default function EditorUnifilar({ unifilarId, esSupervisor = true }: { unifilarId: string; esSupervisor?: boolean }) {
+  // Técnicos: proponen cambios sobre una copia; supervisión los fusiona.
+  const copiaTecnico = useCopiaTecnico('unifilar', unifilarId, !esSupervisor);
+  const [verVersiones, setVerVersiones] = useState(false);
   const [unifilar, setUnifilar] = useState<Unifilar | null>(null);
   const [errorCarga, setErrorCarga] = useState<string | null>(null);
   const [nombre, setNombre] = useState('');
@@ -69,6 +74,14 @@ export default function EditorUnifilar({ unifilarId }: { unifilarId: string }) {
       const u = await leerUnifilar(unifilarId);
       let d = u.datos;
       let n = u.nombre;
+      if (!esSupervisor) {
+        d = leerDatos(await copiaTecnico.cargar(u.datos as unknown as Record<string, unknown>));
+        setUnifilar(u);
+        setNombre(n);
+        setDatos(d);
+        cargado.current = true;
+        return;
+      }
       // Lo que quedó en el navegador sin subir (se fue la señal o se cerró la pestaña).
       const copia = copiaLocal(unifilarId);
       if (copia && copia.en > u.actualizado_en && JSON.stringify(copia.datos) !== JSON.stringify(u.datos)) {
@@ -83,7 +96,8 @@ export default function EditorUnifilar({ unifilarId }: { unifilarId: string }) {
     } catch (e: any) {
       setErrorCarga(e?.message || 'No se pudo abrir el unifilar.');
     }
-  }, [unifilarId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unifilarId, esSupervisor]);
 
   useEffect(() => { cargar(); }, [cargar]);
 
@@ -122,12 +136,19 @@ export default function EditorUnifilar({ unifilarId }: { unifilarId: string }) {
 
   useEffect(() => {
     if (!cargado.current || !datos) return;
-    guardarCopiaLocal(unifilarId, nombre, datos);
+    if (esSupervisor) guardarCopiaLocal(unifilarId, nombre, datos);
   }, [datos, nombre, unifilarId]);
 
   const guardarAhora = useCallback(async (n: string, d: DatosUnifilar) => {
     setEstado('guardando');
     try {
+      if (!esSupervisor) {
+        // El original no se toca: se guarda la copia del técnico.
+        const pendiente = await copiaTecnico.guardar(d as unknown as Record<string, unknown>);
+        setEstado(pendiente ? 'error' : 'guardado');
+        setErrorGuardado(pendiente ? 'Sin señal: tu copia quedó en este teléfono y se sube al volver.' : null);
+        return;
+      }
       await guardarUnifilar(unifilarId, { nombre: n, datos: d });
       borrarCopiaLocal(unifilarId);
       setEstado('guardado');
@@ -442,7 +463,7 @@ export default function EditorUnifilar({ unifilarId }: { unifilarId: string }) {
     if (panel === 'revision') return <PanelRevision avisos={avisos} onElegir={irAAviso} onCerrar={() => setPanel(null)} />;
     if (panel === 'proyecto') {
       return (
-        <PanelProyecto nombre={nombre} tipo={unifilar.tipo} datos={datos} onNombre={setNombre}
+        <PanelProyecto nombre={nombre} tipo={unifilar.tipo} datos={datos} onNombre={esSupervisor ? setNombre : () => {}}
           onProyecto={(c) => cambiar((d) => ({ ...d, proyecto: { ...d.proyecto, ...c } }))}
           onNotas={(notas) => cambiar((d) => ({ ...d, notas }))} onCerrar={() => setPanel(null)} />
       );
@@ -493,10 +514,13 @@ export default function EditorUnifilar({ unifilarId }: { unifilarId: string }) {
           {generandoPdf ? <Loader2 size={16} className="animate-spin" /> : <FileDown size={16} />} PDF
         </button>
         <button type="button" className={BOTON} onClick={descargarDxf} title="Para abrirlo y editarlo en AutoCAD"><FileDown size={16} /> DXF</button>
-        <button type="button" className={`${BOTON} text-red`} onClick={borrarTodo} aria-label="Borrar unifilar"><Trash2 size={16} /></button>
+        {esSupervisor && <button type="button" className={BOTON} onClick={() => setVerVersiones(true)} aria-label="Versiones" title="Versiones"><History size={16} /></button>}
+        {esSupervisor && <button type="button" className={`${BOTON} text-red`} onClick={borrarTodo} aria-label="Borrar unifilar"><Trash2 size={16} /></button>}
         </div>
       </div>
 
+      <BarraCopia copia={copiaTecnico} nombre={nombre} onDescartada={cargar} />
+      {verVersiones && <HistorialVersiones tipo="unifilar" objetoId={unifilarId} onCerrar={() => setVerVersiones(false)} onRestaurada={() => { setVerVersiones(false); window.location.reload(); }} />}
       {conectando && (
         <p className="px-4 py-2 text-[13px] bg-teal/10 border-b border-line">
           {desde ? 'Ahora toca el puerto donde llega el cable.' : 'Toca el puerto (punto azul) de donde sale el cable. Los verdes son de tierra.'}

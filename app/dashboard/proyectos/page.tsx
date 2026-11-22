@@ -2,12 +2,13 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabaseServer';
 import ClientesList from './ClientesList';
 import TableroProyectos from '@/components/proyectos/TableroProyectos';
+import RevisionesLista from '@/components/propuestas/RevisionesLista';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 // Sección Proyectos: Clientes (por omisión), el tablero de todos los
-// proyectos y, como subsección, Diagramas y planos.
+// proyectos, los cambios por revisar y, como subsección, Diagramas y planos.
 export default async function ProyectosPage(props: { searchParams: Promise<{ sub?: string }> }) {
   const { sub } = await props.searchParams;
   if (sub === 'diagramas') redirect('/dashboard/diagramas');
@@ -23,5 +24,6 @@ export default async function ProyectosPage(props: { searchParams: Promise<{ sub
   const nombre = myProfile?.full_name || user.email || '';
 
   if (sub === 'tablero') return <TableroProyectos userName={nombre} />;
+  if (sub === 'revisiones') return <RevisionesLista />;
   return <ClientesList userName={nombre} />;
 }

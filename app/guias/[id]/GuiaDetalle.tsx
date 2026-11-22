@@ -2,14 +2,16 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, BadgeCheck, Check, ChevronLeft, CloudUpload, ExternalLink, Lightbulb, PenLine, ShieldAlert, Trash2, WifiOff } from 'lucide-react';
+import { AlertTriangle, BadgeCheck, Check, ChevronLeft, CloudUpload, ExternalLink, History, Lightbulb, PenLine, ShieldAlert, Trash2, WifiOff } from 'lucide-react';
 import DiagramaConexion, { type Elegido } from '@/components/guias/DiagramaConexion';
 import EditorGuia from '@/components/guias/EditorGuia';
+import { BarraCopia, useCopiaTecnico } from '@/components/propuestas/CopiaTecnico';
+import HistorialVersiones from '@/components/propuestas/HistorialVersiones';
 import { showToast } from '@/components/Toast';
 import { confirmar } from '@/lib/dialogos';
 import {
   estadoDePrueba, nombreSistema, progresoDe, rangoDePrueba, textoPunta, tonosDeCable,
-  type ConexionGuia, type Guia, type PruebaGuia,
+  type ConexionGuia, type DatosGuia, type Guia, type PruebaGuia,
 } from '@/lib/guias';
 import { aprobarGuia, borrarGuia, leerGuia, marcar, marcasPendientes, subirMarcasPendientes, urlDeFotoGuia } from '@/lib/guiasDatos';
 
@@ -30,6 +32,10 @@ export default function GuiaDetalle({ guiaId, usuarioId, usuarioNombre, esSuperv
   const [vista, setVista] = useState<Vista>('diagrama');
   const [elegido, setElegido] = useState<Elegido>(null);
   const [editando, setEditando] = useState(false);
+  // Técnicos: proponen cambios sobre una copia; supervisión los fusiona.
+  const copia = useCopiaTecnico('guia', guiaId, !esSupervisor);
+  const [datosCopia, setDatosCopia] = useState<DatosGuia | null>(null);
+  const [verVersiones, setVerVersiones] = useState(false);
   const [aprobando, setAprobando] = useState(false);
   // Recién creada en blanco llega con ?editar=1: abre directo en el editor.
   useEffect(() => {
@@ -44,12 +50,15 @@ export default function GuiaDetalle({ guiaId, usuarioId, usuarioNombre, esSuperv
     try {
       const resultado = await leerGuia(guiaId);
       setGuia(resultado.guia);
+      // Para la barra de la copia (cuántos cambios lleva, si ya se revisó).
+      if (!esSupervisor && !resultado.guia.es_plantilla) copia.cargar(resultado.guia.datos as unknown as Record<string, unknown>).catch(() => {});
       setSinConexion(resultado.sinConexion);
       setPendientes(marcasPendientes(guiaId));
     } catch (e: any) {
       setError(e?.message || 'No se pudo abrir la guía.');
     }
-  }, [guiaId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guiaId, esSupervisor]);
 
   useEffect(() => {
     cargar();
@@ -80,6 +89,13 @@ export default function GuiaDetalle({ guiaId, usuarioId, usuarioNombre, esSuperv
   }
   if (!guia) return <p className="p-6 text-[14px] text-muted">Cargando…</p>;
 
+  if (editando && !esSupervisor && datosCopia) {
+    return (
+      <EditorGuia guia={{ ...guia, datos: datosCopia }} onCancelar={() => setEditando(false)}
+        alGuardarCopia={async (datos) => { await copia.guardar(datos as unknown as Record<string, unknown>); setDatosCopia(datos); }}
+        onGuardada={() => { setEditando(false); showToast('Copia guardada. Envíala a revisión cuando esté lista.', 'success'); }} />
+    );
+  }
   if (editando) {
     return <EditorGuia guia={guia} onCancelar={() => setEditando(false)} onGuardada={(nueva) => { setGuia(nueva); setEditando(false); showToast('Guía guardada', 'success'); }} />;
   }
@@ -180,8 +196,17 @@ export default function GuiaDetalle({ guiaId, usuarioId, usuarioNombre, esSuperv
             </p>
             <h1 className="font-display font-bold text-[20px] leading-tight truncate">{guia.nombre}</h1>
           </div>
+          {!esSupervisor && !guia.es_plantilla && (
+            <button type="button" onClick={async () => { setDatosCopia((await copia.cargar(guia.datos as unknown as Record<string, unknown>)) as unknown as DatosGuia); setEditando(true); }}
+              aria-label="Proponer cambios" title="Proponer cambios"
+              className="min-h-[42px] px-3.5 rounded-xl border border-line bg-surface-2 text-[13.5px] font-semibold flex items-center gap-1.5">
+              <PenLine size={16} strokeWidth={2.2} /> <span className="hidden sm:inline">Proponer cambios</span>
+            </button>
+          )}
           {esSupervisor && (
             <>
+              <button type="button" onClick={() => setVerVersiones(true)} aria-label="Versiones" title="Versiones"
+                className="w-[42px] h-[42px] rounded-xl border border-line bg-surface-2 flex items-center justify-center"><History size={17} /></button>
               <button type="button" onClick={() => setEditando(true)} className="min-h-[42px] px-3.5 rounded-xl border border-line bg-surface-2 text-[13.5px] font-semibold flex items-center gap-1.5">
                 <PenLine size={16} strokeWidth={2.2} /> <span className="hidden sm:inline">Editar</span>
               </button>
@@ -210,6 +235,8 @@ export default function GuiaDetalle({ guiaId, usuarioId, usuarioNombre, esSuperv
         </div>
       </div>
 
+      {!guia.es_plantilla && <BarraCopia copia={copia} nombre={guia.nombre} onDescartada={() => setDatosCopia(null)} />}
+      {verVersiones && <HistorialVersiones tipo="guia" objetoId={guia.id} onCerrar={() => setVerVersiones(false)} onRestaurada={() => { setVerVersiones(false); cargar(); }} />}
       <div className="px-4 lg:px-8 pt-4">
         {!guia.es_plantilla && <AvisoAprobacion guia={guia} puedeAprobar={puedeAprobar} ocupado={aprobando} onCambiar={cambiarAprobacion} />}
         {(sinConexion || pendientes > 0) && (

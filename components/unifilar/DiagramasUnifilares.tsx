@@ -33,8 +33,6 @@ export default function DiagramasUnifilares({ lazos, paneles, esSupervisor, clie
   useEffect(() => {
     setClientes(catalogoEnCache());
     listarCatalogoClientes().then(setClientes).catch(() => {});
-    // Los fotovoltaicos son de supervisión (la base no se los muestra al técnico).
-    if (!esSupervisor) return;
     listarUnifilares().then((r) => setFv(r.unifilares)).catch((e) => setErrorFv(e?.message || 'No se pudieron cargar los unifilares fotovoltaicos.'));
   }, [esSupervisor]);
 
@@ -83,7 +81,7 @@ export default function DiagramasUnifilares({ lazos, paneles, esSupervisor, clie
           <input type="search" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar diagrama, cliente o panel"
             className="w-full min-h-[44px] pl-9 pr-3 rounded-xl border border-line bg-surface text-[14px] focus:outline-none focus:border-teal" />
         </label>
-        {esSupervisor && (
+        {
           <div className="flex gap-1">
             {([['todos', `Todos · ${totalDeteccion + totalFv}`], ['deteccion', `Detección · ${totalDeteccion}`], ['fotovoltaico', `Fotovoltaicos · ${totalFv}`]] as const).map(([clave, texto]) => (
               <button key={clave} type="button" aria-pressed={filtro === clave} onClick={() => setFiltro(clave)}
@@ -92,7 +90,7 @@ export default function DiagramasUnifilares({ lazos, paneles, esSupervisor, clie
               </button>
             ))}
           </div>
-        )}
+        }
       </div>
       {errorFv && <p className="rounded-xl bg-amber/10 text-amber text-[13px] px-3 py-2 mb-3">{errorFv}</p>}
 

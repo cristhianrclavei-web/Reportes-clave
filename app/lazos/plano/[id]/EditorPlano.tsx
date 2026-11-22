@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, ChevronLeft, CloudOff, CornerDownRight, GitFork, Pencil, ArrowUpToLine, ArrowDownToLine, MapPin, FileDown, FileUp, Hand, ListChecks, Lock, LockOpen, Network, Search, Map as IconoPlano, Link2, Link2Off, Loader2, Minus, MoreVertical, Plus, RotateCcw, RotateCw, MousePointer2, PenLine, Ruler, Spline, Redo2, Trash2, Undo2, Waypoints, X,
+  History,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import HojaCaptura from '@/components/lazos/HojaCaptura';
@@ -12,6 +13,9 @@ import CejaDivisor, { useAnchoPanel } from '@/components/lazos/CejaDivisor';
 import DiagramaLazo from '@/components/lazos/DiagramaLazo';
 import { DatosEquipoSistema, PanelEquiposSistema, ResumenCctv } from '@/components/planos/EquiposSistema';
 import { esEquipoDeRed } from '@/lib/equiposSistemas';
+import { BarraCopia, useCopiaTecnico } from '@/components/propuestas/CopiaTecnico';
+import HistorialVersiones from '@/components/propuestas/HistorialVersiones';
+import { documentoDePlano } from '@/lib/propuestas';
 import LienzoPlano, { type CambioManija, type NodoTuberia, type Seleccion } from '@/components/lazos/LienzoPlano';
 import SimboloPlano from '@/components/lazos/SimboloPlano';
 import PanelAvance, { type ModoToque } from '@/components/lazos/PanelAvance';
@@ -107,6 +111,9 @@ export default function EditorPlano({ planoId, esSupervisor, inicio }: {
   const sistema = plano?.sistema || 'deteccion';
   const sistemaRef = useRef(sistema);
   sistemaRef.current = sistema;
+  // Técnicos: editan una copia del plano que supervisión revisa y fusiona.
+  const copia = useCopiaTecnico('plano', planoId, !esSupervisor);
+  const [verVersiones, setVerVersiones] = useState(false);
   const [imagenUrl, setImagenUrl] = useState<string | null>(null);
   const [lazos, setLazos] = useState<LazoConElementos[]>([]);
   const lazosRef = useRef(lazos);
@@ -223,8 +230,12 @@ export default function EditorPlano({ planoId, esSupervisor, inicio }: {
       const sinSubir = avancePendienteDe(planoId);
       setAvance({ ...leerAvance(datos.avance), ...sinSubir });
       setAvancePendiente(Object.keys(sinSubir).length);
-      const pendiente = leerPendiente(planoId);
-      if (pendiente) {
+      const pendiente = esSupervisor ? leerPendiente(planoId) : null;
+      if (!esSupervisor) {
+        // El técnico ve su copia (si tiene) sobre el original de ahora.
+        const doc = await copia.cargar(documentoDePlano(datos.sembrado, datos.metros_por_unidad));
+        setEstado({ sembrado: { equipos: doc.equipos as Sembrado['equipos'], tuberias: doc.tuberias as Sembrado['tuberias'] }, metros: (doc.metros as number | null) ?? null });
+      } else if (pendiente) {
         // Cambios que no alcanzaron a subir la vez pasada: ganan a los del servidor.
         setEstado({ sembrado: pendiente.sembrado, metros: pendiente.metros_por_unidad });
         setCambios((n) => n + 1);
@@ -249,7 +260,9 @@ export default function EditorPlano({ planoId, esSupervisor, inicio }: {
     } catch (e: any) {
       setErrorCarga(e?.message || 'No se pudo abrir el plano.');
     }
-  }, [planoId]);
+    // copia.cargar cambia solo si cambia el plano.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planoId, esSupervisor]);
 
   useEffect(() => {
     cargar();
@@ -263,6 +276,13 @@ export default function EditorPlano({ planoId, esSupervisor, inicio }: {
       setGuardado('guardando');
       try {
         const { sembrado, metros } = estadoRef.current;
+        if (!esSupervisor) {
+          // El original no se toca: se guarda la copia del técnico.
+          const pendiente = await copia.guardar(documentoDePlano(sembrado, metros));
+          setGuardado(pendiente ? 'pendiente' : 'guardado');
+          setErrorGuardar(null);
+          return;
+        }
         const resultado = await guardarSembrado(planoId, { sembrado, metros_por_unidad: metros });
         setGuardado(resultado.pendiente ? 'pendiente' : 'guardado');
         setErrorGuardar(null);
@@ -271,7 +291,8 @@ export default function EditorPlano({ planoId, esSupervisor, inicio }: {
         setErrorGuardar(e?.message || 'No se pudo guardar el plano.');
       }
     });
-  }, [planoId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planoId, esSupervisor]);
 
   // Antes de cambiar de plano se sube lo que falte (si no hay señal queda en la cola).
   async function irAPlano(id: string) {
@@ -1435,10 +1456,13 @@ export default function EditorPlano({ planoId, esSupervisor, inicio }: {
           {menu && (
             <div className="absolute right-0 top-12 w-60 rounded-2xl bg-surface border border-line shadow-xl p-1.5 z-30">
               <button type="button" onClick={() => { setMenu(false); setExportandoDxf(true); }} className="w-full text-left min-h-[44px] px-3 rounded-xl hover:bg-surface-2 flex items-center gap-2 text-[14.5px]"><FileDown size={16} /> Exportar a AutoCAD (DXF)</button>
-              {plano.formato === 'dxf' && (
+              {esSupervisor && (
+                <button type="button" onClick={() => { setMenu(false); setVerVersiones(true); }} className="w-full text-left min-h-[44px] px-3 rounded-xl hover:bg-surface-2 flex items-center gap-2 text-[14.5px]"><History size={16} /> Versiones</button>
+              )}
+              {esSupervisor && plano.formato === 'dxf' && (
                 <button type="button" onClick={() => { setMenu(false); setReimportando(true); }} className="w-full text-left min-h-[44px] px-3 rounded-xl hover:bg-surface-2 flex items-center gap-2 text-[14.5px]"><FileUp size={16} /> Volver a subir el DXF</button>
               )}
-              <button type="button" onClick={renombrar} className="w-full text-left min-h-[44px] px-3 rounded-xl hover:bg-surface-2 flex items-center gap-2 text-[14.5px]"><PenLine size={16} /> Cambiar nombre</button>
+              {esSupervisor && <button type="button" onClick={renombrar} className="w-full text-left min-h-[44px] px-3 rounded-xl hover:bg-surface-2 flex items-center gap-2 text-[14.5px]"><PenLine size={16} /> Cambiar nombre</button>}
               {/* En celular no cabe en la barra: aquí. */}
               {esSupervisor && (
                 <button type="button" onClick={() => { setMenu(false); setBorrando(true); }} className="sm:hidden w-full text-left min-h-[44px] px-3 rounded-xl hover:bg-red/10 text-red flex items-center gap-2 text-[14.5px]"><Trash2 size={16} /> Eliminar plano</button>
@@ -1447,6 +1471,8 @@ export default function EditorPlano({ planoId, esSupervisor, inicio }: {
           )}
         </div>
       </div>
+      <BarraCopia copia={copia} nombre={plano.nombre} onDescartada={cargar} />
+      {verVersiones && <HistorialVersiones tipo="plano" objetoId={planoId} onCerrar={() => setVerVersiones(false)} onRestaurada={() => { setVerVersiones(false); cargar(); }} />}
       {planosHermanos.length > 1 && (
         <nav aria-label="Planos del cliente" className="glass-strong z-10 px-3 py-1.5 flex items-center gap-1.5 border-b border-line overflow-x-auto">
           <IconoPlano size={16} className="shrink-0 text-teal" />

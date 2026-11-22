@@ -86,6 +86,7 @@ export const SUBSECCIONES: Partial<Record<DashboardTabKey, { clave: string; labe
     { clave: 'clientes', label: 'Clientes' },
     { clave: 'tablero', label: 'Tablero de proyectos' },
     { clave: 'diagramas', label: 'Diagramas y planos' },
+    { clave: 'revisiones', label: 'Cambios por revisar' },
   ],
   cotizaciones: [
     { clave: 'cotizaciones', label: 'Cotizaciones' },
