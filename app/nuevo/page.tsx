@@ -35,6 +35,7 @@ import SavingOverlay from '@/components/SavingOverlay';
 import ReportPreviewModal, { PreviewData } from '@/components/ReportPreviewModal';
 import { listarMisServicios, vincularReporteAServicio, Servicio, filtrarSiguienteDiaPorGrupo, listarTecnicosDeServicio, listarFotosDelDia, listarActividadesDeTareas, FotoDelDia } from '@/lib/serviciosProgramados';
 import { X, Camera, Images, Plus, AlertTriangle, Eye, EyeOff, ChevronDown, ChevronRight, Tag, History, Check, Video } from 'lucide-react';
+import { consecutivoDelTecnico } from '@/lib/folioReporte';
 import { generarUUID } from '@/lib/uuid';
 import { registrarAccionGlobal } from '@/lib/auditoriaGlobal';
 import { notificar } from '@/lib/push';
@@ -1197,6 +1198,15 @@ export default function NuevoReportePage() {
     };
   }
 
+  // ¿El paso tiene lo obligatorio? Las mismas reglas que «Siguiente»; los
+  // pasos sin obligatorios (evidencia, firmas) cuentan como completos.
+  function pasoCompleto(key: PasoKey): boolean {
+    if (key === 'datos') return faltantes.length === 0;
+    if (key === 'trabajo') return !(esPreventivo && usaFormato && formatos.length === 0);
+    if (key === 'formato') return !pendientesFormatos(formatos);
+    return true;
+  }
+
   function irAPaso(n: number) {
     setAvisoPaso(null);
     if (PASOS[n - 1] === 'firmas') setFirmasMontadas(true);
@@ -1469,12 +1479,7 @@ export default function NuevoReportePage() {
       // Folio automático: iniciales del técnico + "-A-" + consecutivo (por
       // técnico). En un reintento se reusan el id y el folio del primero.
       if (!reporteEnCursoRef.current) {
-        const { count } = await withTimeout(
-          Promise.resolve(supabase.from('reports').select('id', { count: 'exact', head: true }).eq('created_by', user!.id)),
-          10000,
-          'consecutivo de folio'
-        );
-        const seq = (count || 0) + 1;
+        const seq = await withTimeout(consecutivoDelTecnico(supabase, user!.id), 10000, 'consecutivo de folio');
         reporteEnCursoRef.current = {
           id: generarUUID(),
           claveFormato: `${iniciales(userName || userEmail)}-A-${String(seq).padStart(3, '0')}`,
@@ -1766,7 +1771,11 @@ export default function NuevoReportePage() {
             const n = i + 1;
             const nombre = ETIQUETA_PASO[key];
             const activo = paso === n;
-            const hecho = paso > n;
+            // Palomita solo si ya pasó Y está completo; si pasó con faltantes, «!».
+            const pasado = paso > n;
+            const completo = pasoCompleto(key);
+            const hecho = pasado && completo;
+            const incompleto = pasado && !completo;
             return (
               <button
                 key={nombre}
@@ -1782,11 +1791,12 @@ export default function NuevoReportePage() {
                 <span className={`relative z-10 w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-bold font-display transition-all ${
                   activo ? 'bg-teal text-inkOnAccent shadow-glow-teal scale-110'
                     : hecho ? 'bg-teal text-inkOnAccent'
+                    : incompleto ? 'bg-amber/15 border-2 border-amber text-amber'
                     : 'bg-surface-2 border border-line-strong text-muted group-hover:border-teal/50'
                 }`}>
-                  {hecho ? <Check size={15} strokeWidth={3.2} /> : n}
+                  {hecho ? <Check size={15} strokeWidth={3.2} /> : incompleto ? <span aria-label="Le falta algo">!</span> : n}
                 </span>
-                <span className={`block text-[12.5px] truncate max-w-full ${activo ? 'text-teal font-semibold' : hecho ? 'text-ink/80 font-medium' : 'text-muted font-medium'}`}>
+                <span className={`block text-[12.5px] truncate max-w-full ${activo ? 'text-teal font-semibold' : incompleto ? 'text-amber font-medium' : hecho ? 'text-ink/80 font-medium' : 'text-muted font-medium'}`}>
                   {nombre}
                 </span>
               </button>

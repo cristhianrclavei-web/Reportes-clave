@@ -23,6 +23,8 @@ import { moverElemento } from '@/lib/moverElemento';
 import { motion } from 'motion/react';
 import { useArrastreLista } from '@/lib/useArrastreLista';
 import SelectorProductoSyscom from '@/components/SelectorProductoSyscom';
+import BuscarAscencio, { BotonAscencio } from '@/components/cotizaciones/BuscarAscencio';
+import type { ProductoAscencio } from '@/lib/ascencio';
 import FichaProductoSyscom, { BotonSyscom, leerFichaSyscom } from '@/components/FichaProductoSyscom';
 import { idProductoDeEnlace } from '@/lib/syscomEnlace';
 import type { ProductoSyscom } from '@/lib/syscom';
@@ -207,6 +209,22 @@ export default function CotizacionForm({
     // o quitar después. Solo se usa si la imagen es https.
     if (producto.imagen && /^https:\/\//i.test(producto.imagen)) datos.foto = producto.imagen;
     return datos;
+  }
+
+  // Grupo Ascencio: llena todo menos el precio (no lo publican); el costo
+  // que ya estuviera escrito se respeta. El enlace guarda la ficha técnica
+  // (o la página del producto si no tiene ficha).
+  const [buscandoAscencio, setBuscandoAscencio] = useState<{ grupoId: string; itemId: string; texto: string } | null>(null);
+  function elegirProductoAscencio(producto: ProductoAscencio) {
+    if (!buscandoAscencio) return;
+    actualizarItem(buscandoAscencio.grupoId, buscandoAscencio.itemId, {
+      descripcion: producto.titulo,
+      modelo: producto.modelo,
+      marca: producto.marca,
+      enlace: producto.ficha || producto.link,
+      ...(producto.imagen ? { foto: producto.imagen } : {}),
+    });
+    setBuscandoAscencio(null);
   }
 
   function handleElegirProductoSyscom(producto: ProductoSyscom) {
@@ -748,7 +766,10 @@ export default function CotizacionForm({
                       placeholder="Descripción del concepto: equipo, mano de obra, tubería… (Enter busca en SYSCOM)"
                       className={`${inputCls} min-h-[70px] flex-1`}
                     />
-                    <BotonSyscom onClick={() => setBuscandoParaItem({ grupoId: g.id, itemId: it.id, texto: it.descripcion })} />
+                    <div className="flex flex-col gap-1.5 shrink-0">
+                      <BotonSyscom onClick={() => setBuscandoParaItem({ grupoId: g.id, itemId: it.id, texto: it.descripcion })} />
+                      <BotonAscencio onClick={() => setBuscandoAscencio({ grupoId: g.id, itemId: it.id, texto: it.descripcion })} />
+                    </div>
                   </div>
                   {sugerencias[it.id] && !it.enlace && (
                     <TarjetaSugerencia sugerencia={sugerencias[it.id]} onUsar={() => usarSugerencia(g.id, it)} onDescartar={() => quitarSugerencia(it.id)} />
@@ -1067,6 +1088,9 @@ export default function CotizacionForm({
       )}
       {ayudaAbierta === 'precios' && (
         <ModalPreciosSyscom conceptos={conceptosLigados(grupos)} onAplicar={aplicarPrecios} onClose={() => setAyudaAbierta(null)} onUso={uso.recargar} />
+      )}
+      {buscandoAscencio && (
+        <BuscarAscencio busquedaInicial={buscandoAscencio.texto} onSeleccionar={elegirProductoAscencio} onClose={() => setBuscandoAscencio(null)} />
       )}
       {buscandoParaItem && (
         <SelectorProductoSyscom

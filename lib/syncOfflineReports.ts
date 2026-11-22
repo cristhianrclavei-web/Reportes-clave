@@ -1,3 +1,4 @@
+import { consecutivoDelTecnico } from './folioReporte';
 import { EvidenciaGuardada, metaLimpia } from './evidencias';
 import { createClient } from './supabaseClient';
 import { reducirFoto } from './reducirFoto';
@@ -57,12 +58,7 @@ async function syncOne(item: PendingReport): Promise<number> {
   if (!item.sync) {
     // Folio calculado ahora (con conexión real), no al capturar sin
     // internet, para que el consecutivo sea preciso.
-    const { count, error: eCuenta } = await supabase
-      .from('reports')
-      .select('id', { count: 'exact', head: true })
-      .eq('created_by', item.userId);
-    if (eCuenta) throw eCuenta;
-    const seq = (count || 0) + 1;
+    const seq = await consecutivoDelTecnico(supabase, item.userId);
     item.sync = {
       reportId: generarUUID(),
       claveFormato: `${iniciales(item.userName || item.userEmail)}-A-${String(seq).padStart(3, '0')}`,

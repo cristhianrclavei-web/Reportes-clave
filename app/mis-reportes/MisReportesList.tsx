@@ -40,6 +40,15 @@ function tituloMes(clave: string): string {
 function estadoDe(r: Report): 'completo' | 'revision' {
   return r.data?.firmaRevisionData ? 'completo' : 'revision';
 }
+
+// « desde el 20 nov»: para que el técnico vea cuánto lleva esperando. Con
+// zona horaria fija para que servidor y teléfono digan lo mismo.
+function desdeCuando(creado: string | null | undefined): string {
+  if (!creado) return '';
+  const fecha = new Date(creado);
+  if (isNaN(fecha.getTime())) return '';
+  return ` desde el ${fecha.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', timeZone: 'America/Mexico_City' })}`;
+}
 function faltaFirma(r: Report): boolean {
   return !!r.data?.firmaPendiente && !r.data?.firmaClienteData;
 }
@@ -262,7 +271,7 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
                       header: 'Estado',
                       render: (r) => (
                         <span className="flex flex-wrap gap-x-3 gap-y-1 text-[12.5px] font-semibold">
-                          {estadoDe(r) === 'completo' ? <span className="text-teal">Completado</span> : <span className="text-amber">Por revisar</span>}
+                          {estadoDe(r) === 'completo' ? <span className="text-teal">Completado</span> : <span className="text-amber">En revisión{desdeCuando(r.created_at)}</span>}
                           {faltaFirma(r) && <span className="text-red">Falta firma del cliente</span>}
                         </span>
                       ),
@@ -300,7 +309,7 @@ export default function MisReportesList({ reports: reportsIniciales, userName, e
                             {completo ? (
                               <span className="text-[12px] font-semibold text-teal flex items-center gap-1"><Check size={13} strokeWidth={3} />Completado</span>
                             ) : (
-                              <span {...alTocarAviso(r.id, 'revision')} className="text-[12px] font-semibold text-amber flex items-center gap-1 underline decoration-dotted underline-offset-4"><Clock3 size={12.5} strokeWidth={2.6} />Por revisar</span>
+                              <span {...alTocarAviso(r.id, 'revision')} className="text-[12px] font-semibold text-amber flex items-center gap-1 underline decoration-dotted underline-offset-4"><Clock3 size={12.5} strokeWidth={2.6} />En revisión{desdeCuando(r.created_at)}</span>
                             )}
                             {sinFirma && (
                               <span {...alTocarAviso(r.id, 'firma')} className="text-[12px] font-semibold text-red flex items-center gap-1 underline decoration-dotted underline-offset-4"><PenLine size={12.5} strokeWidth={2.6} />Falta firma del cliente</span>

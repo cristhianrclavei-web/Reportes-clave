@@ -30,7 +30,7 @@ import { propuestasPorRevisar } from '@/lib/propuestasDatos';
 import { ordenarPorNivel } from '@/lib/planos';
 import { useEsAncho } from '@/lib/useEsAncho';
 
-const DETALLE = 'Diagramas unifilares y planos por cliente. Por ahora, del sistema de detección de incendio: lazos, voceo y estrobos.';
+const DETALLE = 'Planos, paneles, diagramas unifilares y guías de conexión de cada cliente, de todos los sistemas.';
 
 const BOTON_SECUNDARIO = 'min-h-[48px] lg:min-h-[46px] px-4 rounded-2xl border border-line bg-surface-2 font-semibold text-[14.5px] flex items-center justify-center gap-2 hover:border-teal/60';
 
@@ -81,7 +81,11 @@ export default function LazosList({ userName, esSupervisor, clienteInicial, verI
   async function cargar() {
     setErrorCarga(null);
     try {
-      const [resultado, rPaneles] = await Promise.all([listarLazos(), listarPaneles()]);
+      // Con mala señal la consulta puede no responder nunca: a los 15 s se
+      // corta y se ofrece reintentar, en vez de quedarse en «Cargando…».
+      const limite = new Promise<never>((_, rechazar) =>
+        setTimeout(() => rechazar(new Error('La conexión tardó demasiado. Revisa tu señal.')), 15000));
+      const [resultado, rPaneles] = await Promise.race([Promise.all([listarLazos(), listarPaneles()]), limite]);
       setLazos(resultado.lazos);
       setPaneles(rPaneles.paneles);
       setFaltaPatchPaneles(rPaneles.faltaPatch);
@@ -266,7 +270,20 @@ export default function LazosList({ userName, esSupervisor, clienteInicial, verI
           </div>
         )}
 
-        {cargando && <p className="text-[14px] text-muted">Cargando…</p>}
+        {cargando && (
+          // Esqueleto con la forma de la lista: se ve que algo viene.
+          <div aria-busy="true" aria-label="Cargando diagramas" className="grid grid-cols-[minmax(0,1fr)] sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="rounded-2xl border border-line bg-surface p-4 flex items-center gap-3 animate-pulse">
+                <span className="w-11 h-11 rounded-xl bg-surface-2 shrink-0" />
+                <span className="flex-1 min-w-0 space-y-2">
+                  <span className="block h-3.5 w-3/5 rounded bg-surface-2" />
+                  <span className="block h-3 w-2/5 rounded bg-surface-2" />
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {faltaPatchPaneles && esSupervisor && (
           <p className="flex items-start gap-2 text-[13px] text-amber bg-amber/10 rounded-xl px-3 py-2 mb-4">
@@ -281,7 +298,7 @@ export default function LazosList({ userName, esSupervisor, clienteInicial, verI
             <EstadoVacio
               icono={<Cable size={26} strokeWidth={2} />}
               titulo="Todavía no hay diagramas ni planos"
-              detalle="Crea el primer panel o circuito de un cliente, o sube un plano."
+              detalle={esSupervisor ? 'Se agregan dentro del proyecto del cliente.' : 'Se agregan desde tu servicio, en «Planos y diagramas del sitio».'}
             />
           ) : (
             <>

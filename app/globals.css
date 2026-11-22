@@ -189,6 +189,14 @@ input::placeholder, textarea::placeholder {
    tapa los botones de la barra de abajo del modal en el celular. */
 body:has(.modal-fondo) .boton-asistente { display: none; }
 
+/* Barra de abajo del técnico (celular): la página deja espacio para que no
+   tape lo último, y el botón del asistente se sube encima de ella. */
+@media (max-width: 1023px) {
+  body:has(.barra-tecnico-movil) { padding-bottom: calc(5.25rem + env(safe-area-inset-bottom)); }
+  body:has(.barra-tecnico-movil) .boton-asistente { bottom: calc(5.75rem + env(safe-area-inset-bottom)) !important; }
+  body:has(.menu-mas-tecnico) .boton-asistente { display: none; }
+}
+
 .modal-fondo > .glass-strong,
 .modal-fondo > .glass {
   background: rgb(var(--c-surface));

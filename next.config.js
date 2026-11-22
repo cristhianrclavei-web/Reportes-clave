@@ -31,7 +31,7 @@ const csp = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   // syscom.mx: miniaturas del catálogo en el buscador de cotizaciones.
   // OpenStreetMap y Esri: mapa y satélite para marcar el punto de un sitio.
-  `img-src 'self' data: blob: ${SUPABASE_ORIGIN} https://*.syscom.mx https://tile.openstreetmap.org https://server.arcgisonline.com https://*.googleapis.com https://*.gstatic.com https://*.google.com https://*.ggpht.com`,
+  `img-src 'self' data: blob: ${SUPABASE_ORIGIN} https://*.syscom.mx https://grupoascencio.com.mx https://tile.openstreetmap.org https://server.arcgisonline.com https://*.googleapis.com https://*.gstatic.com https://*.google.com https://*.ggpht.com`,
   "font-src 'self' data: https://fonts.gstatic.com",
   // nominatim: búsqueda de direcciones (gratis, sin llave) al capturar la
   // ubicación de un sitio programado.
