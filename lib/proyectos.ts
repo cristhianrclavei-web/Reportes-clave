@@ -3,6 +3,7 @@ import { createClient } from './supabaseClient';
 import { coincideBusqueda } from './busqueda';
 import { registrarAccionGlobal } from './auditoriaGlobal';
 import type { Cliente } from './clientes';
+import { etapaValida, nombreEtapa, type Etapa, type SistemaClave, SISTEMAS } from './proyectosEtapas';
 
 export type EstadoProyecto = 'propuesta' | 'en_curso' | 'concluido';
 
@@ -17,6 +18,15 @@ export type Proyecto = {
   created_at: string;
   updated_at: string;
   concluido_en: string | null;
+  // patch_proyectos_centro.sql
+  etapa: Etapa;
+  sistemas: SistemaClave[];
+  fecha_inicio: string | null;
+  fecha_entrega: string | null;
+  monto: number | null;
+  moneda: 'MXN' | 'USD';
+  responsable_id: string | null;
+  etapa_desde: string | null;
 };
 
 export type DocumentoProyecto = {
@@ -51,43 +61,93 @@ export const TIPOS_DOCUMENTO_SUGERIDOS = [
   'Planos', 'Formato de mantenimiento', 'Formato de interconexión', 'Manual', 'Garantía', 'Otro',
 ];
 
-// Crea un proyecto para un cliente que YA existe (se llega aquí desde
-// dentro de la ficha del cliente, así que no hace falta resolver/crear el
-// cliente por nombre — a diferencia de cuando este módulo no tenía todavía
-// una pantalla de cliente propia).
-export async function crearProyectoParaCliente(input: {
+// Texto que se guarda en la columna vieja `sistema` (la usan pantallas y
+// reportes de antes): los nombres de los sistemas del proyecto.
+export function textoSistemas(sistemas: readonly string[]): string {
+  return sistemas.map((c) => SISTEMAS.find((x) => x.clave === c)?.nombre || c).join(' + ');
+}
+
+export type NuevoProyecto = {
   clienteId: string;
-  sistema: string;
   nombre: string;
+  sistemas: SistemaClave[];
+  etapa: Etapa;
   descripcion: string;
-}): Promise<string> {
+  fechaInicio: string | null;
+  fechaEntrega: string | null;
+  monto: number | null;
+  moneda: 'MXN' | 'USD';
+  responsableId: string | null;
+};
+
+// Mismas reglas que la base (patch_proyectos_centro.sql), para avisar antes de guardar.
+export function validarProyecto(p: Pick<NuevoProyecto, 'nombre' | 'sistemas' | 'fechaInicio' | 'fechaEntrega' | 'monto'>): Partial<Record<'nombre' | 'sistemas' | 'fechas' | 'monto', string>> {
+  const errores: Partial<Record<'nombre' | 'sistemas' | 'fechas' | 'monto', string>> = {};
+  if (!p.nombre.trim()) errores.nombre = 'Ponle nombre al proyecto.';
+  else if (p.nombre.trim().length > 120) errores.nombre = 'Máximo 120 letras.';
+  if (p.sistemas.length === 0) errores.sistemas = 'Elige al menos un sistema.';
+  if (p.fechaInicio && p.fechaEntrega && p.fechaEntrega < p.fechaInicio) errores.fechas = 'La entrega no puede ser antes del inicio.';
+  if (p.monto !== null && (!Number.isFinite(p.monto) || p.monto < 0)) errores.monto = 'Escribe un monto válido.';
+  return errores;
+}
+
+function filaDeProyecto(p: Omit<NuevoProyecto, 'clienteId'>) {
+  return {
+    nombre: p.nombre.trim(),
+    sistemas: p.sistemas,
+    sistema: textoSistemas(p.sistemas),
+    etapa: etapaValida(p.etapa, p.sistemas),
+    descripcion: p.descripcion.trim() || null,
+    fecha_inicio: p.fechaInicio || null,
+    fecha_entrega: p.fechaEntrega || null,
+    monto: p.monto,
+    moneda: p.moneda,
+    responsable_id: p.responsableId,
+  };
+}
+
+// Crea un proyecto para un cliente que YA existe.
+export async function crearProyecto(input: NuevoProyecto): Promise<string> {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('No hay sesión activa');
-  if (!input.sistema.trim()) throw new Error('Falta el sistema.');
-  if (!input.nombre.trim()) throw new Error('Falta el nombre del proyecto.');
+  if (!user) throw new Error('No hay sesión activa. Vuelve a entrar.');
+  const errores = validarProyecto(input);
+  const primero = Object.values(errores)[0];
+  if (primero) throw new Error(primero);
 
   const { data: proyecto, error } = await supabase
     .from('proyectos')
-    .insert({
-      cliente_id: input.clienteId,
-      sistema: input.sistema.trim(),
-      nombre: input.nombre.trim(),
-      descripcion: input.descripcion.trim() || null,
-      created_by: user.id,
-    })
+    .insert({ cliente_id: input.clienteId, created_by: user.id, ...filaDeProyecto(input) })
     .select('id')
     .single();
-  if (error) throw error;
+  if (error) throw new Error(mensajeProyecto(error, 'crear el proyecto'));
 
-  await registrarAccionGlobal(
-    'creo_proyecto',
-    'proyecto',
-    proyecto.id,
-    `Creó «${input.nombre.trim()}» (${input.sistema.trim()})`
-  );
-
+  await registrarAccionGlobal('creo_proyecto', 'proyecto', proyecto.id, `Creó «${input.nombre.trim()}» (${textoSistemas(input.sistemas)})`);
   return proyecto.id as string;
+}
+
+export async function actualizarProyecto(id: string, cambios: Omit<NuevoProyecto, 'clienteId'>): Promise<void> {
+  const errores = validarProyecto(cambios);
+  const primero = Object.values(errores)[0];
+  if (primero) throw new Error(primero);
+  const { error } = await createClient().from('proyectos').update(filaDeProyecto(cambios)).eq('id', id);
+  if (error) throw new Error(mensajeProyecto(error, 'guardar el proyecto'));
+}
+
+export async function cambiarEtapaProyecto(proyecto: Pick<Proyecto, 'id' | 'nombre' | 'sistemas'>, etapa: Etapa): Promise<void> {
+  const { error } = await createClient().from('proyectos').update({ etapa: etapaValida(etapa, proyecto.sistemas) }).eq('id', proyecto.id);
+  if (error) throw new Error(mensajeProyecto(error, 'cambiar la etapa'));
+  await registrarAccionGlobal('actualizo_estado_proyecto', 'proyecto', proyecto.id, `Cambió «${proyecto.nombre}» a ${nombreEtapa(etapa, proyecto.sistemas)}`);
+}
+
+export function mensajeProyecto(error: { message?: string; code?: string } | null | undefined, accion: string): string {
+  const texto = error?.message || '';
+  if (/column .*(etapa|sistemas|proyecto_id)|schema cache/i.test(texto)) return `No se pudo ${accion}: falta correr supabase/patch_proyectos_centro.sql en la base.`;
+  if (/otro cliente/i.test(texto)) return `No se pudo ${accion}: ese proyecto es de otro cliente.`;
+  if (/row-level security|permission/i.test(texto)) return `No tienes permiso para ${accion}.`;
+  if (/violates check constraint/i.test(texto)) return `No se pudo ${accion}: algún dato no es válido.`;
+  if (/fetch|network|load failed|timeout/i.test(texto)) return `No se pudo ${accion}: sin conexión. Revisa tu señal e intenta de nuevo.`;
+  return `No se pudo ${accion}. ${texto}`.trim();
 }
 
 export async function obtenerProyecto(id: string): Promise<{
@@ -119,28 +179,6 @@ export async function obtenerProyecto(id: string): Promise<{
     documentos: (documentos as DocumentoProyecto[]) || [],
     cotizaciones,
   };
-}
-
-export async function actualizarEstadoProyecto(id: string, estado: EstadoProyecto): Promise<void> {
-  const supabase = createClient();
-  const { data: proyecto, error: eGet } = await supabase.from('proyectos').select('nombre').eq('id', id).single();
-  if (eGet) throw eGet;
-
-  // concluido_en se llena solo al llegar a "Concluido" y se limpia si se
-  // regresa a otro estado (fue un error marcarlo, no hay fecha real que
-  // conservar).
-  const { error } = await supabase
-    .from('proyectos')
-    .update({
-      estado,
-      updated_at: new Date().toISOString(),
-      concluido_en: estado === 'concluido' ? new Date().toISOString() : null,
-    })
-    .eq('id', id);
-  if (error) throw error;
-
-  const ESTADO_LABEL: Record<EstadoProyecto, string> = { propuesta: 'Propuesta', en_curso: 'En curso', concluido: 'Concluido' };
-  await registrarAccionGlobal('actualizo_estado_proyecto', 'proyecto', id, `Cambió «${proyecto.nombre}» a ${ESTADO_LABEL[estado]}`);
 }
 
 export async function eliminarProyecto(id: string): Promise<void> {
@@ -260,4 +298,22 @@ export async function desvincularCotizacion(proyectoId: string, cotizacionId: st
     .eq('proyecto_id', proyectoId)
     .eq('cotizacion_id', cotizacionId);
   if (error) throw error;
+}
+
+// ---------- Todos los proyectos (tablero) ----------
+
+export type ProyectoConCliente = Pick<Proyecto, 'id' | 'cliente_id' | 'nombre' | 'etapa' | 'sistemas' | 'fecha_entrega' | 'monto' | 'moneda' | 'responsable_id' | 'etapa_desde'> & { cliente: string };
+
+export async function listarTodosProyectos(): Promise<ProyectoConCliente[]> {
+  const { data, error } = await createClient()
+    .from('proyectos')
+    .select('id, cliente_id, nombre, etapa, sistemas, fecha_entrega, monto, moneda, responsable_id, etapa_desde, clientes(nombre)')
+    .order('updated_at', { ascending: false })
+    .limit(1000);
+  if (error) throw new Error(mensajeProyecto(error, 'cargar los proyectos'));
+  return (data || []).map((p: any) => ({
+    ...p,
+    monto: p.monto === null ? null : Number(p.monto),
+    cliente: (Array.isArray(p.clientes) ? p.clientes[0]?.nombre : p.clientes?.nombre) || 'Cliente',
+  }));
 }

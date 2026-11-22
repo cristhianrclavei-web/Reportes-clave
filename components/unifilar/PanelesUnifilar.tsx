@@ -4,7 +4,7 @@ import { AlertTriangle, Copy, Plus, RotateCcw, Trash2, X } from 'lucide-react';
 import {
   AISLAMIENTOS, CALIBRES, CATALOGO, CAIDA_MAXIMA, COLORES_CONDUCTOR, FUNCIONES_CONDUCTOR, NOMBRE_CIRCUITO, TUBERIAS,
   caidaDeTension, conductoresPorOmision, datosArreglo, datosBaterias, definicion, electricoDeTramo, kwpTotal,
-  mpptDeArreglo, nombreCalibre, puertoDe, redondear, tituloPorOmision,
+  mpptDeArreglo, nombreCalibre, puertoDe, sugerirCalibre, AMPACIDAD_75C, redondear, tituloPorOmision,
   type Aviso, type Circuito, type DatosUnifilar, type DefinicionEquipo, type EquipoUnifilar, type ProyectoUnifilar,
   type TipoEquipo, type TipoSistema, type TramoUnifilar,
 } from '@/lib/unifilar';
@@ -226,6 +226,18 @@ export function PanelTramo({ datos, tramo, onCambiar, onBorrar, onCerrar }: {
           </>
         )}
       </div>
+
+      {!tramo.tierra && (() => {
+        const sugerido = sugerirCalibre(datos, tramo);
+        const actual = tramo.conductores.find((c) => !/^CPT/i.test(c.funcion))?.calibre;
+        if (!sugerido || sugerido === actual) return null;
+        return (
+          <button type="button" className={`${BOTON} w-full mt-3 !border-teal/60 text-teal`}
+            onClick={() => onCambiar({ conductores: tramo.conductores.map((c) => (/^CPT/i.test(c.funcion) ? c : { ...c, calibre: sugerido })) })}>
+            Usar {nombreCalibre(sugerido)} (aguanta {AMPACIDAD_75C[sugerido]} A y la caída queda en el límite o abajo)
+          </button>
+        );
+      })()}
 
       {!tramo.tierra && (
         <div className={`rounded-xl px-3 py-2 mt-3 text-[13.5px] ${caida === null ? 'bg-surface-2 text-muted' : caida > CAIDA_MAXIMA ? 'bg-red/10 text-red font-semibold' : 'bg-teal/10'}`}>

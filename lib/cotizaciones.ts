@@ -95,6 +95,7 @@ export type Cotizacion = {
   notas_ia?: string | null;
   // Levantamiento del que salió (patch_cotizacion_desde_levantamiento.sql).
   levantamiento_id?: string | null;
+  proyecto_id?: string | null;
   profiles?: { full_name: string } | { full_name: string }[] | null;
 };
 
@@ -141,6 +142,8 @@ export type CotizacionInput = {
   lineas: LineaInput[];
   // Solo al crear desde un levantamiento; al editar no se toca.
   levantamiento_id?: string;
+  // Obra a la que pertenece (patch_proyectos_centro.sql); solo al crear.
+  proyecto_id?: string;
 };
 
 function redondear(n: number): number {
@@ -286,6 +289,7 @@ function datosCotizacion(input: CotizacionInput) {
     iva,
     total,
     ...(input.levantamiento_id ? { levantamiento_id: input.levantamiento_id } : {}),
+    ...(input.proyecto_id ? { proyecto_id: input.proyecto_id } : {}),
   };
 }
 

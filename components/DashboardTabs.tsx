@@ -1,6 +1,6 @@
 'use client';
 
-import { FileText, FolderKanban, History, CalendarDays, LayoutDashboard, Network, Warehouse, Receipt, Building2, ReceiptText, CalendarClock } from 'lucide-react';
+import { FileText, FolderKanban, History, CalendarDays, LayoutDashboard, Network, Warehouse, Receipt, Briefcase, ReceiptText, CalendarClock } from 'lucide-react';
 
 // Secciones del panel del supervisor: una sola fuente de verdad para la
 // barra lateral, la barra inferior del celular y el buscador (Ctrl+K).
@@ -10,10 +10,13 @@ export const TABS = [
   { key: 'servicios', label: 'Servicios', corto: 'Servicios', href: '/dashboard/servicios', Icono: FolderKanban },
   { key: 'agenda', label: 'Agenda', corto: 'Agenda', href: '/dashboard/agenda', Icono: CalendarDays },
   { key: 'reportes', label: 'Reportes', corto: 'Reportes', href: '/dashboard/reportes', Icono: FileText },
-  // Diagramas unifilares y planos por sistema (hoy: detección de incendio; app/lazos).
+  // Todo lo de cada obra: Cliente → Proyecto → Sistemas (patch_proyectos_centro.sql).
+  // «Diagramas y planos» vive dentro, como subsección.
+  { key: 'proyectos', label: 'Proyectos', corto: 'Proyectos', href: '/dashboard/proyectos', Icono: Briefcase },
+  // Ya no sale en el menú (es subsección de Proyectos); la clave se queda
+  // para las pantallas que la usan.
   { key: 'diagramas', label: 'Diagramas y planos', corto: 'Diagramas', href: '/dashboard/diagramas', Icono: Network },
   { key: 'cotizaciones', label: 'Cotizaciones', corto: 'Cotizar', href: '/dashboard/cotizaciones', Icono: Receipt },
-  { key: 'proyectos', label: 'Clientes', corto: 'Clientes', href: '/dashboard/proyectos', Icono: Building2 },
   { key: 'personal', label: 'Personal', corto: 'Personal', href: '/dashboard/personal', Icono: CalendarClock },
   { key: 'eventos', label: 'Actividad', corto: 'Actividad', href: '/dashboard/eventos', Icono: History },
 ] as const;
@@ -34,6 +37,7 @@ export function seccionesVisibles(puedeAlmacen: boolean, puedeFacturar: boolean,
   const incluye = (m: string) => !modulos || modulos.includes(m);
   const lista: Tab[] = [];
   for (const t of TABS) {
+    if (t.key === 'diagramas') continue;
     if (t.key === 'cotizaciones' && !incluye('cotizaciones')) continue;
     lista.push(t);
     if (t.key === 'cotizaciones' && puedeFacturar && incluye('facturacion')) lista.push(TAB_FACTURACION);
@@ -45,8 +49,9 @@ export function seccionesVisibles(puedeAlmacen: boolean, puedeFacturar: boolean,
 // Agrupación de la barra lateral: qué se opera a diario, qué se vende y qué
 // se controla.
 export const GRUPOS_NAV: { titulo: string; keys: DashboardTabKey[] }[] = [
-  { titulo: 'Operación', keys: ['resumen', 'servicios', 'agenda', 'reportes', 'diagramas'] },
-  { titulo: 'Ventas', keys: ['cotizaciones', 'facturacion', 'proyectos'] },
+  { titulo: 'Operación', keys: ['resumen', 'servicios', 'agenda', 'reportes'] },
+  { titulo: 'Proyectos', keys: ['proyectos'] },
+  { titulo: 'Ventas', keys: ['cotizaciones', 'facturacion'] },
   { titulo: 'Control', keys: ['personal', 'almacen', 'eventos'] },
 ];
 
@@ -76,6 +81,11 @@ export const SUBSECCIONES: Partial<Record<DashboardTabKey, { clave: string; labe
     { clave: 'control', label: 'Control' },
     { clave: 'cobertura', label: 'Cobertura' },
     { clave: 'levantamientos', label: 'Levantamientos' },
+  ],
+  proyectos: [
+    { clave: 'clientes', label: 'Clientes' },
+    { clave: 'tablero', label: 'Tablero de proyectos' },
+    { clave: 'diagramas', label: 'Diagramas y planos' },
   ],
   cotizaciones: [
     { clave: 'cotizaciones', label: 'Cotizaciones' },

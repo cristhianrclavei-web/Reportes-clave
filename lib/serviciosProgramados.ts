@@ -196,6 +196,8 @@ export async function crearServicio(input: {
   // Lista de carga capturada al programar. Se guarda junto con el proyecto
   // para que el técnico la tenga desde el primer día.
   insumos?: { categoria: string; descripcion: string; cantidad: number; unidad: string; articuloId?: string | null }[];
+  // Obra (tabla proyectos) a la que pertenece, si se agendó desde ella.
+  proyectoId?: string | null;
 }, onAvance?: Avance): Promise<Servicio[]> {
   const supabase = createClient();
   onAvance?.(8, 'Verificando tu sesión');
@@ -236,6 +238,8 @@ export async function crearServicio(input: {
         dias_totales: diasTotales,
         // Los días cotizados: ampliar después no los cambia.
         dias_planeados: diasTotales,
+        // Solo si viene: así se agenda aunque falte patch_proyectos_centro.sql.
+        ...(input.proyectoId ? { proyecto_id: input.proyectoId } : {}),
       })
       .select()
       .single();

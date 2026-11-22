@@ -5,6 +5,7 @@ import { FileUp, Loader2 } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
 import AutocompletarCliente from '@/components/AutocompletarCliente';
 import { abrirPdf, miniaturaHoja, renderizarHoja, type PdfAbierto } from '@/lib/leerPlanoPdf';
+import { SISTEMAS } from '@/lib/proyectosEtapas';
 import { crearPlano, guardarPlantillaDxf, plantillaDxf, tiposPropuestos } from '@/lib/planosDatos';
 import { escalaDesdeProporcion, nombrePlanoSchema, tiposSembrables } from '@/lib/planos';
 import {
@@ -26,11 +27,17 @@ const TIPOS_EQUIPO = tiposSembrables();
 
 // Subir un plano: el PDF exportado de AutoCAD, la hoja (si trae varias) y,
 // si se sabe, la escala a la que se imprimió.
-export default function NuevoPlano({ clienteInicial, onCerrar, onCreado }: {
+export default function NuevoPlano({ clienteInicial, sistemaInicial, proyectoId, onCerrar, onCreado }: {
   clienteInicial: { id: string; nombre: string } | null;
+  // Desde un proyecto: el sistema y la obra a la que pertenece el plano.
+  sistemaInicial?: string;
+  proyectoId?: string | null;
   onCerrar: () => void;
   onCreado: (id: string) => void;
 }) {
+  const [sistema, setSistema] = useState(sistemaInicial || 'deteccion');
+  // Los bloques del DXF solo se reconocen con la simbología de detección.
+  const importaBloques = sistema === 'deteccion';
   const [cliente, setCliente] = useState(clienteInicial?.nombre || '');
   const [clienteId, setClienteId] = useState<string | null>(clienteInicial?.id || null);
   const [nombre, setNombre] = useState('');
@@ -162,11 +169,11 @@ export default function NuevoPlano({ clienteInicial, onCerrar, onCreado }: {
 
   // Los bloques elegidos se vuelven equipos de la app con su dirección.
   const importado = useMemo(() => {
-    if (!dxf) return null;
+    if (!dxf || !importaBloques) return null;
     const elegidos = new Map(Object.entries(tipoPorBloque).filter(([, codigo]) => codigo));
     if (elegidos.size === 0) return null;
     return importarDispositivos(dxf.leido, elegidos, () => crypto.randomUUID());
-  }, [dxf, tipoPorBloque]);
+  }, [dxf, tipoPorBloque, importaBloques]);
 
   function elegirTipoBloque(bloque: string, codigo: string) {
     setTipoPorBloque({ ...tipoPorBloque, [bloque]: codigo });
@@ -220,6 +227,8 @@ export default function NuevoPlano({ clienteInicial, onCerrar, onCreado }: {
         ancho: hoja.ancho,
         alto: hoja.alto,
         metrosPorUnidad: escala.trim() ? escalaDesdeProporcion(Number(escala)) : null,
+        sistema,
+        proyectoId: proyectoId || null,
       });
       onCreado(id);
     } catch (err: any) {
@@ -250,6 +259,8 @@ export default function NuevoPlano({ clienteInicial, onCerrar, onCreado }: {
         metrosPorUnidad: hoja.transformacion.k * unidad,
         dxf: { ...hoja.transformacion, unidad },
         sembrado: equipos.length > 0 ? { equipos, tuberias: [] } : undefined,
+        sistema,
+        proyectoId: proyectoId || null,
       });
       // Para el siguiente plano de este cliente. Si falla, el plano ya quedó.
       await guardarPlantillaDxf(clienteId, tipoPorBloque).catch((e) => console.error(e.message));
@@ -271,6 +282,15 @@ export default function NuevoPlano({ clienteInicial, onCerrar, onCreado }: {
             <label className="block text-[13px] text-muted mb-1.5">Cliente</label>
             <AutocompletarCliente value={cliente} onChange={(n, id) => { setCliente(n); setClienteId(id); }} className={CAMPO} placeholder="Escribe para buscar" soloSugerir />
             {errores.cliente && <p className="text-red font-semibold text-[13px] mt-1">{errores.cliente}</p>}
+          </>
+        )}
+
+        {!sistemaInicial && (
+          <>
+            <label className="block text-[13px] text-muted mt-4 mb-1.5" htmlFor="sistema-plano">Sistema</label>
+            <select id="sistema-plano" className={CAMPO} value={sistema} onChange={(e) => setSistema(e.target.value)}>
+              {SISTEMAS.map((x) => <option key={x.clave} value={x.clave}>{x.nombre}</option>)}
+            </select>
           </>
         )}
 
@@ -335,7 +355,7 @@ export default function NuevoPlano({ clienteInicial, onCerrar, onCreado }: {
             </div>
             <p className="text-[12px] text-faint mt-1.5">Ya vienen apagadas cotas, mobiliario y vegetación; enciende o apaga lo que necesites.</p>
 
-            {dxf.bloques.length > 0 && (
+            {importaBloques && dxf.bloques.length > 0 && (
               <>
                 <span className="block text-[13px] text-muted mt-4 mb-1.5">Dispositivos del dibujo</span>
                 <p className="text-[12px] text-faint mb-1.5">Di qué es cada bloque. Los que elijas pasan a la app con su dirección (el texto junto al símbolo): se pueden mover, editar y conectar.</p>

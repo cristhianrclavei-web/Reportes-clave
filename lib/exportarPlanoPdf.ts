@@ -4,12 +4,14 @@
 // planos pesan varios MB y una función de Vercel no regresa más de 4.5 MB.
 
 import { LineCapStyle, PDFDocument, PDFFont, PDFPage, StandardFonts, degrees, rgb } from 'pdf-lib';
+import { COLOR_SISTEMA, equipoCatalogo } from './equiposSistemas';
+import { tipoDispositivo } from './lazos';
 import { aHoja, figuraDe } from './simbolosPlano';
 import type { LineaConexion, MarcaConexion } from './conexionesPlano';
 import { medidasDeConexion, puntaDeLlegada, puntasDeFlecha, radioDeEquipoEn, trazoDeConexion, type MedidasConexion } from './rutaTuberia';
 import {
-  cantidadesDeEquipos, cantidadesDeTuberia, colocacionDePagina, colorEquipo, colorTuberia, formatoMetros,
-  proporcionDeEscala, tamanoDe, tamanoSimbolo, type Plano, type Punto,
+  alcanceEnHoja, cantidadesDeEquipos, cantidadesDeTuberia, trazoCampoVision, colocacionDePagina, colorEquipo, colorTuberia, formatoMetros,
+  proporcionDeEscala, tamanoDe, type EquipoPlano, tamanoSimbolo, type Plano, type Punto,
 } from './planos';
 
 function color(hex: string) {
@@ -119,6 +121,20 @@ export async function exportarPlanoPdf({ plano, pdfOriginal, fondoPng, cliente, 
     const tinta = color(colorLazo.get(l.lazoId) || '#0f766e');
     dibujarConexion(hoja, l.camino, H, tinta, medidasDeConexion(radioEn(l.desde), radioEn(l.hasta)));
   }
+  // CCTV: campo de visión de cada cámara y línea a su grabador o switch.
+  const tintaCctv = color(COLOR_SISTEMA.cctv);
+  for (const e of plano.sembrado.equipos) {
+    const camara = equipoCatalogo(e.tipo)?.camara;
+    if (!camara) continue;
+    const radio = alcanceEnHoja(e, e.alcance || camara.alcance, plano.metros_por_unidad, rNormal);
+    hoja.drawSvgPath(trazoCampoVision(e.x, e.y, radio, e.rotacion || 0, e.angulo || camara.angulo), {
+      x: 0, y: H, color: tintaCctv, opacity: 0.14, borderColor: tintaCctv, borderOpacity: 0.55, borderWidth: Math.max(0.4, rNormal / 8),
+    });
+    const destino = e.conectadoA ? plano.sembrado.equipos.find((x) => x.id === e.conectadoA) : null;
+    if (destino) {
+      hoja.drawLine({ start: { x: e.x, y: H - e.y }, end: { x: destino.x, y: H - destino.y }, color: tintaCctv, opacity: 0.6, thickness: Math.max(0.4, rNormal / 6), dashArray: [rNormal, rNormal * 0.6] });
+    }
+  }
   for (const e of plano.sembrado.equipos) {
     const cx = e.x;
     const cy = H - e.y;
@@ -219,6 +235,57 @@ export async function exportarPlanoPdf({ plano, pdfOriginal, fondoPng, cliente, 
       resumen.drawText(rotulo, { x: x + 28, y: yLeyenda, size: 9.5, font: fuente, color: tinta });
       x += 40 + fuente.widthOfTextAtSize(rotulo, 9.5);
       if (x > 792 - margen - 60) break;
+    }
+  }
+
+  // Hoja 3 (CCTV): una fila por cámara con su modelo, IP, altura, campo de
+  // visión, alcance y a qué grabador o switch llega.
+  const camaras = plano.sembrado.equipos.filter((e) => equipoCatalogo(e.tipo)?.camara);
+  if (camaras.length > 0) {
+    const nombreDe = (e: EquipoPlano) => e.etiqueta || tipoDispositivo(e.tipo).nombre;
+    const columnas = [
+      { titulo: 'CÁMARA', x: margen, ancho: 150 },
+      { titulo: 'MODELO', x: margen + 156, ancho: 170 },
+      { titulo: 'IP', x: margen + 332, ancho: 90 },
+      { titulo: 'ALTURA', x: margen + 428, ancho: 48 },
+      { titulo: 'VISIÓN', x: margen + 482, ancho: 48 },
+      { titulo: 'ALCANCE', x: margen + 536, ancho: 52 },
+      { titulo: 'SE CONECTA A', x: margen + 594, ancho: 104 },
+    ];
+    let hojaCamaras = pdf.addPage([792, 612]);
+    let yc = 612 - margen;
+    const encabezado = () => {
+      hojaCamaras.drawText(texto(`Cámaras · ${plano.nombre}`), { x: margen, y: yc - 18, size: 18, font: negrita, color: tinta });
+      yc -= 46;
+      for (const c of columnas) hojaCamaras.drawText(texto(c.titulo), { x: c.x, y: yc, size: 8.5, font: negrita, color: gris });
+      yc -= 8;
+      hojaCamaras.drawLine({ start: { x: margen, y: yc }, end: { x: 792 - margen, y: yc }, thickness: 0.6, color: gris });
+      yc -= 16;
+    };
+    encabezado();
+    for (const e of camaras) {
+      if (yc < margen) {
+        hojaCamaras = pdf.addPage([792, 612]);
+        yc = 612 - margen;
+        encabezado();
+      }
+      const cat = equipoCatalogo(e.tipo)!.camara!;
+      const destino = e.conectadoA ? plano.sembrado.equipos.find((x) => x.id === e.conectadoA) : null;
+      const valores = [
+        nombreDe(e),
+        e.modelo || tipoDispositivo(e.tipo).nombre,
+        e.ip || '-',
+        e.altura != null ? `${e.altura} m` : '-',
+        `${e.angulo || cat.angulo}°`,
+        `${e.alcance || cat.alcance} m`,
+        destino ? nombreDe(destino) : '-',
+      ];
+      valores.forEach((v, i) => {
+        let t = texto(v);
+        while (t.length > 1 && fuente.widthOfTextAtSize(t, 10) > columnas[i].ancho) t = t.slice(0, -1);
+        hojaCamaras.drawText(t, { x: columnas[i].x, y: yc, size: 10, font: i === 0 ? negrita : fuente, color: tinta });
+      });
+      yc -= 20;
     }
   }
 

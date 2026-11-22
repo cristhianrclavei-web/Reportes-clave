@@ -9,6 +9,7 @@
 import { tipoDispositivo } from './lazos';
 import { colorEquipo } from './planos';
 import { BLOQUES, type Bloque } from './simbolosBiblioteca';
+import { equipoCatalogo, type EquipoCatalogo } from './equiposSistemas';
 
 export type Trazo = {
   d: string;
@@ -164,8 +165,66 @@ function deBloque(bloque: Bloque, color: string): FiguraSimbolo {
   return { trazos, letras: bloque.letras.map((l) => ({ ...l, color })) };
 }
 
+// Equipos de CCTV, acceso, solar e intrusión. Miran hacia la derecha (0°):
+// el giro del equipo los orienta, y en las cámaras también su campo de visión.
+function deOtroSistema(e: EquipoCatalogo, color: string): FiguraSimbolo {
+  const letras = e.letra ? [{ texto: e.letra, x: 0, y: 0, tam: e.letra.length > 2 ? 0.55 : 0.8, color }] : [];
+  switch (e.figura) {
+    case 'bala':
+      return {
+        trazos: [
+          { d: rectangulo(1.5, 0.9, 0.15, -0.25, 0), relleno: BLANCO, linea: color, grosor: GROSOR_BLOQUE * 1.4 },
+          { d: 'M 0.5 -0.3 L 1 -0.48 L 1 0.48 L 0.5 0.3 Z', relleno: color, linea: color, grosor: GROSOR_BLOQUE },
+          { d: 'M -0.6 0.45 L -0.6 0.85 L 0 0.85', relleno: null, linea: color, grosor: GROSOR_BLOQUE * 1.4 },
+        ],
+        letras: [],
+      };
+    case 'domo':
+      return {
+        trazos: [
+          { d: circulo(0, 0, 1), relleno: BLANCO, linea: color, grosor: GROSOR_BLOQUE * 1.4 },
+          { d: circulo(0.25, 0, 0.42), relleno: color, linea: null, grosor: 0 },
+        ],
+        letras: e.letra ? [{ texto: e.letra, x: -0.45, y: 0, tam: 0.6, color }] : [],
+      };
+    case 'ptz':
+    case 'fisheye':
+      return {
+        trazos: [
+          { d: circulo(0, 0, 1), relleno: BLANCO, linea: color, grosor: GROSOR_BLOQUE * 1.4 },
+          { d: circulo(0, 0, 0.8), relleno: null, linea: color, grosor: GROSOR_BLOQUE, guiones: e.figura === 'ptz' ? [0.2, 0.14] : undefined },
+        ],
+        letras,
+      };
+    case 'modulo_fv':
+      return {
+        trazos: [
+          { d: rectangulo(1.3, 2, 0), relleno: BLANCO, linea: color, grosor: GROSOR_BLOQUE * 1.4 },
+          { d: 'M -0.65 -0.5 L 0.65 -0.5 M -0.65 0 L 0.65 0 M -0.65 0.5 L 0.65 0.5 M 0 -1 L 0 1', relleno: null, linea: color, grosor: GROSOR_BLOQUE },
+        ],
+        letras: [],
+      };
+    case 'lectora':
+      return { trazos: [{ d: rectangulo(1.2, 2, 0.2), relleno: BLANCO, linea: color, grosor: GROSOR_BLOQUE * 1.4 }], letras };
+    case 'puerta':
+      return {
+        trazos: [
+          { d: rectangulo(2, 1.2, 0), relleno: BLANCO, linea: color, grosor: GROSOR_BLOQUE * 1.4 },
+          { d: 'M -1 0.6 L 1 -0.6', relleno: null, linea: color, grosor: GROSOR_BLOQUE },
+        ],
+        letras: letras.map((l) => ({ ...l, tam: 0.5 })),
+      };
+    case 'circulo':
+      return { trazos: [{ d: circulo(0, 0, 1), relleno: BLANCO, linea: color, grosor: GROSOR_BLOQUE * 1.4 }], letras };
+    case 'caja':
+      return { trazos: [{ d: rectangulo(2, 1.6, 0.15), relleno: BLANCO, linea: color, grosor: GROSOR_BLOQUE * 1.4 }], letras };
+  }
+}
+
 export function figuraDe(tipo: string): FiguraSimbolo {
   const color = colorEquipo(tipo);
+  const catalogo = equipoCatalogo(tipo);
+  if (catalogo) return deOtroSistema(catalogo, color);
   const bloque = BLOQUES[BLOQUE_DE_TIPO[tipo]];
   if (bloque) return deBloque(bloque, color);
   switch (tipo) {

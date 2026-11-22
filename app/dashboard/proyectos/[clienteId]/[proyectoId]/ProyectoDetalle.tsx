@@ -1,428 +1,397 @@
 'use client';
 
-import { avisar, confirmar } from '@/lib/dialogos';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import {
+  Building2, CalendarDays, ChevronRight, Download, FileText, Map as IconoPlano, Network, Pencil, Plus, Receipt, Trash2,
+} from 'lucide-react';
 import SupervisorShell from '@/components/SupervisorShell';
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
+import NuevoPlano from '@/components/lazos/NuevoPlano';
+import FormProyecto from '@/components/proyectos/FormProyecto';
+import EtapasProyecto, { ChipEtapa } from '@/components/proyectos/EtapasProyecto';
+import ContenidoLista, { BOTON_CHICO, TituloSeccion } from '@/components/proyectos/ContenidoLista';
+import SolarProyecto from '@/components/proyectos/SolarProyecto';
+import PagosProyecto from '@/components/proyectos/PagosProyecto';
+import { confirmar } from '@/lib/dialogos';
+import { usePerfiles } from '@/lib/perfiles';
 import {
-  EstadoProyecto, DocumentoProyecto, CotizacionVinculada, TIPOS_DOCUMENTO_SUGERIDOS,
-  obtenerProyecto, actualizarEstadoProyecto, eliminarProyecto,
-  agregarDocumento, eliminarDocumento, obtenerUrlDocumento,
-  buscarCotizacionesParaVincular, vincularCotizacion, desvincularCotizacion,
+  agregarDocumento, eliminarDocumento, eliminarProyecto, obtenerProyecto, obtenerUrlDocumento,
+  type DocumentoProyecto,
 } from '@/lib/proyectos';
-import {
-  ChevronLeft, FileText, Plus, Trash2, X, Search, Paperclip, Download, Receipt,
-} from 'lucide-react';
+import { contenidoDelProyecto, type Contenido, type ElementoContenido } from '@/lib/proyectoContenido';
+import { SISTEMAS, nombreSistema, type Etapa, type SistemaClave } from '@/lib/proyectosEtapas';
 
-const ESTADO_CLS: Record<EstadoProyecto, string> = {
-  propuesta: 'bg-amber/15 text-amber border-amber/30',
-  en_curso: 'bg-teal/15 text-teal border-teal/30',
-  concluido: 'bg-surface-2 text-muted border-line',
-};
-const ESTADO_LABEL: Record<EstadoProyecto, string> = {
-  propuesta: 'Propuesta', en_curso: 'En curso', concluido: 'Concluido',
-};
+// Ficha de un proyecto (una obra del cliente): su etapa, una pestaña por
+// cada sistema que lleva con sus herramientas (planos, lazos, guías,
+// unifilar, trámite CFE…) y lo común: cotizaciones, servicios, pagos y
+// documentos.
 
-const cardCls = 'glass rounded-2xl p-4';
-const labelCls = 'block text-[11px] font-semibold uppercase tracking-wider text-muted mb-1.5';
-const inputCls =
-  'w-full px-3.5 py-2.5 rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal-glow text-[15px] transition-colors placeholder:text-faint';
+type Pestana = 'resumen' | SistemaClave | 'cotizaciones' | 'servicios' | 'documentos';
 
-function money(n: number, moneda: 'MXN' | 'USD'): string {
-  return (moneda === 'USD' ? 'USD $' : '$') + (n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-function formatFecha(iso: string): string {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
-}
-function nombreSubio(profiles: DocumentoProyecto['profiles']): string {
-  if (!profiles) return '—';
-  return Array.isArray(profiles) ? profiles[0]?.full_name || '—' : profiles.full_name || '—';
-}
+const fechaCorta = (iso: string | null) => (iso ? new Date(iso.length === 10 ? `${iso}T12:00:00` : iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
+const dinero = (n: number, m: 'MXN' | 'USD') => new Intl.NumberFormat('es-MX', { style: 'currency', currency: m }).format(n || 0);
 
 export default function ProyectoDetalle({ proyectoId, clienteId, userName }: { proyectoId: string; clienteId: string; userName?: string }) {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const perfiles = usePerfiles();
   const [datos, setDatos] = useState<Awaited<ReturnType<typeof obtenerProyecto>> | null>(null);
-  const [cambiandoEstado, setCambiandoEstado] = useState(false);
+  const [contenido, setContenido] = useState<Contenido | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pestana, setPestana] = useState<Pestana>('resumen');
+  const [editando, setEditando] = useState(false);
+  const [nuevoPlano, setNuevoPlano] = useState<SistemaClave | null>(null);
 
-  const [showDocumento, setShowDocumento] = useState(false);
-  const [nombreDoc, setNombreDoc] = useState('');
-  const [descripcionDoc, setDescripcionDoc] = useState('');
-  const [archivoDoc, setArchivoDoc] = useState<File | null>(null);
-  const [subiendoDoc, setSubiendoDoc] = useState(false);
-
-  const [showVincular, setShowVincular] = useState(false);
-  const [busquedaCot, setBusquedaCot] = useState('');
-  const [resultadosCot, setResultadosCot] = useState<CotizacionVinculada[]>([]);
-  const [buscandoCot, setBuscandoCot] = useState(false);
-  const [vinculando, setVinculando] = useState<string | null>(null);
-
-  const [eliminandoProyecto, setEliminandoProyecto] = useState(false);
-
-  async function cargar() {
-    setLoading(true);
+  const cargar = useCallback(async () => {
+    setError(null);
     try {
-      setDatos(await obtenerProyecto(proyectoId));
+      const [d, c] = await Promise.all([obtenerProyecto(proyectoId), contenidoDelProyecto(proyectoId)]);
+      setDatos(d);
+      setContenido(c);
     } catch (e: any) {
-      setError(e?.message || 'No se pudo cargar el proyecto');
-    } finally {
-      setLoading(false);
+      setError(e?.message || 'No se pudo cargar el proyecto.');
     }
+  }, [proyectoId]);
+
+  useEffect(() => { cargar(); }, [cargar]);
+
+  // La pestaña va en la dirección (?ver=solar) para volver a ella con «Atrás».
+  useEffect(() => {
+    const ver = new URLSearchParams(window.location.search).get('ver') as Pestana | null;
+    if (ver) setPestana(ver);
+  }, []);
+  function elegir(p: Pestana) {
+    setPestana(p);
+    const url = new URL(window.location.href);
+    url.searchParams.set('ver', p);
+    window.history.replaceState(null, '', url);
   }
 
-  useEffect(() => { cargar(); }, []);
-
-  async function handleCambiarEstado(estado: EstadoProyecto) {
-    if (!datos || estado === datos.proyecto.estado) return;
-    setCambiandoEstado(true);
-    try {
-      await actualizarEstadoProyecto(proyectoId, estado);
-      showToast('Estado actualizado', 'success');
-      await cargar();
-    } catch (e: any) {
-      avisar(e?.message || 'No se pudo actualizar el estado');
-    } finally {
-      setCambiandoEstado(false);
-    }
-  }
-
-  async function handleAgregarDocumento() {
-    if (!nombreDoc.trim() || !archivoDoc) {
-      avisar('Indica de qué es el documento y elige un archivo.');
-      return;
-    }
-    setSubiendoDoc(true);
-    try {
-      await agregarDocumento(proyectoId, { nombre: nombreDoc, descripcion: descripcionDoc, archivo: archivoDoc });
-      showToast('Documento agregado', 'success');
-      setShowDocumento(false);
-      setNombreDoc(''); setDescripcionDoc(''); setArchivoDoc(null);
-      await cargar();
-    } catch (e: any) {
-      avisar(e?.message || 'No se pudo subir el documento');
-    } finally {
-      setSubiendoDoc(false);
-    }
-  }
-
-  async function handleAbrirDocumento(doc: DocumentoProyecto) {
-    const url = await obtenerUrlDocumento(doc.archivo_path);
-    if (url) window.open(url, '_blank');
-    else avisar('No se pudo abrir el archivo.');
-  }
-
-  async function handleEliminarDocumento(doc: DocumentoProyecto) {
-    if (!await confirmar(`¿Borrar «${doc.nombre}»? No se puede deshacer.`)) return;
-    try {
-      await eliminarDocumento(doc.id, doc.archivo_path);
-      showToast('Documento eliminado', 'success');
-      await cargar();
-    } catch (e: any) {
-      avisar(e?.message || 'No se pudo eliminar');
-    }
-  }
-
-  async function handleBuscarCotizacion(texto: string) {
-    setBusquedaCot(texto);
-    if (texto.trim().length < 2) { setResultadosCot([]); return; }
-    setBuscandoCot(true);
-    try {
-      setResultadosCot(await buscarCotizacionesParaVincular(texto));
-    } finally {
-      setBuscandoCot(false);
-    }
-  }
-
-  async function handleVincular(cotizacionId: string) {
-    setVinculando(cotizacionId);
-    try {
-      await vincularCotizacion(proyectoId, cotizacionId);
-      showToast('Cotización vinculada', 'success');
-      setShowVincular(false);
-      setBusquedaCot(''); setResultadosCot([]);
-      await cargar();
-    } catch (e: any) {
-      avisar(e?.message || 'No se pudo vincular');
-    } finally {
-      setVinculando(null);
-    }
-  }
-
-  async function handleDesvincular(cotizacionId: string) {
-    if (!await confirmar('¿Quitar el vínculo con esta cotización? La cotización no se borra, solo deja de aparecer aquí.')) return;
-    try {
-      await desvincularCotizacion(proyectoId, cotizacionId);
-      showToast('Vínculo quitado', 'success');
-      await cargar();
-    } catch (e: any) {
-      avisar(e?.message || 'No se pudo quitar el vínculo');
-    }
-  }
-
-  async function handleEliminarProyecto() {
-    if (!datos) return;
-    if (!await confirmar(`¿Eliminar «${datos.proyecto.nombre}» de ${datos.cliente.nombre}? Se borran también sus documentos. Acción permanente.`)) return;
-    setEliminandoProyecto(true);
-    try {
-      await eliminarProyecto(proyectoId);
-      showToast('Proyecto eliminado', 'success');
-      router.push(`/dashboard/proyectos/${clienteId}`);
-    } catch (e: any) {
-      avisar(e?.message || 'No se pudo eliminar');
-      setEliminandoProyecto(false);
-    }
-  }
-
-  if (loading) {
+  if (error) {
     return (
-      <SupervisorShell active="proyectos" title="Proyecto" userName={userName}>
-        <p className="text-muted text-center py-14">Cargando…</p>
+      <SupervisorShell active="proyectos" title="Proyecto" userName={userName} volver>
+        <div className="rounded-xl bg-red/10 text-red text-[14px] px-4 py-3 my-6">
+          {error} <button type="button" onClick={cargar} className="underline font-semibold">Reintentar</button>
+        </div>
       </SupervisorShell>
     );
   }
-  if (error || !datos) {
-    return (
-      <SupervisorShell active="proyectos" title="Proyecto" userName={userName}>
-        <p className="text-red text-center py-14">{error || 'No se encontró el proyecto'}</p>
-      </SupervisorShell>
-    );
+  if (!datos || !contenido) {
+    return <SupervisorShell active="proyectos" title="Proyecto" userName={userName} volver><p className="text-muted text-center py-14">Cargando…</p></SupervisorShell>;
   }
 
-  const { proyecto, cliente, documentos, cotizaciones } = datos;
+  const { proyecto, cliente } = datos;
+  const responsable = proyecto.responsable_id ? perfiles[proyecto.responsable_id]?.full_name : null;
+  const pestanas: { clave: Pestana; nombre: string }[] = [
+    { clave: 'resumen', nombre: 'Resumen' },
+    ...proyecto.sistemas.map((s) => ({ clave: s as Pestana, nombre: SISTEMAS.find((x) => x.clave === s)?.corto || s })),
+    { clave: 'cotizaciones', nombre: `Cotizaciones · ${contenido.cotizacion.length + datos.cotizaciones.filter((c) => !contenido.cotizacion.some((x) => x.id === c.cotizacion_id)).length}` },
+    { clave: 'servicios', nombre: `Servicios · ${contenido.servicio.length}` },
+    { clave: 'documentos', nombre: `Documentos · ${datos.documentos.length}` },
+  ];
+  const actual = pestanas.some((p) => p.clave === pestana) ? pestana : 'resumen';
 
   return (
-    <SupervisorShell active="proyectos" title={cliente.nombre} userName={userName}>
-      <Link href={`/dashboard/proyectos/${clienteId}`} className="inline-flex items-center gap-1.5 text-[13.5px] text-teal font-medium mb-4 min-h-[40px]">
-        <ChevronLeft size={16} strokeWidth={2.4} />
-        {cliente.nombre}
-      </Link>
+    <SupervisorShell active="proyectos" title={proyecto.nombre} userName={userName} volver
+      wrapperClassName="max-w-2xl lg:max-w-[1200px] mx-auto pb-10 lg:px-8 2xl:px-10">
+      <nav aria-label="Ruta" className="flex items-center gap-1 text-[13px] text-muted mb-3 flex-wrap">
+        <Link href="/dashboard/proyectos" className="hover:text-teal">Proyectos</Link>
+        <ChevronRight size={13} />
+        <Link href={`/dashboard/proyectos/${clienteId}`} className="hover:text-teal">{cliente.nombre}</Link>
+        <ChevronRight size={13} />
+        <span className="text-ink font-semibold truncate">{proyecto.nombre}</span>
+      </nav>
 
-      {/* Encabezado + estado */}
-      <div className={`${cardCls} mb-4`}>
-        <div className="flex justify-between items-start gap-3 mb-3 flex-wrap">
-          <div>
-            <div className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-surface-2 text-muted w-fit mb-1.5">{proyecto.sistema}</div>
-            <span className="text-[17px] font-display font-bold">{proyecto.nombre}</span>
-          </div>
-          <span className={`text-[12.5px] font-semibold px-3 py-1.5 rounded-full border shrink-0 ${ESTADO_CLS[proyecto.estado]}`}>
-            {ESTADO_LABEL[proyecto.estado]}
-          </span>
-        </div>
-        {proyecto.descripcion && <p className="text-[13.5px] text-ink/80 leading-relaxed mb-3.5">{proyecto.descripcion}</p>}
-        {proyecto.concluido_en && (
-          <p className="text-[12px] text-teal font-medium mb-3.5">Concluido el {formatFecha(proyecto.concluido_en)}</p>
-        )}
-
-        <label className={labelCls}>Cambiar estado</label>
-        <div className="flex gap-1.5 p-1 rounded-xl bg-surface-2 border border-line w-fit flex-wrap">
-          {(['propuesta', 'en_curso', 'concluido'] as const).map((e) => (
-            <button
-              key={e}
-              onClick={() => handleCambiarEstado(e)}
-              disabled={cambiandoEstado}
-              className={`px-3.5 py-1.5 rounded-lg text-[12.5px] font-semibold transition-colors disabled:opacity-60 ${
-                proyecto.estado === e ? 'bg-teal text-inkOnAccent' : 'text-muted'
-              }`}
-            >
-              {ESTADO_LABEL[e]}
-            </button>
-          ))}
-        </div>
-        <p className="text-[11.5px] text-faint mt-2">Creado {formatFecha(proyecto.created_at)} · Actualizado {formatFecha(proyecto.updated_at)}</p>
-      </div>
-
-      {/* Cotizaciones vinculadas */}
-      <div className={`${cardCls} mb-4`}>
-        <div className="flex items-center justify-between gap-2 mb-3.5">
-          <p className="font-display font-semibold text-[13px] uppercase tracking-wider text-teal flex items-center gap-2">
-            <Receipt size={15} strokeWidth={2.4} /> Cotizaciones
-          </p>
-          <button
-            onClick={() => setShowVincular(true)}
-            className="text-teal text-[13px] font-semibold flex items-center gap-1 active:scale-95 transition-transform"
-          >
-            <Plus size={15} strokeWidth={2.6} /> Vincular
-          </button>
-        </div>
-
-        {cotizaciones.length === 0 && <p className="text-[13px] text-muted py-3">Sin cotizaciones vinculadas todavía.</p>}
-
-        <div className="flex flex-col gap-2">
-          {cotizaciones.map((c) => (
-            <div key={c.cotizacion_id} className="flex items-center gap-2.5 p-3 rounded-xl bg-surface-2 border border-line">
-              <Link href={`/dashboard/cotizaciones/${c.cotizacion_id}`} className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[12px] font-mono font-semibold text-teal">{c.folio}</span>
-                  <span className="text-[12px] text-muted truncate">{c.empresa}</span>
-                </div>
-                <span className="text-[13.5px] font-semibold">{money(c.total, c.moneda)}</span>
-              </Link>
-              <button
-                onClick={() => handleDesvincular(c.cotizacion_id)}
-                aria-label="Quitar vínculo"
-                className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-red active:scale-90 transition-transform"
-              >
-                <X size={16} strokeWidth={2.4} />
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Documentación */}
-      <div className={`${cardCls} mb-4`}>
-        <div className="flex items-center justify-between gap-2 mb-3.5">
-          <p className="font-display font-semibold text-[13px] uppercase tracking-wider text-teal flex items-center gap-2">
-            <Paperclip size={15} strokeWidth={2.4} /> Documentación
-          </p>
-          <button
-            onClick={() => setShowDocumento(true)}
-            className="text-teal text-[13px] font-semibold flex items-center gap-1 active:scale-95 transition-transform"
-          >
-            <Plus size={15} strokeWidth={2.6} /> Agregar
-          </button>
-        </div>
-
-        {documentos.length === 0 && <p className="text-[13px] text-muted py-3">Sin documentos todavía.</p>}
-
-        <div className="flex flex-col gap-2">
-          {documentos.map((d) => (
-            <div key={d.id} className="flex items-start gap-2.5 p-3 rounded-xl bg-surface-2 border border-line">
-              <button onClick={() => handleAbrirDocumento(d)} className="flex-1 min-w-0 text-left">
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <FileText size={13} strokeWidth={2.4} className="text-teal shrink-0" />
-                  <span className="text-[13.5px] font-semibold truncate">{d.nombre}</span>
-                </div>
-                {d.descripcion && <p className="text-[12.5px] text-ink/75 mb-1">{d.descripcion}</p>}
-                <p className="text-[11px] text-faint">{nombreSubio(d.profiles)} · {formatFecha(d.created_at)}</p>
-              </button>
-              <button
-                onClick={() => handleAbrirDocumento(d)}
-                aria-label="Abrir documento"
-                className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-teal active:scale-90 transition-transform"
-              >
-                <Download size={16} strokeWidth={2.4} />
-              </button>
-              <button
-                onClick={() => handleEliminarDocumento(d)}
-                aria-label="Eliminar documento"
-                className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-red active:scale-90 transition-transform"
-              >
-                <Trash2 size={15} strokeWidth={2.4} />
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <button
-        onClick={handleEliminarProyecto}
-        disabled={eliminandoProyecto}
-        className="text-red text-[13.5px] font-medium mt-1 mb-8 min-h-[44px] flex items-center gap-1.5 disabled:opacity-60"
-      >
-        <Trash2 size={15} strokeWidth={2.4} />
-        {eliminandoProyecto ? 'Eliminando...' : 'Eliminar este proyecto'}
-      </button>
-
-      {/* Modal: agregar documento */}
-      {showDocumento && (
-        <ModalOverlay onClose={() => setShowDocumento(false)}>
-          <div className="glass-strong rounded-3xl max-w-md w-full p-5 max-h-[92vh] overflow-y-auto">
-            <p className="font-display font-semibold text-[16px] mb-3.5">Agregar documento</p>
-
-            <label className={labelCls}>¿De qué es? *</label>
-            <input
-              list="tipos-documento"
-              value={nombreDoc}
-              onChange={(e) => setNombreDoc(e.target.value)}
-              placeholder="Ej. Planos"
-              className={`${inputCls} mb-3.5`}
-            />
-            <datalist id="tipos-documento">
-              {TIPOS_DOCUMENTO_SUGERIDOS.map((t) => <option key={t} value={t} />)}
-            </datalist>
-
-            <label className={labelCls}>Descripción</label>
-            <textarea
-              value={descripcionDoc}
-              onChange={(e) => setDescripcionDoc(e.target.value)}
-              placeholder="De qué trata este documento"
-              className={`${inputCls} min-h-[70px] mb-3.5`}
-            />
-
-            <label className={labelCls}>Archivo *</label>
-            <input
-              type="file"
-              onChange={(e) => setArchivoDoc(e.target.files?.[0] || null)}
-              className="w-full text-[13.5px] mb-4"
-            />
-
-            <div className="flex gap-2">
-              <button onClick={() => setShowDocumento(false)} className="flex-1 min-h-[48px] rounded-xl border border-line-strong text-ink/80 text-[14.5px] font-medium">
-                Cancelar
-              </button>
-              <button
-                onClick={handleAgregarDocumento}
-                disabled={subiendoDoc || !nombreDoc.trim() || !archivoDoc}
-                className="flex-1 min-h-[48px] rounded-xl bg-teal text-inkOnAccent text-[14.5px] font-semibold disabled:opacity-50"
-              >
-                {subiendoDoc ? 'Subiendo...' : 'Agregar'}
-              </button>
-            </div>
-          </div>
-        </ModalOverlay>
-      )}
-
-      {/* Modal: vincular cotización */}
-      {showVincular && (
-        <ModalOverlay onClose={() => setShowVincular(false)}>
-          <div className="glass-strong rounded-3xl max-w-md w-full p-5 max-h-[85vh] flex flex-col">
-            <div className="flex items-center justify-between mb-3.5">
-              <p className="font-display font-semibold text-[16px]">Vincular cotización</p>
-              <button onClick={() => setShowVincular(false)} aria-label="Cerrar" className="w-9 h-9 rounded-full flex items-center justify-center active:scale-90 transition-transform">
-                <X size={18} strokeWidth={2.4} />
-              </button>
-            </div>
-            <div className="relative mb-3.5">
-              <Search size={16} strokeWidth={2.4} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-faint" />
-              <input
-                autoFocus
-                value={busquedaCot}
-                onChange={(e) => handleBuscarCotizacion(e.target.value)}
-                placeholder="Folio o empresa…"
-                className={`${inputCls} pl-10`}
-              />
-            </div>
-            <div className="flex-1 overflow-y-auto">
-              {buscandoCot && <p className="text-[13px] text-muted text-center py-6">Buscando…</p>}
-              {!buscandoCot && busquedaCot.trim().length >= 2 && resultadosCot.length === 0 && (
-                <p className="text-[13px] text-muted text-center py-6">Sin resultados.</p>
-              )}
-              {!buscandoCot && resultadosCot.map((c) => (
-                <button
-                  key={c.cotizacion_id}
-                  onClick={() => handleVincular(c.cotizacion_id)}
-                  disabled={vinculando === c.cotizacion_id}
-                  className="w-full flex items-center justify-between gap-2.5 p-3 mb-2 rounded-xl bg-surface-2 border border-line text-left active:scale-[0.98] transition-transform disabled:opacity-60"
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[12px] font-mono font-semibold text-teal">{c.folio}</span>
-                      <span className="text-[12.5px] text-muted truncate">{c.empresa}</span>
-                    </div>
-                  </div>
-                  <span className="text-[13px] font-semibold shrink-0">{money(c.total, c.moneda)}</span>
-                </button>
+      <header className="glass rounded-2xl p-4 mb-4" data-tour="cabecera-proyecto">
+        <div className="flex items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <h1 className="font-display font-bold text-[22px] leading-tight">{proyecto.nombre}</h1>
+            <Link href={`/dashboard/proyectos/${clienteId}`} className="inline-flex items-center gap-1.5 text-[13.5px] text-muted hover:text-teal mt-0.5">
+              <Building2 size={14} /> {cliente.nombre}
+            </Link>
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              <ChipEtapa etapa={proyecto.etapa} sistemas={proyecto.sistemas} />
+              {proyecto.sistemas.map((s) => (
+                <span key={s} className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-surface-2 border border-line text-muted">{nombreSistema(s)}</span>
               ))}
             </div>
           </div>
-        </ModalOverlay>
+          <button type="button" onClick={() => setEditando(true)} className={BOTON_CHICO}><Pencil size={14} /> Editar</button>
+        </div>
+        <dl className="grid grid-cols-2 lg:grid-cols-4 gap-2 mt-3 text-[13px]">
+          <div><dt className="text-muted text-[11.5px]">Inicio</dt><dd className="font-semibold">{fechaCorta(proyecto.fecha_inicio)}</dd></div>
+          <div><dt className="text-muted text-[11.5px]">Entrega</dt><dd className="font-semibold">{fechaCorta(proyecto.fecha_entrega)}</dd></div>
+          <div><dt className="text-muted text-[11.5px]">Monto</dt><dd className="font-semibold">{proyecto.monto != null ? dinero(proyecto.monto, proyecto.moneda) : '—'}</dd></div>
+          <div><dt className="text-muted text-[11.5px]">Responsable</dt><dd className="font-semibold truncate">{responsable || 'Sin asignar'}</dd></div>
+        </dl>
+        {proyecto.descripcion && <p className="text-[13.5px] text-ink/80 mt-3 whitespace-pre-line">{proyecto.descripcion}</p>}
+      </header>
+
+      <div className="overflow-x-auto -mx-4 px-4 lg:mx-0 lg:px-0 mb-4" data-tour="pestanas-proyecto">
+        <div className="inline-flex gap-1 rounded-xl bg-surface border border-line p-1" role="tablist" aria-label="Secciones del proyecto">
+          {pestanas.map((p) => (
+            <button key={p.clave} type="button" role="tab" aria-selected={actual === p.clave} onClick={() => elegir(p.clave)}
+              className={`min-h-[40px] px-3.5 rounded-lg text-[13.5px] font-semibold whitespace-nowrap ${actual === p.clave ? 'bg-teal text-inkOnAccent' : 'text-muted hover:text-ink'}`}>
+              {p.nombre}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {actual === 'resumen' && (
+        <>
+          <EtapasProyecto proyecto={proyecto} onCambio={(etapa: Etapa) => setDatos({ ...datos, proyecto: { ...proyecto, etapa } })} />
+          <ResumenContenido contenido={contenido} sistemas={proyecto.sistemas} onIr={elegir} />
+          <PagosProyecto proyecto={proyecto} />
+          <button type="button" onClick={async () => {
+            if (!(await confirmar(`¿Eliminar el proyecto «${proyecto.nombre}»?`, { tono: 'peligro', detalle: 'Se borran sus documentos, pagos, recibos y trámite. Las cotizaciones, servicios, planos y diagramas NO se borran: quedan en el cliente sin proyecto.', textoAceptar: 'Eliminar' }))) return;
+            try {
+              await eliminarProyecto(proyecto.id);
+              showToast('Proyecto eliminado', 'success');
+              router.push(`/dashboard/proyectos/${clienteId}`);
+            } catch (e: any) {
+              showToast(e?.message || 'No se pudo eliminar.', 'error');
+            }
+          }} className="text-red text-[13.5px] font-medium mb-8 min-h-[44px] flex items-center gap-1.5">
+            <Trash2 size={15} /> Eliminar este proyecto
+          </button>
+        </>
+      )}
+
+      {proyecto.sistemas.includes(actual as SistemaClave) && (
+        <PestanaSistema sistema={actual as SistemaClave} proyecto={proyecto} clienteNombre={cliente.nombre} contenido={contenido}
+          usuarioNombre={userName || 'Supervisión'} onNuevoPlano={() => setNuevoPlano(actual as SistemaClave)} onCambio={cargar}
+          onInterconectado={() => setDatos({ ...datos, proyecto: { ...proyecto, etapa: 'terminado' } })} />
+      )}
+
+      {actual === 'cotizaciones' && (
+        <section className="glass rounded-2xl p-4 mb-4">
+          <TituloSeccion titulo="Cotizaciones" accion={
+            <Link href={`/dashboard/cotizaciones?proyecto=${proyecto.id}`} className="min-h-[36px] px-3 rounded-xl bg-teal text-inkOnAccent text-[13px] font-semibold flex items-center gap-1"><Plus size={14} /> Nueva</Link>
+          } />
+          <ContenidoLista elementos={[...contenido.cotizacion, ...vinculadasViejas(datos, contenido)]} vacio="Sin cotizaciones en este proyecto."
+            proyectoId={proyecto.id} clienteId={clienteId} tipos={['cotizacion']} onCambio={cargar} />
+        </section>
+      )}
+
+      {actual === 'servicios' && (
+        <>
+          <section className="glass rounded-2xl p-4 mb-4">
+            <TituloSeccion titulo="Servicios" accion={
+              <Link href={`/dashboard/servicios?agendar=1&cliente=${clienteId}&obra=${proyecto.id}&proyecto=${encodeURIComponent(`${cliente.nombre} · ${proyecto.nombre}`)}`} className="min-h-[36px] px-3 rounded-xl bg-teal text-inkOnAccent text-[13px] font-semibold flex items-center gap-1"><CalendarDays size={14} /> Agendar</Link>
+            } />
+            <ContenidoLista elementos={contenido.servicio} vacio="Sin servicios en este proyecto. Agenda uno o trae los que ya tiene el cliente."
+              proyectoId={proyecto.id} clienteId={clienteId} tipos={['servicio']} onCambio={cargar} />
+          </section>
+          <section className="glass rounded-2xl p-4 mb-4">
+            <TituloSeccion titulo="Levantamientos" />
+            <ContenidoLista elementos={contenido.levantamiento} vacio="Sin levantamientos en este proyecto."
+              proyectoId={proyecto.id} clienteId={clienteId} tipos={['levantamiento']} onCambio={cargar} abrirEnNueva />
+          </section>
+        </>
+      )}
+
+      {actual === 'documentos' && <Documentos proyectoId={proyecto.id} documentos={datos.documentos} onCambio={cargar} />}
+
+      {editando && (
+        <FormProyecto clienteId={clienteId} clienteNombre={cliente.nombre} proyecto={proyecto} onCerrar={() => setEditando(false)}
+          onGuardado={() => { setEditando(false); cargar(); }} />
+      )}
+      {nuevoPlano && (
+        <NuevoPlano clienteInicial={{ id: clienteId, nombre: cliente.nombre }} sistemaInicial={nuevoPlano} proyectoId={proyecto.id}
+          onCerrar={() => setNuevoPlano(null)} onCreado={(id) => { window.location.href = `/lazos/plano/${id}`; }} />
       )}
     </SupervisorShell>
   );
 }
+
+// Cotizaciones ligadas con el vínculo de antes (proyecto_cotizaciones) que
+// todavía no tienen proyecto_id.
+function vinculadasViejas(datos: Awaited<ReturnType<typeof obtenerProyecto>>, contenido: Contenido): ElementoContenido[] {
+  return datos.cotizaciones
+    .filter((c) => !contenido.cotizacion.some((x) => x.id === c.cotizacion_id))
+    .map((c) => ({
+      tipo: 'cotizacion' as const, id: c.cotizacion_id, titulo: `${c.folio || 'Borrador'} · ${c.empresa}`,
+      detalle: `${dinero(c.total, c.moneda)} · ${c.estado}`, fecha: '', sistema: null, enlace: `/dashboard/cotizaciones/${c.cotizacion_id}`,
+    }));
+}
+
+function ResumenContenido({ contenido, sistemas, onIr }: { contenido: Contenido; sistemas: SistemaClave[]; onIr: (p: Pestana) => void }) {
+  const planos = contenido.plano.length;
+  const tecnicos = contenido.panel.length + contenido.lazo.length + contenido.guia.length + contenido.unifilar.length;
+  const tarjetas: { titulo: string; valor: number; pestana: Pestana; icono: React.ReactNode }[] = [
+    { titulo: 'Cotizaciones', valor: contenido.cotizacion.length, pestana: 'cotizaciones', icono: <Receipt size={18} /> },
+    { titulo: 'Servicios', valor: contenido.servicio.length, pestana: 'servicios', icono: <CalendarDays size={18} /> },
+    { titulo: 'Planos', valor: planos, pestana: sistemas[0], icono: <IconoPlano size={18} /> },
+    { titulo: 'Diagramas y guías', valor: tecnicos, pestana: sistemas[0], icono: <Network size={18} /> },
+  ];
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
+      {tarjetas.map((t) => (
+        <button key={t.titulo} type="button" onClick={() => onIr(t.pestana)} className="glass rounded-2xl p-3.5 text-left hover:border-teal/60">
+          <span className="text-teal">{t.icono}</span>
+          <span className="block font-mono text-[22px] font-bold mt-1">{t.valor}</span>
+          <span className="block text-[12.5px] text-muted">{t.titulo}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function PestanaSistema({ sistema, proyecto, clienteNombre, contenido, usuarioNombre, onNuevoPlano, onCambio, onInterconectado }: {
+  sistema: SistemaClave;
+  proyecto: Awaited<ReturnType<typeof obtenerProyecto>>['proyecto'];
+  clienteNombre: string;
+  contenido: Contenido;
+  usuarioNombre: string;
+  onNuevoPlano: () => void;
+  onCambio: () => void;
+  onInterconectado: () => void;
+}) {
+  const info = SISTEMAS.find((s) => s.clave === sistema)!;
+  const planos = contenido.plano.filter((p) => (p.sistema || 'deteccion') === sistema);
+  const guias = contenido.guia.filter((g) => g.sistema === sistema);
+  const diagramas = `/dashboard/diagramas?cliente=${proyecto.cliente_id}&proyecto=${proyecto.id}`;
+  const ir = useRef(onInterconectado);
+  ir.current = onInterconectado;
+
+  return (
+    <div data-tour="sistema-proyecto">
+      <p className="text-[13.5px] text-muted mb-3">{info.descripcion}.</p>
+
+      {sistema === 'solar' && (
+        <SolarProyecto proyecto={proyecto} clienteNombre={clienteNombre} unifilares={contenido.unifilar} usuarioNombre={usuarioNombre}
+          onCambio={onCambio}
+          onEtapa={async () => {
+            const { cambiarEtapaProyecto } = await import('@/lib/proyectos');
+            try {
+              await cambiarEtapaProyecto(proyecto, 'terminado');
+              ir.current();
+              showToast('Proyecto interconectado', 'success');
+            } catch (e: any) {
+              showToast(e?.message || 'No se pudo cambiar la etapa.', 'error');
+            }
+          }} />
+      )}
+
+      {sistema === 'deteccion' && (
+        <section className="glass rounded-2xl p-4 mb-4">
+          <TituloSeccion titulo="Paneles y circuitos" accion={<Link href={diagramas} className={BOTON_CHICO}><Network size={14} /> Abrir diagramas</Link>} />
+          <ContenidoLista elementos={[...contenido.panel, ...contenido.lazo]} vacio="Sin paneles ni circuitos en este proyecto. Ábrelos en «Abrir diagramas»: lo que crees ahí queda en el proyecto."
+            proyectoId={proyecto.id} clienteId={proyecto.cliente_id} tipos={['panel', 'lazo']} onCambio={onCambio} />
+        </section>
+      )}
+
+      <section className="glass rounded-2xl p-4 mb-4">
+        <TituloSeccion titulo="Planos" cuenta={planos.length}
+          accion={<button type="button" onClick={onNuevoPlano} className="min-h-[36px] px-3 rounded-xl bg-teal text-inkOnAccent text-[13px] font-semibold flex items-center gap-1"><Plus size={14} /> Plano</button>} />
+        <ContenidoLista elementos={planos}
+          vacio={sistema === 'cctv' ? 'Sube el plano y siembra las cámaras: cada una con su campo de visión, red, disco duro y lista de materiales para cotizar.' : sistema === 'solar' ? 'Sube el plano del techo y acomoda los módulos, el inversor y los tableros.' : 'Sube el plano (DXF o PDF) y siembra los equipos.'}
+          proyectoId={proyecto.id} clienteId={proyecto.cliente_id} tipos={['plano']} onCambio={onCambio} />
+      </section>
+
+      <section className="glass rounded-2xl p-4 mb-4">
+        <TituloSeccion titulo="Guías de conexión" cuenta={guias.length}
+          accion={<Link href={`${diagramas}&ver=guias`} className={BOTON_CHICO}><Plus size={14} /> Guía</Link>} />
+        <ContenidoLista elementos={guias} vacio="Las guías explican al técnico cómo se conecta cada equipo, borne por borne."
+          proyectoId={proyecto.id} clienteId={proyecto.cliente_id} tipos={['guia']} onCambio={onCambio} />
+      </section>
+    </div>
+  );
+}
+
+const TIPOS_DOCUMENTO = ['Planos', 'Memoria técnica', 'Formato de mantenimiento', 'Manual', 'Garantía', 'Fotografías', 'Otro'];
+
+function Documentos({ proyectoId, documentos, onCambio }: { proyectoId: string; documentos: DocumentoProyecto[]; onCambio: () => void }) {
+  const [abierto, setAbierto] = useState(false);
+  const [nombre, setNombre] = useState('');
+  const [descripcion, setDescripcion] = useState('');
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [errores, setErrores] = useState<{ nombre?: string; archivo?: string }>({});
+  const [subiendo, setSubiendo] = useState(false);
+  const entrada = useRef<HTMLInputElement>(null);
+  const ordenados = useMemo(() => [...documentos], [documentos]);
+
+  async function subir() {
+    const faltas: { nombre?: string; archivo?: string } = {};
+    if (!nombre.trim()) faltas.nombre = 'Escribe de qué es el documento.';
+    if (!archivo) faltas.archivo = 'Elige el archivo.';
+    else if (archivo.size > 25 * 1024 * 1024) faltas.archivo = 'El archivo pesa más de 25 MB.';
+    setErrores(faltas);
+    if (Object.keys(faltas).length > 0 || !archivo) return;
+    setSubiendo(true);
+    try {
+      await agregarDocumento(proyectoId, { nombre, descripcion, archivo });
+      setAbierto(false);
+      setNombre('');
+      setDescripcion('');
+      setArchivo(null);
+      showToast('Documento agregado', 'success');
+      onCambio();
+    } catch (e: any) {
+      showToast(e?.message || 'No se pudo subir el documento.', 'error');
+    } finally {
+      setSubiendo(false);
+    }
+  }
+
+  async function abrir(d: DocumentoProyecto) {
+    const url = await obtenerUrlDocumento(d.archivo_path);
+    if (url) window.open(url, '_blank', 'noopener');
+    else showToast('No se pudo abrir el documento. Intenta de nuevo.', 'error');
+  }
+
+  async function quitar(d: DocumentoProyecto) {
+    if (!(await confirmar(`¿Eliminar «${d.nombre}»?`, { tono: 'peligro', textoAceptar: 'Eliminar' }))) return;
+    try {
+      await eliminarDocumento(d.id, d.archivo_path);
+      onCambio();
+    } catch (e: any) {
+      showToast(e?.message || 'No se pudo eliminar.', 'error');
+    }
+  }
+
+  return (
+    <section className="glass rounded-2xl p-4 mb-4">
+      <TituloSeccion titulo="Documentos" accion={<button type="button" onClick={() => setAbierto(true)} className="min-h-[36px] px-3 rounded-xl bg-teal text-inkOnAccent text-[13px] font-semibold flex items-center gap-1"><Plus size={14} /> Documento</button>} />
+      {ordenados.length === 0 && <p className="text-[13.5px] text-muted">Planos firmados, memorias, garantías, manuales…</p>}
+      <div className="grid gap-1.5 lg:grid-cols-2">
+        {ordenados.map((d) => (
+          <div key={d.id} className="rounded-xl bg-surface-2 border border-line p-2.5 flex items-center gap-2">
+            <FileText size={16} className="text-teal shrink-0" />
+            <button type="button" onClick={() => abrir(d)} className="flex-1 min-w-0 text-left">
+              <span className="block text-[14px] font-semibold truncate">{d.nombre}</span>
+              <span className="block text-[12px] text-muted truncate">{d.descripcion || d.archivo_nombre_original || ''} · {fechaCorta(d.created_at)}</span>
+            </button>
+            <button type="button" onClick={() => abrir(d)} aria-label="Abrir" className="w-9 h-9 flex items-center justify-center text-teal"><Download size={15} /></button>
+            <button type="button" onClick={() => quitar(d)} aria-label="Eliminar" className="w-9 h-9 flex items-center justify-center text-faint hover:text-red"><Trash2 size={15} /></button>
+          </div>
+        ))}
+      </div>
+      {abierto && (
+        <ModalOverlay onClose={() => !subiendo && setAbierto(false)}>
+          <div className="glass-strong rounded-3xl max-w-md w-full p-5">
+            <p className="font-display font-bold text-[19px] mb-3">Agregar documento</p>
+            <label className="block mb-3"><span className="block text-[12.5px] text-muted mb-1">De qué es</span>
+              <input list="tipos-documento" className="w-full px-3.5 min-h-[46px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]" value={nombre} maxLength={120} onChange={(e) => setNombre(e.target.value)} />
+              <datalist id="tipos-documento">{TIPOS_DOCUMENTO.map((t) => <option key={t} value={t} />)}</datalist>
+              {errores.nombre && <span className="block text-red font-semibold text-[13px] mt-1">{errores.nombre}</span>}</label>
+            <label className="block mb-3"><span className="block text-[12.5px] text-muted mb-1">Descripción (opcional)</span>
+              <input className="w-full px-3.5 min-h-[46px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]" value={descripcion} maxLength={300} onChange={(e) => setDescripcion(e.target.value)} /></label>
+            <input ref={entrada} type="file" className="hidden" onChange={(e) => setArchivo(e.target.files?.[0] || null)} />
+            <button type="button" onClick={() => entrada.current?.click()} className="w-full min-h-[52px] rounded-xl border-2 border-dashed border-line text-[14px] font-semibold">{archivo ? archivo.name : 'Elegir archivo'}</button>
+            {errores.archivo && <span className="block text-red font-semibold text-[13px] mt-1">{errores.archivo}</span>}
+            <div className="flex gap-2 mt-4">
+              <button type="button" onClick={() => setAbierto(false)} disabled={subiendo} className="flex-1 min-h-[48px] rounded-2xl border border-line-strong font-semibold text-[14.5px]">Cancelar</button>
+              <button type="button" onClick={subir} disabled={subiendo} className="flex-1 min-h-[48px] rounded-2xl bg-teal text-inkOnAccent font-semibold text-[14.5px] disabled:opacity-60">{subiendo ? 'Subiendo…' : 'Agregar'}</button>
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
+    </section>
+  );
+}
+
+

@@ -5,6 +5,7 @@ import Logo from './Logo';
 import MenuCuenta from './MenuCuenta';
 import CommandPalette from './CommandPalette';
 import { DashboardTabKey, seccionesVisibles } from './DashboardTabs';
+import TourGuiado from './TourGuiado';
 import NavPestanas from './NavPestanas';
 import { usePuedeAlmacen } from '@/lib/usePuedeAlmacen';
 import { usePuedeFacturar } from '@/lib/usePuedeFacturar';
@@ -91,6 +92,8 @@ export default function SupervisorShell({
         </div>
         {children}
       </div>
+      {/* Recorrido del nuevo diseño: sale una vez y se repite con «¿Qué cambió?». */}
+      <TourGuiado />
     </div>
   );
 }

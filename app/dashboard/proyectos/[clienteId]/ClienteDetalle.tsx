@@ -1,7 +1,6 @@
 'use client';
 
 import { avisar, confirmar } from '@/lib/dialogos';
-import TableroKanban, { ColumnaKanban, InterruptorTablero, useVistaTablero } from '@/components/TableroKanban';
 import ReportesDelCliente from '@/components/ReportesDelCliente';
 import UbicacionCliente from '@/components/clientes/UbicacionCliente';
 import FacturasDelCliente from '@/components/FacturasDelCliente';
@@ -16,7 +15,7 @@ import {
   ClienteContacto, obtenerClienteCompleto, actualizarPerfilCliente, subirLogoCliente, subirFotoPortadaCliente,
   eliminarFotoPortadaCliente, agregarContacto, eliminarContacto, eliminarCliente, marcarClienteRevisado,
 } from '@/lib/clientes';
-import { EstadoProyecto, SISTEMAS_SUGERIDOS, crearProyectoParaCliente, actualizarEstadoProyecto } from '@/lib/proyectos';
+import ProyectosDelCliente from '@/components/proyectos/ProyectosDelCliente';
 import { DatosCliente, datosClienteVacios, datosDesdeCliente } from '@/lib/clienteDatos';
 import CamposCliente from '@/components/CamposCliente';
 import ClienteAvatar, { fondoAvatar } from '@/components/ClienteAvatar';
@@ -24,21 +23,6 @@ import {
   ChevronLeft, Camera, MapPin, Phone, Mail, User, Plus, X, Trash2,
   Pencil, Check, FileText, Receipt, ChevronRight, FolderOpen, ImagePlus, Cable,
 } from 'lucide-react';
-
-const ESTADO_CLS: Record<EstadoProyecto, string> = {
-  propuesta: 'bg-amber/15 text-amber border-amber/30',
-  en_curso: 'bg-teal/15 text-teal border-teal/30',
-  concluido: 'bg-surface-2 text-muted border-line',
-};
-const COLUMNAS_PROYECTO: ColumnaKanban<EstadoProyecto>[] = [
-  { clave: 'propuesta', titulo: 'Propuesta', punto: 'bg-amber', vacio: 'Lo que está cotizándose' },
-  { clave: 'en_curso', titulo: 'En curso', punto: 'bg-teal', vacio: 'Arrastra aquí lo que ya arrancó' },
-  { clave: 'concluido', titulo: 'Concluido', punto: 'bg-teal-dark', vacio: 'Lo terminado' },
-];
-
-const ESTADO_LABEL: Record<EstadoProyecto, string> = {
-  propuesta: 'Propuesta', en_curso: 'En curso', concluido: 'Concluido',
-};
 
 const cardCls = 'glass rounded-2xl p-4';
 const labelCls = 'block text-[11px] font-semibold uppercase tracking-wider text-muted mb-1.5';
@@ -53,7 +37,6 @@ function formatFecha(iso: string): string {
 export default function ClienteDetalle({ clienteId, userName }: { clienteId: string; userName?: string }) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [vistaTablero, setVistaTablero] = useVistaTablero('proyectos');
   const [error, setError] = useState<string | null>(null);
   const [datos, setDatos] = useState<Awaited<ReturnType<typeof obtenerClienteCompleto>> | null>(null);
   const fotoInputRef = useRef<HTMLInputElement>(null);
@@ -72,12 +55,6 @@ export default function ClienteDetalle({ clienteId, userName }: { clienteId: str
   const [contactoCorreo, setContactoCorreo] = useState('');
   const [guardandoContacto, setGuardandoContacto] = useState(false);
 
-  const [showProyecto, setShowProyecto] = useState(false);
-  const [sistemaNuevo, setSistemaNuevo] = useState('');
-  const [nombreProyectoNuevo, setNombreProyectoNuevo] = useState('');
-  const [descripcionProyectoNuevo, setDescripcionProyectoNuevo] = useState('');
-  const [creandoProyecto, setCreandoProyecto] = useState(false);
-  const [msgProyecto, setMsgProyecto] = useState<string | null>(null);
 
   const [eliminandoCliente, setEliminandoCliente] = useState(false);
 
@@ -95,22 +72,6 @@ export default function ClienteDetalle({ clienteId, userName }: { clienteId: str
   }
 
   useEffect(() => { cargar(); }, []);
-
-  const sistemasSugeridosCliente = useMemo(() => {
-    if (!datos) return SISTEMAS_SUGERIDOS;
-    const propios = Array.from(new Set(datos.proyectos.map((p) => p.sistema)));
-    return Array.from(new Set([...propios, ...SISTEMAS_SUGERIDOS]));
-  }, [datos]);
-
-  const grupos = useMemo(() => {
-    if (!datos) return [];
-    const mapa = new Map<string, typeof datos.proyectos>();
-    datos.proyectos.forEach((p) => {
-      if (!mapa.has(p.sistema)) mapa.set(p.sistema, []);
-      mapa.get(p.sistema)!.push(p);
-    });
-    return Array.from(mapa.entries()).map(([sistema, proyectos]) => ({ sistema, proyectos }));
-  }, [datos]);
 
   async function handleSubirFoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -198,24 +159,6 @@ export default function ClienteDetalle({ clienteId, userName }: { clienteId: str
       await cargar();
     } catch (e: any) {
       avisar(e?.message || 'No se pudo eliminar');
-    }
-  }
-
-  async function handleCrearProyecto() {
-    if (!sistemaNuevo.trim() || !nombreProyectoNuevo.trim()) {
-      setMsgProyecto('Falta el sistema o el nombre del proyecto.');
-      return;
-    }
-    setCreandoProyecto(true);
-    setMsgProyecto(null);
-    try {
-      const id = await crearProyectoParaCliente({
-        clienteId, sistema: sistemaNuevo, nombre: nombreProyectoNuevo, descripcion: descripcionProyectoNuevo,
-      });
-      router.push(`/dashboard/proyectos/${clienteId}/${id}`);
-    } catch (e: any) {
-      setMsgProyecto(e?.message || 'No se pudo crear');
-      setCreandoProyecto(false);
     }
   }
 
@@ -394,120 +337,14 @@ export default function ClienteDetalle({ clienteId, userName }: { clienteId: str
         </div>
       </div>
 
+      {/* Las obras del cliente y lo suyo que todavía no está en ninguna. */}
+      <ProyectosDelCliente clienteId={cliente.id} clienteNombre={cliente.nombre} proyectos={datos.proyectos} onCambio={cargar} />
+
       {/* Reportes de servicio del cliente */}
       <UbicacionCliente clienteId={cliente.id} />
       <ReportesDelCliente clienteId={cliente.id} clienteNombre={cliente.nombre} />
       <CotizacionesDelCliente clienteId={cliente.id} clienteNombre={cliente.nombre} />
       <FacturasDelCliente clienteId={cliente.id} />
-
-      {/* Lazos y circuitos de detección, voceo y estrobos (app/lazos) */}
-      <Link href={`/dashboard/diagramas?cliente=${cliente.id}`} className={`${cardCls} flex items-center gap-3 mb-6 hover:border-teal/60 transition-colors`}>
-        <Cable size={22} strokeWidth={2.1} className="text-teal shrink-0" />
-        <span className="flex-1 min-w-0">
-          <span className="block font-display font-semibold text-[15px]">Diagramas y planos</span>
-          <span className="block text-[12.5px] text-muted">Diagramas unifilares, planos con equipos y búsqueda de fallas a tierra</span>
-        </span>
-        <ChevronRight size={18} className="text-muted shrink-0" />
-      </Link>
-
-      {/* Sistemas y proyectos */}
-      <div className="flex items-center justify-between mb-3">
-        <p className="font-display font-semibold text-[15px]">Sistemas y proyectos</p>
-        <button
-          onClick={() => { setShowProyecto(true); setSistemaNuevo(''); setNombreProyectoNuevo(''); setDescripcionProyectoNuevo(''); setMsgProyecto(null); }}
-          className="min-h-[42px] px-4 rounded-xl bg-teal text-inkOnAccent text-[13px] font-display font-semibold flex items-center gap-1.5 active:scale-95 transition-transform shadow-glow-teal"
-        >
-          <Plus size={16} strokeWidth={2.6} /> Nuevo proyecto
-        </button>
-      </div>
-
-      {grupos.length === 0 && (
-        <div className={`${cardCls} text-center py-10 mb-4`}>
-          <FolderOpen size={28} strokeWidth={1.6} className="text-faint mx-auto mb-2.5" />
-          <p className="text-[13.5px] text-muted">Sin sistemas todavía. Agrega el primer proyecto para empezar.</p>
-        </div>
-      )}
-
-      {datos && datos.proyectos.length > 0 && (
-        <div className="flex items-center justify-between gap-3 mb-3">
-          <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-muted">Proyectos · {datos.proyectos.length}</p>
-          <InterruptorTablero vista={vistaTablero} onCambiar={setVistaTablero} />
-        </div>
-      )}
-
-      {datos && vistaTablero === 'tablero' && datos.proyectos.length > 0 && (
-        <div className="mb-6">
-          <TableroKanban<(typeof datos.proyectos)[number], EstadoProyecto>
-            columnas={COLUMNAS_PROYECTO}
-            items={datos.proyectos}
-            columnaDe={(p) => p.estado}
-            keyFn={(p) => p.id}
-            onMover={async (p, destino) => {
-              await actualizarEstadoProyecto(p.id, destino);
-              // Se refleja aquí mismo: recargar todo borraría el tablero un instante.
-              setDatos((d) => (d ? { ...d, proyectos: d.proyectos.map((x) => (x.id === p.id ? { ...x, estado: destino, concluido_en: destino === 'concluido' ? x.concluido_en || new Date().toISOString() : null } : x)) } : d));
-              showToast(`${p.nombre}: ${ESTADO_LABEL[destino].toLowerCase()}`, 'success');
-            }}
-            onAviso={(t, tipo) => showToast(t, tipo)}
-            tarjeta={(p) => (
-              <Link href={`/dashboard/proyectos/${clienteId}/${p.id}`} draggable={false} className="group block px-3 pt-3 pb-1.5">
-                <strong className="block text-[14px] font-semibold leading-snug transition-colors group-hover:text-teal">{p.nombre}</strong>
-                <span className="block text-[12px] text-teal font-medium truncate mt-0.5">{p.sistema}</span>
-                <span className="flex flex-wrap items-center gap-1.5 mt-1.5 text-[11px] text-muted">
-                  {p.estado === 'concluido' && p.concluido_en && <span>{formatFecha(p.concluido_en)}</span>}
-                  {p.documentos_nombres.length > 0 && <span className="flex items-center gap-1"><FileText size={10} strokeWidth={2.4} /> {p.documentos_nombres.length}</span>}
-                  {p.cotizaciones_count > 0 && <span className="flex items-center gap-1"><Receipt size={10} strokeWidth={2.4} /> {p.cotizaciones_count}</span>}
-                </span>
-              </Link>
-            )}
-          />
-        </div>
-      )}
-
-      {vistaTablero === 'lista' && (
-      <div className="flex flex-col gap-4 mb-6">
-        {grupos.map(({ sistema, proyectos }) => (
-          <div key={sistema} className={cardCls}>
-            <p className="font-display font-semibold text-[13px] uppercase tracking-wider text-teal mb-3 flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-teal inline-block" /> {sistema}
-              <span className="text-faint font-normal normal-case tracking-normal">· {proyectos.length}</span>
-            </p>
-            <div className="flex flex-col gap-2">
-              {proyectos.map((p) => (
-                <Link
-                  key={p.id}
-                  href={`/dashboard/proyectos/${clienteId}/${p.id}`}
-                  className="flex items-center gap-3 p-3 rounded-xl bg-surface-2 border border-line active:scale-[0.99] transition-transform"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[14px] font-semibold truncate mb-1">{p.nombre}</p>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-[10.5px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap ${ESTADO_CLS[p.estado]}`}>
-                        {ESTADO_LABEL[p.estado]}
-                      </span>
-                      {p.estado === 'concluido' && p.concluido_en && (
-                        <span className="text-[11px] text-faint whitespace-nowrap">{formatFecha(p.concluido_en)}</span>
-                      )}
-                      {p.documentos_nombres.slice(0, 3).map((n) => (
-                        <span key={n} className="text-[10.5px] text-muted bg-surface px-2 py-0.5 rounded-full border border-line flex items-center gap-1 whitespace-nowrap">
-                          <FileText size={9} strokeWidth={2.4} /> {n}
-                        </span>
-                      ))}
-                      {p.cotizaciones_count > 0 && (
-                        <span className="text-[10.5px] text-muted bg-surface px-2 py-0.5 rounded-full border border-line flex items-center gap-1 whitespace-nowrap">
-                          <Receipt size={9} strokeWidth={2.4} /> {p.cotizaciones_count}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <ChevronRight size={17} strokeWidth={2.4} className="text-faint shrink-0" />
-                </Link>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-      )}
 
       <button
         onClick={handleEliminarCliente}
@@ -547,51 +384,6 @@ export default function ClienteDetalle({ clienteId, userName }: { clienteId: str
         </ModalOverlay>
       )}
 
-      {/* Modal: nuevo proyecto */}
-      {showProyecto && (
-        <ModalOverlay onClose={() => setShowProyecto(false)}>
-          <div className="glass-strong rounded-3xl max-w-md w-full p-5 max-h-[92vh] overflow-y-auto">
-            <p className="font-display font-semibold text-[16px] mb-3.5">Nuevo proyecto</p>
-
-            <label className={labelCls}>Sistema *</label>
-            <input
-              list="sistemas-cliente"
-              value={sistemaNuevo}
-              onChange={(e) => setSistemaNuevo(e.target.value)}
-              placeholder="Ej. CCTV"
-              className={`${inputCls} mb-3`}
-            />
-            <datalist id="sistemas-cliente">
-              {sistemasSugeridosCliente.map((s) => <option key={s} value={s} />)}
-            </datalist>
-
-            <label className={labelCls}>Nombre del proyecto *</label>
-            <input
-              value={nombreProyectoNuevo}
-              onChange={(e) => setNombreProyectoNuevo(e.target.value)}
-              placeholder="Ej. Cambio de NVR"
-              className={`${inputCls} mb-3`}
-            />
-
-            <label className={labelCls}>Descripción (opcional)</label>
-            <textarea
-              value={descripcionProyectoNuevo}
-              onChange={(e) => setDescripcionProyectoNuevo(e.target.value)}
-              placeholder="Alcance, notas del sitio..."
-              className={`${inputCls} min-h-[70px] mb-4`}
-            />
-
-            {msgProyecto && <div className="text-sm px-4 py-3 mb-3.5 rounded-xl bg-red/10 text-red border border-red/30">{msgProyecto}</div>}
-
-            <div className="flex gap-2">
-              <button onClick={() => setShowProyecto(false)} className="flex-1 min-h-[48px] rounded-xl border border-line-strong text-ink/80 text-[14.5px] font-medium">Cancelar</button>
-              <button onClick={handleCrearProyecto} disabled={creandoProyecto} className="flex-1 min-h-[48px] rounded-xl bg-teal text-inkOnAccent text-[14.5px] font-semibold disabled:opacity-50">
-                {creandoProyecto ? 'Creando...' : 'Crear proyecto'}
-              </button>
-            </div>
-          </div>
-        </ModalOverlay>
-      )}
     </SupervisorShell>
   );
 }

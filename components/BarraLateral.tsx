@@ -216,6 +216,7 @@ function ElementoSeccion({
       <div className="relative flex items-center">
         <Link
           href={seccion.href}
+          data-tour={`menu-${seccion.key}`}
           aria-current={activa ? 'page' : undefined}
           aria-label={cerrada ? seccion.label : undefined}
           className={`relative flex-1 min-w-0 flex items-center gap-3 h-11 rounded-xl transition-colors duration-200 ${colores} ${

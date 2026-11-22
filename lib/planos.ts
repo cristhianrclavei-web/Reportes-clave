@@ -8,6 +8,7 @@
 
 import { z } from 'zod';
 import { TIPOS_POR_CIRCUITO, tipoDispositivo } from './lazos';
+import { COLOR_SISTEMA, equipoCatalogo, equiposDeSistema } from './equiposSistemas';
 
 export type Punto = [number, number];
 
@@ -29,6 +30,15 @@ export type EquipoPlano = {
   panelId?: string | null;
   // Etapa de la obra a la que pertenece (1, 2, 3…), para el reporte de avance.
   etapa?: number | null;
+  // Planos de otros sistemas (patch_proyectos_centro.sql): marca y modelo,
+  // IP, altura de instalación y, en cámaras, campo de visión en grados y
+  // alcance en metros. `conectadoA` = el NVR o switch al que llega.
+  modelo?: string | null;
+  ip?: string | null;
+  altura?: number | null;
+  angulo?: number | null;
+  alcance?: number | null;
+  conectadoA?: string | null;
 };
 
 export type TuberiaPlano = {
@@ -57,6 +67,9 @@ export type Plano = {
   sembrado: Sembrado;
   // Avance de obra por equipo (patch_lazos_avance.sql). Sin el patch no viene.
   avance?: unknown;
+  // De qué sistema es el plano (detección si falta el patch) y de qué obra.
+  sistema?: string;
+  proyecto_id?: string | null;
   creado_en: string;
   actualizado_en: string;
 };
@@ -82,8 +95,10 @@ export function colorTuberia(diametro: string): string {
   return COLOR_DIAMETRO[diametro] || '#475569';
 }
 
-// Equipos que se pueden sembrar: los mismos códigos de los lazos, sin repetir.
-export function tiposSembrables(): { codigo: string; nombre: string; extra?: true }[] {
+// Equipos que se pueden sembrar: en detección, los mismos códigos de los
+// lazos sin repetir; en los demás sistemas, su catálogo (lib/equiposSistemas).
+export function tiposSembrables(sistema = 'deteccion'): { codigo: string; nombre: string; extra?: true }[] {
+  if (sistema !== 'deteccion') return equiposDeSistema(sistema).map((e) => ({ codigo: e.codigo, nombre: e.nombre }));
   const vistos = new Set<string>();
   const lista: { codigo: string; nombre: string; extra?: true }[] = [];
   for (const tipos of Object.values(TIPOS_POR_CIRCUITO)) {
@@ -99,6 +114,8 @@ export function tiposSembrables(): { codigo: string; nombre: string; extra?: tru
 // Color del símbolo según el sistema: detección rojo, notificación naranja,
 // voceo azul, cajas gris.
 export function colorEquipo(tipo: string): string {
+  const deOtroSistema = equipoCatalogo(tipo);
+  if (deOtroSistema) return COLOR_SISTEMA[deOtroSistema.sistema];
   const forma = tipoDispositivo(tipo).forma;
   if (forma === 'caja' || forma === 'fin') return '#64748b';
   if (TIPOS_POR_CIRCUITO.voceo.some((t) => t.codigo === tipo)) return '#2563eb';
@@ -213,6 +230,12 @@ export const sembradoSchema = z.object({
     rotacion: z.number().min(0).max(360).nullish(),
     panelId: z.string().uuid().nullish(),
     etapa: z.number().int().min(1).max(20).nullish(),
+    modelo: z.string().max(60).nullish(),
+    ip: z.string().max(40).nullish(),
+    altura: z.number().min(0).max(100).nullish(),
+    angulo: z.number().min(1).max(360).nullish(),
+    alcance: z.number().min(0.5).max(500).nullish(),
+    conectadoA: z.string().min(1).max(40).nullish(),
   })).max(3000),
   tuberias: z.array(z.object({
     id: z.string().min(1).max(40),
@@ -304,4 +327,30 @@ export function ordenarPorNivel<T extends { nombre: string }>(planos: T[]): T[] 
     if (na === null && nb !== null) return 1;
     return a.nombre.localeCompare(b.nombre, 'es', { numeric: true });
   });
+}
+
+// ---------- Cámaras (planos de CCTV) ----------
+
+// Alcance del campo de visión en unidades de la hoja: con escala, los metros
+// reales; sin escala, 8 veces el símbolo para que se vea hacia dónde mira.
+export function alcanceEnHoja(equipo: EquipoPlano, alcanceMetros: number, metrosPorUnidad: number | null, radioSimbolo: number): number {
+  if (metrosPorUnidad && metrosPorUnidad > 0) return alcanceMetros / metrosPorUnidad;
+  return radioSimbolo * tamanoDe(equipo) * 8;
+}
+
+// Trazo SVG del campo de visión: un sector con vértice en la cámara, abierto
+// `angulo` grados alrededor de su giro (0° = derecha, en el sentido de las
+// manecillas). Con 360° es un círculo.
+export function trazoCampoVision(cx: number, cy: number, radio: number, giro: number, angulo: number): string {
+  if (angulo >= 359.5) {
+    return `M ${cx - radio} ${cy} A ${radio} ${radio} 0 1 0 ${cx + radio} ${cy} A ${radio} ${radio} 0 1 0 ${cx - radio} ${cy} Z`;
+  }
+  const a1 = ((giro - angulo / 2) * Math.PI) / 180;
+  const a2 = ((giro + angulo / 2) * Math.PI) / 180;
+  const x1 = cx + radio * Math.cos(a1);
+  const y1 = cy + radio * Math.sin(a1);
+  const x2 = cx + radio * Math.cos(a2);
+  const y2 = cy + radio * Math.sin(a2);
+  const grande = angulo > 180 ? 1 : 0;
+  return `M ${cx} ${cy} L ${x1} ${y1} A ${radio} ${radio} 0 ${grande} 1 ${x2} ${y2} Z`;
 }

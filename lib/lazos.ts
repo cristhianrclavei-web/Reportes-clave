@@ -2,11 +2,15 @@
 // lib/lazos.test.ts). Los datos y la cola sin conexión están en
 // lib/lazosDatos.ts; el esquema en supabase/patch_lazos.sql.
 
+import { equipoCatalogo } from './equiposSistemas';
+
 export type TipoCircuito = 'deteccion' | 'voceo' | 'estrobos';
 
 export type Lazo = {
   id: string;
   cliente_id: string;
+  // Obra a la que pertenece (patch_proyectos_centro.sql).
+  proyecto_id?: string | null;
   tipo: TipoCircuito;
   codigo: string;
   nombre: string;
@@ -23,6 +27,7 @@ export type Lazo = {
 // usan: los circuitos se agregan uno por uno.
 export type Panel = {
   id: string;
+  proyecto_id?: string | null;
   cliente_id: string;
   nombre: string;
   modelo: string | null;
@@ -184,6 +189,9 @@ export function tipoDispositivo(codigo: string): TipoDispositivo {
   }
   // El panel no va en ningún lazo, pero se siembra en el plano.
   if (codigo === PANEL_EN_PLANO) return { codigo, nombre: 'Panel de alarma (FACP)', forma: 'cuadro', conDireccion: false };
+  // Equipos de los planos de otros sistemas (CCTV, acceso, solar…).
+  const deOtroSistema = equipoCatalogo(codigo);
+  if (deOtroSistema) return { codigo, nombre: deOtroSistema.nombre, forma: 'cuadro', conDireccion: false };
   return { codigo, nombre: codigo, forma: 'cuadro', conDireccion: false };
 }
 

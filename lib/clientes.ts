@@ -2,6 +2,7 @@ import { reducirFoto } from './reducirFoto';
 import { createClient } from './supabaseClient';
 import { registrarAccionGlobal } from './auditoriaGlobal';
 import type { EstadoProyecto } from './proyectos';
+import type { Etapa, SistemaClave } from './proyectosEtapas';
 import { DatosCliente, TipoPersona, filaClienteDesdeDatos, validarDatosCliente } from './clienteDatos';
 
 export type Cliente = {
@@ -50,6 +51,9 @@ export type ProyectoResumen = {
   updated_at: string;
   documentos_nombres: string[];
   cotizaciones_count: number;
+  etapa: Etapa;
+  sistemas: SistemaClave[];
+  fecha_entrega: string | null;
 };
 
 export type ClienteConResumen = Cliente & {
@@ -157,6 +161,10 @@ export async function obtenerClienteCompleto(id: string): Promise<{
     updated_at: p.updated_at,
     documentos_nombres: Array.from(new Set((p.proyecto_documentos || []).map((d: any) => d.nombre as string))),
     cotizaciones_count: (p.proyecto_cotizaciones || []).length,
+    // Sin patch_proyectos_centro.sql no vienen: se deducen del estado de antes.
+    etapa: p.etapa || (p.estado === 'propuesta' ? 'prospecto' : p.estado === 'en_curso' ? 'instalacion' : 'terminado'),
+    sistemas: p.sistemas || ['otro'],
+    fecha_entrega: p.fecha_entrega || null,
   }));
 
   return { cliente: cliente as Cliente, logoUrl, portadaUrl, contactos: (contactos as ClienteContacto[]) || [], proyectos: proyectosResumen };

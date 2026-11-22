@@ -12,6 +12,8 @@ import MenuCuenta from '@/components/MenuCuenta';
 import SupervisorShell from '@/components/SupervisorShell';
 import GuiasLista from '@/components/guias/GuiasLista';
 import UnifilaresLista from '@/components/unifilar/UnifilaresLista';
+import PestanasProyectos from '@/components/proyectos/PestanasProyectos';
+import { moverAProyecto } from '@/lib/proyectoContenido';
 import type { GuiaInicial } from '@/lib/guiaDesdeCotizacion';
 import TecnicoTabs from '@/components/TecnicoTabs';
 import Logo from '@/components/Logo';
@@ -117,9 +119,21 @@ export default function LazosList({ userName, esSupervisor, clienteInicial, verI
   const clientesEnLista = listaClientes.filter((c) => normalizar(c.nombre).includes(textoBuscado));
 
   // Lo del cliente abierto.
-  const panelesDelCliente = filtroCliente ? paneles.filter((p) => p.cliente_id === filtroCliente) : [];
-  const circuitosDelCliente = filtroCliente ? lazos.filter((l) => l.cliente_id === filtroCliente) : [];
-  const planosDelCliente = filtroCliente ? ordenarPorNivel(planos.filter((p) => p.cliente_id === filtroCliente)) : [];
+  // Desde un proyecto (?proyecto=<id>): solo lo de esa obra, y lo que se
+  // cree aquí queda en ella.
+  const filtroProyecto = filtroCliente ? parametros.get('proyecto') : null;
+  const delProyecto = (x: { proyecto_id?: string | null }) => !filtroProyecto || x.proyecto_id === filtroProyecto;
+  const panelesDelCliente = filtroCliente ? paneles.filter((p) => p.cliente_id === filtroCliente && delProyecto(p)) : [];
+  const circuitosDelCliente = filtroCliente ? lazos.filter((l) => l.cliente_id === filtroCliente && delProyecto(l)) : [];
+  const planosDelCliente = filtroCliente ? ordenarPorNivel(planos.filter((p) => p.cliente_id === filtroCliente && delProyecto(p))) : [];
+  async function alProyecto(tipo: 'panel' | 'lazo', id: string) {
+    if (!filtroProyecto) return;
+    try {
+      await moverAProyecto({ tipo, id }, filtroProyecto);
+    } catch (e: any) {
+      showToast(e?.message || 'Se creó, pero no quedó en el proyecto. Muévelo desde la ficha del cliente.', 'error');
+    }
+  }
   const panelesALaVista = filtroPanel ? panelesDelCliente.filter((p) => p.id === filtroPanel) : panelesDelCliente;
   // Un plano sin dispositivos ligados todavía se ve con cualquier panel.
   const planosALaVista = filtroPanel
@@ -134,7 +148,7 @@ export default function LazosList({ userName, esSupervisor, clienteInicial, verI
   // Supervisión lo ve dentro de su panel (con su barra de secciones); el
   // técnico, como una sección más con sus pestañas.
   const marco = (contenido: React.ReactNode) => (esSupervisor ? (
-    <SupervisorShell active="diagramas" title="Diagramas y planos" userName={userName} wrapperClassName="max-w-2xl lg:max-w-[1500px] mx-auto pb-16 lg:px-8 2xl:px-10">
+    <SupervisorShell active="proyectos" title="Diagramas y planos" userName={userName} wrapperClassName="max-w-2xl lg:max-w-[1500px] mx-auto pb-16 lg:px-8 2xl:px-10">
       {contenido}
     </SupervisorShell>
   ) : (
@@ -174,6 +188,7 @@ export default function LazosList({ userName, esSupervisor, clienteInicial, verI
     <>
       {/* En el panel del supervisor el margen lo da el marco. */}
       <div className={esSupervisor ? 'px-4 lg:px-0 pt-4' : 'px-5 pt-4'}>
+        {esSupervisor && <PestanasProyectos actual="diagramas" />}
         {/* Dos mitades de la sección: lo de detección de incendio y las guías de cualquier sistema. */}
         {/* Los unifilares fotovoltaicos (trámite de CFE) son solo de supervisión. */}
         <div className={`grid ${esSupervisor ? 'grid-cols-3 lg:max-w-xl' : 'grid-cols-2 lg:max-w-md'} gap-1 rounded-xl bg-surface border border-line p-1 mb-4`} role="tablist" aria-label="Qué ver">
@@ -188,11 +203,19 @@ export default function LazosList({ userName, esSupervisor, clienteInicial, verI
         {ver === 'guias' && (
           <>
             {!esSupervisor && <h1 className="font-display font-bold text-[26px] leading-tight tracking-wide mb-2">Guías de conexión</h1>}
-            <GuiasLista esSupervisor={esSupervisor} inicial={guiaInicial} />
+            <GuiasLista esSupervisor={esSupervisor} inicial={guiaInicial} proyectoId={filtroProyecto} clienteDelProyecto={filtroProyecto ? filtroCliente : null} />
           </>
         )}
 
         {ver === 'unifilares' && esSupervisor && <UnifilaresLista />}
+
+        {filtroProyecto && (
+          <p className="flex flex-wrap items-center gap-2 text-[13.5px] rounded-xl bg-teal/10 px-3 py-2 mb-4">
+            Solo lo del proyecto; lo que crees aquí queda en él.
+            <Link href={`/dashboard/proyectos/${filtroCliente}/${filtroProyecto}`} className="font-semibold text-teal underline">Volver al proyecto</Link>
+            <Link href={`${ruta}?cliente=${filtroCliente}`} className="font-semibold text-teal underline">Ver todo el cliente</Link>
+          </p>
+        )}
 
         {ver === 'lazos' && (
         <>
@@ -403,13 +426,14 @@ export default function LazosList({ userName, esSupervisor, clienteInicial, verI
           clienteInicial={filtroCliente ? { id: filtroCliente, nombre: nombreCliente(filtroCliente) } : null}
           esSupervisor={esSupervisor}
           onCerrar={() => setNuevoPanel(false)}
-          onGuardado={(panel) => { if (panel) window.location.href = `/lazos/panel/${panel.id}`; }}
+          onGuardado={async (panel) => { if (panel) { await alProyecto('panel', panel.id); window.location.href = `/lazos/panel/${panel.id}`; } }}
         />
       )}
 
       {nuevoPlano && (
         <NuevoPlano
           clienteInicial={nuevoPlano.cliente}
+          proyectoId={filtroProyecto}
           onCerrar={() => setNuevoPlano(null)}
           onCreado={(id) => { window.location.href = `/lazos/plano/${id}`; }}
         />
@@ -422,7 +446,7 @@ export default function LazosList({ userName, esSupervisor, clienteInicial, verI
           paneles={paneles}
           panelInicial={filtroPanel}
           onCerrar={() => setNuevoAbierto(false)}
-          onCreado={(id) => { window.location.href = `/lazos/${id}`; }}
+          onCreado={async (id) => { await alProyecto('lazo', id); window.location.href = `/lazos/${id}`; }}
         />
       )}
     </>,

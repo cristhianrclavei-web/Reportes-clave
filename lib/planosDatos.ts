@@ -15,7 +15,7 @@ import { generarUUID } from './uuid';
 // que ya se abrió en este teléfono se puede volver a abrir sin señal (se
 // guarda copia del plano, de su imagen y de los lazos del cliente).
 
-export type PlanoResumen = Pick<Plano, 'id' | 'cliente_id' | 'nombre' | 'actualizado_en'> & {
+export type PlanoResumen = Pick<Plano, 'id' | 'cliente_id' | 'nombre' | 'actualizado_en' | 'proyecto_id' | 'sistema'> & {
   // Equipos colocados y paneles de sus dispositivos (patch_lazos_jerarquia.sql).
   // Sin ese patch vienen en null.
   equipos_en_plano: number | null;
@@ -62,8 +62,12 @@ export async function listarPlanos(): Promise<{ planos: PlanoResumen[]; faltaPat
   const supabase = createClient();
   let { data, error }: { data: any[] | null; error: { message: string } | null } = await supabase
     .from('lazo_planos')
-    .select('id, cliente_id, nombre, actualizado_en, equipos_en_plano, paneles_en_plano')
+    .select('id, cliente_id, nombre, actualizado_en, equipos_en_plano, paneles_en_plano, proyecto_id, sistema')
     .order('nombre');
+  // Sin patch_proyectos_centro.sql: sin proyecto ni sistema.
+  if (error && /proyecto_id|sistema/.test(error.message)) {
+    ({ data, error } = await supabase.from('lazo_planos').select('id, cliente_id, nombre, actualizado_en, equipos_en_plano, paneles_en_plano').order('nombre'));
+  }
   // Sin patch_lazos_jerarquia.sql: la lista sale igual, sin los conteos.
   if (error && /equipos_en_plano|paneles_en_plano/.test(error.message)) {
     ({ data, error } = await supabase.from('lazo_planos').select('id, cliente_id, nombre, actualizado_en').order('nombre'));
@@ -185,6 +189,9 @@ export type NuevoPlano = {
   metrosPorUnidad: number | null;
   // Equipos que ya vienen del DXF (lib/importarDxf.ts).
   sembrado?: Sembrado;
+  // patch_proyectos_centro.sql: de qué sistema es y de qué obra.
+  sistema?: string;
+  proyectoId?: string | null;
 };
 
 export async function crearPlano(datos: NuevoPlano): Promise<string> {
@@ -221,6 +228,9 @@ export async function crearPlano(datos: NuevoPlano): Promise<string> {
     // Solo los DXF llevan estas columnas: así un PDF se sube aunque falte el patch.
     ...(esDxf ? { formato: 'dxf', dxf: datos.dxf } : {}),
     ...(sembrado ? { sembrado } : {}),
+    // Solo se mandan si vienen: así un plano de detección se sube aunque falte el patch.
+    ...(datos.sistema && datos.sistema !== 'deteccion' ? { sistema: datos.sistema } : {}),
+    ...(datos.proyectoId ? { proyecto_id: datos.proyectoId } : {}),
   });
   // shortcut: si falla aquí los archivos quedan huérfanos en Storage (no hay política de borrado en lazos/); limpiar a mano si pasa seguido.
   if (error) throw new Error(mensajeError(error, 'guardar el plano'));

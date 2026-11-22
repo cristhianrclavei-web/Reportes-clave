@@ -12,6 +12,7 @@ import { DATOS_VACIOS, SISTEMAS_GUIA, experienciaPorTecnico, nombreSistema, prog
 import { crearGuia, listarGuias, serviciosDelCliente, type ServicioParaGuia } from '@/lib/guiasDatos';
 import { PLANTILLAS_BASE } from '@/lib/guiasPlantillas';
 import type { GuiaInicial } from '@/lib/guiaDesdeCotizacion';
+import { moverAProyecto } from '@/lib/proyectoContenido';
 
 // Lista de guías de conexión: las plantillas (las de la app y las que arme
 // el ingeniero), las guías de cada cliente con su avance y, para
@@ -23,7 +24,13 @@ type Plantilla = { id: string; nombre: string; sistema: string; descripcion: str
 // Equipos que llegan de una cotización para empezar la guía con ellos.
 export type EquiposIniciales = GuiaInicial | null;
 
-export default function GuiasLista({ esSupervisor, inicial }: { esSupervisor: boolean; inicial?: EquiposIniciales }) {
+export default function GuiasLista({ esSupervisor, inicial, proyectoId = null, clienteDelProyecto = null }: {
+  esSupervisor: boolean;
+  inicial?: EquiposIniciales;
+  // Abierta desde un proyecto: la guía nueva queda en él (y en su cliente).
+  proyectoId?: string | null;
+  clienteDelProyecto?: string | null;
+}) {
   const [guias, setGuias] = useState<Guia[]>([]);
   const [clientes, setClientes] = useState<ClienteCatalogo[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -177,7 +184,8 @@ export default function GuiasLista({ esSupervisor, inicial }: { esSupervisor: bo
       )}
 
       {nueva && (
-        <NuevaGuia plantilla={nueva.plantilla} plantillas={plantillas} inicial={inicial || null}
+        <NuevaGuia plantilla={nueva.plantilla} plantillas={plantillas} inicial={inicial || null} proyectoId={proyectoId}
+          clienteFijo={clienteDelProyecto ? { id: clienteDelProyecto, nombre: nombreCliente(clienteDelProyecto) } : null}
           onCerrar={() => setNueva(null)} onCreada={(id, editar) => { window.location.href = `/guias/${id}${editar ? '?editar=1' : ''}`; }} />
       )}
     </div>
@@ -199,7 +207,9 @@ const CAMPO = 'w-full px-3.5 min-h-[46px] rounded-xl bg-surface-2 border border-
 
 // Crear una guía: de una plantilla o en blanco, para un cliente (y si se
 // quiere, pegada a uno de sus servicios) o como plantilla nueva.
-function NuevaGuia({ plantilla, plantillas, inicial, onCerrar, onCreada }: {
+function NuevaGuia({ plantilla, plantillas, inicial, proyectoId, clienteFijo, onCerrar, onCreada }: {
+  proyectoId: string | null;
+  clienteFijo: { id: string; nombre: string } | null;
   plantilla: Plantilla | null;
   plantillas: Plantilla[];
   inicial: EquiposIniciales;
@@ -211,8 +221,8 @@ function NuevaGuia({ plantilla, plantillas, inicial, onCerrar, onCreada }: {
   const [nombre, setNombre] = useState(inicial?.nombre || plantilla?.nombre || '');
   const [sistema, setSistema] = useState(inicial?.sistema || plantilla?.sistema || 'Control de acceso');
   const [comoPlantilla, setComoPlantilla] = useState(false);
-  const [clienteTexto, setClienteTexto] = useState(inicial?.clienteNombre || '');
-  const [clienteId, setClienteId] = useState<string | null>(inicial?.clienteId || null);
+  const [clienteTexto, setClienteTexto] = useState(inicial?.clienteNombre || clienteFijo?.nombre || '');
+  const [clienteId, setClienteId] = useState<string | null>(inicial?.clienteId || clienteFijo?.id || null);
   const [servicios, setServicios] = useState<ServicioParaGuia[]>([]);
   const [grupoId, setGrupoId] = useState('');
   const [errores, setErrores] = useState<{ nombre?: string; cliente?: string }>({});
@@ -251,6 +261,9 @@ function NuevaGuia({ plantilla, plantillas, inicial, onCerrar, onCreada }: {
         es_plantilla: comoPlantilla, cliente_id: clienteId, servicio_grupo_id: grupoId || null,
         datos: inicial?.datos || elegida?.datos || DATOS_VACIOS,
       });
+      if (proyectoId && !comoPlantilla) {
+        await moverAProyecto({ tipo: 'guia', id: guia.id }, proyectoId).catch((e) => showToast(e?.message || 'La guía se creó pero no quedó en el proyecto.', 'error'));
+      }
       // En blanco o desde una cotización sin conexiones hay que dibujarla: se
       // abre ya en edición. La solar llega armada: se abre para revisarla.
       const yaArmada = (inicial?.datos.conexiones.length || 0) > 0;

@@ -149,19 +149,39 @@ export function cotizacionDesdeLevantamiento(
     marca: c.marca || null,
   }));
 
-  const cotizacion = {
+  const cotizacion = cotizacionEnBlanco({
+    titulo: sistemas.join(', '),
+    atencion: levantamiento.atencion,
+    empresa: levantamiento.empresa,
+    telefono: levantamiento.telefono,
+    correo: levantamiento.correo,
+    direccion: levantamiento.direccion,
+  }, hoy, firmante);
+
+  return { cotizacion, lineas };
+}
+
+// Una cotización nueva con los datos del cliente y lo demás vacío (el
+// formulario pone forma de pago, garantía… de siempre). La usan los
+// levantamientos, los proyectos y los planos.
+export function cotizacionEnBlanco(
+  cliente: { titulo: string; empresa: string; atencion: string | null; telefono: string | null; correo: string | null; direccion: string | null },
+  hoy: string,
+  firmante: { nombre: string; correo: string },
+): Cotizacion {
+  return {
     id: '',
     folio: '',
     created_by: '',
     created_at: '',
     updated_at: '',
     fecha: hoy,
-    titulo_proyecto: sistemas.join(', ').slice(0, 120),
-    atencion: levantamiento.atencion,
-    empresa: levantamiento.empresa,
-    telefono: levantamiento.telefono,
-    correo: levantamiento.correo,
-    direccion: levantamiento.direccion,
+    titulo_proyecto: cliente.titulo.slice(0, 120),
+    atencion: cliente.atencion,
+    empresa: cliente.empresa,
+    telefono: cliente.telefono,
+    correo: cliente.correo,
+    direccion: cliente.direccion,
     forma_pago: '',
     tiempo_entrega: '',
     garantia: '',
@@ -181,6 +201,25 @@ export function cotizacionDesdeLevantamiento(
     aprobada_firma: null,
     aprobada_en: null,
   } satisfies Cotizacion;
+}
 
-  return { cotizacion, lineas };
+// Renglones de materiales (de un plano) como líneas de cotización de un sistema.
+export function lineasDeMateriales(sistema: string, renglones: { descripcion: string; cantidad: number; unidad: string; modelo: string | null }[], nuevoId: () => string): LineaCotizacion[] {
+  return renglones.map((r, orden) => ({
+    id: nuevoId(),
+    cotizacion_id: '',
+    sistema,
+    orden,
+    descripcion: r.descripcion,
+    unidad: r.unidad,
+    cantidad: r.cantidad,
+    costo: 0,
+    margen_pct: 0,
+    precio_unitario: 0,
+    importe: 0,
+    enlace: null,
+    foto: null,
+    modelo: r.modelo,
+    marca: null,
+  }));
 }

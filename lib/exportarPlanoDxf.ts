@@ -128,7 +128,7 @@ export function trazoAPolilineas(d: string): { puntos: P[]; cerrada: boolean }[]
 
 // ---------- Escritura del DXF ----------
 
-class Dxf {
+export class Dxf {
   private lineas: string[] = [];
 
   par(codigo: number, valor: string | number) {

@@ -389,6 +389,16 @@ export default function EditorUnifilar({ unifilarId }: { unifilarId: string }) {
     }
   }
 
+  async function descargarDxf() {
+    if (!datos) return;
+    try {
+      const { exportarUnifilarDxf } = await import('@/lib/unifilarDxf');
+      await descargarArchivo(new Blob([exportarUnifilarDxf(datos) as BlobPart], { type: 'application/dxf' }), `unifilar-${nombreSeguro(nombre || 'sistema')}.dxf`);
+    } catch (e: any) {
+      showToast(e?.message || 'No se pudo armar el DXF.', 'error');
+    }
+  }
+
   async function borrarTodo() {
     if (!(await confirmar(`¿Borrar el unifilar «${nombre}»? No se puede deshacer.`))) return;
     try {
@@ -482,6 +492,7 @@ export default function EditorUnifilar({ unifilarId }: { unifilarId: string }) {
         <button type="button" className={`${BOTON} !bg-teal !text-inkOnAccent !border-teal`} onClick={descargarPdf} disabled={generandoPdf}>
           {generandoPdf ? <Loader2 size={16} className="animate-spin" /> : <FileDown size={16} />} PDF
         </button>
+        <button type="button" className={BOTON} onClick={descargarDxf} title="Para abrirlo y editarlo en AutoCAD"><FileDown size={16} /> DXF</button>
         <button type="button" className={`${BOTON} text-red`} onClick={borrarTodo} aria-label="Borrar unifilar"><Trash2 size={16} /></button>
         </div>
       </div>

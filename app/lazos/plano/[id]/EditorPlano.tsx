@@ -10,6 +10,8 @@ import { AnimatePresence, motion } from 'motion/react';
 import HojaCaptura from '@/components/lazos/HojaCaptura';
 import CejaDivisor, { useAnchoPanel } from '@/components/lazos/CejaDivisor';
 import DiagramaLazo from '@/components/lazos/DiagramaLazo';
+import { DatosEquipoSistema, PanelEquiposSistema, ResumenCctv } from '@/components/planos/EquiposSistema';
+import { esEquipoDeRed } from '@/lib/equiposSistemas';
 import LienzoPlano, { type NodoTuberia, type Seleccion } from '@/components/lazos/LienzoPlano';
 import SimboloPlano from '@/components/lazos/SimboloPlano';
 import PanelAvance, { type ModoToque } from '@/components/lazos/PanelAvance';
@@ -81,6 +83,12 @@ const HERRAMIENTAS: { id: Herramienta; nombre: string; tecla: string; icono: Rea
   { id: 'avance', nombre: 'Avance', tecla: 'A', icono: <ListChecks size={18} strokeWidth={2.3} /> },
 ];
 
+// Conectar, Unifilar y Avance son de los lazos de detección; los planos de
+// otros sistemas (CCTV, acceso, solar…) solo siembran equipos y tubería.
+function herramientasDe(sistema: string) {
+  return sistema === 'deteccion' ? HERRAMIENTAS : HERRAMIENTAS.filter((h) => h.id !== 'conectar' && h.id !== 'unifilar' && h.id !== 'avance');
+}
+
 // Flechas del teclado → hacia dónde se mueve el equipo elegido.
 const FLECHAS: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
 
@@ -95,6 +103,10 @@ export default function EditorPlano({ planoId, esSupervisor, inicio }: {
   inicio?: { lazoId: string | null; elementoId: string | null };
 }) {
   const [plano, setPlano] = useState<Plano | null>(null);
+  // De qué sistema es el plano (detección si falta el patch).
+  const sistema = plano?.sistema || 'deteccion';
+  const sistemaRef = useRef(sistema);
+  sistemaRef.current = sistema;
   const [imagenUrl, setImagenUrl] = useState<string | null>(null);
   const [lazos, setLazos] = useState<LazoConElementos[]>([]);
   const lazosRef = useRef(lazos);
@@ -563,7 +575,7 @@ export default function EditorPlano({ planoId, esSupervisor, inicio }: {
           atajos.current.candado();
           return;
         }
-        const herramientaDeTecla = HERRAMIENTAS.find((h) => h.tecla.toLowerCase() === tecla);
+        const herramientaDeTecla = herramientasDe(sistemaRef.current).find((h) => h.tecla.toLowerCase() === tecla);
         if (herramientaDeTecla) atajos.current.herramienta(herramientaDeTecla.id);
         return;
       }
@@ -1151,6 +1163,12 @@ export default function EditorPlano({ planoId, esSupervisor, inicio }: {
     setTamanoNuevo(tamano);
   }
 
+  // Datos de un equipo de otro sistema (modelo, IP, campo de visión…).
+  function cambiarDatosEquipo(id: string, cambios: Partial<EquipoPlano>) {
+    const { sembrado } = estadoRef.current;
+    cambiarSembrado({ ...sembrado, equipos: sembrado.equipos.map((e) => (e.id === id ? { ...e, ...cambios } : e)) });
+  }
+
   function cambiarRotacion(id: string, rotacion: number) {
     const { sembrado } = estadoRef.current;
     cambiarSembrado({ ...sembrado, equipos: sembrado.equipos.map((e) => (e.id === id ? { ...e, rotacion } : e)) });
@@ -1469,8 +1487,8 @@ export default function EditorPlano({ planoId, esSupervisor, inicio }: {
         {/* Herramientas y panel: abajo en celular, a la derecha en computadora (ancho con la ceja) */}
         <aside style={{ '--ancho-panel': `${anchoPanel}px` } as React.CSSProperties}
           className="shrink-0 lg:w-[var(--ancho-panel)] border-t lg:border-t-0 border-line bg-surface flex flex-col min-h-0 lg:h-full">
-          <div className="grid grid-cols-7 gap-0.5 sm:gap-1 p-2" role="tablist" aria-label="Herramientas">
-            {HERRAMIENTAS.map((h) => {
+          <div className={`grid ${sistema === 'deteccion' ? 'grid-cols-7' : 'grid-cols-4'} gap-0.5 sm:gap-1 p-2`} role="tablist" aria-label="Herramientas">
+            {herramientasDe(sistema).map((h) => {
               const activa = herramienta === h.id;
               return (
                 <button key={h.id} type="button" role="tab" aria-selected={activa} title={`${h.nombre} (tecla ${h.tecla})`}
@@ -1498,7 +1516,9 @@ export default function EditorPlano({ planoId, esSupervisor, inicio }: {
                       onLigar={(elementoId) => ligarEquipo(equipoElegido.id, elementoId)} onDesligar={() => desligarEquipo(equipoElegido.id)}
                       onEditarDatos={() => editarDatos(equipoElegido)}
                       onMover={(dx, dy) => moverUnPaso(equipoElegido.id, dx, dy)}
-                      onRotacion={(g) => cambiarRotacion(equipoElegido.id, g)} onRotacionATodos={() => rotacionATodos(equipoElegido.rotacion || 0)} />
+                      onRotacion={(g) => cambiarRotacion(equipoElegido.id, g)} onRotacionATodos={() => rotacionATodos(equipoElegido.rotacion || 0)}
+                      sistema={sistema} equiposDeRed={sembrado.equipos.filter((e) => e.id !== equipoElegido.id && esEquipoDeRed(e.tipo))}
+                      onDatos={(c) => cambiarDatosEquipo(equipoElegido.id, c)} />
                   )}
                   {tuberiaElegida && (
                     <FichaTuberia tuberia={tuberiaElegida} metros={metrosDeTuberia(tuberiaElegida, metros)} tolerancia={radioPegar * 0.6}
@@ -1506,7 +1526,10 @@ export default function EditorPlano({ planoId, esSupervisor, inicio }: {
                   )}
                   {!equipoElegido && !tuberiaElegida && (
                     <>
-                      {sueltos.length > 0 && totalFaltantes > 0 && (
+                      {sistema === 'cctv' && (
+                        <ResumenCctv plano={plano} sembrado={sembrado} metros={metros} onElegir={(id) => setSeleccion({ tipo: 'equipo', id })} />
+                      )}
+                      {sistema === 'deteccion' && sueltos.length > 0 && totalFaltantes > 0 && (
                         <div className="mt-1 mb-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
                           <p className="text-[13.5px]">
                             Hay <b>{sueltos.length} {sueltos.length === 1 ? 'equipo suelto' : 'equipos sueltos'}</b> en el plano
@@ -1519,10 +1542,10 @@ export default function EditorPlano({ planoId, esSupervisor, inicio }: {
                           </button>
                         </div>
                       )}
-                      <label className="flex items-center gap-2.5 pt-1 pb-2 text-[14px]">
+                      {sistema === 'deteccion' && <label className="flex items-center gap-2.5 pt-1 pb-2 text-[14px]">
                         <input type="checkbox" checked={verConexiones} onChange={(ev) => setVerConexiones(ev.target.checked)} className="w-5 h-5 accent-teal" />
                         Ver conexiones de los lazos (línea punteada)
-                      </label>
+                      </label>}
                       <p className="text-[13px] text-muted pt-1 pb-3">
                         Toca un equipo o una tubería para ver su ficha (ahí se agranda o achica el equipo). Arrastra el plano para recorrerlo.
                         {bloqueado
@@ -1573,7 +1596,10 @@ export default function EditorPlano({ planoId, esSupervisor, inicio }: {
                   onSoltar={() => setElegidoUnifilar(null)} onAccion={accionUnifilar} />
               )}
 
-              {herramienta === 'equipo' && (
+              {herramienta === 'equipo' && sistema !== 'deteccion' && (
+                <PanelEquiposSistema sistema={sistema} porColocar={porColocar} onElegir={setPorColocar} onCancelar={() => setPorColocar(null)} />
+              )}
+              {herramienta === 'equipo' && sistema === 'deteccion' && (
                 <PanelEquipos
                   paneles={paneles}
                   panelDondeEsta={(id) => (sembrado.equipos.some((e) => e.panelId === id) ? 'en este plano' : otrosPlanos.has(id) ? `en ${otrosPlanos.get(id)}` : null)}
@@ -2363,7 +2389,10 @@ function BotonMasTipos({ abierto, onCambiar }: { abierto: boolean; onCambiar: (a
 const BOTON_FLECHA = 'w-11 h-11 rounded-xl bg-surface border border-line flex items-center justify-center';
 const BOTON_GIRO = 'h-11 px-2 rounded-xl bg-surface border border-line flex items-center gap-0.5 text-[12px] font-semibold';
 
-function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, onTamanoATodos, variosEquipos, candidatos, onLigar, onDesligar, onEditarDatos, onMover, onRotacion, onRotacionATodos }: {
+function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, onTamanoATodos, variosEquipos, candidatos, onLigar, onDesligar, onEditarDatos, onMover, onRotacion, onRotacionATodos, sistema, equiposDeRed, onDatos }: {
+  sistema: string;
+  equiposDeRed: EquipoPlano[];
+  onDatos: (cambios: Partial<EquipoPlano>) => void;
   equipo: EquipoPlano;
   ligado: { elemento: Elemento; lazo: LazoConElementos } | null;
   etiqueta: string;
@@ -2391,14 +2420,14 @@ function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, o
       <div className="flex items-start gap-3">
         <span className="w-11 flex justify-center pt-1 text-ink"><SimboloPlano tipo={equipo.tipo} tamano={38} /></span>
         <div className="flex-1 min-w-0">
-          <p className="text-[15px] font-semibold">{ligado ? ligado.elemento.nombre : esPanel && etiqueta ? etiqueta : tipoDispositivo(equipo.tipo).nombre}</p>
+          <p className="text-[15px] font-semibold">{ligado ? ligado.elemento.nombre : (esPanel || sistema !== 'deteccion') && etiqueta ? etiqueta : tipoDispositivo(equipo.tipo).nombre}</p>
           <p className="text-[13px] text-muted">{tipoDispositivo(equipo.tipo).nombre}{etiqueta && ligado?.elemento.direccion ? ` · ${etiqueta}` : ''}</p>
           {ligado?.elemento.ubicacion && <p className="text-[13px] text-muted mt-0.5">{ligado.elemento.ubicacion}</p>}
           {esPanel ? (
             equipo.panelId
               ? <Link href={`/lazos/panel/${equipo.panelId}`} className="inline-block mt-1.5 text-[13px] font-semibold text-teal underline">Ver el panel y sus circuitos</Link>
               : <p className="text-[12.5px] text-faint mt-1">Panel sin registrar en la app.</p>
-          ) : ligado ? (
+          ) : sistema !== 'deteccion' ? null : ligado ? (
             <Link href={`/lazos/${ligado.lazo.id}`} className="inline-block mt-1.5 text-[13px] font-semibold text-teal underline">{ligado.lazo.codigo} · {ligado.lazo.nombre}</Link>
           ) : (
             <p className="text-[12.5px] text-faint mt-1">Equipo suelto, no está ligado a ningún dispositivo del lazo.</p>
@@ -2416,7 +2445,8 @@ function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, o
         </div>
         <button type="button" onClick={onCerrar} aria-label="Cerrar ficha" className="w-9 h-9 rounded-full flex items-center justify-center"><X size={18} /></button>
       </div>
-      {!ligado && !esPanel && (
+      {sistema !== 'deteccion' && <DatosEquipoSistema equipo={equipo} equiposDeRed={equiposDeRed} onDatos={onDatos} />}
+      {sistema === 'deteccion' && !ligado && !esPanel && (
         <ListaParaLigar candidatos={candidatos} eligiendo={eligiendo} onAbrir={() => setEligiendo(!eligiendo)}
           onLigar={(id) => { setEligiendo(false); onLigar(id); }} />
       )}

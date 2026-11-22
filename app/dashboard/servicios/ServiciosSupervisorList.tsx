@@ -269,6 +269,8 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
   }, [idClienteElegido]);
 
   const recurrenteRef = useRef<string | null>(null);
+  // Proyecto (obra) desde el que se agendó: el servicio queda en él.
+  const obraRef = useRef<string | null>(null);
   const volverRef = useRef<string | null>(null);
   function abrirAgendar(p: { fecha?: string; tecnicoIds?: string[]; proyecto?: string; clienteId?: string | null; descripcion?: string; hora?: string | null } = {}) {
     if (p.fecha) { setFecha(p.fecha); setDiasTotales(1); }
@@ -290,6 +292,7 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
     const q = new URLSearchParams(window.location.search);
     if (q.get('agendar') !== '1') return;
     recurrenteRef.current = q.get('recurrente');
+    obraRef.current = q.get('obra');
     // Rutina del mantenimiento recurrente: se precargan sus tareas.
     const rutinaId = q.get('rutina');
     if (rutinaId) listarRutinas().then((rs) => { const r = rs.find((x) => x.id === rutinaId); if (r) cargarTareasDeRutina(tareasDeRutina(r)); }).catch(() => {});
@@ -653,7 +656,9 @@ export default function ServiciosSupervisorList({ userName }: { userName?: strin
         tecnicoIds,
         tareas: tareasLimpias,
         insumos: insumosLimpios,
+        proyectoId: obraRef.current,
       }, avance);
+      obraRef.current = null;
       showToast(fechasFinales.length > 1 ? `Proyecto programado (${fechasFinales.length} días)` : 'Servicio programado', 'success');
       // Si vino de un mantenimiento recurrente, su próxima fecha avanza.
       if (recurrenteRef.current && creados[0]) {

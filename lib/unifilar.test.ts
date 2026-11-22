@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  caidaDeTension, conductoresPorOmision, datosArreglo, electricoDeTramo, kwpTotal, leerDatos, lineasDeEquipo,
+  caidaDeTension, conductoresPorOmision, sugerirCalibre, datosArreglo, electricoDeTramo, kwpTotal, leerDatos, lineasDeEquipo,
   mpptDeArreglo, nuevoEquipo, nuevoTramo, plantilla, revisar, textoConductor, datosUnifilarSchema,
   type DatosUnifilar,
 } from './unifilar';
@@ -86,5 +86,18 @@ describe('plantillas', () => {
     const d = leerDatos({ equipos: [{ id: 'a', tipo: 'cfe', x: 0, y: 0, nombre: '', modelo: '', valores: {} }] });
     expect(d.equipos[0].etiqueta).toEqual({ dx: 0, dy: 0 });
     expect(d.proyecto.tamano).toBe('carta');
+  });
+});
+
+describe('sugerir calibre', () => {
+  it('el más delgado que aguanta la corriente y la caída', () => {
+    let n = 0;
+    const d = plantilla('interconectado', () => `s${n++}`);
+    const salida = d.tramos.find((t) => t.titulo === 'Circuito de salida inversor')!;
+    // 36.4 A × 1.25 = 45.5 A → 8 AWG (50 A); a 20 m cae 1.66 %.
+    expect(sugerirCalibre(d, salida)).toBe('8');
+    // A 80 m con 8 AWG pasa del 3 %: sube a 6 o más.
+    expect(['6', '4']).toContain(sugerirCalibre(d, { ...salida, metros: '80' }));
+    expect(sugerirCalibre(d, { ...salida, metros: '' })).toBeNull();
   });
 });

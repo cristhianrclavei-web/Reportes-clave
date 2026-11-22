@@ -70,9 +70,12 @@ export default function CotizacionForm({
   firmantes = [],
   puedeAprobar = false,
   levantamientoId,
+  proyectoId,
 }: {
   // Cotización armada desde un levantamiento: queda ligada a él al crearla.
   levantamientoId?: string;
+  // Cotización hecha desde un proyecto o un plano: queda en esa obra.
+  proyectoId?: string;
   // Personas que aprueban cotizaciones: botones rápidos para «Atentamente».
   firmantes?: FirmanteSugerido[];
   // Quien no aprueba (p. ej. quien solo captura) no sale como firmante por
@@ -497,6 +500,7 @@ export default function CotizacionForm({
       tipo_cambio: tipoCambioNum,
       lineas: lineasValidas,
       levantamiento_id: levantamientoId,
+      proyecto_id: proyectoId,
     };
     try {
       if (modo === 'editar' && cotizacionId) {

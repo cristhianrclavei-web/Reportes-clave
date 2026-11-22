@@ -9,7 +9,8 @@ import TablaLista, { ColumnaTabla } from '@/components/TablaLista';
 import EmptyIllustration from '@/components/EmptyIllustration';
 import CotizacionForm from '@/components/CotizacionForm';
 import CotizarLevantamiento from '@/components/cotizaciones/CotizarLevantamiento';
-import { cotizacionDesdeLevantamiento } from '@/lib/levantamientoACotizacion';
+import { cotizacionDesdeLevantamiento, cotizacionEnBlanco, lineasDeMateriales } from '@/lib/levantamientoACotizacion';
+import { origenDesdePlano, origenDesdeProyecto, type OrigenCotizacion } from '@/lib/cotizacionDesdeProyecto';
 import type { Levantamiento } from '@/lib/levantamientos';
 import { VistaCondicional } from '@/lib/vistaSupervisor';
 import type { FirmanteSugerido } from '@/lib/firmantesCotizacion';
@@ -105,6 +106,7 @@ export default function CotizacionesList({
       const firmante = puedeAprobar ? { nombre: userName, correo: correoUsuario } : undefined;
       setCopia({ origen: origen.cotizacion, datos: copiaParaOtroCliente(origen, hoyLocal(), firmante) });
       setDesdeLevantamiento(null);
+      setDesdeObra(null);
       setSeccion('nueva');
       setEligiendoCopia(false);
       window.scrollTo({ top: 0 });
@@ -128,9 +130,28 @@ export default function CotizacionesList({
     // «vez» vuelve a montar el formulario si se eligen otra vez los conceptos.
     setDesdeLevantamiento((anterior) => ({ levantamiento, datos: cotizacionDesdeLevantamiento(levantamiento, conceptos, hoyLocal(), firmante), vez: (anterior?.vez || 0) + 1 }));
     setCopia(null);
+    setDesdeObra(null);
     setRevisandoLevantamiento(null);
     setSeccion('nueva');
     window.scrollTo({ top: 0 });
+  }
+
+  // Desde un proyecto (?proyecto=<id>) o un plano (?plano=<id>): el cliente
+  // y, del plano, los equipos y la tubería como renglones. Queda en la obra.
+  const [desdeObra, setDesdeObra] = useState<{ origen: OrigenCotizacion; datos: { cotizacion: Cotizacion; lineas: LineaCotizacion[] } } | null>(null);
+  async function armarDesdeObra(pedido: { proyectoId?: string; planoId?: string }) {
+    try {
+      const origen = pedido.planoId ? await origenDesdePlano(pedido.planoId) : await origenDesdeProyecto(pedido.proyectoId!);
+      const firmante = puedeAprobar ? { nombre: userName || '', correo: correoUsuario || '' } : { nombre: '', correo: '' };
+      const cotizacion = cotizacionEnBlanco({ titulo: origen.titulo, ...origen.cliente }, hoyLocal(), firmante);
+      const lineas = lineasDeMateriales(origen.sistema, origen.renglones, () => crypto.randomUUID());
+      setDesdeObra({ origen, datos: { cotizacion, lineas } });
+      setDesdeLevantamiento(null);
+      setCopia(null);
+      setSeccion('nueva');
+    } catch (e: any) {
+      showToast(e?.message || 'No se pudo preparar la cotización.', 'error');
+    }
   }
 
   // Desde el detalle: /dashboard/cotizaciones?copiar=<id>
@@ -139,9 +160,12 @@ export default function CotizacionesList({
     const parametros = new URLSearchParams(window.location.search);
     const id = parametros.get('copiar');
     const levantamientoId = parametros.get('levantamiento');
+    const proyectoId = parametros.get('proyecto');
+    const planoId = parametros.get('plano');
     if (id) copiarDe(id);
     if (levantamientoId) setRevisandoLevantamiento(levantamientoId);
-    if (id || levantamientoId) window.history.replaceState(null, '', window.location.pathname);
+    if (planoId || proyectoId) armarDesdeObra({ planoId: planoId || undefined, proyectoId: proyectoId || undefined });
+    if (id || levantamientoId || planoId || proyectoId) window.history.replaceState(null, '', window.location.pathname);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [search, setSearch] = useState('');
@@ -233,7 +257,26 @@ export default function CotizacionesList({
 
       {seccion === 'nueva' && (
         <>
-          {desdeLevantamiento ? (
+          {desdeObra ? (
+            <div className="mb-4 rounded-2xl border border-teal/40 bg-teal/8 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+              <span className="w-10 h-10 rounded-xl bg-teal/15 text-teal flex items-center justify-center shrink-0"><ClipboardList size={18} /></span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[14px] font-semibold">
+                  {desdeObra.origen.plano ? `Desde el plano «${desdeObra.origen.plano.nombre}»` : `Para el proyecto «${desdeObra.origen.proyecto?.nombre}»`} · {desdeObra.origen.cliente.empresa}
+                </p>
+                <p className="text-[12.5px] text-muted">
+                  {desdeObra.origen.renglones.length > 0
+                    ? `${desdeObra.origen.renglones.length} renglones con los equipos y la tubería del plano. Liga cada uno con SYSCOM y pon los precios.`
+                    : 'Con los datos del cliente ya puestos.'}
+                  {desdeObra.origen.proyecto ? ' Al guardar queda en el proyecto.' : ''}
+                </p>
+              </div>
+              <button type="button" onClick={() => { descartarBorradorFormulario(`cotizacion:obra:${desdeObra.origen.plano?.id || desdeObra.origen.proyecto?.id}`); setDesdeObra(null); }}
+                className="shrink-0 h-9 px-3.5 rounded-full border border-line text-[13px] font-semibold flex items-center gap-1.5 hover:bg-surface-2">
+                <X size={14} /> Empezar en blanco
+              </button>
+            </div>
+          ) : desdeLevantamiento ? (
             <div className="mb-4 rounded-2xl border border-teal/40 bg-teal/8 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
               <span className="w-10 h-10 rounded-xl bg-teal/15 text-teal flex items-center justify-center shrink-0"><ClipboardList size={18} /></span>
               <div className="min-w-0 flex-1">
@@ -268,11 +311,12 @@ export default function CotizacionesList({
             </button>
           )}
           <CotizacionForm
-            key={desdeLevantamiento ? `levantamiento-${desdeLevantamiento.levantamiento.id}-${desdeLevantamiento.vez}` : copia ? `copia-${copia.origen.id}` : 'nueva'}
+            key={desdeObra ? `obra-${desdeObra.origen.plano?.id || desdeObra.origen.proyecto?.id}` : desdeLevantamiento ? `levantamiento-${desdeLevantamiento.levantamiento.id}-${desdeLevantamiento.vez}` : copia ? `copia-${copia.origen.id}` : 'nueva'}
             modo="crear"
-            inicial={desdeLevantamiento?.datos || copia?.datos}
+            inicial={desdeObra?.datos || desdeLevantamiento?.datos || copia?.datos}
             levantamientoId={desdeLevantamiento?.levantamiento.id}
-            claveBorrador={desdeLevantamiento ? `cotizacion:levantamiento:${desdeLevantamiento.levantamiento.id}` : copia ? `cotizacion:copia:${copia.origen.id}` : undefined}
+            proyectoId={desdeObra?.origen.proyecto?.id}
+            claveBorrador={desdeObra ? `cotizacion:obra:${desdeObra.origen.plano?.id || desdeObra.origen.proyecto?.id}` : desdeLevantamiento ? `cotizacion:levantamiento:${desdeLevantamiento.levantamiento.id}` : copia ? `cotizacion:copia:${copia.origen.id}` : undefined}
             nombreUsuario={userName}
             correoUsuario={correoUsuario}
             firmantes={firmantes}

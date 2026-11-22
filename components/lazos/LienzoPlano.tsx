@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { COLOR_SISTEMA, equipoCatalogo } from '@/lib/equiposSistemas';
 import { Maximize, Minus, Plus } from 'lucide-react';
 import { figuraDe } from '@/lib/simbolosPlano';
 import { FiguraEnSvg } from '@/components/lazos/SimboloPlano';
@@ -8,7 +9,7 @@ import type { LineaConexion, MarcaConexion } from '@/lib/conexionesPlano';
 import { medidasDeConexion, puntaDeLlegada, puntasDeFlecha, radioDeEquipoEn, trazoDeConexion, type MedidasConexion } from '@/lib/rutaTuberia';
 import type { Ajuste, Guias } from '@/lib/trazoRecto';
 import {
-  colorEquipo, colorTuberia, equipoEn, tamanoDe, tamanoSimbolo, tuberiaEn,
+  alcanceEnHoja, colorEquipo, colorTuberia, equipoEn, tamanoDe, tamanoSimbolo, trazoCampoVision, tuberiaEn,
   type EquipoPlano, type Punto, type Sembrado, type TuberiaPlano,
 } from '@/lib/planos';
 
@@ -402,6 +403,25 @@ export default function LienzoPlano({
               <circle key={`desde-${e.id}`} cx={e.x} cy={e.y} r={r * tamanoDe(e) * 2.1} fill="none" stroke="#14b8a6" strokeWidth={grosorTubo}
                 strokeDasharray={`${grosorTubo * 2} ${grosorTubo * 1.5}`} />
             ))}
+
+            {/* Cámaras: su campo de visión y la línea a su grabador o switch. */}
+            {sembrado.equipos.map((e) => {
+              const cat = equipoCatalogo(e.tipo);
+              if (!cat?.camara) return null;
+              const angulo = e.angulo || cat.camara.angulo;
+              const radio = alcanceEnHoja(e, e.alcance || cat.camara.alcance, metrosPorUnidad ?? null, r);
+              return (
+                <path key={`fov-${e.id}`} d={trazoCampoVision(e.x, e.y, radio, e.rotacion || 0, angulo)}
+                  fill={COLOR_SISTEMA.cctv} fillOpacity={0.14} stroke={COLOR_SISTEMA.cctv} strokeOpacity={0.55} strokeWidth={1.2 / s} style={{ pointerEvents: 'none' }} />
+              );
+            })}
+            {sembrado.equipos.map((e) => {
+              if (!e.conectadoA) return null;
+              const destino = sembrado.equipos.find((x) => x.id === e.conectadoA);
+              if (!destino) return null;
+              return <line key={`red-${e.id}`} x1={e.x} y1={e.y} x2={destino.x} y2={destino.y} stroke={COLOR_SISTEMA.cctv} strokeOpacity={0.6}
+                strokeWidth={1.4 / s} strokeDasharray={`${6 / s} ${4 / s}`} style={{ pointerEvents: 'none' }} />;
+            })}
 
             {sembrado.equipos.map((e) => (
               <SimboloEnPlano key={e.id} equipo={e} r={r * tamanoDe(e)} etiqueta={etiquetaDe(e)}

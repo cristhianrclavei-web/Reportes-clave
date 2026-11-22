@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import SupervisorShell from '@/components/SupervisorShell';
+import PestanasProyectos from '@/components/proyectos/PestanasProyectos';
 import ModalOverlay from '@/components/ModalOverlay';
 import EmptyIllustration from '@/components/EmptyIllustration';
 import { showToast } from '@/components/Toast';
@@ -95,6 +96,8 @@ export default function ClientesList({ userName }: { userName?: string }) {
   }
 
   const pestanas = (
+    <>
+    <PestanasProyectos actual="clientes" />
     <SubTabs
       activa={vista}
       onCambiar={setVista}
@@ -103,11 +106,12 @@ export default function ClientesList({ userName }: { userName?: string }) {
         { k: 'actividad', label: 'Actividad', Icono: History },
       ]}
     />
+    </>
   );
 
   if (vista === 'actividad') {
     return (
-      <SupervisorShell active="proyectos" title="Clientes y proyectos" userName={userName}>
+      <SupervisorShell active="proyectos" title="Proyectos" userName={userName}>
         {pestanas}
         <ActividadSeccion seccion="clientes" />
       </SupervisorShell>
@@ -115,7 +119,7 @@ export default function ClientesList({ userName }: { userName?: string }) {
   }
 
   return (
-    <SupervisorShell active="proyectos" title="Clientes y proyectos" userName={userName}>
+    <SupervisorShell active="proyectos" title="Proyectos" userName={userName}>
       {pestanas}
       {error && (
         <div className="mb-4 p-4 rounded-2xl bg-red/10 border border-red/30">
@@ -261,7 +265,7 @@ export default function ClientesList({ userName }: { userName?: string }) {
             />
           }
           tarjetas={
-<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" data-tour="lista-clientes">
           {filtrados.map((c) => (
             <Link
               key={c.id}

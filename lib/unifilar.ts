@@ -645,6 +645,29 @@ export function caidaDeTension(datos: DatosUnifilar, t: TramoUnifilar): number |
 
 export const CAIDA_MAXIMA = 3;
 
+// Ampacidad del cobre a 75 °C, hasta 3 conductores en tubería
+// (NOM-001-SEDE, tabla 310-15(b)(16)).
+export const AMPACIDAD_75C: Record<string, number> = {
+  '14': 20, '12': 25, '10': 35, '8': 50, '6': 65, '4': 85, '3': 100, '2': 115, '1': 130,
+  '1/0': 150, '2/0': 175, '3/0': 200, '4/0': 230, '250': 255, '300': 285, '350': 310, '400': 335, '500': 380,
+};
+
+// El calibre más delgado que aguanta 125 % de la corriente y deja la caída
+// de tensión en `caidaObjetivo` % o menos. null si no hay corriente o
+// longitud para calcular, o si ni el más grueso alcanza.
+export function sugerirCalibre(datos: DatosUnifilar, t: TramoUnifilar, caidaObjetivo = CAIDA_MAXIMA): string | null {
+  if (t.tierra || !(num(t.metros) > 0)) return null;
+  const { corriente } = electricoDeTramo(datos, t);
+  if (!(corriente > 0)) return null;
+  for (const c of CALIBRES) {
+    if (AMPACIDAD_75C[c.calibre] < corriente * 1.25) continue;
+    const prueba = { ...t, conductores: t.conductores.map((x) => (/^CPT/i.test(x.funcion) ? x : { ...x, calibre: c.calibre })) };
+    const caida = caidaDeTension(datos, prueba);
+    if (caida !== null && caida <= caidaObjetivo) return c.calibre;
+  }
+  return null;
+}
+
 // Nombre de la entrada del inversor a la que llega un arreglo («MPPT1»).
 export function mpptDeArreglo(datos: DatosUnifilar, e: EquipoUnifilar): { inversor: EquipoUnifilar; mppt: string } | null {
   const salida = tramoEn(datos, { equipo: e.id, puerto: 'salida' }, '');
