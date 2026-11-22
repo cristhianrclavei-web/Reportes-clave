@@ -6,7 +6,7 @@ import ResumenFallaTierra from '@/components/lazos/ResumenFallaTierra';
 import { anexosDeReporte } from '@/lib/anexoFallaTierra';
 import { anexosGuiaDeReporte, resumenCortoGuia } from '@/lib/anexoGuia';
 import { avisar, confirmar } from '@/lib/dialogos';
-import TablaEquiposInstalados from '@/components/reporte/TablaEquiposInstalados';
+import { HojaReporte } from '@/components/ReportPreviewModal';
 import VisorVideo, { MarcaVideo } from '@/components/VisorVideo';
 import { fechaDMA } from '@/lib/etiquetaMantenimiento';
 import { MARCA } from '@/lib/marca';
@@ -87,6 +87,14 @@ export default function ReportDetailModal({
   // `idx` es la posición de la evidencia en data.fotos (para guardar sus cambios).
   const [fotoUrls, setFotoUrls] = useState<({ idx: number; url: string; caption: string; video?: string | null; dur?: number | null } & MetaFoto)[] | null>(null);
   const [fotoAbierta, setFotoAbierta] = useState<number | null>(null);
+  // Foto ampliada desde la hoja del reporte.
+  const [fotoHoja, setFotoHoja] = useState<string | null>(null);
+  // La hoja del reporte lleva su evidencia: las fotos se piden al abrir.
+  useEffect(() => {
+    if (pestana === 'reporte' && fotoUrls === null && !loadingFotos && (report.data?.fotos?.length || 0) > 0) handleVerFotos();
+    // Solo al entrar a la pestaña o cambiar de reporte.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pestana, report.id]);
   const [viendoVideo, setViendoVideo] = useState<string | null>(null);
   const [loadingFotos, setLoadingFotos] = useState(false);
   const [shareMenuOpen, setShareMenuOpen] = useState(false);
@@ -658,134 +666,36 @@ export default function ReportDetailModal({
           </div>
         )}
         <AutorReporte id={report.created_by} nombre={techName(report.profiles)} variante="recuadro" />
-        <Section title="Datos generales">
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
-            <Detail label="Clave de formato" value={report.data?.claveFormato} />
-            <Detail label="Fecha" value={fechaDMA(report.fecha)} />
-            <Detail label="Ing a cargo" value={report.data?.ingACargo} />
-            <Detail label="Personal en el servicio" value={(report.data?.personal || []).join(', ')} />
-            <Detail label="Personal técnico (cuenta)" value={techName(report.profiles)} />
-            <Detail
-              label="Tipo"
-              value={textoTiposServicio(report.tipo_servicio, report.sub_tipo_servicio, report.data?.tipoServicioOtroTexto) || '—'}
-            />
-            <Detail label="Orden de compra" value={report.data?.ordCompra} />
-            <Detail label="Hora llegada / salida" value={`${report.data?.horaLlegada || '—'} - ${report.data?.horaSalida || '—'}`} />
-            <Detail label="Contacto/Usuario" value={report.data?.contactoUsuario} />
-            <Detail label="Puesto/Área" value={report.data?.puestoArea} />
-            <Detail label="Vehículo" value={report.data?.vehiculo} />
-            <Detail label="Placas" value={report.data?.placas} />
-            <Detail label="Manejado por" value={textoManejadoPor(report.data)} />
-            <Detail label="Lista de conceptos" value={report.data?.listaConceptos} />
-          </div>
-        </Section>
-
-        {(report.data?.actividades || []).length > 0 && (
-          <Section title="Descripción de actividades realizadas">
-            <ol className="list-decimal marker:text-teal marker:font-bold pl-5 text-[13.5px] font-medium space-y-1.5">
-              {report.data.actividades.map((a: string, i: number) => (
-                <li key={i}>{a}</li>
-              ))}
-            </ol>
-          </Section>
-        )}
-
-        {(report.data?.casoPuntos || []).length > 0 && (
-          <Section title="Caso de problema en equipo o instalación">
-            {report.data.casoPuntos.map((p: any, i: number) => (
-              <div key={i} className="mb-3 last:mb-0 pb-3 last:pb-0 border-b last:border-b-0 border-line">
-                <div className="text-xs font-bold text-teal mb-1.5">Punto {i + 1}</div>
-                <div className="grid grid-cols-1 gap-1.5 text-[13px]">
-                  {p.definicion && <div><span className="text-muted">Definición: </span>{p.definicion}</div>}
-                  {p.descripcion && <div><span className="text-muted">Descripción: </span>{p.descripcion}</div>}
-                  {p.analisis && <div><span className="text-muted">Análisis: </span>{p.analisis}</div>}
-                  {p.plan && <div><span className="text-muted">Plan: </span>{p.plan}</div>}
-                  {p.resultados && <div><span className="text-muted">Resultados: </span>{p.resultados}</div>}
-                  {p.pasosFuturos && <div><span className="text-muted">Pasos futuros: </span>{p.pasosFuturos}</div>}
-                </div>
-              </div>
-            ))}
-          </Section>
-        )}
-
-        {(report.data?.formatosMtto || []).length > 0 && (
-          <Section title="Formato de mantenimiento preventivo">
-            <ResumenFormatos formatos={report.data.formatosMtto} />
-          </Section>
-        )}
-
-        {anexosGuiaDeReporte(report.data?.guiasConexion).length > 0 && (
-          <Section title="Guía de conexión">
-            <div className="flex flex-col gap-2">
-              {anexosGuiaDeReporte(report.data?.guiasConexion).map((anexo) => (
-                <div key={anexo.guia_id} className="rounded-2xl border border-line p-3">
-                  <p className="text-[14px] font-semibold">{anexo.nombre}</p>
-                  <p className="text-[12.5px] text-muted">{anexo.sistema === 'Alarma&Det' ? 'Alarma y detección' : anexo.sistema} · {resumenCortoGuia(anexo)}</p>
-                  {anexo.pruebas.filter((p) => p.valor !== null).map((p) => (
-                    <p key={p.texto} className={`text-[12.5px] mt-1 ${p.estado === 'fuera' ? 'text-red font-semibold' : ''}`}>
-                      {p.texto}: {p.valor} {p.unidad}{p.rango ? ` (debe dar ${p.rango})` : ''}
-                    </p>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </Section>
-        )}
-
-        {anexosDeReporte(report.data?.fallasTierra).length > 0 && (
-          <Section title="Búsqueda de falla a tierra">
-            <div className="flex flex-col gap-3">
-              {anexosDeReporte(report.data?.fallasTierra).map((anexo) => (
-                <div key={anexo.falla_id} className="rounded-2xl border border-line p-3">
-                  <ResumenFallaTierra anexo={anexo} />
-                </div>
-              ))}
-            </div>
-          </Section>
-        )}
-
-        <Section title="Sistema y observaciones">
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
-            <Detail
-              label="Sistema de seguridad"
-              value={[...(report.data?.sistemaSeguridad || [])]
-                .map((s: string) => (s === 'Otra' && report.data?.seguridadOtraTexto ? `Otra: ${report.data.seguridadOtraTexto}` : s))
-                .join(', ')}
-            />
-            <Detail label="Observaciones" value={report.data?.observaciones} />
-            {tuberiasDe(report.data).length > 0 && <Detail label="Tubería" value={tuberiasDe(report.data).map(textoTuberia).join(' / ')} />}
-            {cablesDe(report.data).length > 0 && <Detail label="Cable instalado" value={cablesDe(report.data).map(textoCable).join(' / ')} />}
-            {soporteriaDe(report.data).length > 0 && <Detail label="Soportería y fijación" value={soporteriaDe(report.data).map(textoSoporteria).join(' / ')} />}
-          </div>
-        </Section>
+        {/* El reporte como hoja, igual al PDF y a lo que ve el cliente al firmar. */}
+        <div className="mt-3 rounded-2xl bg-[#0b1520] p-1.5 sm:p-4" data-tour="hoja-reporte">
+          <HojaReporte
+            preview={{
+              empresaCliente: report.empresa_cliente,
+              fecha: report.fecha,
+              tipoServicio: report.tipo_servicio,
+              subTipo: report.sub_tipo_servicio,
+              data: report.data || {},
+              fotos: (fotoUrls || []).filter((f) => !f.video).map((f) => ({ ...f, previewUrl: f.url })),
+              firmaIngListo: Boolean(report.data?.firmaIngData),
+              firmaClienteListo: Boolean(report.data?.firmaClienteData),
+              firmaIng: report.data?.firmaIngData || null,
+              firmaCliente: report.data?.firmaClienteData || null,
+            }}
+            folio={report.id.slice(0, 8).toUpperCase()}
+            onFoto={setFotoHoja}
+          />
+          {loadingFotos && <p className="text-center text-[12.5px] text-white/70 pt-2">Cargando fotos…</p>}
+        </div>
 
         {!report.data?.firmaClienteData && (
           <div className="mt-4"><FirmaPendiente report={report} /></div>
         )}
 
-        {(report.data?.firmaIngData || report.data?.firmaIngNombre || report.data?.firmaClienteData || report.data?.firmaClienteNombre) && (
-          <Section title="Firmas">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {(report.data?.firmaIngData || report.data?.firmaIngNombre) && (
-                <div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted mb-1">Ing. responsable</div>
-                  {report.data?.firmaIngNombre && <div className="text-[14px] font-semibold mb-1.5">{report.data.firmaIngNombre}</div>}
-                  {report.data?.firmaIngData && (
-                    <img src={report.data.firmaIngData} alt="Firma ingeniero" className="w-full max-w-[260px] rounded-xl border border-line bg-surface" />
-                  )}
-                </div>
-              )}
-              {(report.data?.firmaClienteData || report.data?.firmaClienteNombre) && (
-                <div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted mb-1">Cliente</div>
-                  {report.data?.firmaClienteNombre && <div className="text-[14px] font-semibold mb-1.5">{report.data.firmaClienteNombre}</div>}
-                  {report.data?.firmaClienteData && (
-                    <img src={report.data.firmaClienteData} alt="Firma cliente" className="w-full max-w-[260px] rounded-xl border border-line bg-surface" />
-                  )}
-                </div>
-              )}
-            </div>
-          </Section>
+        {fotoHoja && (
+          <button type="button" onClick={() => setFotoHoja(null)} aria-label="Cerrar la foto" className="fixed inset-0 z-[70] bg-black/90 flex items-center justify-center p-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={fotoHoja} alt="Evidencia ampliada" className="max-w-full max-h-full object-contain" />
+          </button>
         )}
 
         </>)}
@@ -897,14 +807,6 @@ export default function ReportDetailModal({
 
         </>)}
 
-        {pestana === 'reporte' && (<>
-        {(report.data?.equipos || []).length > 0 && (
-          <Section title="Equipo instalado">
-            <TablaEquiposInstalados equipos={report.data.equipos} />
-          </Section>
-        )}
-
-        </>)}
 
         {pestana === 'fotos' && (<>
         {viendoVideo && <VisorVideo url={viendoVideo} onCerrar={() => setViendoVideo(null)} />}

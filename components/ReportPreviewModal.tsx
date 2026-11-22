@@ -96,6 +96,210 @@ function CuadroFirma({ etiqueta, nombre, firma, pendiente, vacio = 'Sin firma' }
   );
 }
 
+// La hoja del reporte, como el PDF del cliente: la usan la vista previa
+// (antes de guardar y cuando el cliente firma) y el detalle del reporte ya
+// guardado. `folio`: el del reporte guardado («al guardar» si todavía no).
+export function HojaReporte({ preview, paraCliente = false, folio, onFoto }: {
+  preview: PreviewData;
+  paraCliente?: boolean;
+  folio?: string;
+  onFoto: (url: string) => void;
+}) {
+  const { data } = preview;
+  const personal: string[] = (data.personal || []).filter(Boolean);
+  const sistemas: string[] = data.sistemaSeguridad || [];
+  const tuberias = tuberiasDe(data).map(textoTuberia);
+  const cables = cablesDe(data).map(textoCable);
+  const soporteria = soporteriaDe(data).map(textoSoporteria);
+  const actividades: string[] = data.actividades || [];
+  const casoPuntos: any[] = data.casoPuntos || [];
+  const fallas = anexosDeReporte(data.fallasTierra);
+  const guias = anexosGuiaDeReporte(data.guiasConexion);
+  // El cliente no ve las fotos internas: tampoco salen en su PDF.
+  const fotos = paraCliente ? preview.fotos.filter((f) => !f.interna) : preview.fotos;
+  const ausente = data.clienteAusente;
+
+  let firmaClientePendiente: string | undefined;
+  if (ausente) firmaClientePendiente = `Pendiente de firma del cliente${ausente.motivo ? `: ${ausente.motivo}` : ''}`;
+
+  return (
+    <article
+      className="light mx-auto w-full max-w-[820px] bg-white text-[#0f263b] shadow-2xl px-4 py-5 sm:px-10 sm:py-9 flex flex-col gap-2.5"
+      {...(MARCA.tema !== 'clave' ? { 'data-tema': MARCA.tema } : {})}
+    >
+      {/* Encabezado */}
+      <header className="flex items-start justify-between gap-3 flex-wrap">
+        <Logo variante="completo" size={40} />
+        <div className="text-right ml-auto">
+          <p className="font-display font-bold text-[16px] tracking-wide">REPORTE DE SERVICIO</p>
+          <p className="text-[10.5px] text-[#6b7a80]">Clave: {data.claveFormato || MARCA.claveFormato} · Folio: {folio || 'al guardar'}</p>
+        </div>
+      </header>
+      <div className="border-b-2 border-[#0f263b] pb-2">
+        <h2 className="font-display font-bold text-[21px] leading-tight break-words">{preview.empresaCliente || 'Cliente sin especificar'}</h2>
+        <p className="text-[12px] text-[#6b7a80]">Servicio del {preview.fecha ? fechaDMA(preview.fecha) : '—'}</p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-[0.42fr_0.58fr] gap-2.5">
+        <Cuadro titulo="Personal que realiza el servicio">
+          {personal.length === 0 && <p className="text-[12.5px]">—</p>}
+          {personal.map((nombre) => <p key={nombre} className="text-[12.5px] py-[2px]">• {nombre}</p>)}
+        </Cuadro>
+        <Cuadro titulo="Datos del servicio">
+          <Dato etiqueta="Lista de conceptos" valor={data.listaConceptos} />
+          <Dato etiqueta="Fecha" valor={preview.fecha ? fechaDMA(preview.fecha) : null} />
+          <Dato etiqueta="Hora llegada" valor={data.horaLlegada} />
+          <Dato etiqueta="Hora salida" valor={data.horaSalida} />
+          <Dato etiqueta="Empresa / Cliente" valor={preview.empresaCliente} />
+          <Dato etiqueta="Ord. de compra" valor={data.ordCompra} />
+        </Cuadro>
+      </div>
+
+      {(data.vehiculo || data.placas || textoManejadoPor(data)) && (
+        <div className="grid grid-cols-3 border border-[#8c8c8c] divide-x divide-[#8c8c8c]">
+          {[['Vehículo', data.vehiculo], ['Placas', data.placas], ['Manejado por', textoManejadoPor(data)]].map(([etiqueta, valor]) => (
+            <div key={etiqueta} className="px-2.5 py-1.5 min-w-0">
+              <p className="text-[9.5px] font-bold uppercase text-[#6b7a80]">{etiqueta}</p>
+              <p className="text-[12.5px] break-words">{valor || '—'}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 border border-[#8c8c8c] divide-x divide-[#8c8c8c]">
+        {[['Contacto / Usuario', data.contactoUsuario], ['Puesto / Área', data.puestoArea]].map(([etiqueta, valor]) => (
+          <div key={etiqueta} className="px-2.5 py-1.5 min-w-0">
+            <p className="text-[9.5px] font-bold uppercase text-[#6b7a80]">{etiqueta}</p>
+            <p className="text-[12.5px] break-words">{valor || '—'}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap gap-x-5 gap-y-1.5 py-1">
+        {TIPOS.map((tipo) => (
+          <Casilla key={tipo} texto={tipo} marcada={tieneTipo(preview.tipoServicio, tipo) || tieneTipo(preview.subTipo, tipo)} />
+        ))}
+        {tieneTipo(preview.tipoServicio, 'Otro') && data.tipoServicioOtroTexto && (
+          <span className="text-[12px] w-full">Especifica: {data.tipoServicioOtroTexto}</span>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-[0.4fr_0.6fr] gap-2.5">
+        <Cuadro titulo="Tubería">
+          {tuberias.length === 0 && <p className="text-[12.5px] text-[#6b7a80]">Sin tubería</p>}
+          {tuberias.map((t, i) => <p key={i} className="text-[12.5px] py-[2px]">• {t}</p>)}
+        </Cuadro>
+        <Cuadro titulo="Sistema de seguridad">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+            {SISTEMAS.map(([valor, etiqueta]) => <Casilla key={valor} texto={etiqueta} marcada={sistemas.includes(valor)} />)}
+          </div>
+          {sistemas.includes('Otra') && data.seguridadOtraTexto && <p className="text-[12px] mt-1.5">Otra: {data.seguridadOtraTexto}</p>}
+        </Cuadro>
+      </div>
+
+      {cables.length > 0 && (
+        <Cuadro titulo="Cable instalado">{cables.map((t, i) => <p key={i} className="text-[12.5px] py-[2px]">• {t}</p>)}</Cuadro>
+      )}
+      {soporteria.length > 0 && (
+        <Cuadro titulo="Montaje de soportería y fijación">{soporteria.map((t, i) => <p key={i} className="text-[12.5px] py-[2px]">• {t}</p>)}</Cuadro>
+      )}
+
+      {(data.equipos || []).length > 0 && (
+        <Cuadro titulo="Montaje de equipo"><TablaEquiposInstalados equipos={data.equipos} /></Cuadro>
+      )}
+
+      {actividades.length > 0 && (
+        <Cuadro titulo="Descripción de actividades realizadas">
+          <ol className="list-decimal pl-5 text-[13px] leading-relaxed">
+            {actividades.map((a, i) => <li key={i}>{a}</li>)}
+          </ol>
+        </Cuadro>
+      )}
+
+      {casoPuntos.length > 0 && (
+        <Cuadro titulo="Caso de problema en equipo o instalación">
+          {casoPuntos.map((punto, i) => (
+            <div key={i} className="py-1.5 border-b last:border-b-0 border-[#d5d8da] text-[12.5px] leading-relaxed">
+              <p className="font-bold text-[#124036]">Punto {i + 1}</p>
+              {CAMPOS_CASO.filter(([campo]) => punto[campo]).map(([campo, etiqueta]) => (
+                <p key={campo}><span className="text-[#6b7a80]">{etiqueta}: </span>{punto[campo]}</p>
+              ))}
+            </div>
+          ))}
+        </Cuadro>
+      )}
+
+      {data.observaciones && (
+        <Cuadro titulo="Observaciones"><p className="text-[13px] leading-relaxed whitespace-pre-line">{data.observaciones}</p></Cuadro>
+      )}
+
+      {(data.formatosMtto || []).length > 0 && (
+        <Cuadro titulo="Formato de mantenimiento preventivo"><ResumenFormatos formatos={data.formatosMtto} /></Cuadro>
+      )}
+
+      {fallas.length > 0 && (
+        <Cuadro titulo="Búsqueda de falla a tierra">
+          <div className="flex flex-col gap-3">
+            {fallas.map((anexo) => <ResumenFallaTierra key={anexo.falla_id} anexo={anexo} />)}
+          </div>
+        </Cuadro>
+      )}
+
+      {guias.length > 0 && (
+        <Cuadro titulo="Guías de conexión">
+          {guias.map((guia) => (
+            <p key={guia.guia_id} className="text-[12.5px] py-[2px]">• <b>{guia.nombre}</b> — {resumenCortoGuia(guia)}</p>
+          ))}
+        </Cuadro>
+      )}
+
+      {fotos.length > 0 && (
+        <Cuadro titulo="Evidencia fotográfica">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+            {fotos.map((foto, i) => (
+              <figure key={i} className="relative">
+                <button type="button" onClick={() => onFoto(foto.previewUrl)} className="block w-full active:scale-[0.98] transition-transform" aria-label={`Ampliar evidencia ${i + 1}`}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={foto.previewUrl} alt={`Evidencia ${i + 1}`} className={`w-full h-[130px] object-cover border border-[#8c8c8c] ${foto.interna ? 'opacity-50' : ''}`} />
+                </button>
+                {foto.interna && (
+                  <span title="No sale en el PDF del cliente" className="absolute top-1.5 left-1.5 w-7 h-7 rounded-full bg-amber text-white flex items-center justify-center">
+                    <EyeOff size={14} strokeWidth={2.4} />
+                  </span>
+                )}
+                {foto.caption && <figcaption className="text-[11.5px] mt-1 leading-snug">{foto.caption}</figcaption>}
+              </figure>
+            ))}
+          </div>
+        </Cuadro>
+      )}
+
+      {/* Firmas */}
+      <div className="border-t border-[#8c8c8c] pt-2.5 mt-1">
+        <p className="text-[10.5px] font-bold uppercase tracking-wide mb-2">Firmas</p>
+        <div className="grid grid-cols-2 gap-3">
+          <CuadroFirma etiqueta="Ing. responsable de ejecución" nombre={data.firmaIngNombre} firma={preview.firmaIng} />
+          {ausente ? (
+            <CuadroFirma
+              etiqueta="Cliente ausente — firma pendiente"
+              nombre={ausente.recibioNombre ? `Recibió: ${ausente.recibioNombre}${ausente.recibioPuesto ? ` (${ausente.recibioPuesto})` : ''}` : 'Sin persona que recibiera'}
+              firma={ausente.recibioFirma}
+              pendiente={firmaClientePendiente}
+            />
+          ) : (
+            <CuadroFirma
+              etiqueta="Nombre, fecha y firma cliente"
+              nombre={data.firmaClienteNombre}
+              firma={preview.firmaCliente}
+              vacio={paraCliente ? 'Aquí quedará su firma' : 'Sin firma'}
+            />
+          )}
+        </div>
+      </div>
+    </article>
+  );
+}
+
 export default function ReportPreviewModal({
   preview,
   onClose,
@@ -107,7 +311,6 @@ export default function ReportPreviewModal({
   // «Firmar de conformidad» y no se muestran las fotos internas.
   onFirmar?: () => void;
 }) {
-  const { data } = preview;
   const paraCliente = Boolean(onFirmar);
   const zonaRef = useRef<HTMLDivElement | null>(null);
   const [avance, setAvance] = useState(0);
@@ -132,22 +335,6 @@ export default function ReportPreviewModal({
   // Un reporte corto cabe completo: cuenta como leído desde que abre.
   useEffect(medirAvance, []);
 
-  const personal: string[] = (data.personal || []).filter(Boolean);
-  const sistemas: string[] = data.sistemaSeguridad || [];
-  const tuberias = tuberiasDe(data).map(textoTuberia);
-  const cables = cablesDe(data).map(textoCable);
-  const soporteria = soporteriaDe(data).map(textoSoporteria);
-  const actividades: string[] = data.actividades || [];
-  const casoPuntos: any[] = data.casoPuntos || [];
-  const fallas = anexosDeReporte(data.fallasTierra);
-  const guias = anexosGuiaDeReporte(data.guiasConexion);
-  // El cliente no ve las fotos internas: tampoco salen en su PDF.
-  const fotos = paraCliente ? preview.fotos.filter((f) => !f.interna) : preview.fotos;
-  const ausente = data.clienteAusente;
-
-  let firmaClientePendiente: string | undefined;
-  if (ausente) firmaClientePendiente = `Pendiente de firma del cliente${ausente.motivo ? `: ${ausente.motivo}` : ''}`;
-
   return (
     <div className="modal-fondo fixed inset-0 z-50 flex flex-col bg-[#0b1520]" role="dialog" aria-modal="true" aria-label="Vista previa del reporte">
       {/* Barra de arriba */}
@@ -170,181 +357,7 @@ export default function ReportPreviewModal({
       </div>
 
       <div ref={zonaRef} onScroll={medirAvance} className="flex-1 overflow-y-auto overscroll-contain px-2.5 py-4 sm:px-6 sm:py-7">
-        {/* La hoja: siempre en claro, aunque la app esté en tema oscuro. */}
-        <article
-          className="light mx-auto w-full max-w-[820px] bg-white text-[#0f263b] shadow-2xl px-4 py-5 sm:px-10 sm:py-9 flex flex-col gap-2.5"
-          {...(MARCA.tema !== 'clave' ? { 'data-tema': MARCA.tema } : {})}
-        >
-          {/* Encabezado */}
-          <header className="flex items-start justify-between gap-3 flex-wrap">
-            <Logo variante="completo" size={40} />
-            <div className="text-right ml-auto">
-              <p className="font-display font-bold text-[16px] tracking-wide">REPORTE DE SERVICIO</p>
-              <p className="text-[10.5px] text-[#6b7a80]">Clave: {data.claveFormato || MARCA.claveFormato} · Folio: al guardar</p>
-            </div>
-          </header>
-          <div className="border-b-2 border-[#0f263b] pb-2">
-            <h2 className="font-display font-bold text-[21px] leading-tight break-words">{preview.empresaCliente || 'Cliente sin especificar'}</h2>
-            <p className="text-[12px] text-[#6b7a80]">Servicio del {preview.fecha ? fechaDMA(preview.fecha) : '—'}</p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-[0.42fr_0.58fr] gap-2.5">
-            <Cuadro titulo="Personal que realiza el servicio">
-              {personal.length === 0 && <p className="text-[12.5px]">—</p>}
-              {personal.map((nombre) => <p key={nombre} className="text-[12.5px] py-[2px]">• {nombre}</p>)}
-            </Cuadro>
-            <Cuadro titulo="Datos del servicio">
-              <Dato etiqueta="Lista de conceptos" valor={data.listaConceptos} />
-              <Dato etiqueta="Fecha" valor={preview.fecha ? fechaDMA(preview.fecha) : null} />
-              <Dato etiqueta="Hora llegada" valor={data.horaLlegada} />
-              <Dato etiqueta="Hora salida" valor={data.horaSalida} />
-              <Dato etiqueta="Empresa / Cliente" valor={preview.empresaCliente} />
-              <Dato etiqueta="Ord. de compra" valor={data.ordCompra} />
-            </Cuadro>
-          </div>
-
-          {(data.vehiculo || data.placas || textoManejadoPor(data)) && (
-            <div className="grid grid-cols-3 border border-[#8c8c8c] divide-x divide-[#8c8c8c]">
-              {[['Vehículo', data.vehiculo], ['Placas', data.placas], ['Manejado por', textoManejadoPor(data)]].map(([etiqueta, valor]) => (
-                <div key={etiqueta} className="px-2.5 py-1.5 min-w-0">
-                  <p className="text-[9.5px] font-bold uppercase text-[#6b7a80]">{etiqueta}</p>
-                  <p className="text-[12.5px] break-words">{valor || '—'}</p>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 border border-[#8c8c8c] divide-x divide-[#8c8c8c]">
-            {[['Contacto / Usuario', data.contactoUsuario], ['Puesto / Área', data.puestoArea]].map(([etiqueta, valor]) => (
-              <div key={etiqueta} className="px-2.5 py-1.5 min-w-0">
-                <p className="text-[9.5px] font-bold uppercase text-[#6b7a80]">{etiqueta}</p>
-                <p className="text-[12.5px] break-words">{valor || '—'}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap gap-x-5 gap-y-1.5 py-1">
-            {TIPOS.map((tipo) => (
-              <Casilla key={tipo} texto={tipo} marcada={tieneTipo(preview.tipoServicio, tipo) || tieneTipo(preview.subTipo, tipo)} />
-            ))}
-            {tieneTipo(preview.tipoServicio, 'Otro') && data.tipoServicioOtroTexto && (
-              <span className="text-[12px] w-full">Especifica: {data.tipoServicioOtroTexto}</span>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-[0.4fr_0.6fr] gap-2.5">
-            <Cuadro titulo="Tubería">
-              {tuberias.length === 0 && <p className="text-[12.5px] text-[#6b7a80]">Sin tubería</p>}
-              {tuberias.map((t, i) => <p key={i} className="text-[12.5px] py-[2px]">• {t}</p>)}
-            </Cuadro>
-            <Cuadro titulo="Sistema de seguridad">
-              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                {SISTEMAS.map(([valor, etiqueta]) => <Casilla key={valor} texto={etiqueta} marcada={sistemas.includes(valor)} />)}
-              </div>
-              {sistemas.includes('Otra') && data.seguridadOtraTexto && <p className="text-[12px] mt-1.5">Otra: {data.seguridadOtraTexto}</p>}
-            </Cuadro>
-          </div>
-
-          {cables.length > 0 && (
-            <Cuadro titulo="Cable instalado">{cables.map((t, i) => <p key={i} className="text-[12.5px] py-[2px]">• {t}</p>)}</Cuadro>
-          )}
-          {soporteria.length > 0 && (
-            <Cuadro titulo="Montaje de soportería y fijación">{soporteria.map((t, i) => <p key={i} className="text-[12.5px] py-[2px]">• {t}</p>)}</Cuadro>
-          )}
-
-          {(data.equipos || []).length > 0 && (
-            <Cuadro titulo="Montaje de equipo"><TablaEquiposInstalados equipos={data.equipos} /></Cuadro>
-          )}
-
-          {actividades.length > 0 && (
-            <Cuadro titulo="Descripción de actividades realizadas">
-              <ol className="list-decimal pl-5 text-[13px] leading-relaxed">
-                {actividades.map((a, i) => <li key={i}>{a}</li>)}
-              </ol>
-            </Cuadro>
-          )}
-
-          {casoPuntos.length > 0 && (
-            <Cuadro titulo="Caso de problema en equipo o instalación">
-              {casoPuntos.map((punto, i) => (
-                <div key={i} className="py-1.5 border-b last:border-b-0 border-[#d5d8da] text-[12.5px] leading-relaxed">
-                  <p className="font-bold text-[#124036]">Punto {i + 1}</p>
-                  {CAMPOS_CASO.filter(([campo]) => punto[campo]).map(([campo, etiqueta]) => (
-                    <p key={campo}><span className="text-[#6b7a80]">{etiqueta}: </span>{punto[campo]}</p>
-                  ))}
-                </div>
-              ))}
-            </Cuadro>
-          )}
-
-          {data.observaciones && (
-            <Cuadro titulo="Observaciones"><p className="text-[13px] leading-relaxed whitespace-pre-line">{data.observaciones}</p></Cuadro>
-          )}
-
-          {(data.formatosMtto || []).length > 0 && (
-            <Cuadro titulo="Formato de mantenimiento preventivo"><ResumenFormatos formatos={data.formatosMtto} /></Cuadro>
-          )}
-
-          {fallas.length > 0 && (
-            <Cuadro titulo="Búsqueda de falla a tierra">
-              <div className="flex flex-col gap-3">
-                {fallas.map((anexo) => <ResumenFallaTierra key={anexo.falla_id} anexo={anexo} />)}
-              </div>
-            </Cuadro>
-          )}
-
-          {guias.length > 0 && (
-            <Cuadro titulo="Guías de conexión">
-              {guias.map((guia) => (
-                <p key={guia.guia_id} className="text-[12.5px] py-[2px]">• <b>{guia.nombre}</b> — {resumenCortoGuia(guia)}</p>
-              ))}
-            </Cuadro>
-          )}
-
-          {fotos.length > 0 && (
-            <Cuadro titulo="Evidencia fotográfica">
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                {fotos.map((foto, i) => (
-                  <figure key={i} className="relative">
-                    <button type="button" onClick={() => setFotoGrande(foto.previewUrl)} className="block w-full active:scale-[0.98] transition-transform" aria-label={`Ampliar evidencia ${i + 1}`}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={foto.previewUrl} alt={`Evidencia ${i + 1}`} className={`w-full h-[130px] object-cover border border-[#8c8c8c] ${foto.interna ? 'opacity-50' : ''}`} />
-                    </button>
-                    {foto.interna && (
-                      <span title="No sale en el PDF del cliente" className="absolute top-1.5 left-1.5 w-7 h-7 rounded-full bg-amber text-white flex items-center justify-center">
-                        <EyeOff size={14} strokeWidth={2.4} />
-                      </span>
-                    )}
-                    {foto.caption && <figcaption className="text-[11.5px] mt-1 leading-snug">{foto.caption}</figcaption>}
-                  </figure>
-                ))}
-              </div>
-            </Cuadro>
-          )}
-
-          {/* Firmas */}
-          <div className="border-t border-[#8c8c8c] pt-2.5 mt-1">
-            <p className="text-[10.5px] font-bold uppercase tracking-wide mb-2">Firmas</p>
-            <div className="grid grid-cols-2 gap-3">
-              <CuadroFirma etiqueta="Ing. responsable de ejecución" nombre={data.firmaIngNombre} firma={preview.firmaIng} />
-              {ausente ? (
-                <CuadroFirma
-                  etiqueta="Cliente ausente — firma pendiente"
-                  nombre={ausente.recibioNombre ? `Recibió: ${ausente.recibioNombre}${ausente.recibioPuesto ? ` (${ausente.recibioPuesto})` : ''}` : 'Sin persona que recibiera'}
-                  firma={ausente.recibioFirma}
-                  pendiente={firmaClientePendiente}
-                />
-              ) : (
-                <CuadroFirma
-                  etiqueta="Nombre, fecha y firma cliente"
-                  nombre={data.firmaClienteNombre}
-                  firma={preview.firmaCliente}
-                  vacio={paraCliente ? 'Aquí quedará su firma' : 'Sin firma'}
-                />
-              )}
-            </div>
-          </div>
-        </article>
+        <HojaReporte preview={preview} paraCliente={paraCliente} onFoto={setFotoGrande} />
       </div>
 
       {/* Barra de abajo */}

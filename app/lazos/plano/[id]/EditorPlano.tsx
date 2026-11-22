@@ -12,7 +12,7 @@ import CejaDivisor, { useAnchoPanel } from '@/components/lazos/CejaDivisor';
 import DiagramaLazo from '@/components/lazos/DiagramaLazo';
 import { DatosEquipoSistema, PanelEquiposSistema, ResumenCctv } from '@/components/planos/EquiposSistema';
 import { esEquipoDeRed } from '@/lib/equiposSistemas';
-import LienzoPlano, { type NodoTuberia, type Seleccion } from '@/components/lazos/LienzoPlano';
+import LienzoPlano, { type CambioManija, type NodoTuberia, type Seleccion } from '@/components/lazos/LienzoPlano';
 import SimboloPlano from '@/components/lazos/SimboloPlano';
 import PanelAvance, { type ModoToque } from '@/components/lazos/PanelAvance';
 import ResumenAvance from '@/components/lazos/ResumenAvance';
@@ -1144,6 +1144,28 @@ export default function EditorPlano({ planoId, esSupervisor, inicio }: {
     setCambios((n) => n + 1);
   }
 
+  // Agarraderas del equipo elegido (girar, tamaño y, en cámaras, ángulo y
+  // alcance): una sola entrada de «Deshacer» por arrastre.
+  function manijaInicio(id: string) {
+    anotarEnHistorial();
+    setSeleccion({ tipo: 'equipo', id });
+  }
+
+  function manijaCambio(id: string, cambio: CambioManija) {
+    setEstado((actual) => ({
+      ...actual,
+      sembrado: { ...actual.sembrado, equipos: actual.sembrado.equipos.map((e) => (e.id === id ? { ...e, ...cambio } : e)) },
+    }));
+  }
+
+  function manijaFin(id: string) {
+    const equipo = estadoRef.current.sembrado.equipos.find((e) => e.id === id);
+    // Los siguientes que se coloquen salen con el mismo giro y tamaño.
+    if (equipo?.rotacion != null) setRotacionNueva(equipo.rotacion);
+    if (equipo?.tamano != null) setTamanoNuevo(equipo.tamano);
+    setCambios((n) => n + 1);
+  }
+
   function arrastreFin() {
     setGuiasArrastre(null);
     setCambios((n) => n + 1);
@@ -1462,6 +1484,7 @@ export default function EditorPlano({ planoId, esSupervisor, inicio }: {
             onArrastreInicio={arrastreInicio}
             onArrastre={arrastre}
             onArrastreFin={arrastreFin}
+            onManija={{ inicio: manijaInicio, cambio: manijaCambio, fin: manijaFin }}
             conexiones={verConexiones || herramienta === 'conectar' ? conexiones : null}
             colorPorLazo={colorPorLazo}
             resaltado={herramienta === 'conectar' ? equipoResaltado : null}
@@ -1517,7 +1540,7 @@ export default function EditorPlano({ planoId, esSupervisor, inicio }: {
                       onEditarDatos={() => editarDatos(equipoElegido)}
                       onMover={(dx, dy) => moverUnPaso(equipoElegido.id, dx, dy)}
                       onRotacion={(g) => cambiarRotacion(equipoElegido.id, g)} onRotacionATodos={() => rotacionATodos(equipoElegido.rotacion || 0)}
-                      sistema={sistema} equiposDeRed={sembrado.equipos.filter((e) => e.id !== equipoElegido.id && esEquipoDeRed(e.tipo))}
+                      sistema={sistema} proyectoId={plano?.proyecto_id || null} equiposDeRed={sembrado.equipos.filter((e) => e.id !== equipoElegido.id && esEquipoDeRed(e.tipo))}
                       onDatos={(c) => cambiarDatosEquipo(equipoElegido.id, c)} />
                   )}
                   {tuberiaElegida && (
@@ -2389,8 +2412,9 @@ function BotonMasTipos({ abierto, onCambiar }: { abierto: boolean; onCambiar: (a
 const BOTON_FLECHA = 'w-11 h-11 rounded-xl bg-surface border border-line flex items-center justify-center';
 const BOTON_GIRO = 'h-11 px-2 rounded-xl bg-surface border border-line flex items-center gap-0.5 text-[12px] font-semibold';
 
-function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, onTamanoATodos, variosEquipos, candidatos, onLigar, onDesligar, onEditarDatos, onMover, onRotacion, onRotacionATodos, sistema, equiposDeRed, onDatos }: {
+function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, onTamanoATodos, variosEquipos, candidatos, onLigar, onDesligar, onEditarDatos, onMover, onRotacion, onRotacionATodos, sistema, proyectoId, equiposDeRed, onDatos }: {
   sistema: string;
+  proyectoId: string | null;
   equiposDeRed: EquipoPlano[];
   onDatos: (cambios: Partial<EquipoPlano>) => void;
   equipo: EquipoPlano;
@@ -2445,7 +2469,7 @@ function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, o
         </div>
         <button type="button" onClick={onCerrar} aria-label="Cerrar ficha" className="w-9 h-9 rounded-full flex items-center justify-center"><X size={18} /></button>
       </div>
-      {sistema !== 'deteccion' && <DatosEquipoSistema equipo={equipo} equiposDeRed={equiposDeRed} onDatos={onDatos} />}
+      {sistema !== 'deteccion' && <DatosEquipoSistema equipo={equipo} equiposDeRed={equiposDeRed} proyectoId={proyectoId} onDatos={onDatos} />}
       {sistema === 'deteccion' && !ligado && !esPanel && (
         <ListaParaLigar candidatos={candidatos} eligiendo={eligiendo} onAbrir={() => setEligiendo(!eligiendo)}
           onLigar={(id) => { setEligiendo(false); onLigar(id); }} />
@@ -2464,9 +2488,9 @@ function FichaEquipo({ equipo, ligado, etiqueta, onQuitar, onCerrar, onTamano, o
           Poner todos los equipos a {Math.round(tamano * 100)} %
         </button>
       )}
-      {/* Ajuste fino: mueve muy poquito; entre más acercado el plano, más fino. */}
+      {/* Ajuste fino con flechas; entre más acercado el plano, más fino. */}
       <div className="mt-3 flex items-center gap-1.5">
-        <span className="text-[13px] text-muted flex-1">Mover poquito</span>
+        <span className="text-[13px] text-muted flex-1">Mover</span>
         <button type="button" onClick={() => onMover(-1, 0)} aria-label="Mover un poco a la izquierda" className={BOTON_FLECHA}><ArrowLeft size={18} strokeWidth={2.6} /></button>
         <button type="button" onClick={() => onMover(0, -1)} aria-label="Mover un poco hacia arriba" className={BOTON_FLECHA}><ArrowUp size={18} strokeWidth={2.6} /></button>
         <button type="button" onClick={() => onMover(0, 1)} aria-label="Mover un poco hacia abajo" className={BOTON_FLECHA}><ArrowDown size={18} strokeWidth={2.6} /></button>

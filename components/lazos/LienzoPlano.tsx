@@ -32,7 +32,30 @@ type Gesto =
   | { tipo: 'pan'; x: number; y: number; vista: Vista }
   | { tipo: 'arrastre'; equipoId: string; x: number; y: number; centro: Punto }
   | { tipo: 'arrastreNodo'; nodo: NodoTuberia }
-  | { tipo: 'pinza'; distancia: number; centro: { x: number; y: number }; vista: Vista };
+  | { tipo: 'pinza'; distancia: number; centro: { x: number; y: number }; vista: Vista }
+  // Una agarradera del equipo elegido (girar, mover, tamaño, ángulo o alcance de la cámara).
+  | { tipo: 'manija'; manija: TipoManija; equipoId: string; x: number; y: number; centro: Punto; tamano0: number; d0: number; empezo: boolean };
+
+export type TipoManija = 'girar' | 'mover' | 'tamano' | 'angulo1' | 'angulo2' | 'alcance';
+
+// Cambios que hace una agarradera al arrastrarla.
+export type CambioManija = Partial<Pick<EquipoPlano, 'rotacion' | 'tamano' | 'angulo' | 'alcance'>>;
+
+const RADIO_MANIJA = 12; // pixeles de pantalla
+
+// Ángulo en grados (0 = derecha, en el sentido de las manecillas) de c a p.
+function anguloHacia(c: Punto, p: Punto): number {
+  return (Math.atan2(p[1] - c[1], p[0] - c[0]) * 180) / Math.PI;
+}
+function normalizar360(a: number): number {
+  return ((a % 360) + 360) % 360;
+}
+// Iconos de las agarraderas (trazos de 24×24, como los de lucide).
+const ICONO_MANIJA: Record<'girar' | 'mover' | 'tamano', string> = {
+  girar: 'M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8 M21 3v5h-5',
+  mover: 'M5 9l-3 3 3 3 M9 5l3-3 3 3 M15 19l-3 3-3-3 M19 9l3 3-3 3 M2 12h20 M12 2v20',
+  tamano: 'M15 3h6v6 M9 21H3v-6 M21 3l-7 7 M3 21l7-7',
+};
 
 // Cuánto hay que mover el dedo para que deje de ser un toque.
 const UMBRAL_MOVIMIENTO = 7;
@@ -43,8 +66,10 @@ export default function LienzoPlano({
   imagenUrl, ancho, alto, sembrado, etiquetaDe, seleccion, trazo, colorTrazo, medida,
   ajustarPunto, onEscala, metrosPorUnidad, onTocar, onDobleToque, onArrastreInicio, onArrastre, onArrastreFin,
   conexiones, colorPorLazo, resaltado, ayudaPuntero, guiasArrastre, verNodos, onNodoInicio, onNodo, onNodoFin,
-  bloqueado = false, enfocar = null, colorAvance = null, insigniaAvance = null, elegidos = null, tenues = null,
+  bloqueado = false, enfocar = null, colorAvance = null, insigniaAvance = null, elegidos = null, tenues = null, onManija,
 }: {
+  // Agarraderas del equipo elegido. Sin esto no se dibujan.
+  onManija?: { inicio: (id: string) => void; cambio: (id: string, cambio: CambioManija) => void; fin: (id: string) => void };
   // Modo avance: color de fondo de cada equipo según su estado de obra,
   // varios equipos elegidos a la vez y los que quedan fuera del filtro.
   colorAvance?: ((e: EquipoPlano) => string) | null;
@@ -209,6 +234,18 @@ export default function LienzoPlano({
     const p = enMarco(ev);
     punteros.current.set(ev.pointerId, p);
     if (punteros.current.size === 1) {
+      // Primero las agarraderas del equipo elegido (aunque el plano esté fijo:
+      // son a propósito, no se mueven sin querer).
+      const manija = manijaEn(p);
+      if (manija && elegidoEnPlano) {
+        const centro: Punto = [elegidoEnPlano.x, elegidoEnPlano.y];
+        const enHoja = aHoja(p.x, p.y);
+        gesto.current = {
+          tipo: 'manija', manija: manija.tipo, equipoId: elegidoEnPlano.id, x: p.x, y: p.y, centro,
+          tamano0: tamanoDe(elegidoEnPlano), d0: Math.max(1e-6, Math.hypot(enHoja[0] - centro[0], enHoja[1] - centro[1])), empezo: false,
+        };
+        return;
+      }
       // Si empieza sobre un equipo y el dedo se mueve, se arrastra el equipo
       // (con cualquier herramienta); si no, se recorre el plano.
       // Bloqueado: nada se arrastra, siempre se recorre el plano.
@@ -252,6 +289,41 @@ export default function LienzoPlano({
         gesto.current = { tipo: 'pan', x: g.x, y: g.y, vista: g.vista };
       }
     }
+    if (g.tipo === 'manija') {
+      if (!g.empezo) {
+        if (Math.hypot(p.x - g.x, p.y - g.y) < 3) return;
+        g.empezo = true;
+        if (g.manija === 'mover') onArrastreInicio(g.equipoId); else onManija?.inicio(g.equipoId);
+      }
+      const escala = vistaRef.current.s;
+      if (g.manija === 'mover') {
+        onArrastre(g.equipoId, [g.centro[0] + (p.x - g.x) / escala, g.centro[1] + (p.y - g.y) / escala]);
+        return;
+      }
+      const enHoja = aHoja(p.x, p.y);
+      const equipo = sembrado.equipos.find((e) => e.id === g.equipoId);
+      if (!equipo) return;
+      if (g.manija === 'girar') {
+        // La agarradera está a −90° del frente del equipo.
+        let giro = normalizar360(anguloHacia(g.centro, enHoja) + 90);
+        const cerca = Math.round(giro / 15) * 15;
+        giro = Math.abs(giro - cerca) < 4 ? cerca : Math.round(giro);
+        onManija?.cambio(g.equipoId, { rotacion: normalizar360(giro) });
+      } else if (g.manija === 'tamano') {
+        const d = Math.hypot(enHoja[0] - g.centro[0], enHoja[1] - g.centro[1]);
+        const tamano = Math.min(4, Math.max(0.25, Math.round(((g.tamano0 * d) / g.d0) * 20) / 20));
+        onManija?.cambio(g.equipoId, { tamano });
+      } else if (g.manija === 'angulo1' || g.manija === 'angulo2') {
+        let diferencia = normalizar360(anguloHacia(g.centro, enHoja) - (equipo.rotacion || 0));
+        if (diferencia > 180) diferencia -= 360;
+        const angulo = Math.min(360, Math.max(5, Math.round(Math.abs(diferencia) * 2)));
+        onManija?.cambio(g.equipoId, { angulo });
+      } else if (g.manija === 'alcance' && metrosPorUnidad) {
+        const metros = Math.hypot(enHoja[0] - g.centro[0], enHoja[1] - g.centro[1]) * metrosPorUnidad;
+        onManija?.cambio(g.equipoId, { alcance: Math.min(500, Math.max(0.5, Math.round(metros * 2) / 2)) });
+      }
+      return;
+    }
     const actual = gesto.current;
     if (actual.tipo === 'pan') {
       movido.current = true;
@@ -286,6 +358,8 @@ export default function LienzoPlano({
       onArrastreFin(g.equipoId);
     } else if (g.tipo === 'arrastreNodo') {
       onNodoFin();
+    } else if (g.tipo === 'manija' && g.empezo) {
+      if (g.manija === 'mover') onArrastreFin(g.equipoId); else onManija?.fin(g.equipoId);
     }
     // Al soltar un dedo de la pinza no se brinca a mover: se espera a soltar todo.
     gesto.current = { tipo: 'nada' };
@@ -295,7 +369,53 @@ export default function LienzoPlano({
     punteros.current.delete(ev.pointerId);
     if (gesto.current.tipo === 'arrastre') onArrastreFin(gesto.current.equipoId);
     if (gesto.current.tipo === 'arrastreNodo') onNodoFin();
+    const g = gesto.current;
+    if (g.tipo === 'manija' && g.empezo) {
+      if (g.manija === 'mover') onArrastreFin(g.equipoId); else onManija?.fin(g.equipoId);
+    }
     gesto.current = { tipo: 'nada' };
+  }
+
+  // Dónde va cada agarradera del equipo elegido (en la hoja). Giran con él:
+  // girar al frente-izquierda (−90°), mover enfrente de girar (+90°),
+  // tamaño atrás en diagonal; en cámaras, las orillas y la punta del cono.
+  function manijasDe(e: EquipoPlano): { tipo: TipoManija; x: number; y: number }[] {
+    if (!onManija || vistaRef.current.s <= 0) return [];
+    const escala = vistaRef.current.s;
+    const radioSimbolo = Math.max(tamanoSimbolo(ancho, alto) / 2, 9 / escala) * tamanoDe(e);
+    const separacion = Math.max(radioSimbolo * 1.8, 34 / escala);
+    const giro = e.rotacion || 0;
+    const en = (grados: number, d: number) => {
+      const a = (grados * Math.PI) / 180;
+      return { x: e.x + d * Math.cos(a), y: e.y + d * Math.sin(a) };
+    };
+    const lista: { tipo: TipoManija; x: number; y: number }[] = [
+      { tipo: 'girar', ...en(giro - 90, separacion) },
+      { tipo: 'mover', ...en(giro + 90, separacion) },
+      { tipo: 'tamano', ...en(giro + 135, separacion) },
+    ];
+    const camara = equipoCatalogo(e.tipo)?.camara;
+    if (camara) {
+      const angulo = e.angulo || camara.angulo;
+      const radioCono = Math.max(alcanceEnHoja(e, e.alcance || camara.alcance, metrosPorUnidad ?? null, Math.max(tamanoSimbolo(ancho, alto) / 2, 9 / escala)), separacion * 1.3);
+      if (angulo < 359.5) {
+        lista.push({ tipo: 'angulo1', ...en(giro - angulo / 2, radioCono) }, { tipo: 'angulo2', ...en(giro + angulo / 2, radioCono) });
+      }
+      if (metrosPorUnidad) lista.push({ tipo: 'alcance', ...en(giro, radioCono) });
+    }
+    return lista;
+  }
+
+  function manijaEn(p: { x: number; y: number }) {
+    if (!elegidoEnPlano) return null;
+    const enHoja = aHoja(p.x, p.y);
+    const radio = (RADIO_MANIJA + 6) / vistaRef.current.s;
+    let mejor: { tipo: TipoManija; d: number } | null = null;
+    for (const m of manijasDe(elegidoEnPlano)) {
+      const d = Math.hypot(m.x - enHoja[0], m.y - enHoja[1]);
+      if (d <= radio && (!mejor || d < mejor.d)) mejor = { tipo: m.tipo, d };
+    }
+    return mejor;
   }
 
   // El nodo de tubería más cercano a p, dentro del radio.
@@ -434,6 +554,36 @@ export default function LienzoPlano({
                 fontFamily="ui-sans-serif, system-ui" fill={colorPorLazo.get(m.lazoId) || '#0f766e'}
                 stroke="#fff" strokeWidth={r * 0.3} paintOrder="stroke" strokeLinejoin="round">{m.texto}</text>
             ))}
+
+            {/* Agarraderas del equipo elegido. */}
+            {elegidoEnPlano && onManija && (() => {
+              const manijas = manijasDe(elegidoEnPlano);
+              const girar = manijas.find((m) => m.tipo === 'girar');
+              return (
+                <g style={{ pointerEvents: 'none' }}>
+                  {girar && <line x1={elegidoEnPlano.x} y1={elegidoEnPlano.y} x2={girar.x} y2={girar.y} stroke="#14b8a6" strokeWidth={1.5 / s} strokeDasharray={`${4 / s} ${3 / s}`} />}
+                  {manijas.map((m) => {
+                    if (m.tipo === 'angulo1' || m.tipo === 'angulo2' || m.tipo === 'alcance') {
+                      return (
+                        <g key={m.tipo}>
+                          <circle cx={m.x} cy={m.y} r={RADIO_MANIJA / s} fill="#fff" stroke={COLOR_SISTEMA.cctv} strokeWidth={2.2 / s} />
+                          {m.tipo === 'alcance'
+                            ? <path d={`M ${m.x} ${m.y - 5 / s} L ${m.x + 5 / s} ${m.y} L ${m.x} ${m.y + 5 / s} L ${m.x - 5 / s} ${m.y} Z`} fill={COLOR_SISTEMA.cctv} />
+                            : <circle cx={m.x} cy={m.y} r={4.5 / s} fill={COLOR_SISTEMA.cctv} />}
+                        </g>
+                      );
+                    }
+                    return (
+                      <g key={m.tipo}>
+                        <circle cx={m.x} cy={m.y} r={RADIO_MANIJA / s} fill="#fff" stroke="#14b8a6" strokeWidth={2 / s} style={{ filter: 'drop-shadow(0 1px 2px rgba(15,23,42,.35))' }} />
+                        <path d={ICONO_MANIJA[m.tipo as 'girar' | 'mover' | 'tamano']} transform={`translate(${m.x} ${m.y}) scale(${0.62 / s}) translate(-12 -12)`}
+                          fill="none" stroke="#0f766e" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" />
+                      </g>
+                    );
+                  })}
+                </g>
+              );
+            })()}
 
             {medida.length > 0 && (
               <g>

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { HardDrive, Network, Receipt } from 'lucide-react';
 import SimboloPlano from '@/components/lazos/SimboloPlano';
+import ModeloSugerido from './ModeloSugerido';
 import { equipoCatalogo, equiposDeSistema, esCamara } from '@/lib/equiposSistemas';
 import { tipoDispositivo } from '@/lib/lazos';
 import type { EquipoPlano, Plano, Sembrado } from '@/lib/planos';
@@ -86,9 +87,11 @@ function CampoTexto({ etiqueta, valor, max, onGuardar, placeholder, numero, min,
   );
 }
 
-export function DatosEquipoSistema({ equipo, equiposDeRed, onDatos }: {
+export function DatosEquipoSistema({ equipo, equiposDeRed, proyectoId, onDatos }: {
   equipo: EquipoPlano;
   equiposDeRed: EquipoPlano[];
+  // Proyecto del plano: sus cotizaciones son las primeras sugerencias de modelo.
+  proyectoId: string | null;
   onDatos: (cambios: Partial<EquipoPlano>) => void;
 }) {
   const cat = equipoCatalogo(equipo.tipo);
@@ -98,7 +101,7 @@ export function DatosEquipoSistema({ equipo, equiposDeRed, onDatos }: {
   return (
     <div className="mt-3 grid grid-cols-2 gap-2">
       <div className="col-span-2"><CampoTexto etiqueta="Nombre en el plano" valor={equipo.etiqueta || ''} max={40} placeholder={camara ? 'C-01, Acceso norte…' : 'Etiqueta'} onGuardar={(v) => onDatos({ etiqueta: v || null })} /></div>
-      <div className="col-span-2"><CampoTexto etiqueta="Marca y modelo" valor={equipo.modelo || ''} max={60} placeholder="Hikvision DS-2CD1027G2H" onGuardar={(v) => onDatos({ modelo: v || null })} /></div>
+      <div className="col-span-2"><ModeloSugerido valor={equipo.modelo || ''} proyectoId={proyectoId} tipoNombre={cat?.nombre || ''} onGuardar={(v) => onDatos({ modelo: v || null })} /></div>
       {(camara || cat?.red || cat?.sistema === 'acceso') && (
         <CampoTexto etiqueta="Dirección IP" valor={equipo.ip || ''} max={40} placeholder="192.168.1.64" onGuardar={(v) => onDatos({ ip: v || null })} />
       )}
