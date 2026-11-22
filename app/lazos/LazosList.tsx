@@ -11,6 +11,7 @@ import { COLOR_TIPO, fondo } from '@/components/lazos/FrentePanel';
 import MenuCuenta from '@/components/MenuCuenta';
 import SupervisorShell from '@/components/SupervisorShell';
 import GuiasLista from '@/components/guias/GuiasLista';
+import UnifilaresLista from '@/components/unifilar/UnifilaresLista';
 import type { GuiaInicial } from '@/lib/guiaDesdeCotizacion';
 import TecnicoTabs from '@/components/TecnicoTabs';
 import Logo from '@/components/Logo';
@@ -39,10 +40,10 @@ export default function LazosList({ userName, esSupervisor, clienteInicial, verI
   esSupervisor: boolean;
   clienteInicial: string | null;
   // Qué pestaña abre: los lazos y planos de detección, o las guías de conexión.
-  verInicial: 'lazos' | 'guias';
+  verInicial: 'lazos' | 'guias' | 'unifilares';
   guiaInicial: GuiaInicial | null;
 }) {
-  const [ver, setVer] = useState<'lazos' | 'guias'>(verInicial);
+  const [ver, setVer] = useState<'lazos' | 'guias' | 'unifilares'>(verInicial);
   const [lazos, setLazos] = useState<LazoResumen[]>([]);
   const [clientes, setClientes] = useState<ClienteCatalogo[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -174,8 +175,9 @@ export default function LazosList({ userName, esSupervisor, clienteInicial, verI
       {/* En el panel del supervisor el margen lo da el marco. */}
       <div className={esSupervisor ? 'px-4 lg:px-0 pt-4' : 'px-5 pt-4'}>
         {/* Dos mitades de la sección: lo de detección de incendio y las guías de cualquier sistema. */}
-        <div className="grid grid-cols-2 gap-1 rounded-xl bg-surface border border-line p-1 mb-4 lg:max-w-md" role="tablist" aria-label="Qué ver">
-          {([['lazos', 'Lazos y planos'], ['guias', 'Guías de conexión']] as const).map(([clave, texto]) => (
+        {/* Los unifilares fotovoltaicos (trámite de CFE) son solo de supervisión. */}
+        <div className={`grid ${esSupervisor ? 'grid-cols-3 lg:max-w-xl' : 'grid-cols-2 lg:max-w-md'} gap-1 rounded-xl bg-surface border border-line p-1 mb-4`} role="tablist" aria-label="Qué ver">
+          {([['lazos', 'Lazos y planos'], ['guias', 'Guías de conexión'], ['unifilares', 'Unifilares FV']] as const).filter(([clave]) => esSupervisor || clave !== 'unifilares').map(([clave, texto]) => (
             <button key={clave} type="button" role="tab" aria-selected={ver === clave} onClick={() => setVer(clave)}
               className={`min-h-[42px] rounded-lg text-[13.5px] font-semibold ${ver === clave ? 'bg-teal text-inkOnAccent' : 'text-muted'}`}>
               {texto}
@@ -189,6 +191,8 @@ export default function LazosList({ userName, esSupervisor, clienteInicial, verI
             <GuiasLista esSupervisor={esSupervisor} inicial={guiaInicial} />
           </>
         )}
+
+        {ver === 'unifilares' && esSupervisor && <UnifilaresLista />}
 
         {ver === 'lazos' && (
         <>

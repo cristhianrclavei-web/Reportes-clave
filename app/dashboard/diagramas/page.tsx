@@ -28,7 +28,7 @@ export default async function DiagramasPage(props: { searchParams: Promise<{ cli
       userName={perfil?.full_name || user.email || ''}
       esSupervisor
       clienteInicial={searchParams.cliente || null}
-      verInicial={searchParams.ver === 'guias' || guiaInicial ? 'guias' : 'lazos'}
+      verInicial={searchParams.ver === 'unifilares' ? 'unifilares' : searchParams.ver === 'guias' || guiaInicial ? 'guias' : 'lazos'}
       guiaInicial={guiaInicial}
     />
   );
