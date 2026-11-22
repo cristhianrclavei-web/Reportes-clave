@@ -4,6 +4,7 @@ import { alTocarEnlace } from '@/lib/abrirArchivo';
 import { useEffect, useRef, useState } from 'react';
 import { X, FileText, Check, MessageSquareWarning, Ban, Pencil, Clock, CalendarDays } from 'lucide-react';
 import ModalOverlay from '@/components/ModalOverlay';
+import VisorFotos from '@/components/VisorFotos';
 import SignaturePad, { SignaturePadHandle } from '@/components/SignaturePad';
 import { showToast } from '@/components/Toast';
 import { AvatarTecnico } from '@/components/AvatarTecnico';
@@ -31,6 +32,7 @@ export default function DetalleSolicitud({
   onCorregir: () => void;
 }) {
   const [fotos, setFotos] = useState<string[]>([]);
+  const [fotoAbierta, setFotoAbierta] = useState<number | null>(null);
   const [modo, setModo] = useState<null | 'aprobar' | 'correccion' | 'rechazar'>(null);
   const [comentario, setComentario] = useState('');
   const [nombre, setNombre] = useState(miNombre);
@@ -131,7 +133,12 @@ export default function DetalleSolicitud({
           <div className="mb-3">
             <span className={labelCls}>Evidencias</span>
             <div className="flex flex-wrap gap-2 mt-1">
-              {fotos.map((u) => <a key={u} href={u} target="_blank" rel="noopener noreferrer"><img src={u} alt="" className="w-20 h-20 object-cover rounded-lg border border-line" /></a>)}
+              {fotos.map((u, i) => (
+                <button key={u} type="button" onClick={() => setFotoAbierta(i)} aria-label={`Ver evidencia ${i + 1}`}>
+                  <img src={u} alt="" className="w-20 h-20 object-cover rounded-lg border border-line" />
+                </button>
+              ))}
+              {fotoAbierta !== null && <VisorFotos fotos={fotos.map((u, i) => ({ url: u, titulo: `Evidencia ${i + 1}` }))} inicio={fotoAbierta} onCerrar={() => setFotoAbierta(null)} />}
             </div>
           </div>
         )}

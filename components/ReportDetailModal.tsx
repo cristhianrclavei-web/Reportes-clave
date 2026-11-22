@@ -7,6 +7,7 @@ import { anexosDeReporte } from '@/lib/anexoFallaTierra';
 import { anexosGuiaDeReporte, resumenCortoGuia } from '@/lib/anexoGuia';
 import { avisar, confirmar } from '@/lib/dialogos';
 import { HojaReporte } from '@/components/ReportPreviewModal';
+import VisorFotos from '@/components/VisorFotos';
 import VisorVideo, { MarcaVideo } from '@/components/VisorVideo';
 import { fechaDMA } from '@/lib/etiquetaMantenimiento';
 import { MARCA } from '@/lib/marca';
@@ -25,7 +26,7 @@ import { solicitarCorreccion, habilitarCorreccion, cancelarCorreccion, aplicarCo
 import { showToast } from '@/components/Toast';
 import { textoManejadoPor } from '@/lib/manejadoPor';
 import { BotonIncluir, ChipEtapa, HojaEvidencia } from '@/components/EvidenciaEditor';
-import { MetaFoto, evidenciasDe, metaLimpia, areasUsadas } from '@/lib/evidencias';
+import { MetaFoto, evidenciasDe, metaLimpia, areasUsadas, textoEtapa } from '@/lib/evidencias';
 import FacturacionSection from '@/components/FacturacionSection';
 import RevisionFinalSection, { Revision } from '@/components/RevisionFinalSection';
 import { hoyLocal } from '@/lib/fechaHoy';
@@ -87,8 +88,8 @@ export default function ReportDetailModal({
   // `idx` es la posición de la evidencia en data.fotos (para guardar sus cambios).
   const [fotoUrls, setFotoUrls] = useState<({ idx: number; url: string; caption: string; video?: string | null; dur?: number | null } & MetaFoto)[] | null>(null);
   const [fotoAbierta, setFotoAbierta] = useState<number | null>(null);
-  // Foto ampliada desde la hoja del reporte.
-  const [fotoHoja, setFotoHoja] = useState<string | null>(null);
+  // Índice (entre las fotos, sin videos) abierto en el carrusel.
+  const [fotoEnVisor, setFotoEnVisor] = useState<number | null>(null);
   // La hoja del reporte lleva su evidencia: las fotos se piden al abrir.
   useEffect(() => {
     if (pestana === 'reporte' && fotoUrls === null && !loadingFotos && (report.data?.fotos?.length || 0) > 0) handleVerFotos();
@@ -682,7 +683,6 @@ export default function ReportDetailModal({
               firmaCliente: report.data?.firmaClienteData || null,
             }}
             folio={report.id.slice(0, 8).toUpperCase()}
-            onFoto={setFotoHoja}
           />
           {loadingFotos && <p className="text-center text-[12.5px] text-white/70 pt-2">Cargando fotos…</p>}
         </div>
@@ -691,12 +691,6 @@ export default function ReportDetailModal({
           <div className="mt-4"><FirmaPendiente report={report} /></div>
         )}
 
-        {fotoHoja && (
-          <button type="button" onClick={() => setFotoHoja(null)} aria-label="Cerrar la foto" className="fixed inset-0 z-[70] bg-black/90 flex items-center justify-center p-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={fotoHoja} alt="Evidencia ampliada" className="max-w-full max-h-full object-contain" />
-          </button>
-        )}
 
         </>)}
 
@@ -810,6 +804,13 @@ export default function ReportDetailModal({
 
         {pestana === 'fotos' && (<>
         {viendoVideo && <VisorVideo url={viendoVideo} onCerrar={() => setViendoVideo(null)} />}
+        {fotoEnVisor !== null && fotoUrls && (
+          <VisorFotos
+            fotos={fotoUrls.filter((x) => !x.video).map((x) => ({ url: x.url, titulo: [textoEtapa(x.etapa), x.area, x.caption].filter(Boolean).join(' · ') || null }))}
+            inicio={fotoEnVisor}
+            onCerrar={() => setFotoEnVisor(null)}
+          />
+        )}
         {loadingFotos && <p className="text-[13px] text-muted mt-4">Cargando fotos...</p>}
         {fotoUrls !== null && !loadingFotos && (
           <Section title="Fotos de evidencia">
@@ -826,9 +827,9 @@ export default function ReportDetailModal({
                           <MarcaVideo dur={f.dur} />
                         </button>
                       ) : (
-                        <a href={f.url} target="_blank" rel="noopener noreferrer" className="block">
+                        <button type="button" onClick={() => setFotoEnVisor(fotoUrls.filter((x) => !x.video).findIndex((x) => x.idx === f.idx))} aria-label={`Ver evidencia ${i + 1}`} className="block w-full">
                           <img src={f.url} alt={`Evidencia ${i + 1}`} className={`w-full h-[180px] object-cover ${f.interna ? 'opacity-50' : ''}`} />
-                        </a>
+                        </button>
                       )}
                       {/* El ojo y la etapa los usa también el técnico: decide qué fotos
                           lleva la copia del PDF que le pide el cliente y cómo se agrupan. */}

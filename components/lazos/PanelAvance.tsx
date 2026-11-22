@@ -1,5 +1,7 @@
 'use client';
 
+import VisorFotos from '@/components/VisorFotos';
+
 import { useEffect, useState } from 'react';
 import { Ban, BarChart3, BoxSelect, CloudOff, FileDown, Hand, History, Loader2, MousePointerClick, RotateCcw, Search, Undo2, X } from 'lucide-react';
 import CampoFoto from '@/components/lazos/CampoFoto';
@@ -523,13 +525,7 @@ export default function PanelAvance({
       </button>
       <p className="text-[12px] text-muted -mt-1.5">Todos los planos del cliente: portada, resumen por nivel y por lazo, lo que falta con su motivo, fotos y espacio para firmas.</p>
 
-      {fotoGrande && (
-        <div className="fixed inset-0 z-50 bg-black/85 flex flex-col items-center justify-center p-4" onClick={() => setFotoGrande(null)}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={fotoGrande} alt="Foto de evidencia" className="max-w-full max-h-[80vh] rounded-xl" />
-          <button type="button" className="mt-3 min-h-[46px] px-6 rounded-xl bg-surface font-semibold">Cerrar</button>
-        </div>
-      )}
+      {fotoGrande && <VisorFotos fotos={[{ url: fotoGrande, titulo: 'Foto de evidencia' }]} onCerrar={() => setFotoGrande(null)} />}
     </div>
   );
 }

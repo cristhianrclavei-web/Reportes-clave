@@ -1,5 +1,7 @@
 'use client';
 
+import VisorFotos from '@/components/VisorFotos';
+
 import { abrirArchivo } from '@/lib/abrirArchivo';
 import { avisar, confirmar } from '@/lib/dialogos';
 import { useEffect, useState } from 'react';
@@ -31,14 +33,21 @@ function GaleriaFotos({ fotos }: { fotos: { path: string; caption: string }[] })
     if (fotos.length === 0) return;
     urlsDeFotos(fotos.map((f) => f.path)).then(setUrls);
   }, [fotos]);
+  const [abierta, setAbierta] = useState<number | null>(null);
   if (fotos.length === 0) return null;
+  const listas = fotos.filter((f) => urls[f.path]);
   return (
     <div className="grid grid-cols-4 gap-2 mt-3">
       {fotos.map((f) => (
-        <a key={f.path} href={urls[f.path] || '#'} target="_blank" rel="noopener noreferrer" className="aspect-square rounded-lg overflow-hidden border border-line bg-surface-2 block">
-          {urls[f.path] ? <img src={urls[f.path]} className="w-full h-full object-cover" /> : <div className="w-full h-full animate-pulse" />}
-        </a>
+        <button key={f.path} type="button" disabled={!urls[f.path]} aria-label={f.caption || 'Ver foto'}
+          onClick={() => setAbierta(listas.findIndex((x) => x.path === f.path))}
+          className="aspect-square rounded-lg overflow-hidden border border-line bg-surface-2 block">
+          {urls[f.path] ? <img src={urls[f.path]} alt={f.caption || ''} className="w-full h-full object-cover" /> : <div className="w-full h-full animate-pulse" />}
+        </button>
       ))}
+      {abierta !== null && (
+        <VisorFotos fotos={listas.map((f) => ({ url: urls[f.path], titulo: f.caption || null }))} inicio={abierta} onCerrar={() => setAbierta(null)} />
+      )}
     </div>
   );
 }

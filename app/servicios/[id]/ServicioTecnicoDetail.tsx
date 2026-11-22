@@ -5,6 +5,7 @@ import DiagramasDelServicio from '@/components/proyectos/DiagramasDelServicio';
 import { avisar, confirmar } from '@/lib/dialogos';
 import GrabadorVideo from '@/components/GrabadorVideo';
 import VisorVideo, { MarcaVideo } from '@/components/VisorVideo';
+import VisorFotos, { type FotoVisor } from '@/components/VisorFotos';
 import { VideoGrabado, VIDEOS_POR_REGISTRO } from '@/lib/videoEvidencia';
 import EmptyIllustration from '@/components/EmptyIllustration';
 import EstadoVacio from '@/components/EstadoVacio';
@@ -175,6 +176,8 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
   // A qué tarea y con qué comentario se guarda el video que se está grabando.
   const [destinoVideo, setDestinoVideo] = useState<{ tareaId?: string | null; nota?: string }>({});
   const [viendoVideo, setViendoVideo] = useState<string | null>(null);
+  // Fotos abiertas en el carrusel (las de una tarea o las de la lista de evidencias).
+  const [visor, setVisor] = useState<{ fotos: FotoVisor[]; inicio: number } | null>(null);
 
   // null = aún no se sabe (no se muestra nada).
   const [enterado, setEnterado] = useState<boolean | null>(null);
@@ -1217,9 +1220,13 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
                             <MarcaVideo dur={ev.dur} chico />
                           </button>
                         ) : (
-                          <a href={fotoUrls[ev.foto]} target="_blank" rel="noreferrer" onClick={(clic) => clic.stopPropagation()} className="block">
+                          <button type="button" aria-label="Ver foto de la tarea" className="block" onClick={(clic) => {
+                            clic.stopPropagation();
+                            const fotosTarea = evidenciasDeLaTarea.filter((x) => !x.video && fotoUrls[x.foto]);
+                            setVisor({ fotos: fotosTarea.map((x) => ({ url: fotoUrls[x.foto], titulo: t.descripcion })), inicio: fotosTarea.findIndex((x) => x.foto === ev.foto) });
+                          }}>
                             <img src={fotoUrls[ev.foto]} alt="Foto de la tarea" className="w-14 h-14 object-cover rounded-lg border border-line" />
-                          </a>
+                          </button>
                         )}
                         {/* Se puede quitar mientras el servicio no esté finalizado. */}
                         {puedeCompletar && (
@@ -1373,9 +1380,12 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
                             <MarcaVideo dur={e.video_duracion} chico />
                           </button>
                         ) : (
-                          <a href={fotoUrls[e.foto_path]} target="_blank" rel="noreferrer" className="block">
+                          <button type="button" aria-label="Ver evidencia" className="block" onClick={() => {
+                            const conFoto = evidenciasEnLista.filter((x) => x.foto_path && !x.video_path && fotoUrls[x.foto_path]);
+                            setVisor({ fotos: conFoto.map((x) => ({ url: fotoUrls[x.foto_path!], titulo: x.nota || null })), inicio: conFoto.findIndex((x) => x.id === e.id) });
+                          }}>
                             <img src={fotoUrls[e.foto_path]} alt="Evidencia" className="w-[84px] h-[84px] object-cover rounded-lg border border-line" />
-                          </a>
+                          </button>
                         )}
                         {/* Se puede quitar mientras el servicio no esté finalizado. */}
                         {servicio.estado === 'en_curso' && (
@@ -1785,6 +1795,7 @@ export default function ServicioTecnicoDetail({ servicioId }: { servicioId: stri
 
       {grabandoVideo && <GrabadorVideo onListo={handleVideo} onCerrar={() => setGrabandoVideo(false)} />}
       {viendoVideo && <VisorVideo url={viendoVideo} onCerrar={() => setViendoVideo(null)} />}
+      {visor && <VisorFotos fotos={visor.fotos} inicio={visor.inicio} onCerrar={() => setVisor(null)} />}
 
       {sinTrabajo && (
         <ModalVisitaSinTrabajo busy={busy} onCancelar={() => setSinTrabajo(false)} onConfirmar={handleVisitaSinTrabajo} />

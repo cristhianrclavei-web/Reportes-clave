@@ -3,6 +3,7 @@
 import { avisar, confirmar } from '@/lib/dialogos';
 import GrabadorVideo from '@/components/GrabadorVideo';
 import VisorVideo, { MarcaVideo } from '@/components/VisorVideo';
+import VisorFotos, { type FotoVisor } from '@/components/VisorFotos';
 import { VideoGrabado, VIDEOS_POR_REGISTRO } from '@/lib/videoEvidencia';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -84,6 +85,7 @@ export default function ActividadDetail({
   const [horaReal, setHoraReal] = useState('');
   const [grabandoVideo, setGrabandoVideo] = useState(false);
   const [viendoVideo, setViendoVideo] = useState<string | null>(null);
+  const [visor, setVisor] = useState<{ fotos: FotoVisor[]; inicio: number } | null>(null);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -506,9 +508,12 @@ export default function ActividadDetail({
                     </button>
                   )}
                   {ev.foto_path && fotoUrls[ev.foto_path] && !ev.video_path && (
-                    <a href={fotoUrls[ev.foto_path]} target="_blank" rel="noreferrer" className="block mt-2">
-                      <img src={fotoUrls[ev.foto_path]} alt="Evidencia" className="w-full max-w-[320px] h-[150px] object-cover rounded-xl border border-line" />
-                    </a>
+                    <button type="button" aria-label="Ver evidencia" className="block mt-2 w-full max-w-[320px]" onClick={() => {
+                      const conFoto = eventos.filter((x) => x.foto_path && !x.video_path && fotoUrls[x.foto_path]);
+                      setVisor({ fotos: conFoto.map((x) => ({ url: fotoUrls[x.foto_path!], titulo: x.nota || null })), inicio: conFoto.findIndex((x) => x.id === ev.id) });
+                    }}>
+                      <img src={fotoUrls[ev.foto_path]} alt="Evidencia" className="w-full h-[150px] object-cover rounded-xl border border-line" />
+                    </button>
                   )}
                   {!soloLectura && abierta && ev.tipo === 'avance' && comentando !== ev.id && (
                     <button
@@ -598,6 +603,7 @@ export default function ActividadDetail({
 
       {grabandoVideo && <GrabadorVideo onListo={handleVideo} onCerrar={() => setGrabandoVideo(false)} />}
       {viendoVideo && <VisorVideo url={viendoVideo} onCerrar={() => setViendoVideo(null)} />}
+      {visor && <VisorFotos fotos={visor.fotos} inicio={visor.inicio} onCerrar={() => setVisor(null)} />}
 
       {concluyendo && (
         <ModalOverlay onClose={() => !busy && setConcluyendo(false)}>

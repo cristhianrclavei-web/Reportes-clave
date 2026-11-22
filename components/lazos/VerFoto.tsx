@@ -3,11 +3,13 @@
 import { useState } from 'react';
 import { Image as IconoImagen } from 'lucide-react';
 import { urlFotoElemento } from '@/lib/lazosDatos';
+import VisorFotos from '@/components/VisorFotos';
 
 // «Ver foto» en el historial: la foto se descarga solo si la piden, para no
 // gastar datos con cada renglón.
 export default function VerFoto({ path, texto = 'Ver foto' }: { path: string; texto?: string }) {
   const [url, setUrl] = useState<string | null>(null);
+  const [grande, setGrande] = useState(false);
   const [estado, setEstado] = useState<'cerrada' | 'cargando' | 'abierta' | 'error'>('cerrada');
 
   async function abrir() {
@@ -33,10 +35,11 @@ export default function VerFoto({ path, texto = 'Ver foto' }: { path: string; te
       </button>
       {estado === 'error' && <span className="block text-[12px] text-red">No se pudo cargar la foto (¿sin señal?). Toca para reintentar.</span>}
       {estado === 'abierta' && url && (
-        <a href={url} target="_blank" rel="noreferrer" className="block mt-1.5">
+        <button type="button" onClick={() => setGrande(true)} aria-label="Ver la foto en grande" className="block mt-1.5 w-full">
           <img src={url} alt="Foto de evidencia de la falla" className="w-full max-h-[260px] object-cover rounded-xl border border-line" />
-        </a>
+        </button>
       )}
+      {grande && url && <VisorFotos fotos={[{ url, titulo: 'Foto de evidencia de la falla' }]} onCerrar={() => setGrande(false)} />}
     </span>
   );
 }

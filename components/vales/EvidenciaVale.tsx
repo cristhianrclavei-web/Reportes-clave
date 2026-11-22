@@ -1,5 +1,7 @@
 'use client';
 
+import VisorFotos from '@/components/VisorFotos';
+
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Camera, Images, X, Check, ClipboardList, PackageCheck, PenLine, Undo2, ShieldCheck, Ban, Minus, Plus } from 'lucide-react';
 import { Vale, urlsFotos } from '@/lib/vales';
@@ -72,6 +74,7 @@ export function LineaDelVale({ vale }: { vale: Vale }) {
 export function FotosDelVale({ titulo, paths }: { titulo: string; paths: string[] }) {
   const [urls, setUrls] = useState<string[]>([]);
   const [error, setError] = useState(false);
+  const [abierta, setAbierta] = useState<number | null>(null);
   useEffect(() => { urlsFotos(paths).then(setUrls).catch(() => setError(true)); }, [paths]);
   return (
     <div className="mt-3">
@@ -79,13 +82,16 @@ export function FotosDelVale({ titulo, paths }: { titulo: string; paths: string[
       {error && <p className="text-[12px] text-red">No se pudieron cargar las fotos. Revisa tu conexión.</p>}
       <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
         {(urls.length ? urls : paths.map(() => '')).map((u, i) => (u ? (
-          <a key={i} href={u} target="_blank" rel="noopener noreferrer" className="group relative block rounded-xl overflow-hidden border border-line">
+          <button key={i} type="button" onClick={() => setAbierta(i)} aria-label={`Ver ${titulo.toLowerCase()} ${i + 1}`} className="group relative block rounded-xl overflow-hidden border border-line">
             <img src={u} alt={`${titulo} ${i + 1}`} className="w-full h-24 object-cover transition-transform duration-200 group-hover:scale-105" />
-          </a>
+          </button>
         ) : (
           <div key={i} className="h-24 rounded-xl bg-surface-2 animate-pulse" />
         )))}
       </div>
+      {abierta !== null && (
+        <VisorFotos fotos={urls.map((u, i) => ({ url: u, titulo: `${titulo} ${i + 1}` }))} inicio={abierta} onCerrar={() => setAbierta(null)} />
+      )}
     </div>
   );
 }

@@ -1,4 +1,6 @@
 'use client';
+
+import VisorFotos from '@/components/VisorFotos';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowDown, EyeOff, PenLine, X } from 'lucide-react';
 import Logo from '@/components/Logo';
@@ -99,13 +101,14 @@ function CuadroFirma({ etiqueta, nombre, firma, pendiente, vacio = 'Sin firma' }
 // La hoja del reporte, como el PDF del cliente: la usan la vista previa
 // (antes de guardar y cuando el cliente firma) y el detalle del reporte ya
 // guardado. `folio`: el del reporte guardado («al guardar» si todavía no).
-export function HojaReporte({ preview, paraCliente = false, folio, onFoto }: {
+export function HojaReporte({ preview, paraCliente = false, folio }: {
   preview: PreviewData;
   paraCliente?: boolean;
   folio?: string;
-  onFoto: (url: string) => void;
 }) {
   const { data } = preview;
+  // Foto abierta en el visor (carrusel); null = ninguna.
+  const [fotoAbierta, setFotoAbierta] = useState<number | null>(null);
   const personal: string[] = (data.personal || []).filter(Boolean);
   const sistemas: string[] = data.sistemaSeguridad || [];
   const tuberias = tuberiasDe(data).map(textoTuberia);
@@ -253,12 +256,15 @@ export function HojaReporte({ preview, paraCliente = false, folio, onFoto }: {
         </Cuadro>
       )}
 
+      {fotoAbierta !== null && (
+        <VisorFotos fotos={fotos.map((f, i) => ({ url: f.previewUrl, titulo: f.caption || `Evidencia ${i + 1}` }))} inicio={fotoAbierta} onCerrar={() => setFotoAbierta(null)} />
+      )}
       {fotos.length > 0 && (
         <Cuadro titulo="Evidencia fotográfica">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
             {fotos.map((foto, i) => (
               <figure key={i} className="relative">
-                <button type="button" onClick={() => onFoto(foto.previewUrl)} className="block w-full active:scale-[0.98] transition-transform" aria-label={`Ampliar evidencia ${i + 1}`}>
+                <button type="button" onClick={() => setFotoAbierta(i)} className="block w-full active:scale-[0.98] transition-transform" aria-label={`Ampliar evidencia ${i + 1}`}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={foto.previewUrl} alt={`Evidencia ${i + 1}`} className={`w-full h-[130px] object-cover border border-[#8c8c8c] ${foto.interna ? 'opacity-50' : ''}`} />
                 </button>
@@ -315,7 +321,6 @@ export default function ReportPreviewModal({
   const zonaRef = useRef<HTMLDivElement | null>(null);
   const [avance, setAvance] = useState(0);
   const [llegoAlFinal, setLlegoAlFinal] = useState(false);
-  const [fotoGrande, setFotoGrande] = useState<string | null>(null);
 
   // Mientras la hoja está abierta, la pantalla de atrás no se desplaza.
   useEffect(() => {
@@ -357,7 +362,7 @@ export default function ReportPreviewModal({
       </div>
 
       <div ref={zonaRef} onScroll={medirAvance} className="flex-1 overflow-y-auto overscroll-contain px-2.5 py-4 sm:px-6 sm:py-7">
-        <HojaReporte preview={preview} paraCliente={paraCliente} onFoto={setFotoGrande} />
+        <HojaReporte preview={preview} paraCliente={paraCliente} />
       </div>
 
       {/* Barra de abajo */}
@@ -387,13 +392,6 @@ export default function ReportPreviewModal({
         </div>
       </div>
 
-      {/* Foto ampliada */}
-      {fotoGrande && (
-        <button type="button" onClick={() => setFotoGrande(null)} aria-label="Cerrar la foto" className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={fotoGrande} alt="Evidencia ampliada" className="max-w-full max-h-full object-contain" />
-        </button>
-      )}
     </div>
   );
 }
