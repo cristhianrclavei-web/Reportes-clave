@@ -58,6 +58,8 @@ export type Servicio = {
   // Cliente de la sección Clientes (patch_clientes_fase3.sql); null si no
   // se eligió de la lista ni coincide exacto con uno.
   cliente_id?: string | null;
+  // Obra a la que pertenece (patch_proyectos_centro.sql).
+  proyecto_id?: string | null;
   grupo_id: string;
   numero_dia: number;
   dias_totales: number;

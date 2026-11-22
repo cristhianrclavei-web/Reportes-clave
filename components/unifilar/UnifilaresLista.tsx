@@ -13,12 +13,18 @@ import {
   type TipoSistema, type Unifilar,
 } from '@/lib/unifilar';
 import { crearUnifilar, datosDelCliente, listarUnifilares } from '@/lib/unifilaresDatos';
+import { moverAProyecto } from '@/lib/proyectoContenido';
 
 // Lista de diagramas unifilares de sistemas fotovoltaicos (solo supervisión).
 
 const CAMPO = 'w-full px-3.5 min-h-[46px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[15px]';
 
-export default function UnifilaresLista() {
+export default function UnifilaresLista({ puedeCrear = false, proyectoId = null, clienteDelProyecto = null }: {
+  // Fuera de un proyecto solo se consulta: los unifilares nuevos nacen en el proyecto.
+  puedeCrear?: boolean;
+  proyectoId?: string | null;
+  clienteDelProyecto?: { id: string; nombre: string } | null;
+}) {
   const [unifilares, setUnifilares] = useState<Unifilar[]>([]);
   const [clientes, setClientes] = useState<ClienteCatalogo[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -57,10 +63,10 @@ export default function UnifilaresLista() {
         <p className="text-[14px] text-muted leading-snug lg:max-w-2xl">
           Diagramas unifilares de sistemas fotovoltaicos (interconectados, aislados o híbridos) con calibres, metros y caída de tensión, listos en PDF para el trámite de CFE.
         </p>
-        <button type="button" onClick={() => setNuevo(true)}
+        {puedeCrear && <button type="button" onClick={() => setNuevo(true)}
           className="min-h-[50px] lg:min-h-[46px] px-6 rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15px] tracking-wide shadow-glow-teal flex items-center justify-center gap-2 shrink-0">
           <Plus size={18} strokeWidth={2.6} /> Nuevo unifilar
-        </button>
+        </button>}
       </div>
 
       {error && (
@@ -72,7 +78,7 @@ export default function UnifilaresLista() {
 
       {!cargando && !error && unifilares.length === 0 && (
         <EstadoVacio icono={<Zap size={26} strokeWidth={2} />} titulo="Todavía no hay unifilares"
-          detalle="Crea uno: empieza con los equipos de ejemplo del tipo de sistema y ajústalos al proyecto." />
+          detalle={puedeCrear ? 'Crea uno: empieza con los equipos de ejemplo del tipo de sistema y ajústalos al proyecto.' : 'Se crean dentro de un proyecto con paneles solares (pestaña Solar).'} />
       )}
 
       {!cargando && unifilares.length > 0 && (
@@ -92,17 +98,17 @@ export default function UnifilaresLista() {
         </div>
       )}
 
-      {nuevo && <NuevoUnifilar onCerrar={() => setNuevo(false)} />}
+      {nuevo && <NuevoUnifilar proyectoId={proyectoId} clienteFijo={clienteDelProyecto} onCerrar={() => setNuevo(false)} />}
     </div>
   );
 }
 
-function NuevoUnifilar({ onCerrar }: { onCerrar: () => void }) {
+function NuevoUnifilar({ proyectoId, clienteFijo, onCerrar }: { proyectoId: string | null; clienteFijo: { id: string; nombre: string } | null; onCerrar: () => void }) {
   const [nombre, setNombre] = useState('');
   const [tipo, setTipo] = useState<TipoSistema>('interconectado');
   const [conEjemplo, setConEjemplo] = useState(true);
-  const [clienteTexto, setClienteTexto] = useState('');
-  const [clienteId, setClienteId] = useState<string | null>(null);
+  const [clienteTexto, setClienteTexto] = useState(clienteFijo?.nombre || '');
+  const [clienteId, setClienteId] = useState<string | null>(clienteFijo?.id || null);
   const [errores, setErrores] = useState<{ nombre?: string; cliente?: string }>({});
   const [guardando, setGuardando] = useState(false);
 
@@ -122,6 +128,7 @@ function NuevoUnifilar({ onCerrar }: { onCerrar: () => void }) {
         if (cliente) Object.assign(datos.proyecto, cliente);
       }
       const id = await crearUnifilar({ nombre, tipo, cliente_id: clienteId, datos });
+      if (proyectoId) await moverAProyecto({ tipo: 'unifilar', id }, proyectoId).catch((e) => showToast(e?.message || 'Se creó, pero no quedó en el proyecto.', 'error'));
       window.location.href = `/unifilares/${id}`;
     } catch (e: any) {
       showToast(e?.message || 'No se pudo crear el unifilar', 'error');

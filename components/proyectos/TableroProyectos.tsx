@@ -57,7 +57,7 @@ export default function TableroProyectos({ userName }: { userName: string }) {
       <Link href={`/dashboard/proyectos/${p.cliente_id}/${p.id}`} draggable={false} className="group block px-3 pt-3 pb-1.5">
         <strong className="block text-[14px] font-semibold leading-snug group-hover:text-teal">{p.nombre}</strong>
         <span className="block text-[12.5px] text-muted truncate">{p.cliente}</span>
-        <span className="block text-[11.5px] text-teal font-medium truncate mt-0.5">{p.sistemas.map(cortoSistema).join(' · ')}</span>
+        <span className="block text-[11.5px] text-teal font-medium truncate mt-0.5">{p.tipo === 'instalacion' ? 'En operación · ' : ''}{p.sistemas.map(cortoSistema).join(' · ')}</span>
         <span className="flex flex-wrap gap-x-2 text-[11px] text-faint mt-0.5">
           {dias !== null && <span>{dias === 0 ? 'Hoy' : `${dias} d`} en la etapa</span>}
           {responsable && <span className="truncate">{responsable}</span>}
@@ -120,7 +120,7 @@ export default function TableroProyectos({ userName }: { userName: string }) {
             <Link key={p.id} href={`/dashboard/proyectos/${p.cliente_id}/${p.id}`} className="glass rounded-2xl p-3.5 hover:border-teal/60">
               <span className="flex items-center gap-2">
                 <span className="flex-1 min-w-0 text-[15px] font-semibold truncate">{p.nombre}</span>
-                <ChipEtapa etapa={p.etapa} sistemas={p.sistemas} />
+                <ChipEtapa etapa={p.etapa} sistemas={p.sistemas} tipo={p.tipo} />
               </span>
               <span className="block text-[13px] text-muted truncate mt-0.5">{p.cliente} · {p.sistemas.map(cortoSistema).join(' · ')}</span>
             </Link>

@@ -112,7 +112,7 @@ export default function ProyectoDetalle({ proyectoId, clienteId, userName }: { p
               <Building2 size={14} /> {cliente.nombre}
             </Link>
             <div className="flex flex-wrap items-center gap-1.5 mt-2">
-              <ChipEtapa etapa={proyecto.etapa} sistemas={proyecto.sistemas} />
+              <ChipEtapa etapa={proyecto.etapa} sistemas={proyecto.sistemas} tipo={proyecto.tipo} />
               {proyecto.sistemas.map((s) => (
                 <span key={s} className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-surface-2 border border-line text-muted">{nombreSistema(s)}</span>
               ))}
@@ -142,7 +142,13 @@ export default function ProyectoDetalle({ proyectoId, clienteId, userName }: { p
 
       {actual === 'resumen' && (
         <>
-          <EtapasProyecto proyecto={proyecto} onCambio={(etapa: Etapa) => setDatos({ ...datos, proyecto: { ...proyecto, etapa } })} />
+          {proyecto.tipo === 'instalacion' ? (
+            <p className="glass rounded-2xl p-4 mb-4 text-[13.5px] text-muted">
+              <b className="text-ink">Instalación en operación.</b> Aquí viven sus planos, lazos y guías, y se ligan los mantenimientos. Una ampliación o un sistema nuevo va en su propio proyecto, con su cotización.
+            </p>
+          ) : (
+            <EtapasProyecto proyecto={proyecto} onCambio={(etapa: Etapa) => setDatos({ ...datos, proyecto: { ...proyecto, etapa } })} />
+          )}
           <ResumenContenido contenido={contenido} sistemas={proyecto.sistemas} onIr={elegir} />
           <PagosProyecto proyecto={proyecto} />
           <button type="button" onClick={async () => {

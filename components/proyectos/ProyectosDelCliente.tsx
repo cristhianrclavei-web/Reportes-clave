@@ -3,16 +3,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Cable, ChevronRight, FolderOpen, FolderInput, Plus } from 'lucide-react';
+import { Cable, Check, ChevronRight, FolderOpen, FolderInput, Plus, Wrench } from 'lucide-react';
+import ModalOverlay from '@/components/ModalOverlay';
 import TableroKanban, { InterruptorTablero, useVistaTablero, type ColumnaKanban } from '@/components/TableroKanban';
 import { showToast } from '@/components/Toast';
 import FormProyecto from '@/components/proyectos/FormProyecto';
 import { ChipEtapa } from '@/components/proyectos/EtapasProyecto';
 import { TituloSeccion } from '@/components/proyectos/ContenidoLista';
 import type { ProyectoResumen } from '@/lib/clientes';
-import { cambiarEtapaProyecto } from '@/lib/proyectos';
+import { cambiarEtapaProyecto, crearProyecto } from '@/lib/proyectos';
 import { contenidoSinProyecto, moverAProyecto, NOMBRE_CONTENIDO, totalDe, type Contenido, type ElementoContenido, type TipoContenido } from '@/lib/proyectoContenido';
-import { cortoSistema, llevaSolar, nombreEtapa, tonoEtapa, type Etapa } from '@/lib/proyectosEtapas';
+import { SISTEMAS, cortoSistema, llevaSolar, nombreEtapa, tonoEtapa, type Etapa, type SistemaClave } from '@/lib/proyectosEtapas';
 
 // En la ficha del cliente: sus proyectos (obras) por etapa y, abajo, lo
 // suyo que todavía no está en ningún proyecto, para acomodarlo.
@@ -37,6 +38,7 @@ export default function ProyectosDelCliente({ clienteId, clienteNombre, proyecto
   const router = useRouter();
   const [vista, setVista] = useVistaTablero('proyectos');
   const [nuevo, setNuevo] = useState(false);
+  const [registrando, setRegistrando] = useState(false);
   const [local, setLocal] = useState<Record<string, Etapa>>({});
   const lista = proyectos.map((p) => ({ ...p, etapa: local[p.id] || p.etapa }));
   const conSolar = lista.some((p) => llevaSolar(p.sistemas));
@@ -48,6 +50,12 @@ export default function ProyectosDelCliente({ clienteId, clienteNombre, proyecto
         <p className="font-display font-semibold text-[16px]">Proyectos</p>
         <div className="flex items-center gap-2">
           {lista.length > 0 && <InterruptorTablero vista={vista} onCambiar={setVista} />}
+          {!lista.some((p) => p.tipo === 'instalacion') && (
+            <button type="button" onClick={() => setRegistrando(true)} data-tour="registrar-instalacion"
+              className="min-h-[42px] px-3.5 rounded-xl border border-line bg-surface-2 text-[13.5px] font-semibold flex items-center gap-1.5 hover:border-teal/60">
+              <Wrench size={15} /> Instalación existente
+            </button>
+          )}
           <button type="button" onClick={() => setNuevo(true)}
             className="min-h-[42px] px-4 rounded-xl bg-teal text-inkOnAccent text-[13.5px] font-display font-semibold flex items-center gap-1.5 shadow-glow-teal">
             <Plus size={16} strokeWidth={2.6} /> Nuevo proyecto
@@ -93,7 +101,7 @@ export default function ProyectosDelCliente({ clienteId, clienteNombre, proyecto
               <span className="flex-1 min-w-0">
                 <span className="block text-[15px] font-semibold truncate">{p.nombre}</span>
                 <span className="flex flex-wrap items-center gap-1.5 mt-1">
-                  <ChipEtapa etapa={p.etapa} sistemas={p.sistemas} />
+                  <ChipEtapa etapa={p.etapa} sistemas={p.sistemas} tipo={p.tipo} />
                   <span className="text-[12px] text-muted truncate">{p.sistemas.map(cortoSistema).join(' · ')}</span>
                 </span>
               </span>
@@ -114,6 +122,10 @@ export default function ProyectosDelCliente({ clienteId, clienteNombre, proyecto
         <ChevronRight size={17} className="text-faint shrink-0" />
       </Link>
 
+      {registrando && (
+        <RegistrarInstalacion clienteId={clienteId} clienteNombre={clienteNombre} onCerrar={() => setRegistrando(false)}
+          onListo={(id) => router.push(`/dashboard/proyectos/${clienteId}/${id}`)} />
+      )}
       {nuevo && (
         <FormProyecto clienteId={clienteId} clienteNombre={clienteNombre} onCerrar={() => setNuevo(false)}
           onGuardado={(id) => router.push(`/dashboard/proyectos/${clienteId}/${id}`)} />
@@ -212,3 +224,76 @@ function SinProyecto({ clienteId, proyectos, onMovido }: {
 }
 
 
+
+// Lo que el cliente ya tiene funcionando, como proyecto «En operación»: ahí
+// van sus planos, lazos y guías y se ligan los mantenimientos. Puede jalar
+// de una vez todo lo que no tiene proyecto (menos las cotizaciones, que
+// suelen ser de obras aparte).
+function RegistrarInstalacion({ clienteId, clienteNombre, onCerrar, onListo }: {
+  clienteId: string;
+  clienteNombre: string;
+  onCerrar: () => void;
+  onListo: (id: string) => void;
+}) {
+  const [sistemas, setSistemas] = useState<SistemaClave[]>([]);
+  const [traer, setTraer] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [guardando, setGuardando] = useState<string | null>(null);
+
+  async function registrar() {
+    if (sistemas.length === 0) { setError('Elige al menos un sistema.'); return; }
+    setError(null);
+    setGuardando('Creando…');
+    try {
+      const id = await crearProyecto({
+        clienteId, nombre: 'Instalación existente', sistemas, etapa: 'terminado', descripcion: '',
+        fechaInicio: null, fechaEntrega: null, monto: null, moneda: 'MXN', responsableId: null, tipo: 'instalacion',
+      });
+      if (traer) {
+        setGuardando('Pasando lo que ya existía…');
+        const contenido = await contenidoSinProyecto(clienteId);
+        const elementos = (Object.keys(contenido) as TipoContenido[]).filter((t) => t !== 'cotizacion').flatMap((t) => contenido[t]);
+        let fallas = 0;
+        for (const e of elementos) await moverAProyecto(e, id).catch(() => { fallas++; });
+        if (fallas) showToast(`${fallas} ${fallas === 1 ? 'cosa no se pudo' : 'cosas no se pudieron'} mover; quedan en «Sin proyecto».`, 'error');
+      }
+      showToast('Instalación registrada', 'success');
+      onListo(id);
+    } catch (e: any) {
+      setError(e?.message || 'No se pudo registrar la instalación.');
+      setGuardando(null);
+    }
+  }
+
+  return (
+    <ModalOverlay onClose={() => !guardando && onCerrar()}>
+      <div className="glass-strong rounded-3xl max-w-md w-full p-5 max-h-[90vh] overflow-y-auto">
+        <p className="font-display font-bold text-[19px]">Instalación existente</p>
+        <p className="text-[13px] text-muted mt-1 mb-4">Lo que {clienteNombre} ya tiene funcionando. Queda «En operación» y ahí se agregan sus planos, lazos y guías, y se ligan los mantenimientos.</p>
+        <p className="text-[12.5px] text-muted mb-1.5">Sistemas instalados</p>
+        <div className="grid grid-cols-2 gap-1.5 mb-3">
+          {SISTEMAS.map((x) => {
+            const activo = sistemas.includes(x.clave);
+            return (
+              <button key={x.clave} type="button" aria-pressed={activo}
+                onClick={() => setSistemas(activo ? sistemas.filter((y) => y !== x.clave) : [...sistemas, x.clave])}
+                className={`min-h-[44px] px-3 rounded-xl border text-left text-[14px] flex items-center gap-2 ${activo ? 'border-teal bg-teal/10 font-semibold' : 'border-line bg-surface-2'}`}>
+                <span className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 ${activo ? 'bg-teal border-teal text-inkOnAccent' : 'border-line-strong'}`}>{activo && <Check size={13} strokeWidth={3} />}</span>
+                {x.nombre}
+              </button>
+            );
+          })}
+        </div>
+        <label className="flex items-start gap-2.5 text-[14px] mb-2">
+          <input type="checkbox" checked={traer} onChange={(e) => setTraer(e.target.checked)} className="w-5 h-5 mt-0.5 accent-teal" />
+          <span>Pasar aquí lo que no tiene proyecto (servicios, levantamientos, paneles, lazos, planos, guías y unifilares). Las cotizaciones se quedan donde están.</span>
+        </label>
+        {error && <p className="text-red font-semibold text-[13px]">{error}</p>}
+        <div className="flex gap-2 mt-4">
+          <button type="button" onClick={onCerrar} disabled={!!guardando} className="flex-1 min-h-[50px] rounded-2xl border border-line-strong font-semibold text-[14.5px] disabled:opacity-60">Cancelar</button>
+          <button type="button" onClick={registrar} disabled={!!guardando} className="flex-1 min-h-[50px] rounded-2xl bg-teal text-inkOnAccent font-semibold text-[14.5px] disabled:opacity-60">{guardando || 'Registrar'}</button>
+        </div>
+      </div>
+    </ModalOverlay>
+  );
+}

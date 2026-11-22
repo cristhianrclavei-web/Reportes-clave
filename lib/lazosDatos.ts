@@ -118,6 +118,8 @@ export type DatosNuevoLazo = {
   clase: 'A' | 'B' | null;
   panel: string | null;
   panel_id?: string | null;
+  // Obra a la que pertenece (patch_proyectos_centro.sql).
+  proyecto_id?: string | null;
 };
 
 // Crear y editar un lazo pide señal: es un paso corto que se hace una vez.
@@ -127,8 +129,20 @@ export async function crearLazo(datos: DatosNuevoLazo): Promise<Lazo> {
   if (!user) throw new Error('Tu sesión terminó. Vuelve a entrar.');
   // panel_id solo va si hay panel: así crear un lazo suelto funciona aunque
   // falte correr patch_lazos_paneles.sql.
-  const { panel_id, ...resto } = datos;
-  const fila = panel_id ? { ...resto, panel_id, creado_por: user.id } : { ...resto, creado_por: user.id };
+  const { panel_id, proyecto_id, ...resto } = datos;
+  // Sin proyecto dicho, el circuito va al proyecto de su panel (un circuito
+  // nuevo en un panel que ya existe es parte de esa instalación).
+  let proyecto = proyecto_id || null;
+  if (!proyecto && panel_id) {
+    const { data: panel } = await supabase.from('lazo_paneles').select('proyecto_id').eq('id', panel_id).maybeSingle();
+    proyecto = (panel as { proyecto_id?: string | null } | null)?.proyecto_id || null;
+  }
+  const fila = {
+    ...resto,
+    creado_por: user.id,
+    ...(panel_id ? { panel_id } : {}),
+    ...(proyecto ? { proyecto_id: proyecto } : {}),
+  };
   const { data, error } = await supabase.from('lazos').insert(fila).select('*').single();
   if (error) {
     if (esErrorDeRed(error)) throw new Error('Sin conexión. Crea el lazo cuando tengas señal.');

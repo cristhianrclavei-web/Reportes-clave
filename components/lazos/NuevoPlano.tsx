@@ -27,11 +27,14 @@ const TIPOS_EQUIPO = tiposSembrables();
 
 // Subir un plano: el PDF exportado de AutoCAD, la hoja (si trae varias) y,
 // si se sabe, la escala a la que se imprimió.
-export default function NuevoPlano({ clienteInicial, sistemaInicial, proyectoId, onCerrar, onCreado }: {
+export default function NuevoPlano({ clienteInicial, sistemaInicial, proyectoId, resolverProyecto, onCerrar, onCreado }: {
   clienteInicial: { id: string; nombre: string } | null;
   // Desde un proyecto: el sistema y la obra a la que pertenece el plano.
   sistemaInicial?: string;
   proyectoId?: string | null;
+  // Desde el servicio del técnico: averigua (o crea) la obra al guardar, ya
+  // con el sistema elegido.
+  resolverProyecto?: (sistema: string) => Promise<string | null>;
   onCerrar: () => void;
   onCreado: (id: string) => void;
 }) {
@@ -228,7 +231,7 @@ export default function NuevoPlano({ clienteInicial, sistemaInicial, proyectoId,
         alto: hoja.alto,
         metrosPorUnidad: escala.trim() ? escalaDesdeProporcion(Number(escala)) : null,
         sistema,
-        proyectoId: proyectoId || null,
+        proyectoId: proyectoId || (resolverProyecto ? await resolverProyecto(sistema) : null),
       });
       onCreado(id);
     } catch (err: any) {
@@ -260,7 +263,7 @@ export default function NuevoPlano({ clienteInicial, sistemaInicial, proyectoId,
         dxf: { ...hoja.transformacion, unidad },
         sembrado: equipos.length > 0 ? { equipos, tuberias: [] } : undefined,
         sistema,
-        proyectoId: proyectoId || null,
+        proyectoId: proyectoId || (resolverProyecto ? await resolverProyecto(sistema) : null),
       });
       // Para el siguiente plano de este cliente. Si falla, el plano ya quedó.
       await guardarPlantillaDxf(clienteId, tipoPorBloque).catch((e) => console.error(e.message));

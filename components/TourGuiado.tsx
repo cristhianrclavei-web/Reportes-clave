@@ -13,6 +13,7 @@ import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 
 export const TOUR_INICIAR = 'tour:iniciar';
 const CLAVE_VISTO = 'tourProyectosV1';
+// Cambió el texto de dos pasos: quien ya lo vio no lo vuelve a ver solo (está «¿Qué cambió?»).
 const CLAVE_PASO = 'tourProyectosPaso';
 
 type Paso = { ruta?: string; selector?: string; titulo: string; texto: string };
@@ -50,13 +51,13 @@ const PASOS: Paso[] = [
   },
   {
     titulo: 'Lo de antes no se pierde',
-    texto: 'Las cotizaciones, servicios, planos y diagramas que ya existían quedan en el cliente, en «Sin proyecto». Ahí eliges «Mover a…» para acomodarlos en su obra.',
+    texto: 'Lo que ya existía queda en el cliente, en «Sin proyecto». Con «Instalación existente» registras lo que el cliente ya tiene funcionando y pasas ahí todo de una vez; o eliges «Mover a…» pieza por pieza.',
   },
   {
     ruta: '/dashboard/diagramas',
     selector: '[data-tour="pestanas-seccion-proyectos"]',
-    titulo: 'Planos de todos los sistemas',
-    texto: 'Al subir un plano eliges el sistema. En CCTV siembras cámaras con su campo de visión, el NVR y los switches; calcula el disco duro y con «Pasar a cotización» arma la lista de materiales.',
+    titulo: 'Diagramas y planos: consultar y corregir',
+    texto: 'Aquí ves todo lo técnico de todos los clientes y corriges lo que ya existe. Lo nuevo (planos, paneles, circuitos, guías, unifilares) se agrega dentro del proyecto; lo de una instalación que ya opera va en su proyecto «Instalación existente». Los técnicos agregan desde su servicio.',
   },
   {
     titulo: 'Listo',

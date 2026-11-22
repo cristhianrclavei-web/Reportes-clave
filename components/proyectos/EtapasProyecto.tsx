@@ -5,13 +5,13 @@ import { Check, ChevronRight } from 'lucide-react';
 import { confirmar } from '@/lib/dialogos';
 import { showToast } from '@/components/Toast';
 import { cambiarEtapaProyecto, type Proyecto } from '@/lib/proyectos';
-import { ayudaEtapa, etapasDe, nombreEtapa, siguienteEtapa, tonoEtapa, type Etapa } from '@/lib/proyectosEtapas';
+import { ayudaEtapa, etapasDe, etiquetaEtapa, nombreEtapa, siguienteEtapa, tonoEtapa, type Etapa } from '@/lib/proyectosEtapas';
 
 // Chip con la etapa del proyecto.
-export function ChipEtapa({ etapa, sistemas }: { etapa: Etapa; sistemas: readonly string[] }) {
+export function ChipEtapa({ etapa, sistemas, tipo }: { etapa: Etapa; sistemas: readonly string[]; tipo?: 'obra' | 'instalacion' }) {
   return (
     <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap ${tonoEtapa(etapa).chip}`}>
-      {nombreEtapa(etapa, sistemas)}
+      {etiquetaEtapa(etapa, sistemas, tipo)}
     </span>
   );
 }

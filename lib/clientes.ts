@@ -54,6 +54,7 @@ export type ProyectoResumen = {
   etapa: Etapa;
   sistemas: SistemaClave[];
   fecha_entrega: string | null;
+  tipo: 'obra' | 'instalacion';
 };
 
 export type ClienteConResumen = Cliente & {
@@ -165,6 +166,7 @@ export async function obtenerClienteCompleto(id: string): Promise<{
     etapa: p.etapa || (p.estado === 'propuesta' ? 'prospecto' : p.estado === 'en_curso' ? 'instalacion' : 'terminado'),
     sistemas: p.sistemas || ['otro'],
     fecha_entrega: p.fecha_entrega || null,
+    tipo: p.tipo === 'instalacion' ? 'instalacion' : 'obra',
   }));
 
   return { cliente: cliente as Cliente, logoUrl, portadaUrl, contactos: (contactos as ClienteContacto[]) || [], proyectos: proyectosResumen };

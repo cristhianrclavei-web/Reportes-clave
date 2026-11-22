@@ -123,6 +123,9 @@ export default function LazosList({ userName, esSupervisor, clienteInicial, verI
   // cree aquí queda en ella.
   const filtroProyecto = filtroCliente ? parametros.get('proyecto') : null;
   const delProyecto = (x: { proyecto_id?: string | null }) => !filtroProyecto || x.proyecto_id === filtroProyecto;
+  // Aquí se consulta y se corrige; lo nuevo se crea dentro de un proyecto
+  // (supervisión) o desde el servicio (técnicos). Abierta desde un proyecto, sí.
+  const puedeCrear = Boolean(filtroProyecto);
   const panelesDelCliente = filtroCliente ? paneles.filter((p) => p.cliente_id === filtroCliente && delProyecto(p)) : [];
   const circuitosDelCliente = filtroCliente ? lazos.filter((l) => l.cliente_id === filtroCliente && delProyecto(l)) : [];
   const planosDelCliente = filtroCliente ? ordenarPorNivel(planos.filter((p) => p.cliente_id === filtroCliente && delProyecto(p))) : [];
@@ -164,7 +167,7 @@ export default function LazosList({ userName, esSupervisor, clienteInicial, verI
     </div>
   ));
 
-  const botones = (
+  const botones = !puedeCrear ? null : (
             <div className="flex flex-col sm:flex-row gap-2">
               {!faltaPatchPaneles && (
                 <button type="button" onClick={() => setNuevoPanel(true)} className={BOTON_PRINCIPAL}>
@@ -203,12 +206,18 @@ export default function LazosList({ userName, esSupervisor, clienteInicial, verI
         {ver === 'guias' && (
           <>
             {!esSupervisor && <h1 className="font-display font-bold text-[26px] leading-tight tracking-wide mb-2">Guías de conexión</h1>}
-            <GuiasLista esSupervisor={esSupervisor} inicial={guiaInicial} proyectoId={filtroProyecto} clienteDelProyecto={filtroProyecto ? filtroCliente : null} />
+            <GuiasLista esSupervisor={esSupervisor} inicial={guiaInicial} proyectoId={filtroProyecto} clienteDelProyecto={filtroProyecto ? filtroCliente : null} puedeCrear={puedeCrear || Boolean(guiaInicial)} />
           </>
         )}
 
-        {ver === 'unifilares' && esSupervisor && <UnifilaresLista />}
+        {ver === 'unifilares' && esSupervisor && <UnifilaresLista puedeCrear={puedeCrear} proyectoId={filtroProyecto} clienteDelProyecto={filtroProyecto ? { id: filtroCliente!, nombre: nombreCliente(filtroCliente!) } : null} />}
 
+        {!filtroProyecto && ver === 'lazos' && (
+          <p className="text-[13px] rounded-xl bg-surface-2 border border-line px-3 py-2 mb-4 text-muted" data-tour="diagramas-consulta">
+            Aquí se consulta y se corrige lo que ya existe (abrir un plano, sembrar, marcar avance). Lo nuevo se agrega
+            {esSupervisor ? ' dentro del proyecto del cliente (Proyectos → cliente → proyecto).' : ' desde tu servicio, en «Planos y diagramas del sitio».'}
+          </p>
+        )}
         {filtroProyecto && (
           <p className="flex flex-wrap items-center gap-2 text-[13.5px] rounded-xl bg-teal/10 px-3 py-2 mb-4">
             Solo lo del proyecto; lo que crees aquí queda en él.
@@ -223,7 +232,7 @@ export default function LazosList({ userName, esSupervisor, clienteInicial, verI
           // En el panel del supervisor el título ya lo pone el marco: aquí solo la descripción y los botones.
           <div className="flex flex-col gap-3 mb-5 lg:flex-row lg:items-center lg:justify-between">
             <p className="text-[14px] text-muted leading-snug">{DETALLE}</p>
-            <div className="shrink-0">{botones}</div>
+            {botones && <div className="shrink-0">{botones}</div>}
           </div>
         ) : (
           <EncabezadoSeccion titulo="Diagramas y planos" detalle={DETALLE} accion={botones} />
@@ -348,18 +357,20 @@ export default function LazosList({ userName, esSupervisor, clienteInicial, verI
             {(panelesDelCliente.length > 0 || !faltaPatchPaneles) && (
               <div className="mb-5">
                 <SubtituloGrupo icono={<CircuitBoard size={14} strokeWidth={2.4} />} titulo="Paneles" cuenta={panelesALaVista.length}
-                  accion={!faltaPatchPaneles ? { texto: 'Panel', onClick: () => setNuevoPanel(true) } : null} />
+                  accion={!faltaPatchPaneles && puedeCrear ? { texto: 'Panel', onClick: () => setNuevoPanel(true) } : null} />
                 {panelesALaVista.length > 0 ? (
                   <div className="grid grid-cols-[minmax(0,1fr)] lg:grid-cols-2 gap-2.5 items-start">
                     {panelesALaVista.map((panel) => (
                       <TarjetaPanel key={panel.id} panel={panel} circuitos={circuitosDelCliente.filter((l) => l.panel_id === panel.id)} />
                     ))}
                   </div>
-                ) : (
+                ) : puedeCrear ? (
                   <button type="button" onClick={() => setNuevoPanel(true)}
                     className="w-full min-h-[48px] rounded-2xl border border-dashed border-line-strong text-[13.5px] font-semibold text-muted flex items-center justify-center gap-2 hover:text-ink">
-                    <Plus size={16} strokeWidth={2.6} /> Agregar el panel de este cliente
+                    <Plus size={16} strokeWidth={2.6} /> Agregar el panel de este proyecto
                   </button>
+                ) : (
+                  <p className="text-[13px] text-muted">Sin paneles. Se agregan desde el proyecto del cliente.</p>
                 )}
               </div>
             )}
@@ -367,7 +378,7 @@ export default function LazosList({ userName, esSupervisor, clienteInicial, verI
             {!faltaPatchPlanos && (
               <div className="mb-5">
                 <SubtituloGrupo icono={<IconoPlano size={14} strokeWidth={2.4} />} titulo="Planos por nivel" cuenta={planosALaVista.length}
-                  accion={{ texto: 'Subir', onClick: () => setNuevoPlano({ cliente: { id: filtroCliente, nombre: nombreCliente(filtroCliente) } }) }} />
+                  accion={puedeCrear ? { texto: 'Subir', onClick: () => setNuevoPlano({ cliente: { id: filtroCliente, nombre: nombreCliente(filtroCliente) } }) } : null} />
                 {planosALaVista.length > 0 ? (
                   <div className="grid grid-cols-[minmax(0,1fr)] sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
                     {planosALaVista.map((plano) => (
@@ -388,11 +399,13 @@ export default function LazosList({ userName, esSupervisor, clienteInicial, verI
                       </Link>
                     ))}
                   </div>
-                ) : (
+                ) : puedeCrear ? (
                   <button type="button" onClick={() => setNuevoPlano({ cliente: { id: filtroCliente, nombre: nombreCliente(filtroCliente) } })}
                     className="w-full min-h-[48px] rounded-2xl border border-dashed border-line-strong text-[13.5px] font-semibold text-muted flex items-center justify-center gap-2 hover:text-ink">
-                    <Plus size={16} strokeWidth={2.6} /> Subir un plano de este cliente
+                    <Plus size={16} strokeWidth={2.6} /> Subir un plano de este proyecto
                   </button>
+                ) : (
+                  <p className="text-[13px] text-muted">Sin planos. Se suben desde el proyecto del cliente.</p>
                 )}
               </div>
             )}
@@ -446,7 +459,8 @@ export default function LazosList({ userName, esSupervisor, clienteInicial, verI
           paneles={paneles}
           panelInicial={filtroPanel}
           onCerrar={() => setNuevoAbierto(false)}
-          onCreado={async (id) => { await alProyecto('lazo', id); window.location.href = `/lazos/${id}`; }}
+          proyectoId={filtroProyecto}
+          onCreado={(id) => { window.location.href = `/lazos/${id}`; }}
         />
       )}
     </>,
@@ -575,8 +589,10 @@ function TablaCircuitos({ circuitos }: { circuitos: LazoResumen[] }) {
 
 // También se abre desde el diagrama de un lazo para agregar el siguiente
 // lazo del mismo panel (llega con panel, número y clase ya puestos).
-export function NuevoLazo({ clienteInicial, lazosExistentes, inicial, paneles = [], panelInicial = null, onCerrar, onCreado }: {
+export function NuevoLazo({ clienteInicial, lazosExistentes, inicial, paneles = [], panelInicial = null, proyectoId = null, onCerrar, onCreado }: {
   clienteInicial: { id: string; nombre: string } | null;
+  // Obra en la que queda (desde un proyecto o desde el servicio del técnico).
+  proyectoId?: string | null;
   lazosExistentes: LazoResumen[];
   // Paneles de todos los clientes: se ofrecen solo los del cliente elegido.
   paneles?: Panel[];
@@ -656,6 +672,7 @@ export function NuevoLazo({ clienteInicial, lazosExistentes, inicial, paneles = 
         panel: panelId ? panelesDelCliente.find((p) => p.id === panelId)?.nombre || panel.trim() || null : panel.trim() || null,
         // Solo un panel de este cliente (la base también lo revisa).
         panel_id: panelId && (inicial?.panel_id === panelId || panelesDelCliente.some((p) => p.id === panelId)) ? panelId : null,
+        proyecto_id: proyectoId,
       });
       showToast('Lazo creado');
       onCreado(lazo.id);

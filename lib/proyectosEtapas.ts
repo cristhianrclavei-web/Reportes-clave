@@ -102,3 +102,9 @@ export function tonoEtapa(etapa: Etapa): { chip: string; punto: string } {
     case 'cancelado': return { chip: 'bg-red/10 text-red border-red/30', punto: 'bg-red' };
   }
 }
+
+// Lo que se muestra de la etapa: una instalación existente siempre está «En operación».
+export function etiquetaEtapa(etapa: Etapa, sistemas: readonly string[], tipo?: 'obra' | 'instalacion'): string {
+  if (tipo === 'instalacion' && etapa === 'terminado') return 'En operación';
+  return nombreEtapa(etapa, sistemas);
+}

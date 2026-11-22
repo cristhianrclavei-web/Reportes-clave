@@ -24,8 +24,10 @@ type Plantilla = { id: string; nombre: string; sistema: string; descripcion: str
 // Equipos que llegan de una cotización para empezar la guía con ellos.
 export type EquiposIniciales = GuiaInicial | null;
 
-export default function GuiasLista({ esSupervisor, inicial, proyectoId = null, clienteDelProyecto = null }: {
+export default function GuiasLista({ esSupervisor, inicial, proyectoId = null, clienteDelProyecto = null, puedeCrear = false }: {
   esSupervisor: boolean;
+  // Fuera de un proyecto solo se consulta (y se arman plantillas).
+  puedeCrear?: boolean;
   inicial?: EquiposIniciales;
   // Abierta desde un proyecto: la guía nueva queda en él (y en su cliente).
   proyectoId?: string | null;
@@ -38,7 +40,7 @@ export default function GuiasLista({ esSupervisor, inicial, proyectoId = null, c
   const [sinConexion, setSinConexion] = useState(false);
   const [faltaPatch, setFaltaPatch] = useState(false);
   // null = cerrado; con plantilla = «Usar esta plantilla».
-  const [nueva, setNueva] = useState<{ plantilla: Plantilla | null } | null>(inicial ? { plantilla: null } : null);
+  const [nueva, setNueva] = useState<{ plantilla: Plantilla | null; soloPlantilla?: boolean } | null>(inicial ? { plantilla: null } : null);
 
   async function cargar() {
     setError(null);
@@ -88,9 +90,9 @@ export default function GuiasLista({ esSupervisor, inicial, proyectoId = null, c
           Cómo se conecta cada instalación, borne por borne, con sus pruebas y las notas del ingeniero. El técnico va palomeando cada cable desde su celular.
         </p>
         {esSupervisor && (
-          <button type="button" onClick={() => setNueva({ plantilla: null })}
+          <button type="button" onClick={() => setNueva({ plantilla: null, soloPlantilla: !puedeCrear })}
             className="min-h-[50px] lg:min-h-[46px] px-6 rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15px] tracking-wide shadow-glow-teal flex items-center justify-center gap-2 shrink-0">
-            <Plus size={18} strokeWidth={2.6} /> Nueva guía
+            <Plus size={18} strokeWidth={2.6} /> {puedeCrear ? 'Nueva guía' : 'Nueva plantilla'}
           </button>
         )}
       </div>
@@ -151,7 +153,7 @@ export default function GuiasLista({ esSupervisor, inicial, proyectoId = null, c
                 {p.descripcion && <p className="text-[13px] text-muted mt-1.5 line-clamp-3">{p.descripcion}</p>}
                 <div className="flex gap-2 mt-3 pt-1 mt-auto">
                   {!p.deLaApp && <Link href={`/guias/${p.id}`} className="flex-1 min-h-[42px] rounded-xl border border-line text-[13.5px] font-semibold flex items-center justify-center">Ver</Link>}
-                  {esSupervisor && (
+                  {esSupervisor && puedeCrear && (
                     <button type="button" onClick={() => setNueva({ plantilla: p })} className="flex-1 min-h-[42px] rounded-xl border border-teal/60 bg-teal/10 text-teal text-[13.5px] font-semibold">
                       Usar esta plantilla
                     </button>
@@ -184,7 +186,7 @@ export default function GuiasLista({ esSupervisor, inicial, proyectoId = null, c
       )}
 
       {nueva && (
-        <NuevaGuia plantilla={nueva.plantilla} plantillas={plantillas} inicial={inicial || null} proyectoId={proyectoId}
+        <NuevaGuia plantilla={nueva.plantilla} plantillas={plantillas} inicial={inicial || null} proyectoId={proyectoId} soloPlantilla={Boolean(nueva.soloPlantilla)}
           clienteFijo={clienteDelProyecto ? { id: clienteDelProyecto, nombre: nombreCliente(clienteDelProyecto) } : null}
           onCerrar={() => setNueva(null)} onCreada={(id, editar) => { window.location.href = `/guias/${id}${editar ? '?editar=1' : ''}`; }} />
       )}
@@ -207,8 +209,10 @@ const CAMPO = 'w-full px-3.5 min-h-[46px] rounded-xl bg-surface-2 border border-
 
 // Crear una guía: de una plantilla o en blanco, para un cliente (y si se
 // quiere, pegada a uno de sus servicios) o como plantilla nueva.
-function NuevaGuia({ plantilla, plantillas, inicial, proyectoId, clienteFijo, onCerrar, onCreada }: {
+function NuevaGuia({ plantilla, plantillas, inicial, proyectoId, clienteFijo, soloPlantilla, onCerrar, onCreada }: {
   proyectoId: string | null;
+  // Fuera de un proyecto solo se arman plantillas.
+  soloPlantilla: boolean;
   clienteFijo: { id: string; nombre: string } | null;
   plantilla: Plantilla | null;
   plantillas: Plantilla[];
@@ -220,7 +224,7 @@ function NuevaGuia({ plantilla, plantillas, inicial, proyectoId, clienteFijo, on
   const elegida = plantillas.find((p) => p.id === plantillaId) || null;
   const [nombre, setNombre] = useState(inicial?.nombre || plantilla?.nombre || '');
   const [sistema, setSistema] = useState(inicial?.sistema || plantilla?.sistema || 'Control de acceso');
-  const [comoPlantilla, setComoPlantilla] = useState(false);
+  const [comoPlantilla, setComoPlantilla] = useState(soloPlantilla);
   const [clienteTexto, setClienteTexto] = useState(inicial?.clienteNombre || clienteFijo?.nombre || '');
   const [clienteId, setClienteId] = useState<string | null>(inicial?.clienteId || clienteFijo?.id || null);
   const [servicios, setServicios] = useState<ServicioParaGuia[]>([]);
@@ -299,10 +303,10 @@ function NuevaGuia({ plantilla, plantillas, inicial, proyectoId, clienteFijo, on
             {[...new Set([...SISTEMAS_GUIA, sistema])].map((s) => <option key={s} value={s}>{nombreSistema(s)}</option>)}
           </select></label>
 
-        <label className="flex items-center gap-2.5 mb-3 text-[14px]">
+        {!soloPlantilla && <label className="flex items-center gap-2.5 mb-3 text-[14px]">
           <input type="checkbox" checked={comoPlantilla} onChange={(ev) => setComoPlantilla(ev.target.checked)} className="w-5 h-5 accent-teal" />
           Guardarla como plantilla (para reutilizarla, sin cliente)
-        </label>
+        </label>}
 
         {!comoPlantilla && (
           <>

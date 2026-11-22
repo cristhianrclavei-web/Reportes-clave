@@ -27,6 +27,8 @@ export type Proyecto = {
   moneda: 'MXN' | 'USD';
   responsable_id: string | null;
   etapa_desde: string | null;
+  // patch_instalacion_existente.sql: 'instalacion' = lo que el cliente ya tiene operando.
+  tipo?: 'obra' | 'instalacion';
 };
 
 export type DocumentoProyecto = {
@@ -78,6 +80,7 @@ export type NuevoProyecto = {
   monto: number | null;
   moneda: 'MXN' | 'USD';
   responsableId: string | null;
+  tipo?: 'obra' | 'instalacion';
 };
 
 // Mismas reglas que la base (patch_proyectos_centro.sql), para avisar antes de guardar.
@@ -103,6 +106,7 @@ function filaDeProyecto(p: Omit<NuevoProyecto, 'clienteId'>) {
     monto: p.monto,
     moneda: p.moneda,
     responsable_id: p.responsableId,
+    ...(p.tipo === 'instalacion' ? { tipo: 'instalacion' } : {}),
   };
 }
 
@@ -302,12 +306,12 @@ export async function desvincularCotizacion(proyectoId: string, cotizacionId: st
 
 // ---------- Todos los proyectos (tablero) ----------
 
-export type ProyectoConCliente = Pick<Proyecto, 'id' | 'cliente_id' | 'nombre' | 'etapa' | 'sistemas' | 'fecha_entrega' | 'monto' | 'moneda' | 'responsable_id' | 'etapa_desde'> & { cliente: string };
+export type ProyectoConCliente = Pick<Proyecto, 'id' | 'cliente_id' | 'nombre' | 'etapa' | 'sistemas' | 'fecha_entrega' | 'monto' | 'moneda' | 'responsable_id' | 'etapa_desde' | 'tipo'> & { cliente: string };
 
 export async function listarTodosProyectos(): Promise<ProyectoConCliente[]> {
   const { data, error } = await createClient()
     .from('proyectos')
-    .select('id, cliente_id, nombre, etapa, sistemas, fecha_entrega, monto, moneda, responsable_id, etapa_desde, clientes(nombre)')
+    .select('*, clientes(nombre)')
     .order('updated_at', { ascending: false })
     .limit(1000);
   if (error) throw new Error(mensajeProyecto(error, 'cargar los proyectos'));
