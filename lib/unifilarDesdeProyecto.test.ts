@@ -27,4 +27,14 @@ describe('unifilar desde el proyecto', () => {
     expect(kwpTotal(d)).toBeCloseTo(7.7);
     expect(revisar(d).filter((a) => a.nivel === 'error')).toEqual([]);
   });
+
+  it('híbrido y aislado también salen sin errores', () => {
+    for (const tipo of ['hibrido', 'aislado'] as const) {
+      for (const modulos of [8, 20]) {
+        const d = unifilarDeProyecto({ modulo_w: 550, inversor: null }, modulos, modulos * 0.55, id, tipo);
+        expect(kwpTotal(d)).toBeCloseTo(modulos * 0.55);
+        expect(revisar(d).filter((a) => a.nivel === 'error')).toEqual([]);
+      }
+    }
+  });
 });

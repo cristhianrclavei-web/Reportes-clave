@@ -11,7 +11,7 @@ import { COLOR_TIPO, fondo } from '@/components/lazos/FrentePanel';
 import MenuCuenta from '@/components/MenuCuenta';
 import SupervisorShell from '@/components/SupervisorShell';
 import GuiasLista from '@/components/guias/GuiasLista';
-import UnifilaresLista from '@/components/unifilar/UnifilaresLista';
+import DiagramasUnifilares from '@/components/unifilar/DiagramasUnifilares';
 import PestanasProyectos from '@/components/proyectos/PestanasProyectos';
 import { moverAProyecto } from '@/lib/proyectoContenido';
 import type { GuiaInicial } from '@/lib/guiaDesdeCotizacion';
@@ -194,8 +194,8 @@ export default function LazosList({ userName, esSupervisor, clienteInicial, verI
         {esSupervisor && <PestanasProyectos actual="diagramas" />}
         {/* Dos mitades de la sección: lo de detección de incendio y las guías de cualquier sistema. */}
         {/* Los unifilares fotovoltaicos (trámite de CFE) son solo de supervisión. */}
-        <div className={`grid ${esSupervisor ? 'grid-cols-3 lg:max-w-xl' : 'grid-cols-2 lg:max-w-md'} gap-1 rounded-xl bg-surface border border-line p-1 mb-4`} role="tablist" aria-label="Qué ver">
-          {([['lazos', 'Lazos y planos'], ['guias', 'Guías de conexión'], ['unifilares', 'Unifilares FV']] as const).filter(([clave]) => esSupervisor || clave !== 'unifilares').map(([clave, texto]) => (
+        <div className="grid grid-cols-3 lg:max-w-2xl gap-1 rounded-xl bg-surface border border-line p-1 mb-4" role="tablist" aria-label="Qué ver">
+          {([['lazos', 'Planos y paneles'], ['unifilares', 'Diagramas unifilares'], ['guias', 'Guías de conexión']] as const).map(([clave, texto]) => (
             <button key={clave} type="button" role="tab" aria-selected={ver === clave} onClick={() => setVer(clave)}
               className={`min-h-[42px] rounded-lg text-[13.5px] font-semibold ${ver === clave ? 'bg-teal text-inkOnAccent' : 'text-muted'}`}>
               {texto}
@@ -210,7 +210,9 @@ export default function LazosList({ userName, esSupervisor, clienteInicial, verI
           </>
         )}
 
-        {ver === 'unifilares' && esSupervisor && <UnifilaresLista puedeCrear={puedeCrear} proyectoId={filtroProyecto} clienteDelProyecto={filtroProyecto ? { id: filtroCliente!, nombre: nombreCliente(filtroCliente!) } : null} />}
+        {ver === 'unifilares' && (
+          <DiagramasUnifilares lazos={lazos} paneles={paneles} esSupervisor={esSupervisor} clienteId={filtroCliente} proyectoId={filtroProyecto} />
+        )}
 
         {!filtroProyecto && ver === 'lazos' && (
           <p className="text-[13px] rounded-xl bg-surface-2 border border-line px-3 py-2 mb-4 text-muted" data-tour="diagramas-consulta">

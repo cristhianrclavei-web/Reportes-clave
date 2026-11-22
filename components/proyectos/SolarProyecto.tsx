@@ -18,6 +18,7 @@ import {
   subirDocumentoTramite, urlArchivo, validarRecibo, type NuevoRecibo, type TodoSolar,
 } from '@/lib/solarDatos';
 import { crearUnifilarDesdeProyecto } from '@/lib/unifilarDesdeProyecto';
+import { NOMBRE_TIPO_SISTEMA, type TipoSistema } from '@/lib/unifilar';
 import { TituloSeccion } from './ContenidoLista';
 
 const CAMPO = 'w-full px-3 min-h-[44px] rounded-xl bg-surface-2 border border-line focus:border-teal focus:outline-none text-[14.5px]';
@@ -283,6 +284,7 @@ function Dimensionamiento({ proyecto, clienteNombre, todo, unifilares, onGuardad
   useEffect(() => setD(todo.datos), [todo.datos]);
   const [guardando, setGuardando] = useState(false);
   const [creando, setCreando] = useState(false);
+  const [tipoUnifilar, setTipoUnifilar] = useState<TipoSistema>('interconectado');
   const r = useMemo(() => dimensionar(d, todo.recibos), [d, todo.recibos]);
   const cambiado = JSON.stringify(d) !== JSON.stringify(todo.datos);
   const campoNum = (clave: keyof DatosSolar, etiqueta: string, ayuda?: string, entero = false) => (
@@ -317,7 +319,7 @@ function Dimensionamiento({ proyecto, clienteNombre, todo, unifilares, onGuardad
     if (cambiado) await guardar();
     setCreando(true);
     try {
-      const id = await crearUnifilarDesdeProyecto({ proyecto, clienteNombre, datos: d, modulos: r.modulos, kwp: r.kwp });
+      const id = await crearUnifilarDesdeProyecto({ proyecto, clienteNombre, datos: d, modulos: r.modulos, kwp: r.kwp, tipo: tipoUnifilar });
       onUnifilar();
       window.location.href = `/unifilares/${id}`;
     } catch (e: any) {
@@ -358,9 +360,15 @@ function Dimensionamiento({ proyecto, clienteNombre, todo, unifilares, onGuardad
         <Link href={`/dashboard/cotizaciones?proyecto=${proyecto.id}`} className="min-h-[44px] px-4 rounded-xl border border-line bg-surface-2 font-semibold text-[14px] flex items-center gap-1.5">
           <Receipt size={16} /> Cotizar este sistema
         </Link>
-        <button type="button" onClick={crearUnifilar} disabled={creando || r.modulos === 0} className="min-h-[44px] px-4 rounded-xl border border-line bg-surface-2 font-semibold text-[14px] flex items-center gap-1.5 disabled:opacity-50">
-          {creando ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />} {unifilares.length ? 'Otro unifilar con este sistema' : 'Crear el unifilar'}
+        <span className="flex items-stretch rounded-xl border border-line bg-surface-2 overflow-hidden">
+        <select aria-label="Tipo de unifilar" value={tipoUnifilar} onChange={(e) => setTipoUnifilar(e.target.value as TipoSistema)}
+          className="min-h-[44px] px-2.5 bg-transparent text-[13.5px] border-r border-line focus:outline-none">
+          {(Object.keys(NOMBRE_TIPO_SISTEMA) as TipoSistema[]).map((t) => <option key={t} value={t}>{NOMBRE_TIPO_SISTEMA[t]}</option>)}
+        </select>
+        <button type="button" onClick={crearUnifilar} disabled={creando || r.modulos === 0} className="min-h-[44px] px-4 font-semibold text-[14px] flex items-center gap-1.5 disabled:opacity-50 hover:bg-surface">
+          {creando ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />} {unifilares.length ? 'Otro unifilar' : 'Crear el unifilar'}
         </button>
+        </span>
       </div>
       {unifilares.length > 0 && (
         <div className="mt-3 grid gap-1.5">

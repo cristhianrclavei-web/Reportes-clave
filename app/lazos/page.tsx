@@ -32,7 +32,7 @@ export default async function LazosPage(props: { searchParams: Promise<{ cliente
       userName={perfil?.full_name || user.email || ''}
       esSupervisor={role === 'supervisor'}
       clienteInicial={searchParams.cliente || null}
-      verInicial={searchParams.ver === 'guias' ? 'guias' : 'lazos'}
+      verInicial={searchParams.ver === 'guias' ? 'guias' : searchParams.ver === 'unifilares' ? 'unifilares' : 'lazos'}
       guiaInicial={null}
     />
   );

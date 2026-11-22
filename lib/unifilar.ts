@@ -86,6 +86,7 @@ export type Unifilar = {
   nombre: string;
   tipo: TipoSistema;
   cliente_id: string | null;
+  proyecto_id?: string | null;
   datos: DatosUnifilar;
   creado_por: string;
   creado_en: string;

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { LayoutGroup, motion } from 'motion/react';
 import { ChevronDown, ChevronsLeft, UserRound } from 'lucide-react';
 import Link from '@/components/TransitionLink';
@@ -42,7 +42,9 @@ export default function BarraLateral({
   // Subsecciones abiertas o cerradas a mano; si no se ha tocado, solo la
   // sección activa las muestra.
   const [abiertas, setAbiertas] = useState<Partial<Record<DashboardTabKey, boolean>>>({});
-  const subActual = useSearchParams().get('sub');
+  // «Diagramas y planos» vive en su propia ruta, pero es subsección de Proyectos.
+  const ruta = usePathname();
+  const subActual = useSearchParams().get('sub') || (ruta.startsWith('/dashboard/diagramas') ? 'diagramas' : null);
   const miId = useMiId();
   const miPerfil = usePerfil(miId);
   const miFoto = urlFoto(miPerfil?.foto_path);
