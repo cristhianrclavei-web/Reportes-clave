@@ -155,17 +155,19 @@ export default function JornadaDia({
   }
 
   function tituloDe(s: Segmento): string {
-    if (s.clase === 'sin_registrar') return 'Sin registrar';
-    if (s.clase === 'comida' || s.clase === 'pausa') return infoClase(s.clase).nombre;
+    if (s.clase === 'sin_registrar') return s.titulo || 'Sin registrar';
+    if (s.clase === 'comida' || s.clase === 'pausa') return s.titulo || infoClase(s.clase).nombre;
     if (s.clase === 'compra' && s.origen?.tipo === 'servicio') return 'Salida por material';
     return s.origen?.titulo || s.titulo || infoClase(s.clase).nombre;
   }
   function detalleDe(s: Segmento): string {
+    if (s.clase === 'sin_registrar' && s.titulo) return 'Con el cliente después de la firma, más allá del tiempo de cierre: se pide justificar (comida, espera, siguió trabajando…)';
     if (s.clase === 'sin_registrar') return 'No hay servicio ni actividad en este tramo';
+    if (!s.origen && s.titulo && !s.automatico) return 'Parada del rastreo, justificada';
     if (s.automatico && s.clase === 'servicio') return 'Con el cliente según el GPS (no hay reporte de este rato)';
     if (s.automatico && s.clase === 'oficina') return 'En la oficina según el GPS';
     if (s.automatico) return 'Lo detectó el rastreo del teléfono';
-    if (s.origen?.tipo === 'reporte') return 'Reporte de servicio (llegada y salida, ajustadas con el GPS si lo hay)';
+    if (s.origen?.tipo === 'reporte') return 'Reporte de servicio (firmado en sitio: hasta la firma; si no, con las horas del GPS si lo hay)';
     if (s.origen?.tipo === 'servicio' && s.clase !== 'servicio') return `Pausa del servicio «${s.origen.titulo}»`;
     if (s.clase === 'servicio') return 'Trabajo en servicio';
     const partes = [infoClase(s.clase).nombre];

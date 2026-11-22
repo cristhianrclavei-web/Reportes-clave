@@ -1211,7 +1211,7 @@ export async function leerAjustesOperacion(): Promise<AjustesOperacion> {
   const supabase = createClient();
   const { data } = await supabase
     .from('ajustes_operacion')
-    .select('comida_min, otras_pausas_min, tolerancia_min, verificacion_min')
+    .select('comida_min, otras_pausas_min, tolerancia_min, verificacion_min, cierre_tras_firma_min')
     .maybeSingle();
   return { ...AJUSTES_POR_DEFECTO, ...((data as Partial<AjustesOperacion>) || {}) };
 }

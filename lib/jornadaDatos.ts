@@ -2,7 +2,7 @@ import { createClient } from './supabaseClient';
 import { fechaLocal, hoyLocal, sumarDias } from './fechaHoy';
 import { tipoActividad } from './tiposActividad';
 import {
-  ActividadDelDia, ServicioDelDia, PausaDeServicio, Segmento, ClaseTiempo, TrasladoDelDia, ReporteDelDia, EstanciaGps, segmentosDelDia, minutosPorClaseTiempo,
+  ActividadDelDia, ServicioDelDia, PausaDeServicio, Segmento, ClaseTiempo, TrasladoDelDia, ReporteDelDia, EstanciaGps, ParadaDelDia, segmentosDelDia, minutosPorClaseTiempo,
 } from './jornada';
 
 // Trae de la base lo que hace falta para armar la jornada de cada técnico
@@ -28,6 +28,11 @@ export type TrasladoJornada = TrasladoDelDia & { tecnicoId: string; fecha: strin
 export type ReporteJornada = ReporteDelDia & { tecnicoId: string; fecha: string; servicioId: string | null };
 // Visita a un cliente u oficina que vio el rastreo.
 export type EstanciaJornada = EstanciaGps & { tecnicoId: string; fecha: string };
+// Parada del rastreo ya justificada (o el rato después de la firma).
+export type ParadaJornada = ParadaDelDia & { tecnicoId: string; fecha: string };
+
+// Comida permitida por día y tolerancia (Ajustes → Pausas y comida).
+export type ComidaPermitida = { minutos: number; tolerancia: number };
 
 export type DatosJornadas = {
   horario: HorarioJornada;
@@ -37,6 +42,8 @@ export type DatosJornadas = {
   traslados: TrasladoJornada[];
   reportes: ReporteJornada[];
   estancias: EstanciaJornada[];
+  paradas?: ParadaJornada[];
+  comida?: ComidaPermitida;
 };
 
 const ms = (iso: string | null | undefined) => (iso ? new Date(iso).getTime() : null);
@@ -77,7 +84,7 @@ export async function cargarDatosJornadas(desde: string, hasta: string): Promise
   const desdeIso = fechaLocal(sumarDias(desde, -1)).toISOString();
   const hastaIso = fechaLocal(sumarDias(hasta, 2)).toISOString();
 
-  const [ajustes, festivos, servicios, actividades, traslados, reportes, visitas, oficina] = await Promise.all([
+  const [ajustes, festivos, servicios, actividades, traslados, reportes, visitas, oficina, paradas] = await Promise.all([
     // '*': si la base todavía no tiene las columnas de jornada, no falla.
     supabase.from('ajustes_operacion').select('*').maybeSingle(),
     supabase.from('dias_festivos').select('fecha, tipo').gte('fecha', desde).lte('fecha', hasta),
@@ -101,6 +108,7 @@ export async function cargarDatosJornadas(desde: string, hasta: string): Promise
       .gte('fecha', desde).lte('fecha', hasta),
     supabase.from('visitas_detectadas').select('tecnico_id, fecha, llegada, salida, clientes(nombre)').gte('fecha', desde).lte('fecha', hasta),
     supabase.rpc('gps_en_lugares_propios', { p_desde: desde, p_hasta: hasta }),
+    supabase.rpc('paradas_por_revisar', { p_desde: desde, p_hasta: hasta }),
   ]);
   if (servicios.error) throw servicios.error;
   if (actividades.error) throw actividades.error;
@@ -111,6 +119,12 @@ export async function cargarDatosJornadas(desde: string, hasta: string): Promise
   if (reportes.error) console.error('No se pudieron leer los reportes para la bitácora:', reportes.error.message);
   if (visitas.error) console.error('No se pudieron leer las visitas del rastreo:', visitas.error.message);
   if (oficina.error) console.error('No se pudo leer el tiempo en la oficina del rastreo:', oficina.error.message);
+  if (paradas.error) console.error('No se pudieron leer las paradas del rastreo:', paradas.error.message);
+  const listaParadas: ParadaJornada[] = [];
+  for (const p of (paradas.data || []) as any[]) {
+    const pieza = paradaEnBitacora(p);
+    if (pieza) listaParadas.push({ ...pieza, tecnicoId: p.tecnico_id, fecha: p.fecha, inicio: ms(p.inicio)!, fin: ms(p.fin)! });
+  }
   const listaReportes: ReporteJornada[] = [];
   for (const r of (reportes.data || []) as any[]) {
     const inicio = horaDelDia(r.fecha, r.llegada);
@@ -144,7 +158,7 @@ export async function cargarDatosJornadas(desde: string, hasta: string): Promise
   }
   const pausas = pausasPorServicio(eventos);
 
-  const a = (ajustes.data || {}) as { jornada_inicio?: string; jornada_fin?: string };
+  const a = (ajustes.data || {}) as { jornada_inicio?: string; jornada_fin?: string; comida_min?: number; tolerancia_min?: number };
   const horario: HorarioJornada = {
     inicio: (a.jornada_inicio || HORARIO_POR_DEFECTO.inicio).slice(0, 5),
     fin: (a.jornada_fin || HORARIO_POR_DEFECTO.fin).slice(0, 5),
@@ -178,7 +192,36 @@ export async function cargarDatosJornadas(desde: string, hasta: string): Promise
     ((festivos.data || []) as any[]).filter((f) => f.tipo === 'oficial' || f.tipo === 'empresa').map((f) => f.fecha as string),
   );
 
-  return { horario, festivos: diasFestivos, servicios: listaServicios, actividades: listaActividades, traslados: listaTraslados, reportes: listaReportes, estancias: listaEstancias };
+  const comida: ComidaPermitida = { minutos: a.comida_min ?? 60, tolerancia: a.tolerancia_min ?? 15 };
+
+  return {
+    horario, festivos: diasFestivos, servicios: listaServicios, actividades: listaActividades, traslados: listaTraslados,
+    reportes: listaReportes, estancias: listaEstancias, paradas: listaParadas, comida,
+  };
+}
+
+// Cómo se pinta una parada en la bitácora (o null si no se pinta):
+// · Comida y desayuno/tienda → comida (se descuentan de la hora de comida).
+// · Tráfico o espera → traslado a media ruta; con el cliente, pausa.
+// · Después de la firma y sin justificar (o esperando autorización) →
+//   «sin registrar» con su título, para que no salga como servicio.
+// · Lo demás autorizado ya es una actividad de bitácora.
+export function paradaEnBitacora(p: { motivo: string | null; estado: string | null; reporte_id?: string | null; cliente?: string | null }): { clase: ClaseTiempo; titulo: string } | null {
+  const trasFirma = !!p.reporte_id;
+  const enCliente = trasFirma ? ` en ${p.cliente || 'el cliente'}` : '';
+  const autorizada = p.estado === 'aprobada';
+  if (autorizada && p.motivo === 'comida') return { clase: 'comida', titulo: 'Comida' + enCliente };
+  if (autorizada && p.motivo === 'desayuno_tienda') return { clase: 'comida', titulo: 'Desayuno o tienda' + enCliente };
+  if (autorizada && p.motivo === 'espera') return { clase: trasFirma ? 'pausa' : 'traslado', titulo: 'Tráfico o espera' + enCliente };
+  if (!trasFirma || autorizada) return null;
+  const falta = p.estado === 'pendiente' ? 'por autorizar' : 'falta justificar';
+  return { clase: 'sin_registrar', titulo: `Después de la firma${enCliente}: ${falta}` };
+}
+
+// ¿La comida del día pasó de lo permitido más la tolerancia?
+export function comidaExcedida(minutosComida: number, comida: ComidaPermitida | undefined): boolean {
+  if (!comida) return false;
+  return minutosComida > comida.minutos + comida.tolerancia;
 }
 
 // «10:11» del día `fecha` en milisegundos (hora de México); null si no es una hora.
@@ -228,7 +271,8 @@ export function jornadaDeTecnico(datos: DatosJornadas, tecnicoId: string, fecha:
   const idsServicios = new Set(servicios.map((s) => s.id));
   const reportes = (datos.reportes || []).filter((r) => r.tecnicoId === tecnicoId && r.fecha === fecha && !(r.servicioId && idsServicios.has(r.servicioId)));
   const estancias = (datos.estancias || []).filter((e) => e.tecnicoId === tecnicoId && e.fecha === fecha);
-  const segmentos = segmentosDelDia({ servicios, actividades, traslados, reportes, estancias, jornada, tope });
+  const paradas = (datos.paradas || []).filter((p) => p.tecnicoId === tecnicoId && p.fecha === fecha);
+  const segmentos = segmentosDelDia({ servicios, actividades, traslados, reportes, estancias, paradas, jornada, tope });
   return { fecha, jornada, servicios, actividades, segmentos };
 }
 

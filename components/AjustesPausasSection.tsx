@@ -15,13 +15,14 @@ const CAMPOS: { clave: keyof AjustesOperacion; texto: string; detalle: string; m
   { clave: 'otras_pausas_min', texto: 'Otras pausas', detalle: 'Espera del cliente, asunto personal u otro', min: 5, max: 240 },
   { clave: 'tolerancia_min', texto: 'Tolerancia', detalle: 'Minutos de más antes de avisar a supervisión', min: 0, max: 120 },
   { clave: 'verificacion_min', texto: 'Verificación', detalle: 'Minutos para responder «Estoy aquí»', min: 3, max: 60 },
+  { clave: 'cierre_tras_firma_min', texto: 'Cierre tras la firma', detalle: 'Minutos con el cliente después de que firma que cuentan como trabajo (salida, guardar herramienta); lo demás se justifica', min: 0, max: 120 },
 ];
 
 export default function AjustesPausasSection() {
   const [abierto, setAbierto] = useState(false);
   const [guardado, setGuardado] = useState<AjustesOperacion>(AJUSTES_POR_DEFECTO);
   const [valores, setValores] = useState<Record<keyof AjustesOperacion, string>>({
-    comida_min: '60', otras_pausas_min: '30', tolerancia_min: '15', verificacion_min: '10',
+    comida_min: '60', otras_pausas_min: '30', tolerancia_min: '15', verificacion_min: '10', cierre_tras_firma_min: '30',
   });
   const [guardando, setGuardando] = useState(false);
 
@@ -31,6 +32,7 @@ export default function AjustesPausasSection() {
       setValores({
         comida_min: String(a.comida_min), otras_pausas_min: String(a.otras_pausas_min),
         tolerancia_min: String(a.tolerancia_min), verificacion_min: String(a.verificacion_min),
+        cierre_tras_firma_min: String(a.cierre_tras_firma_min),
       });
     }).catch(() => {});
   }, []);
@@ -76,7 +78,7 @@ export default function AjustesPausasSection() {
 
       {abierto && (
         <div className="px-4 pb-4">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 mb-3">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5 mb-3">
             {CAMPOS.map((c) => (
               <label key={c.clave} className="block">
                 <span className="text-[12.5px] font-semibold block mb-1">{c.texto}</span>
@@ -97,7 +99,7 @@ export default function AjustesPausasSection() {
             ))}
           </div>
           <p className="text-[12.5px] text-muted leading-relaxed mb-3">
-            Al técnico le llega un recordatorio 10 min antes de que termine su pausa y otro al terminar. Si se pasa de la tolerancia, se le avisa de nuevo y también a supervisión. La salida por material usa el tiempo que el técnico calcule al salir.
+            Al técnico le llega un recordatorio 10 min antes de que termine su pausa y otro al terminar. Si se pasa de la tolerancia, se le avisa de nuevo y también a supervisión. La salida por material usa el tiempo que el técnico calcule al salir. En Personal → Jornadas, la comida del día suma las pausas de comida, las paradas de comida o desayuno/tienda y la comida con el cliente después de la firma; se marca si pasa de la comida más la tolerancia (el técnico no ve ese conteo).
           </p>
           <button
             onClick={guardar}

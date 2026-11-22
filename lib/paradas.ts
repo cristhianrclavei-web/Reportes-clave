@@ -9,7 +9,7 @@
 import { horaReloj } from './visitasExigibles';
 import { textoDuracion } from './visitas';
 
-export type MotivoParada = 'combustible' | 'compra_material' | 'comida' | 'espera' | 'cliente' | 'otro';
+export type MotivoParada = 'combustible' | 'compra_material' | 'comida' | 'desayuno_tienda' | 'espera' | 'cliente' | 'otro';
 export type TipoGasto = 'combustible' | 'material';
 
 export type InfoMotivoParada = {
@@ -29,6 +29,8 @@ export const MOTIVOS_PARADA: InfoMotivoParada[] = [
   { valor: 'combustible', label: 'Combustible', ejemplo: 'Cargué gasolina', pregunta: 'Algo que agregar (opcional)', detalleObligatorio: false, gasto: 'combustible', sinAutorizacion: false },
   { valor: 'compra_material', label: 'Compra de material', ejemplo: 'Proveedor, ferretería, recoger pedido', pregunta: '¿Qué material compraste o recogiste?', detalleObligatorio: true, gasto: 'material', sinAutorizacion: false },
   { valor: 'comida', label: 'Comida', ejemplo: 'Hora de comida', pregunta: 'Algo que agregar (opcional)', detalleObligatorio: false, gasto: null, sinAutorizacion: true },
+  // Cuenta como comida (se descuenta de la hora de comida del día).
+  { valor: 'desayuno_tienda', label: 'Desayuno o tienda', ejemplo: 'Desayuno, tienda, café', pregunta: 'Algo que agregar (opcional)', detalleObligatorio: false, gasto: null, sinAutorizacion: true },
   { valor: 'espera', label: 'Tráfico o espera', ejemplo: 'Tráfico, esperar a alguien', pregunta: 'Algo que agregar (opcional)', detalleObligatorio: false, gasto: null, sinAutorizacion: true },
   { valor: 'cliente', label: 'Con un cliente', ejemplo: 'Cliente sin ubicación en la app', pregunta: '¿Con qué cliente estabas?', detalleObligatorio: true, gasto: null, sinAutorizacion: false },
   { valor: 'otro', label: 'Otro', ejemplo: 'Explica qué fue', pregunta: 'Explica qué pasó', detalleObligatorio: true, gasto: null, sinAutorizacion: false },
@@ -62,7 +64,21 @@ export type Parada = {
   fotos: string[] | null;
   sin_ticket: boolean | null;
   motivo_sin_ticket: string | null;
+  // Si fue el rato con un cliente después de que firmó el reporte.
+  reporte_id?: string | null;
+  cliente?: string | null;
 };
+
+// «En MAQUISA, después de que firmó el reporte» o null si fue a media ruta.
+export function textoTrasFirma(parada: { reporte_id?: string | null; cliente?: string | null }): string | null {
+  if (!parada.reporte_id) return null;
+  return `En ${parada.cliente || 'el cliente'}, después de que firmó el reporte`;
+}
+
+// Motivos que se descuentan de la hora de comida.
+export function esComida(motivo: string | null | undefined): boolean {
+  return motivo === 'comida' || motivo === 'desayuno_tienda';
+}
 
 // Lo que se captura del gasto antes de subirlo.
 export type DatosGasto = { monto: number; fotos: File[]; sinTicket: boolean; motivoSinTicket: string };
@@ -128,6 +144,6 @@ export function gastoParaEnviar(gasto: DatosGasto, rutasFotos: string[]) {
 export function mensajeParadasPendientes(cuantas: number): { titulo: string; cuerpo: string } {
   return {
     titulo: cuantas === 1 ? 'Tienes 1 parada por justificar' : `Tienes ${cuantas} paradas por justificar`,
-    cuerpo: 'Di qué fue (combustible, material, comida…). Si hubo gasto, sube la foto del ticket.',
+    cuerpo: 'Di qué fue (combustible, material, comida, desayuno…). Si hubo gasto, sube la foto del ticket.',
   };
 }

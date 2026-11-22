@@ -7,7 +7,7 @@ import TicketsDeGasto from '@/components/gastos/TicketsDeGasto';
 import { showToast } from '@/components/Toast';
 import { horaActualMexico } from '@/lib/horaMexico';
 import { fechaCorta, inicioVentana } from '@/lib/coberturaReportes';
-import { enlaceMapa, infoMotivoParada, textoHorarioParada, textoMonto, type Parada } from '@/lib/paradas';
+import { enlaceMapa, infoMotivoParada, textoHorarioParada, textoMonto, textoTrasFirma, type Parada } from '@/lib/paradas';
 import { cargarParadas, revisarParada } from '@/lib/paradasDatos';
 import { faltaElParche } from '@/lib/visitasExigiblesDatos';
 
@@ -78,6 +78,7 @@ export default function ParadasPorAutorizar() {
                 <div className="min-w-0">
                   <p className="font-semibold">{p.tecnico || 'Personal técnico'}</p>
                   <p className="text-muted">{fechaCorta(p.fecha)} · {textoHorarioParada(p)}</p>
+                  {textoTrasFirma(p) && <p className="text-muted">{textoTrasFirma(p)}</p>}
                 </div>
                 <a href={enlaceMapa(p.lat, p.lng)} target="_blank" rel="noopener noreferrer" className="shrink-0 text-teal font-semibold text-[12.5px]">
                   Ver lugar

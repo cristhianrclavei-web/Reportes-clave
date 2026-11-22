@@ -48,6 +48,27 @@ describe('segmentosDelDia', () => {
     ]);
   });
 
+  it('firmado en sitio: hasta la firma es servicio, luego el cierre (GPS) y lo que sigue según la parada', () => {
+    const base = {
+      servicios: [],
+      actividades: [],
+      // Firmó a las 13:00; el GPS lo ve con el cliente hasta las 14:30.
+      reportes: [{ id: 'r', titulo: 'Aislantes', inicio: h(11, 56), fin: h(13) }],
+      estancias: [{ inicio: h(11, 50), fin: h(14, 30), titulo: 'Aislantes', clase: 'servicio' as const }],
+      jornada: JORNADA,
+      tope: h(23),
+    };
+    const sinJustificar = segmentosDelDia({ ...base, paradas: [{ inicio: h(13, 30), fin: h(14, 30), clase: 'sin_registrar', titulo: 'Después de la firma en Aislantes: falta justificar' }] });
+    const comio = segmentosDelDia({ ...base, paradas: [{ inicio: h(13, 30), fin: h(14, 30), clase: 'comida', titulo: 'Comida en Aislantes' }] });
+    const tramo = (seg: ReturnType<typeof segmentosDelDia>) => seg.filter((s) => s.inicio >= h(11, 50) && s.fin <= h(14, 30)).map((s) => [s.clase, s.inicio / 60000, s.fin / 60000]);
+    expect(tramo(sinJustificar)).toEqual([
+      ['servicio', 710, 716], ['servicio', 716, 780], ['servicio', 780, 810], ['sin_registrar', 810, 870],
+    ]);
+    expect(tramo(comio)).toEqual([
+      ['servicio', 710, 716], ['servicio', 716, 780], ['servicio', 780, 810], ['comida', 810, 870],
+    ]);
+  });
+
   it('el traslado del rastreo llena solo lo que nadie registró', () => {
     const seg = segmentosDelDia({
       servicios: [{ id: 's', titulo: 'Bodega', inicio: h(9), fin: h(17), pausas: [] }],

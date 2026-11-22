@@ -3,7 +3,7 @@
 // servicio, comida, traslado, compra…) y cuánto quedó sin registrar.
 //
 // Qué manda cuando dos cosas caen a la misma hora:
-//   actividad de bitácora  >  pausa del servicio  >  servicio o reporte  >  lo del rastreo (GPS)
+//   actividad de bitácora  >  pausa del servicio  >  servicio o reporte  >  parada justificada  >  lo del rastreo (GPS)
 // Así, salir por material a mitad de un servicio descuenta ese rato del
 // servicio, y la comida dentro del servicio no cuenta como trabajo. Lo que
 // detecta el rastreo (traslados, visitas a clientes sin reporte y ratos en
@@ -27,6 +27,10 @@ export type ReporteDelDia = { id: string; titulo: string; inicio: number; fin: n
 // Lo que el rastreo vio sin que nadie lo registrara: con un cliente
 // (visita) o en un lugar de la empresa (oficina).
 export type EstanciaGps = { inicio: number; fin: number; titulo: string; clase: 'servicio' | 'oficina' };
+// Parada del rastreo ya con su motivo (comida, desayuno, espera) o el rato
+// con un cliente después de la firma. Si está sin justificar se pinta como
+// «sin registrar» con su título, para que el GPS no lo llene como servicio.
+export type ParadaDelDia = { inicio: number; fin: number; titulo: string; clase: ClaseTiempo };
 
 export type Segmento = {
   clase: ClaseTiempo;
@@ -59,7 +63,7 @@ type Pieza = { inicio: number; fin: number; prioridad: number; clase: ClaseTiemp
 
 function piezasDelDia(
   servicios: ServicioDelDia[], actividades: ActividadDelDia[], traslados: TrasladoDelDia[], tope: number,
-  reportes: ReporteDelDia[] = [], estancias: EstanciaGps[] = [],
+  reportes: ReporteDelDia[] = [], estancias: EstanciaGps[] = [], paradas: ParadaDelDia[] = [],
 ): Pieza[] {
   const piezas: Pieza[] = [];
   const agregar = (p: Pieza) => {
@@ -83,6 +87,9 @@ function piezasDelDia(
   }
   for (const r of reportes) {
     agregar({ inicio: r.inicio, fin: r.fin, prioridad: 1, clase: 'servicio', origen: { tipo: 'reporte', id: r.id, titulo: r.titulo } });
+  }
+  for (const p of paradas) {
+    agregar({ inicio: p.inicio, fin: p.fin, prioridad: 0.5, clase: p.clase, origen: undefined, titulo: p.titulo });
   }
   for (const t of traslados) {
     agregar({ inicio: t.inicio, fin: t.fin, prioridad: 0, clase: 'traslado', origen: undefined, automatico: true });
@@ -112,11 +119,12 @@ export function segmentosDelDia(entrada: {
   traslados?: TrasladoDelDia[];
   reportes?: ReporteDelDia[];
   estancias?: EstanciaGps[];
+  paradas?: ParadaDelDia[];
   // Horario de la jornada ese día; null si no aplica (fin de semana).
   jornada: { inicio: number; fin: number } | null;
   tope: number;
 }): Segmento[] {
-  const piezas = piezasDelDia(entrada.servicios, entrada.actividades, entrada.traslados || [], entrada.tope, entrada.reportes, entrada.estancias);
+  const piezas = piezasDelDia(entrada.servicios, entrada.actividades, entrada.traslados || [], entrada.tope, entrada.reportes, entrada.estancias, entrada.paradas);
   if (piezas.length === 0) return [];
 
   // Del inicio de la jornada (o lo primero que se registró, si fue antes)

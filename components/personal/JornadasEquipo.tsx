@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabaseClient';
 import { hoyLocal, sumarDias, fechaLocal } from '@/lib/fechaHoy';
 import { fechaLargaCalendario } from '@/lib/calendarioMes';
 import { ClaseTiempo } from '@/lib/jornada';
-import { DatosJornadas, ResumenTecnico, cargarDatosJornadas, jornadaDeTecnico, resumenDeJornadas, sumarMinutos, guardarHorarioJornada, estadisticasJornada } from '@/lib/jornadaDatos';
+import { DatosJornadas, ResumenTecnico, cargarDatosJornadas, comidaExcedida, jornadaDeTecnico, resumenDeJornadas, sumarMinutos, guardarHorarioJornada, estadisticasJornada } from '@/lib/jornadaDatos';
 import { showToast } from '@/components/Toast';
 import { duracionTexto } from '@/lib/lineaDelDia';
 import { useCuadrillas, cuadrillaPorTecnico, enCuadrilla, TODAS } from '@/lib/cuadrillas';
@@ -161,6 +161,24 @@ export default function JornadasEquipo() {
     return pct(b.porClase[clave] || 0, total(b.porClase)) - pct(a.porClase[clave] || 0, total(a.porClase)) || a.titulo.localeCompare(b.titulo);
   });
 
+  // Comida del día contra lo permitido (pausas de comida, paradas de comida o
+  // desayuno/tienda y comida con el cliente después de la firma). Solo lo ve
+  // supervisión: esta pantalla no existe para el técnico.
+  const diasComidaDeMas = (miembros: ResumenTecnico[]) =>
+    miembros.reduce((n, m) => n + m.dias.filter((d) => comidaExcedida(d.porClase.comida || 0, datos?.comida)).length, 0);
+  function textoComida(f: Fila): { texto: string; deMas: boolean } | null {
+    const comida = f.porClase.comida || 0;
+    if (periodo === 'dia' && vista === 'tecnico') {
+      if (comida === 0) return null;
+      const deMas = comidaExcedida(comida, datos?.comida);
+      const exceso = deMas && datos?.comida ? ` (+${duracionTexto(comida - datos.comida.minutos)})` : '';
+      return { texto: `comida ${duracionTexto(comida)}${exceso}`, deMas };
+    }
+    const dias = diasComidaDeMas(f.miembros);
+    if (dias === 0) return null;
+    return { texto: `comida de más ${dias} día${dias > 1 ? 's' : ''}`, deMas: true };
+  }
+
   async function guardarHorario() {
     setGuardandoHorario(true);
     try {
@@ -207,6 +225,11 @@ export default function JornadasEquipo() {
                 {fechaLocal(d.fecha).toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' })}
               </span>
               <span className="flex-1 min-w-0"><RepartoTiempo porClase={d.porClase} compacta /></span>
+              {comidaExcedida(d.porClase.comida || 0, datos?.comida) && (
+                <span className="shrink-0 text-[11.5px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full bg-amber/15 text-amber" title="Comida del día de más">
+                  comida {duracionTexto(d.porClase.comida || 0)}
+                </span>
+              )}
               <span className={`text-[12px] tabular-nums shrink-0 w-14 text-right ${(d.porClase.sin_registrar || 0) > 0 ? 'text-amber font-semibold' : 'text-muted'}`}>
                 {pct(d.porClase.sin_registrar || 0, total(d.porClase))}% s/r
               </span>
@@ -288,6 +311,8 @@ export default function JornadasEquipo() {
             <li>Cada día cuenta de la hora de entrada a la de salida de la jornada (Ajustes), o desde antes o hasta después si se registró algo fuera de ese horario. Sábados, domingos y festivos solo cuenta lo registrado.</li>
             <li><b>Trabajo en servicio</b>: de la llegada al cierre del servicio, sin la comida, sin las pausas y sin lo que se registró en la bitácora a esa hora (por ejemplo, una salida por material).</li>
             <li>Cada minuto se cuenta una sola vez. Si dos cosas caen a la misma hora, manda la bitácora sobre la pausa y la pausa sobre el servicio.</li>
+            <li><b>Comida</b>: suma las pausas de comida, las paradas justificadas como comida o desayuno/tienda y la comida con el cliente después de la firma. En ámbar cuando pasa de la comida permitida más la tolerancia (Ajustes → Pausas y comida). El técnico no ve este conteo.</li>
+            <li><b>Después de la firma</b>: los primeros minutos con el cliente después de que firma cuentan como cierre; lo demás se le pide justificar y, mientras no lo haga, sale como sin registrar.</li>
             <li><b>Sin registrar</b>: tramos de 5 minutos o más de la jornada sin servicio ni actividad. Los días sin ningún registro (vacaciones, faltas) no se cuentan aquí; se indican aparte.</li>
           </ul>
         )}
@@ -339,6 +364,7 @@ export default function JornadasEquipo() {
           {filas.map((f) => {
             const t = total(f.porClase);
             const sinReg = f.porClase.sin_registrar || 0;
+            const comida = textoComida(f);
             return (
               <div key={f.clave}>
                 <button type="button" onClick={() => abrirFila(f.clave)} aria-expanded={abierto === f.clave}
@@ -354,6 +380,7 @@ export default function JornadasEquipo() {
                       <span className="block text-[12px] text-muted">
                         {t > 0 ? `${duracionTexto(t - sinReg)} registradas${periodo !== 'dia' ? ` (${duracionTexto(estadisticasJornada(f.porClase, diasDe(f)).registradoPorDia)} por día)` : ''} · ${pct(f.porClase.servicio || 0, t)}% en servicio` : 'Sin registros'}
                         {f.diasSinRegistros > 0 && periodo !== 'dia' ? ` · ${f.diasSinRegistros} día${f.diasSinRegistros > 1 ? 's' : ''} sin nada` : ''}
+                        {comida && <> · <span className={comida.deMas ? 'text-amber font-semibold' : ''}>{comida.texto}</span></>}
                       </span>
                     </span>
                     <span className={`shrink-0 text-[12.5px] font-semibold tabular-nums px-2 py-0.5 rounded-full ${pct(sinReg, t) >= 15 ? 'bg-amber/15 text-amber' : 'bg-surface-2 text-muted'}`}>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Building2, Fuel, Hourglass, MapPinned, MoreHorizontal, ShoppingCart, UtensilsCrossed } from 'lucide-react';
+import { Building2, Coffee, Fuel, Hourglass, MapPinned, MoreHorizontal, ShoppingCart, UtensilsCrossed } from 'lucide-react';
 import { createClient } from '@/lib/supabaseClient';
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
@@ -9,7 +9,7 @@ import CamposGasto from '@/components/gastos/CamposGasto';
 import { horaActualMexico } from '@/lib/horaMexico';
 import { fechaCorta, inicioVentana } from '@/lib/coberturaReportes';
 import {
-  GASTO_VACIO, MOTIVOS_PARADA, enlaceMapa, errorDeParada, infoMotivoParada, paradasPorJustificar, textoHorarioParada,
+  GASTO_VACIO, MOTIVOS_PARADA, enlaceMapa, errorDeParada, infoMotivoParada, paradasPorJustificar, textoHorarioParada, textoTrasFirma,
   type DatosGasto, type MotivoParada, type Parada,
 } from '@/lib/paradas';
 import { cargarParadas, justificarParada } from '@/lib/paradasDatos';
@@ -19,6 +19,7 @@ const ICONOS: Record<MotivoParada, any> = {
   combustible: Fuel,
   compra_material: ShoppingCart,
   comida: UtensilsCrossed,
+  desayuno_tienda: Coffee,
   espera: Hourglass,
   cliente: Building2,
   otro: MoreHorizontal,
@@ -114,6 +115,7 @@ export default function AvisoParadasSinJustificar() {
                 <p className="text-[13.5px] font-semibold leading-snug">
                   {parada.fecha === hoy ? 'Hoy' : fechaCorta(parada.fecha)} · {textoHorarioParada(parada)}
                 </p>
+                {textoTrasFirma(parada) && <p className="text-[12.5px] text-ink/80 leading-snug">{textoTrasFirma(parada)}</p>}
                 <a href={enlaceMapa(parada.lat, parada.lng)} target="_blank" rel="noopener noreferrer" className="text-[12.5px] text-teal font-semibold">
                   Ver el lugar en el mapa
                 </a>
@@ -133,9 +135,10 @@ export default function AvisoParadasSinJustificar() {
       {abierta && (
         <ModalOverlay onClose={() => !guardando && setAbierta(null)}>
           <div className="glass-strong rounded-3xl max-w-md w-full p-5 max-h-[92vh] overflow-y-auto">
-            <p className="font-display font-semibold text-[17px] mb-0.5">¿Qué fue esta parada?</p>
+            <p className="font-display font-semibold text-[17px] mb-0.5">{textoTrasFirma(abierta) ? '¿Qué hiciste después de la firma?' : '¿Qué fue esta parada?'}</p>
             <p className="text-[13px] text-muted mb-4">
               {abierta.fecha === hoy ? 'Hoy' : fechaCorta(abierta.fecha)} · {textoHorarioParada(abierta)}
+              {textoTrasFirma(abierta) && <span className="block">{textoTrasFirma(abierta)}</span>}
             </p>
 
             <div className="grid grid-cols-2 gap-2 mb-3" role="radiogroup" aria-label="Qué fue la parada">
