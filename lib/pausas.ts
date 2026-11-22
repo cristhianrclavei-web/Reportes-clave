@@ -35,7 +35,7 @@ export const AJUSTES_POR_DEFECTO: AjustesOperacion = {
   otras_pausas_min: 30,
   tolerancia_min: 15,
   verificacion_min: 10,
-  cierre_tras_firma_min: 30,
+  cierre_tras_firma_min: 15,
 };
 
 // Minutos permitidos de una pausa. En una salida por material manda lo que

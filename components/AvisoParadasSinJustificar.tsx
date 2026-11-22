@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Building2, Coffee, Fuel, Hourglass, MapPinned, MoreHorizontal, ShoppingCart, UtensilsCrossed } from 'lucide-react';
+import { Building2, Coffee, DoorOpen, Fuel, Hammer, Hourglass, MapPinned, MoreHorizontal, Package, ShoppingCart, User, UtensilsCrossed } from 'lucide-react';
 import { createClient } from '@/lib/supabaseClient';
 import ModalOverlay from '@/components/ModalOverlay';
 import { showToast } from '@/components/Toast';
@@ -9,7 +9,7 @@ import CamposGasto from '@/components/gastos/CamposGasto';
 import { horaActualMexico } from '@/lib/horaMexico';
 import { fechaCorta, inicioVentana } from '@/lib/coberturaReportes';
 import {
-  GASTO_VACIO, MOTIVOS_PARADA, enlaceMapa, errorDeParada, infoMotivoParada, paradasPorJustificar, textoHorarioParada, textoTrasFirma,
+  GASTO_VACIO, enlaceMapa, motivoSugerido, motivosDeParada, errorDeParada, infoMotivoParada, paradasPorJustificar, textoHorarioParada, textoTrasFirma,
   type DatosGasto, type MotivoParada, type Parada,
 } from '@/lib/paradas';
 import { cargarParadas, justificarParada } from '@/lib/paradasDatos';
@@ -20,6 +20,10 @@ const ICONOS: Record<MotivoParada, any> = {
   compra_material: ShoppingCart,
   comida: UtensilsCrossed,
   desayuno_tienda: Coffee,
+  material_herramienta: Package,
+  siguio_trabajando: Hammer,
+  tramite_salida: DoorOpen,
+  personal: User,
   espera: Hourglass,
   cliente: Building2,
   otro: MoreHorizontal,
@@ -69,7 +73,7 @@ export default function AvisoParadasSinJustificar() {
 
   function abrir(parada: Parada) {
     setAbierta(parada);
-    setMotivo('');
+    setMotivo(motivoSugerido(parada));
     setDetalle('');
     setGasto(GASTO_VACIO);
     setErrorFormulario(null);
@@ -140,9 +144,12 @@ export default function AvisoParadasSinJustificar() {
               {abierta.fecha === hoy ? 'Hoy' : fechaCorta(abierta.fecha)} · {textoHorarioParada(abierta)}
               {textoTrasFirma(abierta) && <span className="block">{textoTrasFirma(abierta)}</span>}
             </p>
+            {motivoSugerido(abierta) !== '' && motivo === motivoSugerido(abierta) && (
+              <p className="text-[12.5px] text-teal -mt-2 mb-3">Por la hora, parece la comida: ya está marcada. Cámbiala si fue otra cosa.</p>
+            )}
 
             <div className="grid grid-cols-2 gap-2 mb-3" role="radiogroup" aria-label="Qué fue la parada">
-              {MOTIVOS_PARADA.map((m) => {
+              {motivosDeParada(abierta).map((m) => {
                 const Icono = ICONOS[m.valor];
                 const elegido = motivo === m.valor;
                 return (

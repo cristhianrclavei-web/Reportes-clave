@@ -670,7 +670,7 @@ export default function ReportDetailModal({
         {/* Horario ajustado solo (supabase/patch_bitacora_gps.sql): se dice de dónde salió. */}
         {report.data?.horarioAjuste && report.data?.horarioCapturado && (
           <p className="mt-3 rounded-xl bg-teal/10 border border-teal/25 px-3 py-2 text-[12.5px] text-ink/85">
-            Horario ajustado {report.data.horarioAjuste.fuente === 'gps' ? 'con el GPS' : 'a la hora de la firma del cliente'}:
+            Horario ajustado {report.data.horarioAjuste.fuente === 'gps' ? 'con el GPS (hora en que salió del sitio)' : 'con la firma del cliente'}:
             {' '}<b>{report.data.horaLlegada}–{report.data.horaSalida}</b>
             <span className="text-muted"> (se había capturado {report.data.horarioCapturado.llegada}–{report.data.horarioCapturado.salida})</span>
           </p>

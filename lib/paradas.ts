@@ -9,7 +9,10 @@
 import { horaReloj } from './visitasExigibles';
 import { textoDuracion } from './visitas';
 
-export type MotivoParada = 'combustible' | 'compra_material' | 'comida' | 'desayuno_tienda' | 'espera' | 'cliente' | 'otro';
+export type MotivoParada =
+  | 'combustible' | 'compra_material' | 'comida' | 'desayuno_tienda' | 'espera' | 'cliente' | 'otro'
+  // Solo para el rato con el cliente después de la firma:
+  | 'material_herramienta' | 'siguio_trabajando' | 'tramite_salida' | 'personal';
 export type TipoGasto = 'combustible' | 'material';
 
 export type InfoMotivoParada = {
@@ -23,18 +26,42 @@ export type InfoMotivoParada = {
   gasto: TipoGasto | null;
   // Comida y tráfico/espera no pasan por supervisión.
   sinAutorizacion: boolean;
+  // Dónde se ofrece: a media ruta, con el cliente después de la firma, o en ambos.
+  donde: 'ruta' | 'tras_firma' | 'ambos';
+  // Después de la firma: si el rato sigue contando como servicio.
+  esServicio?: boolean;
 };
 
 export const MOTIVOS_PARADA: InfoMotivoParada[] = [
-  { valor: 'combustible', label: 'Combustible', ejemplo: 'Cargué gasolina', pregunta: 'Algo que agregar (opcional)', detalleObligatorio: false, gasto: 'combustible', sinAutorizacion: false },
-  { valor: 'compra_material', label: 'Compra de material', ejemplo: 'Proveedor, ferretería, recoger pedido', pregunta: '¿Qué material compraste o recogiste?', detalleObligatorio: true, gasto: 'material', sinAutorizacion: false },
-  { valor: 'comida', label: 'Comida', ejemplo: 'Hora de comida', pregunta: 'Algo que agregar (opcional)', detalleObligatorio: false, gasto: null, sinAutorizacion: true },
+  { valor: 'combustible', label: 'Combustible', ejemplo: 'Cargué gasolina', pregunta: 'Algo que agregar (opcional)', detalleObligatorio: false, gasto: 'combustible', sinAutorizacion: false, donde: 'ruta' },
+  { valor: 'compra_material', label: 'Compra de material', ejemplo: 'Proveedor, ferretería, recoger pedido', pregunta: '¿Qué material compraste o recogiste?', detalleObligatorio: true, gasto: 'material', sinAutorizacion: false, donde: 'ruta' },
+  { valor: 'comida', label: 'Comida', ejemplo: 'Hora de comida', pregunta: 'Algo que agregar (opcional)', detalleObligatorio: false, gasto: null, sinAutorizacion: true, donde: 'ambos' },
   // Cuenta como comida (se descuenta de la hora de comida del día).
-  { valor: 'desayuno_tienda', label: 'Desayuno o tienda', ejemplo: 'Desayuno, tienda, café', pregunta: 'Algo que agregar (opcional)', detalleObligatorio: false, gasto: null, sinAutorizacion: true },
-  { valor: 'espera', label: 'Tráfico o espera', ejemplo: 'Tráfico, esperar a alguien', pregunta: 'Algo que agregar (opcional)', detalleObligatorio: false, gasto: null, sinAutorizacion: true },
-  { valor: 'cliente', label: 'Con un cliente', ejemplo: 'Cliente sin ubicación en la app', pregunta: '¿Con qué cliente estabas?', detalleObligatorio: true, gasto: null, sinAutorizacion: false },
-  { valor: 'otro', label: 'Otro', ejemplo: 'Explica qué fue', pregunta: 'Explica qué pasó', detalleObligatorio: true, gasto: null, sinAutorizacion: false },
+  { valor: 'desayuno_tienda', label: 'Desayuno o tienda', ejemplo: 'Desayuno, tienda, café', pregunta: 'Algo que agregar (opcional)', detalleObligatorio: false, gasto: null, sinAutorizacion: true, donde: 'ruta' },
+  { valor: 'material_herramienta', label: 'Material y herramienta', ejemplo: 'Cargar o guardar material', pregunta: 'Algo que agregar (opcional)', detalleObligatorio: false, gasto: null, sinAutorizacion: true, donde: 'tras_firma', esServicio: true },
+  { valor: 'siguio_trabajando', label: 'Seguí trabajando', ejemplo: 'Un pendiente del cliente', pregunta: '¿Qué quedó pendiente? (opcional)', detalleObligatorio: false, gasto: null, sinAutorizacion: true, donde: 'tras_firma', esServicio: true },
+  { valor: 'tramite_salida', label: 'Salida de la planta', ejemplo: 'Vigilancia, revisión, permisos', pregunta: 'Algo que agregar (opcional)', detalleObligatorio: false, gasto: null, sinAutorizacion: true, donde: 'tras_firma', esServicio: true },
+  { valor: 'espera', label: 'Tráfico o espera', ejemplo: 'Tráfico, esperar a alguien', pregunta: 'Algo que agregar (opcional)', detalleObligatorio: false, gasto: null, sinAutorizacion: true, donde: 'ambos' },
+  { valor: 'personal', label: 'Asunto personal', ejemplo: 'Llamada, trámite propio', pregunta: 'Algo que agregar (opcional)', detalleObligatorio: false, gasto: null, sinAutorizacion: true, donde: 'tras_firma' },
+  { valor: 'cliente', label: 'Con un cliente', ejemplo: 'Cliente sin ubicación en la app', pregunta: '¿Con qué cliente estabas?', detalleObligatorio: true, gasto: null, sinAutorizacion: false, donde: 'ruta' },
+  { valor: 'otro', label: 'Otro', ejemplo: 'Explica qué fue', pregunta: 'Explica qué pasó', detalleObligatorio: true, gasto: null, sinAutorizacion: false, donde: 'ambos' },
 ];
+
+// Los motivos que se ofrecen para esta parada.
+export function motivosDeParada(parada: { reporte_id?: string | null }): InfoMotivoParada[] {
+  const lugar = parada.reporte_id ? 'tras_firma' : 'ruta';
+  return MOTIVOS_PARADA.filter((m) => m.donde === 'ambos' || m.donde === lugar);
+}
+
+// Motivo ya marcado al abrir: después de la firma, media hora o más a la
+// hora de comida (13:00 a 16:00) casi siempre es la comida. Solo se confirma.
+export function motivoSugerido(parada: { reporte_id?: string | null; inicio: string; fin: string; minutos: number }): MotivoParada | '' {
+  if (!parada.reporte_id || parada.minutos < 30) return '';
+  const inicio = horaReloj(parada.inicio);
+  const fin = horaReloj(parada.fin);
+  if (inicio < '16:00' && fin > '13:00') return 'comida';
+  return '';
+}
 
 export function infoMotivoParada(motivo: string | null | undefined): InfoMotivoParada | null {
   return MOTIVOS_PARADA.find((m) => m.valor === motivo) || null;
@@ -145,5 +172,13 @@ export function mensajeParadasPendientes(cuantas: number): { titulo: string; cue
   return {
     titulo: cuantas === 1 ? 'Tienes 1 parada por justificar' : `Tienes ${cuantas} paradas por justificar`,
     cuerpo: 'Di qué fue (combustible, material, comida, desayuno…). Si hubo gasto, sube la foto del ticket.',
+  };
+}
+
+// Aviso (push) en cuanto se detecta el rato de más después de la firma.
+export function mensajeTrasFirma(cliente: string | null, minutos: number): { titulo: string; cuerpo: string } {
+  return {
+    titulo: `Te quedaste ${textoDuracion(minutos)} más en ${cliente || 'el cliente'}`,
+    cuerpo: 'Después de la firma. ¿Qué fue? Comida, material, seguiste trabajando… Toca para decirlo.',
   };
 }

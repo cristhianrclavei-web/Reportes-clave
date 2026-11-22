@@ -163,7 +163,7 @@ export default function JornadaDia({
   function detalleDe(s: Segmento): string {
     if (s.clase === 'sin_registrar' && s.titulo) return 'Con el cliente después de la firma, más allá del tiempo de cierre: se pide justificar (comida, espera, siguió trabajando…)';
     if (s.clase === 'sin_registrar') return 'No hay servicio ni actividad en este tramo';
-    if (!s.origen && s.titulo && !s.automatico) return 'Parada del rastreo, justificada';
+    if (!s.origen && s.titulo && !s.automatico) return 'Lo detectó el rastreo y lo justificó el técnico';
     if (s.automatico && s.clase === 'servicio') return 'Con el cliente según el GPS (no hay reporte de este rato)';
     if (s.automatico && s.clase === 'oficina') return 'En la oficina según el GPS';
     if (s.automatico) return 'Lo detectó el rastreo del teléfono';

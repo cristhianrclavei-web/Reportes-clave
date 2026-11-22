@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GASTO_VACIO, errorDeGasto, errorDeParada, gastoParaEnviar, paradasPorJustificar, textoHorarioParada } from './paradas';
+import { GASTO_VACIO, errorDeGasto, errorDeParada, gastoParaEnviar, paradasPorJustificar, textoHorarioParada, motivoSugerido, motivosDeParada } from './paradas';
 
 const foto = new File(['x'], 'ticket.jpg', { type: 'image/jpeg' });
 
@@ -48,5 +48,21 @@ describe('paradas', () => {
 
   it('da el horario en hora de México', () => {
     expect(textoHorarioParada({ inicio: '2026-11-04T16:12:00Z', fin: '2026-11-04T16:21:00Z', minutos: 9 })).toBe('10:12 – 10:21 · 9 min');
+  });
+});
+
+describe('motivos después de la firma', () => {
+  const trasFirma = { reporte_id: 'r', inicio: '2026-11-20T19:30:00Z', fin: '2026-11-20T20:30:00Z', minutos: 60 }; // 13:30–14:30 en México
+  it('ofrece solo los motivos que aplican', () => {
+    const valores = motivosDeParada(trasFirma).map((m) => m.valor);
+    expect(valores).toContain('material_herramienta');
+    expect(valores).not.toContain('combustible');
+    expect(motivosDeParada({ reporte_id: null }).map((m) => m.valor)).not.toContain('siguio_trabajando');
+  });
+  it('sugiere comida si fue media hora o más a la hora de comida', () => {
+    expect(motivoSugerido(trasFirma)).toBe('comida');
+    expect(motivoSugerido({ ...trasFirma, minutos: 20 })).toBe('');
+    expect(motivoSugerido({ ...trasFirma, inicio: '2026-11-20T23:00:00Z', fin: '2026-11-20T23:45:00Z', minutos: 45 })).toBe('');
+    expect(motivoSugerido({ ...trasFirma, reporte_id: null })).toBe('');
   });
 });

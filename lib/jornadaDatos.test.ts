@@ -12,6 +12,11 @@ describe('paradaEnBitacora', () => {
       .toEqual({ clase: 'sin_registrar', titulo: 'Después de la firma en MAQUISA: falta justificar' });
     expect(paradaEnBitacora({ motivo: 'otro', estado: 'pendiente', reporte_id: 'r' })?.titulo).toContain('por autorizar');
   });
+  it('después de la firma, cargar material o seguir trabajando cuenta como servicio', () => {
+    expect(paradaEnBitacora({ motivo: 'material_herramienta', estado: 'aprobada', reporte_id: 'r', cliente: 'MAQUISA' }))
+      .toEqual({ clase: 'servicio', titulo: 'Cierre en MAQUISA: material y herramienta' });
+    expect(paradaEnBitacora({ motivo: 'personal', estado: 'aprobada', reporte_id: 'r' })?.clase).toBe('pausa');
+  });
   it('a media ruta, lo no justificado no se pinta (queda el hueco) y lo autorizado ya es actividad', () => {
     expect(paradaEnBitacora({ motivo: null, estado: null })).toBeNull();
     expect(paradaEnBitacora({ motivo: 'combustible', estado: 'aprobada' })).toBeNull();

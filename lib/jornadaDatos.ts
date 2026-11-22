@@ -1,6 +1,7 @@
 import { createClient } from './supabaseClient';
 import { fechaLocal, hoyLocal, sumarDias } from './fechaHoy';
 import { tipoActividad } from './tiposActividad';
+import { infoMotivoParada } from './paradas';
 import {
   ActividadDelDia, ServicioDelDia, PausaDeServicio, Segmento, ClaseTiempo, TrasladoDelDia, ReporteDelDia, EstanciaGps, ParadaDelDia, segmentosDelDia, minutosPorClaseTiempo,
 } from './jornada';
@@ -202,6 +203,8 @@ export async function cargarDatosJornadas(desde: string, hasta: string): Promise
 
 // Cómo se pinta una parada en la bitácora (o null si no se pinta):
 // · Comida y desayuno/tienda → comida (se descuentan de la hora de comida).
+// · Después de la firma, material/herramienta, siguió trabajando o salida
+//   de la planta → servicio. Asunto personal → pausa.
 // · Tráfico o espera → traslado a media ruta; con el cliente, pausa.
 // · Después de la firma y sin justificar (o esperando autorización) →
 //   «sin registrar» con su título, para que no salga como servicio.
@@ -212,6 +215,11 @@ export function paradaEnBitacora(p: { motivo: string | null; estado: string | nu
   const autorizada = p.estado === 'aprobada';
   if (autorizada && p.motivo === 'comida') return { clase: 'comida', titulo: 'Comida' + enCliente };
   if (autorizada && p.motivo === 'desayuno_tienda') return { clase: 'comida', titulo: 'Desayuno o tienda' + enCliente };
+  if (autorizada && trasFirma && (p.motivo === 'material_herramienta' || p.motivo === 'siguio_trabajando' || p.motivo === 'tramite_salida')) {
+    const info = infoMotivoParada(p.motivo);
+    return { clase: 'servicio', titulo: `Cierre${enCliente}: ${info?.label.toLowerCase() || 'trabajo'}` };
+  }
+  if (autorizada && p.motivo === 'personal') return { clase: 'pausa', titulo: 'Asunto personal' + enCliente };
   if (autorizada && p.motivo === 'espera') return { clase: trasFirma ? 'pausa' : 'traslado', titulo: 'Tráfico o espera' + enCliente };
   if (!trasFirma || autorizada) return null;
   const falta = p.estado === 'pendiente' ? 'por autorizar' : 'falta justificar';

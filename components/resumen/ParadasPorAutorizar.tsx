@@ -18,6 +18,8 @@ import { faltaElParche } from '@/lib/visitasExigiblesDatos';
 export default function ParadasPorAutorizar() {
   const [porAutorizar, setPorAutorizar] = useState<Parada[]>([]);
   const [sinJustificar, setSinJustificar] = useState(0);
+  // Rato con el cliente después de la firma que el técnico no ha justificado en 24 h.
+  const [atrasadas, setAtrasadas] = useState<Parada[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [revisando, setRevisando] = useState<string | null>(null);
 
@@ -29,6 +31,8 @@ export default function ParadasPorAutorizar() {
         if (cancelado) return;
         setPorAutorizar(lista.filter((p) => p.estado === 'pendiente'));
         setSinJustificar(lista.filter((p) => p.estado === null && p.fecha < hoy).length);
+        const hace24h = Date.now() - 24 * 3600000;
+        setAtrasadas(lista.filter((p) => p.reporte_id && p.estado === null && new Date(p.fin).getTime() < hace24h));
       })
       .catch((e: any) => { if (!cancelado && !faltaElParche(e)) setError(e.message); });
     return () => { cancelado = true; };
@@ -54,21 +58,35 @@ export default function ParadasPorAutorizar() {
       </p>
     );
   }
-  if (porAutorizar.length === 0) return null;
+  if (porAutorizar.length === 0 && atrasadas.length === 0) return null;
 
   const totalGastos = porAutorizar.reduce((n, p) => n + (p.monto || 0), 0);
   const partes = [`${porAutorizar.length} por autorizar`];
   if (totalGastos > 0) partes.push(`${textoMonto(totalGastos)} en gastos`);
   if (sinJustificar > 0) partes.push(`${sinJustificar} sin justificar`);
+  if (atrasadas.length > 0) partes.push(`${atrasadas.length} después de la firma sin justificar (+24 h)`);
 
   return (
     <AvisoPlegable
       tono="amber"
       Icono={ReceiptText}
-      cuenta={porAutorizar.length}
-      titulo={porAutorizar.length === 1 ? 'Parada o gasto por autorizar' : 'Paradas y gastos por autorizar'}
+      cuenta={porAutorizar.length + atrasadas.length}
+      titulo={porAutorizar.length === 0 ? 'Paradas sin justificar' : porAutorizar.length === 1 ? 'Parada o gasto por autorizar' : 'Paradas y gastos por autorizar'}
       resumen={partes.join(' · ')}
     >
+      {atrasadas.length > 0 && (
+        <div className="mb-3 rounded-xl border border-amber/40 bg-amber/10 p-3 text-[13px]">
+          <p className="font-semibold text-amber mb-1">Después de la firma, sin justificar en más de 24 h</p>
+          <ul className="flex flex-col gap-1">
+            {atrasadas.map((p) => (
+              <li key={p.id}>
+                <b>{p.tecnico || 'Personal técnico'}</b> · {p.cliente || 'cliente'} · {fechaCorta(p.fecha)} · {textoHorarioParada(p)}
+              </li>
+            ))}
+          </ul>
+          <p className="text-[12px] text-muted mt-1">En su bitácora sale como sin registrar hasta que diga qué fue.</p>
+        </div>
+      )}
       <ul className="flex flex-col gap-2.5 mb-2">
         {porAutorizar.map((p) => {
           const info = infoMotivoParada(p.motivo);

@@ -15,14 +15,14 @@ const CAMPOS: { clave: keyof AjustesOperacion; texto: string; detalle: string; m
   { clave: 'otras_pausas_min', texto: 'Otras pausas', detalle: 'Espera del cliente, asunto personal u otro', min: 5, max: 240 },
   { clave: 'tolerancia_min', texto: 'Tolerancia', detalle: 'Minutos de más antes de avisar a supervisión', min: 0, max: 120 },
   { clave: 'verificacion_min', texto: 'Verificación', detalle: 'Minutos para responder «Estoy aquí»', min: 3, max: 60 },
-  { clave: 'cierre_tras_firma_min', texto: 'Cierre tras la firma', detalle: 'Minutos con el cliente después de que firma que cuentan como trabajo (salida, guardar herramienta); lo demás se justifica', min: 0, max: 120 },
+  { clave: 'cierre_tras_firma_min', texto: 'Cierre tras la firma', detalle: 'Si sale dentro de estos minutos tras la firma, esa es la salida del reporte; si tarda más, el técnico justifica el resto', min: 0, max: 120 },
 ];
 
 export default function AjustesPausasSection() {
   const [abierto, setAbierto] = useState(false);
   const [guardado, setGuardado] = useState<AjustesOperacion>(AJUSTES_POR_DEFECTO);
   const [valores, setValores] = useState<Record<keyof AjustesOperacion, string>>({
-    comida_min: '60', otras_pausas_min: '30', tolerancia_min: '15', verificacion_min: '10', cierre_tras_firma_min: '30',
+    comida_min: '60', otras_pausas_min: '30', tolerancia_min: '15', verificacion_min: '10', cierre_tras_firma_min: '15',
   });
   const [guardando, setGuardando] = useState(false);
 
