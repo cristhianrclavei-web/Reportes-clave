@@ -40,6 +40,10 @@ const tituloSeccion = 'text-[12px] uppercase tracking-wider text-teal font-semib
 export default function VistaCotizacionAprobar({ cotizacion: c, lineas }: { cotizacion: Cotizacion; lineas: LineaCotizacion[] }) {
   const grupos = agruparPorSistema(lineas);
   const esKit = c.presentacion_precios === 'kit';
+  const modoIva = modoIvaDe(c);
+  let etiquetaIva = '';
+  if (modoIva === 'sumar') etiquetaIva = ' (sin IVA)';
+  if (modoIva === 'incluido') etiquetaIva = ' (IVA incluido)';
 
   return (
     <>
@@ -61,10 +65,7 @@ export default function VistaCotizacionAprobar({ cotizacion: c, lineas }: { coti
           const totalGrupo = grupo.lineas.reduce((suma, l) => suma + Number(l.importe || 0), 0);
           return (
             <div key={grupo.sistema} className="mb-4 last:mb-0">
-              <div className="flex items-baseline justify-between gap-3 border-b border-line pb-1.5 mb-2">
-                <p className="font-semibold text-[14px]">{grupo.sistema}</p>
-                <p className="text-[13px] font-semibold shrink-0">{dinero(totalGrupo, c.moneda)}</p>
-              </div>
+              <p className="font-semibold text-[14px] border-b border-line pb-1.5 mb-2">{grupo.sistema}</p>
               <ol className="space-y-2.5">
                 {grupo.lineas.map((l, i) => (
                   <li key={l.id} className="flex gap-2.5 text-[13px]">
@@ -81,6 +82,13 @@ export default function VistaCotizacionAprobar({ cotizacion: c, lineas }: { coti
                 ))}
               </ol>
               {esKit && <p className="text-[12px] text-muted mt-2">Se cotiza como kit: el cliente ve solo el total del sistema.</p>}
+              {/* Con un solo sistema su suma es el subtotal de abajo: repetirla confunde. */}
+              {grupos.length > 1 && (
+                <div className="flex justify-between gap-3 text-[13px] text-ink/80 mt-2 pt-1.5 border-t border-dashed border-line">
+                  <span>Suma del sistema{etiquetaIva}</span>
+                  <span className="font-semibold tabular-nums">{dinero(totalGrupo, c.moneda)}</span>
+                </div>
+              )}
             </div>
           );
         })}
