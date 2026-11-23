@@ -3,6 +3,7 @@ import type { Avance } from './useAvanceGuardado';
 import { reducirFoto } from './reducirFoto';
 import { generarUUID } from './uuid';
 import { notificar } from './push';
+import { textoAvisoAprobacion } from './cambiosCotizacion';
 
 // Flujo: borrador -> (firma de aprobación interna) -> aprobada -> enviada.
 // "rechazada" puede pasar en cualquier punto (se descarta la cotización).
@@ -374,7 +375,7 @@ export async function aprobarCotizacion(id: string, nombre: string, firmaDataUrl
 // Si alguien pidió la aprobación por enlace y quien aprueba la corrigió y
 // firmó en la app, a quien la pidió no le llega la respuesta del enlace: se
 // le avisa aquí. Un fallo del aviso no deshace la aprobación ya guardada.
-export async function avisarAprobacionEnApp(cotizacion: { id: string; folio: string; empresa: string }, aprobador: string): Promise<void> {
+export async function avisarAprobacionEnApp(cotizacion: { id: string; folio: string; empresa: string }, aprobador: string, cambios: string[] = []): Promise<void> {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const { data: pedidos, error } = await supabase
@@ -394,7 +395,7 @@ export async function avisarAprobacionEnApp(cotizacion: { id: string; folio: str
   await notificar({
     usuarios: [...destinatarios],
     titulo: `${cotizacion.folio} aprobada`,
-    mensaje: `${aprobador} revisó y aprobó en la app la cotización de ${cotizacion.empresa}. Revisa si le hizo cambios antes de enviarla.`,
+    mensaje: textoAvisoAprobacion(aprobador, cotizacion.empresa, cambios),
     url: `/dashboard/cotizaciones/${cotizacion.id}`,
     tag: `aprobacion-${cotizacion.id}`,
   });

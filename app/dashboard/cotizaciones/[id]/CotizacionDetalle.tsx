@@ -18,6 +18,9 @@ import { showToast } from '@/components/Toast';
 import type { FirmanteSugerido } from '@/lib/firmantesCotizacion';
 import PedirAprobacion from '@/components/cotizaciones/PedirAprobacion';
 import OrigenLevantamiento from '@/components/cotizaciones/OrigenLevantamiento';
+import HistorialCambios from '@/components/cotizaciones/HistorialCambios';
+import { describirCambiosCotizacion } from '@/lib/cambiosCotizacion';
+import { createClient } from '@/lib/supabaseClient';
 import { FileText, Pencil, Trash2, ChevronLeft, X, Check, Send, Ban, MessageCircle, ExternalLink, Copy, Network, Sparkles, Undo2 } from 'lucide-react';
 import { MARCA, MARCA_MAYUS } from '@/lib/marca';
 
@@ -80,6 +83,10 @@ export default function CotizacionDetalle({
   const [cotizacion, setCotizacion] = useState(cotizacionInicial);
   const [lineas, setLineas] = useState(lineasIniciales);
   const [editando, setEditando] = useState(false);
+  // Cambios hechos en esta visita, para el aviso al aprobar; y un contador
+  // para que el historial se vuelva a leer después de guardar.
+  const [cambiosHechos, setCambiosHechos] = useState<string[]>([]);
+  const [recargaHistorial, setRecargaHistorial] = useState(0);
   // Se abre ya en el navegador y no desde el servidor: el formulario crea ids
   // al azar y en el servidor saldrían distintos (error de hidratación).
   useEffect(() => {
@@ -134,7 +141,7 @@ export default function CotizacionDetalle({
       }));
       setMostrandoFirma(false);
       showToast('Cotización aprobada', 'success');
-      await avisarAprobacionEnApp(cotizacion, nombreAprobador.trim());
+      await avisarAprobacionEnApp(cotizacion, nombreAprobador.trim(), cambiosHechos);
     } catch (e: any) {
       setErrorFirma(e?.message || 'No se pudo guardar la firma. Intenta de nuevo.');
     } finally {
@@ -220,9 +227,25 @@ export default function CotizacionDetalle({
     }
   }
 
+  // Compara con lo que había antes de editar y lo anota en el historial.
+  // Si no se puede anotar, la edición ya quedó guardada: solo se avisa.
+  async function anotarCambios(actualizada: Cotizacion, lineasActualizadas: LineaCotizacion[]) {
+    const cambios = describirCambiosCotizacion({ cotizacion, lineas }, { cotizacion: actualizada, lineas: lineasActualizadas });
+    if (cambios.length === 0) return;
+    setCambiosHechos((previos) => [...previos, ...cambios]);
+    const { error } = await createClient().from('cotizacion_cambios').insert({ cotizacion_id: cotizacion.id, cambios });
+    if (error) {
+      console.error('Historial de cambios:', error.message);
+      showToast('Se guardó la cotización, pero no se pudo anotar en el historial de cambios.', 'error');
+      return;
+    }
+    setRecargaHistorial((n) => n + 1);
+  }
+
   async function handleGuardadoEdicion() {
     try {
       const { cotizacion: actualizada, lineas: lineasActualizadas } = await obtenerCotizacion(cotizacion.id);
+      await anotarCambios(actualizada, lineasActualizadas);
       setCotizacion(actualizada);
       setLineas(lineasActualizadas);
     } catch {
@@ -508,6 +531,8 @@ export default function CotizacionDetalle({
           </div>
         )}
       </div>
+
+      <HistorialCambios cotizacionId={cotizacion.id} recarga={recargaHistorial} />
 
       {/* Marcar como enviada, rechazar y mandar por WhatsApp son acciones de
           quien firma/aprueba cotizaciones — no de cualquiera que solo tenga
