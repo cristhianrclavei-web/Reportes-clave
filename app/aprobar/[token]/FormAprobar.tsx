@@ -73,7 +73,7 @@ export default function FormAprobar({ token, aprobador }: { token: string; aprob
 
       {modo === 'aprobar' ? (
         <>
-          <p className="text-[13px] text-ink/80 mb-3">Firmas como <b>{aprobador}</b>. Revisa el PDF antes de firmar.</p>
+          <p className="text-[13px] text-ink/80 mb-3">Firmas como <b>{aprobador}</b>. Revisa la cotización antes de firmar.</p>
           <div className="rounded-xl overflow-hidden border border-line">
             <SignaturePad ref={padRef} titulo="Tu firma" onCambio={setFirma} />
           </div>

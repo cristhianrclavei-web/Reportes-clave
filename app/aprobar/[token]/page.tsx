@@ -3,6 +3,8 @@ import { CheckCircle2, Clock, FileText, MessageSquareWarning, Pencil, RefreshCw,
 import Logo from '@/components/Logo';
 import { MARCA } from '@/lib/marca';
 import FormAprobar from './FormAprobar';
+import VistaCotizacionAprobar from '@/components/cotizaciones/VistaCotizacionAprobar';
+import { cargarCotizacionDelEnlace } from '@/lib/aprobacionRemota';
 
 // Página a la que lleva el enlace de aprobación que se manda por WhatsApp a
 // quien aprueba cotizaciones (supabase/patch_cotizacion_aprobacion_remota.sql).
@@ -73,6 +75,8 @@ export default async function AprobarPage(props: { params: Promise<{ token: stri
   const { token } = await props.params;
   const v = await consultar(token);
   const pedidaPor = v?.pedidoPor || 'quien la armó';
+  // Toda la cotización, solo mientras falta responder. Si no carga, queda el PDF.
+  const completa = v?.estado === 'pendiente' ? await cargarCotizacionDelEnlace(token) : null;
 
   return (
     <div className="min-h-screen max-w-xl mx-auto px-4 pt-6 pb-16">
@@ -120,6 +124,10 @@ export default async function AprobarPage(props: { params: Promise<{ token: stri
               <p className="text-[12px] text-muted mt-2 text-center">¿Quieres algo diferente? Corrígela tú y apruébala ahí mismo, sin pedir cambios.</p>
             )}
           </div>
+          {completa && 'error' in completa && (
+            <p className="text-[13px] text-amber font-semibold mb-4 text-center">No se pudo mostrar el detalle aquí ({completa.error}). Revísala en el PDF.</p>
+          )}
+          {completa && !('error' in completa) && <VistaCotizacionAprobar cotizacion={completa.cotizacion} lineas={completa.lineas} />}
           <FormAprobar token={token} aprobador={v.aprobador} />
         </>
       )}

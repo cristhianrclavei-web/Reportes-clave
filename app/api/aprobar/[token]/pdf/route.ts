@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { createAdminClient, hayClienteAdmin } from '@/lib/supabaseAdmin';
+import { cargarCotizacionDelEnlace } from '@/lib/aprobacionRemota';
 import { generateCotizacionPdf } from '@/lib/generateCotizacionPdf';
 
 export const dynamic = 'force-dynamic';
@@ -15,23 +15,16 @@ export async function GET(_request: NextRequest, props: { params: Promise<{ toke
   const { data: info, error } = await anon.rpc('aprobacion_remota_info', { p_token: token });
   if (error) console.error('aprobacion_remota_info:', error.message);
   if (error || !info) return NextResponse.json({ error: 'Enlace no válido.' }, { status: 404 });
-  if (!hayClienteAdmin()) return NextResponse.json({ error: 'Falta configurar el servidor (SUPABASE_SECRET_KEY).' }, { status: 500 });
-
-  const admin = createAdminClient();
-  const { data: solicitud, error: e0 } = await admin.from('cotizacion_aprobaciones').select('cotizacion_id').eq('token', token.toLowerCase()).maybeSingle();
-  if (e0 || !solicitud) return NextResponse.json({ error: 'Enlace no válido.' }, { status: 404 });
-  const [{ data: cotizacion, error: e1 }, { data: lineas, error: e2 }] = await Promise.all([
-    admin.from('cotizaciones').select('*').eq('id', solicitud.cotizacion_id).single(),
-    admin.from('cotizacion_lineas').select('*').eq('cotizacion_id', solicitud.cotizacion_id).order('orden'),
-  ]);
-  if (e1 || e2 || !cotizacion) {
-    console.error('PDF de aprobación:', e1?.message || e2?.message);
-    return NextResponse.json({ error: 'No se pudo cargar la cotización. Intenta de nuevo.' }, { status: 500 });
+  const cargada = await cargarCotizacionDelEnlace(token);
+  if ('error' in cargada) {
+    const estado = cargada.error === 'Enlace no válido.' ? 404 : 500;
+    return NextResponse.json({ error: cargada.error }, { status: estado });
   }
+  const { cotizacion, lineas } = cargada;
 
   let pdf: Uint8Array;
   try {
-    pdf = await generateCotizacionPdf(cotizacion as any, (lineas as any[]) || []);
+    pdf = await generateCotizacionPdf(cotizacion as any, lineas as any[]);
   } catch (err: any) {
     console.error('[aprobar-pdf] Error generando PDF:', err?.message);
     return NextResponse.json({ error: 'No se pudo generar el PDF. Intenta de nuevo.' }, { status: 500 });
