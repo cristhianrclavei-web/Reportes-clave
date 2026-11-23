@@ -41,7 +41,9 @@ export async function proxy(request: NextRequest) {
 
   if (isProtected && !user) {
     const redirectUrl = new URL('/login', request.url);
-    redirectUrl.searchParams.set('next', request.nextUrl.pathname);
+    // Con la búsqueda incluida (ej. ?editar=1 del enlace de aprobación) para
+    // volver exactamente a donde iba después de entrar.
+    redirectUrl.searchParams.set('next', request.nextUrl.pathname + request.nextUrl.search);
     return redirigirConservandoSesion(redirectUrl);
   }
 

@@ -2,6 +2,7 @@ import { createClient } from './supabaseClient';
 import type { Avance } from './useAvanceGuardado';
 import { reducirFoto } from './reducirFoto';
 import { generarUUID } from './uuid';
+import { notificar } from './push';
 
 // Flujo: borrador -> (firma de aprobación interna) -> aprobada -> enviada.
 // "rechazada" puede pasar en cualquier punto (se descarta la cotización).
@@ -368,6 +369,35 @@ export async function aprobarCotizacion(id: string, nombre: string, firmaDataUrl
     })
     .eq('id', id);
   if (error) throw error;
+}
+
+// Si alguien pidió la aprobación por enlace y quien aprueba la corrigió y
+// firmó en la app, a quien la pidió no le llega la respuesta del enlace: se
+// le avisa aquí. Un fallo del aviso no deshace la aprobación ya guardada.
+export async function avisarAprobacionEnApp(cotizacion: { id: string; folio: string; empresa: string }, aprobador: string): Promise<void> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: pedidos, error } = await supabase
+    .from('cotizacion_aprobaciones')
+    .select('pedido_por')
+    .eq('cotizacion_id', cotizacion.id)
+    .is('respondido_en', null);
+  if (error) {
+    console.error('No se pudo revisar quién pidió la aprobación:', error.message);
+    return;
+  }
+  const destinatarios = new Set<string>();
+  for (const p of pedidos || []) {
+    if (p.pedido_por !== user?.id) destinatarios.add(p.pedido_por);
+  }
+  if (destinatarios.size === 0) return;
+  await notificar({
+    usuarios: [...destinatarios],
+    titulo: `${cotizacion.folio} aprobada`,
+    mensaje: `${aprobador} revisó y aprobó en la app la cotización de ${cotizacion.empresa}. Revisa si le hizo cambios antes de enviarla.`,
+    url: `/dashboard/cotizaciones/${cotizacion.id}`,
+    tag: `aprobacion-${cotizacion.id}`,
+  });
 }
 
 // Deshace la aprobación para corregir algo que se pasó: vuelve a borrador y

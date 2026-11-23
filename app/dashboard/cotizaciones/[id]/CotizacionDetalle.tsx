@@ -11,7 +11,7 @@ import CotizacionForm from '@/components/CotizacionForm';
 import SignaturePad, { SignaturePadHandle } from '@/components/SignaturePad';
 import {
   Cotizacion, LineaCotizacion, EstadoCotizacion,
-  aprobarCotizacion, quitarAprobacionCotizacion, modoIvaDe, marcarEnviada, puedeMarcarEnviada, actualizarEstadoCotizacion,
+  aprobarCotizacion, avisarAprobacionEnApp, quitarAprobacionCotizacion, modoIvaDe, marcarEnviada, puedeMarcarEnviada, actualizarEstadoCotizacion,
   eliminarCotizacion, agruparPorSistema, obtenerCotizacion,
 } from '@/lib/cotizaciones';
 import { showToast } from '@/components/Toast';
@@ -64,6 +64,7 @@ export default function CotizacionDetalle({
   correoUsuario,
   puedeAprobar,
   firmantes,
+  abrirEditor = false,
 }: {
   cotizacionInicial: Cotizacion;
   lineasIniciales: LineaCotizacion[];
@@ -71,11 +72,21 @@ export default function CotizacionDetalle({
   correoUsuario?: string;
   puedeAprobar: boolean;
   firmantes: FirmanteSugerido[];
+  // Viene del enlace de aprobación (?editar=1): abre el editor y, al guardar,
+  // deja lista la firma para aprobar ahí mismo.
+  abrirEditor?: boolean;
 }) {
   const router = useRouter();
   const [cotizacion, setCotizacion] = useState(cotizacionInicial);
   const [lineas, setLineas] = useState(lineasIniciales);
   const [editando, setEditando] = useState(false);
+  // Se abre ya en el navegador y no desde el servidor: el formulario crea ids
+  // al azar y en el servidor saldrían distintos (error de hidratación).
+  useEffect(() => {
+    if (abrirEditor && !cotizacionInicial.aprobada_firma) setEditando(true);
+    // Solo al llegar desde el enlace.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const modoIva = modoIvaDe(cotizacion);
   const totalNeto = modoIva === 'incluido' && Boolean(cotizacion.total_neto);
   const [eliminando, setEliminando] = useState(false);
@@ -123,6 +134,7 @@ export default function CotizacionDetalle({
       }));
       setMostrandoFirma(false);
       showToast('Cotización aprobada', 'success');
+      await avisarAprobacionEnApp(cotizacion, nombreAprobador.trim());
     } catch (e: any) {
       setErrorFirma(e?.message || 'No se pudo guardar la firma. Intenta de nuevo.');
     } finally {
@@ -219,6 +231,7 @@ export default function CotizacionDetalle({
       // edición igual y el usuario ve los datos frescos al recargar.
     } finally {
       setEditando(false);
+      if (abrirEditor && puedeAprobar) setMostrandoFirma(true);
     }
   }
 

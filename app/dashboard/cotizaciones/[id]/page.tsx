@@ -6,8 +6,10 @@ import { cargarFirmantesCotizacion } from '@/lib/firmantesCotizacion';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export default async function CotizacionDetallePage(props: { params: Promise<{ id: string }> }) {
+export default async function CotizacionDetallePage(props: { params: Promise<{ id: string }>; searchParams: Promise<{ editar?: string }> }) {
   const params = await props.params;
+  // ?editar=1 llega del enlace de aprobación: abre directo el editor.
+  const { editar } = await props.searchParams;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
@@ -36,6 +38,7 @@ export default async function CotizacionDetallePage(props: { params: Promise<{ i
       correoUsuario={user.email || ''}
       puedeAprobar={Boolean(myProfile?.can_approve_cotizacion)}
       firmantes={firmantes}
+      abrirEditor={editar === '1'}
     />
   );
 }

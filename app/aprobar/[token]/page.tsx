@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { CheckCircle2, Clock, FileText, MessageSquareWarning, RefreshCw, SearchX } from 'lucide-react';
+import { CheckCircle2, Clock, FileText, MessageSquareWarning, Pencil, RefreshCw, SearchX } from 'lucide-react';
 import Logo from '@/components/Logo';
 import { MARCA } from '@/lib/marca';
 import FormAprobar from './FormAprobar';
@@ -17,6 +17,8 @@ export const metadata = {
 
 type Info = {
   estado: 'pendiente' | 'aprobada' | 'cambios' | 'ya_aprobada' | 'vencido' | 'cambiada';
+  // Llega desde supabase/patch_aprobacion_editar.sql; antes de correrlo no viene.
+  cotizacionId?: string;
   folio: string;
   empresa: string;
   proyecto: string | null;
@@ -46,6 +48,19 @@ function Aviso({ icono, color, titulo, texto }: { icono: React.ReactNode; color:
       <h1 className="font-display font-bold text-[22px] mb-1.5">{titulo}</h1>
       <p className="text-[14px] text-ink/75 leading-relaxed">{texto}</p>
     </div>
+  );
+}
+
+// Quien aprueba es supervisión y tiene cuenta: en vez de pedir cambios puede
+// corregir la cotización él mismo en la app y firmarla ahí. Sin sesión, la
+// app pide entrar primero y luego regresa al editor.
+function BotonEditar({ cotizacionId }: { cotizacionId?: string }) {
+  if (!cotizacionId) return null;
+  return (
+    <a href={`/dashboard/cotizaciones/${cotizacionId}?editar=1`}
+      className="mt-2.5 w-full min-h-[50px] rounded-2xl border border-teal/50 text-teal font-semibold text-[15px] flex items-center justify-center gap-2">
+      <Pencil size={17} strokeWidth={2.4} /> Editar en la app
+    </a>
   );
 }
 
@@ -79,8 +94,11 @@ export default async function AprobarPage(props: { params: Promise<{ token: stri
         <Aviso icono={<Clock size={26} strokeWidth={2.2} />} color="bg-amber/15 text-amber" titulo="El enlace venció"
           texto={`Pide a ${pedidaPor} que te mande un enlace nuevo para la cotización ${v.folio}.`} />
       ) : v.estado === 'cambiada' ? (
-        <Aviso icono={<RefreshCw size={26} strokeWidth={2.2} />} color="bg-amber/15 text-amber" titulo="La cotización cambió"
-          texto={`La cotización ${v.folio} se editó después de que te la mandaron. Pide a ${pedidaPor} el enlace nuevo para revisar la versión actual.`} />
+        <>
+          <Aviso icono={<RefreshCw size={26} strokeWidth={2.2} />} color="bg-amber/15 text-amber" titulo="La cotización cambió"
+            texto={`La cotización ${v.folio} se editó después de que te la mandaron. Ábrela en la app para revisar la versión actual y aprobarla ahí, o pide a ${pedidaPor} un enlace nuevo.`} />
+          <BotonEditar cotizacionId={v.cotizacionId} />
+        </>
       ) : (
         <>
           <div className="rounded-3xl bg-surface border border-line p-5 mb-4">
@@ -97,6 +115,10 @@ export default async function AprobarPage(props: { params: Promise<{ token: stri
               <FileText size={18} strokeWidth={2.4} /> Ver la cotización (PDF)
             </a>
             <p className="text-[12px] text-muted mt-2 text-center">Es el mismo formato que recibe el cliente.</p>
+            <BotonEditar cotizacionId={v.cotizacionId} />
+            {v.cotizacionId && (
+              <p className="text-[12px] text-muted mt-2 text-center">¿Quieres algo diferente? Corrígela tú y apruébala ahí mismo, sin pedir cambios.</p>
+            )}
           </div>
           <FormAprobar token={token} aprobador={v.aprobador} />
         </>
