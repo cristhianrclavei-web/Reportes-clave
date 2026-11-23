@@ -33,14 +33,16 @@ describe('reporte de avance', () => {
     expect(doc.getTitle()).toContain('HSMCH');
   });
 
-  it('pone el plano completo en una hoja carta horizontal', async () => {
+  it('pone el plano completo girado en una hoja carta vertical (se imprime a hoja completa)', async () => {
     const bytes = await reporteAvancePdf({
       cliente: 'Cliente', empresa: 'Clave',
       planos: [{ plano: { ...plano('n1', 'Nivel 1'), ancho: 3000, alto: 1170 }, avance: {}, pdfOriginal: null, fondoPng: PNG, etiquetas: new Map() }],
     });
     const doc = await PDFDocument.load(bytes);
     const ultima = doc.getPage(doc.getPageCount() - 1);
-    expect(ultima.getSize()).toEqual({ width: 792, height: 612 });
+    expect(ultima.getSize()).toEqual({ width: 612, height: 792 });
+    // El plano y el pie van dentro, sin páginas de más.
+    expect(doc.getPages().every((p) => p.getWidth() === 612)).toBe(true);
   });
 
   it('dice el estado del proyecto en palabras', () => {

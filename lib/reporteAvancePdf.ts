@@ -3,7 +3,7 @@
 // estado, y la lista de lo que falta con el motivo de lo que no se puede
 // instalar. Se arma en el navegador, igual que el PDF del plano.
 
-import { PDFDocument, PDFFont, PDFPage, rgb } from 'pdf-lib';
+import { PDFDocument, PDFFont, PDFPage, degrees, rgb } from 'pdf-lib';
 import { LINEA_MARCA, MARGIN, NAVY, drawBadge, drawIconStrip, drawWatermark, drawWordmark, embedBrandFonts } from './pdfBranding';
 import {
   COLOR_BLOQUEADO, ESTADOS_AVANCE, alMenos, colorDeAvance, contar, cuentaVacia, datosDeEstado, equiposQueCuentan, estadoDe,
@@ -547,6 +547,7 @@ export async function reporteAvancePdf({ cliente, empresa, planos: sinOrden, pan
   }
 
   // ---------- Los planos, pintados por estado ----------
+  const hojasDePlano: PDFPage[] = [];
   for (const p of planos) {
     if (!p.pdfOriginal && !p.fondoPng) continue;
     const idsQueCuentan = new Set(equiposQueCuentan(p.plano.sembrado.equipos).map((e) => e.id));
@@ -565,6 +566,7 @@ export async function reporteAvancePdf({ cliente, empresa, planos: sinOrden, pan
     const origen = await PDFDocument.load(bytes);
     const [embebida] = await pdf.embedPdf(origen, [0]);
     const pagina = pdf.addPage([ALTO, ANCHO]);
+    hojasDePlano.push(pagina);
     const encabezado = 40;
     const escala = Math.min((ALTO - MARGEN * 2) / embebida.width, (ANCHO - MARGEN * 2 - encabezado) / embebida.height);
     const w = embebida.width * escala;
@@ -585,6 +587,17 @@ export async function reporteAvancePdf({ cliente, empresa, planos: sinOrden, pan
       xLey += 22 + fuente.widthOfTextAtSize(texto, 7.8);
     }
     pie(pagina);
+  }
+
+  // Cada hoja del plano se arma en horizontal y se pone girada dentro de una
+  // hoja vertical: el reporte se imprime en vertical y una hoja horizontal
+  // salía achicada; así el plano ocupa la hoja completa (se lee girando la hoja).
+  for (const pagina of hojasDePlano) {
+    const indice = pdf.getPages().indexOf(pagina);
+    const embebida = await pdf.embedPage(pagina);
+    const vertical = pdf.insertPage(indice, [ANCHO, ALTO]);
+    vertical.drawPage(embebida, { x: ANCHO, y: 0, rotate: degrees(90) });
+    pdf.removePage(indice + 1);
   }
 
   return pdf.save();
