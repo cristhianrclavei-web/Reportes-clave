@@ -7,6 +7,7 @@ import { useContactosCliente } from '@/lib/useContactosCliente';
 import { useMemo, useRef, useState } from 'react';
 import { useBorradorFormulario } from '@/lib/useBorradorFormulario';
 import AvisoBorrador from '@/components/AvisoBorrador';
+import SelectorUnidad from '@/components/cotizaciones/SelectorUnidad';
 import { useRouter } from 'next/navigation';
 import {
   Cotizacion, LineaCotizacion, convertirMonto, LineaInput, CotizacionInput, MonedaCotizacion, PresentacionPrecios,
@@ -837,15 +838,12 @@ export default function CotizacionForm({
                   <div className="grid grid-cols-2 gap-2.5 mb-2.5">
                     <div>
                       <label className={labelCls}>Unidad</label>
-                      <input
-                        list={`unidades-${g.id}-${it.id}`}
+                      <SelectorUnidad
                         className={inputCls}
                         value={it.unidad}
-                        onChange={(e) => actualizarItem(g.id, it.id, { unidad: e.target.value })}
+                        opciones={UNIDADES_SUGERIDAS}
+                        onChange={(unidad) => actualizarItem(g.id, it.id, { unidad })}
                       />
-                      <datalist id={`unidades-${g.id}-${it.id}`}>
-                        {UNIDADES_SUGERIDAS.map((u) => <option key={u} value={u} />)}
-                      </datalist>
                     </div>
                     <div>
                       <label className={labelCls}>Cantidad</label>
