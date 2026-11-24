@@ -1,4 +1,4 @@
-import { agruparPorSistema, modoIvaDe, type Cotizacion, type LineaCotizacion } from '@/lib/cotizaciones';
+import { agruparPorSistema, modoIvaDe, tituloDeSistema, type Cotizacion, type LineaCotizacion } from '@/lib/cotizaciones';
 
 // Toda la cotización en la página del enlace de aprobación (/aprobar/<token>),
 // para revisarla sin abrir el PDF. Muestra lo mismo que ve el cliente en el
@@ -65,7 +65,10 @@ export default function VistaCotizacionAprobar({ cotizacion: c, lineas }: { coti
           const totalGrupo = grupo.lineas.reduce((suma, l) => suma + Number(l.importe || 0), 0);
           return (
             <div key={grupo.sistema} className="mb-4 last:mb-0">
-              <p className="font-semibold text-[14px] border-b border-line pb-1.5 mb-2">{grupo.sistema}</p>
+              <div className="border-b border-line pb-1.5 mb-2">
+                <p className="font-semibold text-[14px]">{grupo.sistema}</p>
+                {tituloDeSistema(grupo.lineas) && <p className="text-[13px] text-ink/80">{tituloDeSistema(grupo.lineas)}</p>}
+              </div>
               <ol className="space-y-2.5">
                 {grupo.lineas.map((l, i) => (
                   <li key={l.id} className="flex gap-2.5 text-[13px]">

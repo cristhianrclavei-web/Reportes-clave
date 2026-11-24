@@ -26,6 +26,7 @@ type Encabezado = {
 
 type Partida = {
   sistema: string;
+  titulo_sistema?: string | null;
   descripcion: string;
   unidad: string;
   cantidad: number;
@@ -64,6 +65,26 @@ function clave(p: Partida): string {
 
 function nombrePartida(p: Partida): string {
   return texto(p.descripcion);
+}
+
+// Nombre del proyecto de cada sistema que sigue existiendo y cambió.
+function describirTitulosDeSistema(antes: Partida[], despues: Partida[]): string[] {
+  const titulos = (lineas: Partida[]) => {
+    const porSistema = new Map<string, string>();
+    for (const l of lineas) {
+      const sistema = l.sistema.trim();
+      if (!porSistema.get(sistema)) porSistema.set(sistema, (l.titulo_sistema || '').trim());
+    }
+    return porSistema;
+  };
+  const viejos = titulos(antes);
+  const cambios: string[] = [];
+  for (const [sistema, nuevo] of titulos(despues)) {
+    if (!viejos.has(sistema)) continue;
+    const viejo = viejos.get(sistema) || '';
+    if (viejo !== nuevo) cambios.push(`Título de ${sistema}: ${texto(viejo)} → ${texto(nuevo)}`);
+  }
+  return cambios;
 }
 
 function describirPartidas(antes: Partida[], despues: Partida[]): string[] {
@@ -115,6 +136,7 @@ export function describirCambiosCotizacion(
     cambios.push(despues.cotizacion.iva_incluido ? 'Precios ahora con IVA incluido' : 'Precios ahora sin IVA incluido');
   }
 
+  cambios.push(...describirTitulosDeSistema(antes.lineas, despues.lineas));
   cambios.push(...describirPartidas(antes.lineas, despues.lineas));
 
   if (Math.abs(Number(antes.cotizacion.total) - Number(despues.cotizacion.total)) >= 0.005) {

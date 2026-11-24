@@ -29,6 +29,13 @@ describe('describirCambiosCotizacion', () => {
     ]);
   });
 
+  it('describe el cambio del título de un sistema', () => {
+    expect(describirCambiosCotizacion(
+      { cotizacion: base, lineas: [camara] },
+      { cotizacion: base, lineas: [{ ...camara, titulo_sistema: 'Torre Norte' }] },
+    )).toEqual(['Título de CCTV: (vacío) → Torre Norte']);
+  });
+
   it('vacío y null cuentan igual', () => {
     expect(describirCambiosCotizacion({ cotizacion: { ...base, notas: '' }, lineas: [] }, { cotizacion: { ...base, notas: null }, lineas: [] })).toEqual([]);
   });

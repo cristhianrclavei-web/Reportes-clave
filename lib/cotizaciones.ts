@@ -21,6 +21,9 @@ export type LineaCotizacion = {
   id: string;
   cotizacion_id: string;
   sistema: string;
+  // Nombre del proyecto de este sistema: título arriba de su tabla en el PDF
+  // (patch_cotizacion_titulo_sistema.sql). Igual en todas las partidas del sistema.
+  titulo_sistema?: string | null;
   orden: number;
   descripcion: string;
   unidad: string;
@@ -107,6 +110,7 @@ export type Cotizacion = {
 // guarda y lo usa para el importe/los totales.
 export type LineaInput = {
   sistema: string;
+  titulo_sistema?: string | null;
   descripcion: string;
   unidad: string;
   cantidad: number;
@@ -241,6 +245,7 @@ function filasDeLineas(cotizacionId: string, lineas: LineaInput[]) {
   return lineas.map((l, i) => ({
     cotizacion_id: cotizacionId,
     sistema: l.sistema,
+    titulo_sistema: l.titulo_sistema?.trim().slice(0, 150) || null,
     orden: i,
     descripcion: l.descripcion,
     unidad: l.unidad,
@@ -454,6 +459,15 @@ export async function eliminarCotizacion(id: string): Promise<void> {
   const supabase = createClient();
   const { error } = await supabase.from('cotizaciones').delete().eq('id', id);
   if (error) throw error;
+}
+
+// Título del sistema: el de su primera partida que lo tenga.
+export function tituloDeSistema(lineas: { titulo_sistema?: string | null }[]): string {
+  for (const l of lineas) {
+    const titulo = (l.titulo_sistema || '').trim();
+    if (titulo) return titulo;
+  }
+  return '';
 }
 
 // Agrupa las líneas por sistema en el orden en que cada sistema apareció

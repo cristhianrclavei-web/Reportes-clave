@@ -5,7 +5,7 @@ import {
   MARGIN, PAGE_W, PAGE_H,
   embedBrandFonts, drawBadge, drawWordmark, drawIconStrip, drawWatermark,
 } from './pdfBranding';
-import { Cotizacion, LineaCotizacion, agruparPorSistema, leyendaIva, modoIvaDe, urlFotoConcepto } from './cotizaciones';
+import { Cotizacion, LineaCotizacion, agruparPorSistema, tituloDeSistema, leyendaIva, modoIvaDe, urlFotoConcepto } from './cotizaciones';
 import { MARCA, MARCA_MAYUS } from './marca';
 
 // Mismo formato que las cotizaciones que ya se le mandan a los clientes
@@ -239,7 +239,21 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
   const omitirImporteGrupo = totalNeto && grupos.length === 1;
 
   for (const grupo of grupos) {
-    ensureSpace(38);
+    // Nombre del proyecto de este sistema (opcional), centrado arriba de su
+    // tabla. Se reserva espacio para el título junto con el encabezado y la
+    // primera fila, para que no quede solo al pie de una página.
+    const tituloSistema = tituloDeSistema(grupo.lineas);
+    const tamanoTitulo = 12;
+    const renglonesTitulo = tituloSistema ? wrapText(tituloSistema.toUpperCase(), display, tamanoTitulo, contentW - 60) : [];
+    ensureSpace(38 + renglonesTitulo.length * (tamanoTitulo + 4) + (renglonesTitulo.length > 0 ? 8 : 0));
+    if (renglonesTitulo.length > 0) {
+      y -= 2;
+      for (const renglon of renglonesTitulo) {
+        centrado(page, renglon, MARGIN, contentW, y - tamanoTitulo, tamanoTitulo, display);
+        y -= tamanoTitulo + 4;
+      }
+      y -= 8;
+    }
     const tituloTxt = `COTIZACIÓN: ${grupo.sistema.toUpperCase()}`;
     page.drawRectangle({ x: MARGIN, y: y - 18, width: contentW, height: 18, borderColor: GRAY_LINE, borderWidth: 0.75 });
     centrado(page, tituloTxt, MARGIN, contentW, y - 13, 9.5, bold);

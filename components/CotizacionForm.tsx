@@ -48,13 +48,13 @@ const cardTitleCls = 'font-display font-semibold text-[13px] uppercase tracking-
 
 // modelo y marca vienen del producto de SYSCOM ligado (no se capturan a mano).
 type ItemForm = { id: string; descripcion: string; unidad: string; cantidad: string; costo: string; margenPct: string; enlace?: string; foto?: string; modelo?: string; marca?: string };
-type GrupoForm = { id: string; sistema: string; items: ItemForm[] };
+type GrupoForm = { id: string; sistema: string; titulo: string; items: ItemForm[] };
 
 function nuevoItem(): ItemForm {
   return { id: generarUUID(), descripcion: '', unidad: 'Pza', cantidad: '1', costo: '', margenPct: '0' };
 }
 function nuevoGrupo(sistema = ''): GrupoForm {
-  return { id: generarUUID(), sistema, items: [nuevoItem()] };
+  return { id: generarUUID(), sistema, titulo: '', items: [nuevoItem()] };
 }
 
 function money(n: number): string {
@@ -163,7 +163,7 @@ export default function CotizacionForm({
     const orden: string[] = [];
     for (const l of inicial.lineas) {
       if (!porSistema.has(l.sistema)) {
-        porSistema.set(l.sistema, { id: generarUUID(), sistema: l.sistema, items: [] });
+        porSistema.set(l.sistema, { id: generarUUID(), sistema: l.sistema, titulo: '', items: [] });
         orden.push(l.sistema);
       }
       // Líneas ya guardadas antes de que existiera costo/margen tienen ambos
@@ -171,7 +171,9 @@ export default function CotizacionForm({
       // 0% de margen, para no cambiarle el precio a nadie por el simple
       // hecho de abrir la cotización a editar.
       const tieneMargenGuardado = l.costo > 0 || l.margen_pct > 0;
-      porSistema.get(l.sistema)!.items.push({
+      const grupoDeLinea = porSistema.get(l.sistema)!;
+      if (!grupoDeLinea.titulo && l.titulo_sistema) grupoDeLinea.titulo = l.titulo_sistema;
+      grupoDeLinea.items.push({
         id: generarUUID(),
         descripcion: l.descripcion,
         unidad: l.unidad,
@@ -405,6 +407,7 @@ export default function CotizacionForm({
             const margen_pct = parseFloat(it.margenPct) || 0;
             return {
               sistema: g.sistema.trim() || 'General',
+              titulo_sistema: g.titulo.trim() || null,
               descripcion: it.descripcion.trim(),
               unidad: it.unidad.trim() || 'Pza',
               cantidad: parseFloat(it.cantidad) || 0,
@@ -679,6 +682,16 @@ export default function CotizacionForm({
             <datalist id={`sistemas-${g.id}`}>
               {SISTEMAS_SUGERIDOS.map((s) => <option key={s} value={s} />)}
             </datalist>
+
+            <label className={labelCls}>Nombre del proyecto de este sistema</label>
+            <input
+              className={inputCls}
+              value={g.titulo}
+              onChange={(e) => actualizarGrupo(g.id, { titulo: e.target.value })}
+              maxLength={150}
+              placeholder="Ej. Detección de humo — Almacén de materia prima"
+            />
+            <p className="text-[12px] text-faint mt-1.5 mb-4">Opcional. Sale como título arriba de la tabla de este sistema en el PDF.</p>
 
             {g.items.length > 1 && (
               <p className="text-[12.5px] text-muted mb-2 flex items-center gap-1">
