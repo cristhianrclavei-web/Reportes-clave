@@ -407,7 +407,7 @@ export default function CotizacionForm({
             const margen_pct = parseFloat(it.margenPct) || 0;
             return {
               sistema: g.sistema.trim() || 'General',
-              titulo_sistema: g.titulo.trim() || null,
+              titulo_sistema: (g.titulo || '').trim() || null,
               descripcion: it.descripcion.trim(),
               unidad: it.unidad.trim() || 'Pza',
               cantidad: parseFloat(it.cantidad) || 0,
@@ -471,7 +471,10 @@ export default function CotizacionForm({
     setTelefono(d.telefono); setCorreo(d.correo); setDireccion(d.direccion); setFormaPago(d.formaPago);
     setTiempoEntrega(d.tiempoEntrega); setGarantia(d.garantia); setVigenciaDias(d.vigenciaDias); setIvaPct(d.ivaPct);
     setMoneda(d.moneda); setTipoCambio(d.tipoCambio); setNotas(d.notas); setFirmanteNombre(d.firmanteNombre);
-    setFirmanteCorreo(d.firmanteCorreo); setGrupos(d.grupos);
+    setFirmanteCorreo(d.firmanteCorreo);
+    // Los borradores guardados antes del título por sistema no lo traen: sin
+    // esto, g.titulo.trim() tronaba el formulario al recuperarlos.
+    setGrupos(d.grupos.map((g) => ({ ...g, titulo: g.titulo || '' })));
   }
   const hayCambios = modo === 'crear'
     ? Boolean(empresa.trim() || grupos.some((g) => g.items.some((it) => it.descripcion.trim())))
@@ -686,7 +689,7 @@ export default function CotizacionForm({
             <label className={labelCls}>Nombre del proyecto de este sistema</label>
             <input
               className={inputCls}
-              value={g.titulo}
+              value={g.titulo || ''}
               onChange={(e) => actualizarGrupo(g.id, { titulo: e.target.value })}
               maxLength={150}
               placeholder="Ej. Detección de humo — Almacén de materia prima"
