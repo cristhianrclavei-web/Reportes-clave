@@ -386,6 +386,14 @@ export default function CotizacionForm({
   }
   // Al arrastrar no se mueve la vista por su cuenta: la controla el dedo.
   const arrastre = useArrastreLista((grupoId, itemId, hasta) => moverItem(grupoId, itemId, hasta, false));
+  // Mueve un sistema completo (con sus partidas) a otro lugar; la vista lo
+  // acompaña para no perderlo. Sin arrastre: las tarjetas son muy altas.
+  function moverGrupo(grupoId: string, hasta: number) {
+    setGrupos((prev) => moverElemento(prev, prev.findIndex((g) => g.id === grupoId), hasta));
+    setTimeout(() => {
+      document.querySelector(`[data-sistema="${grupoId}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 450);
+  }
   function agregarGrupo() {
     setGrupos((prev) => [...prev, nuevoGrupo()]);
   }
@@ -665,9 +673,44 @@ export default function CotizacionForm({
           return acc + (parseFloat(it.cantidad) || 0) * precio;
         }, 0);
         return (
-          <div key={g.id} className={cardCls}>
+          <motion.div key={g.id} layout="position" transition={{ duration: 0.28, ease: 'easeOut' }} data-sistema={g.id} className={`${cardCls} scroll-mt-40`}>
             <div className="flex items-center justify-between gap-2 mb-3.5">
-              <p className={`${cardTitleCls} mb-0`}><span className="w-1.5 h-1.5 rounded-full bg-teal inline-block" /> Sistema {gi + 1}</p>
+              {grupos.length > 1 ? (
+                <div className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-teal inline-block" />
+                  <label className="sr-only" htmlFor={`sistema-orden-${g.id}`}>Mover a la posición</label>
+                  <select
+                    id={`sistema-orden-${g.id}`}
+                    value={gi}
+                    onChange={(e) => moverGrupo(g.id, Number(e.target.value))}
+                    className="min-h-[36px] pl-2.5 pr-1 rounded-lg bg-surface border border-line text-[12.5px] font-bold uppercase tracking-wider text-teal"
+                  >
+                    {grupos.map((_, pos) => (
+                      <option key={pos} value={pos}>Sistema {pos + 1}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => moverGrupo(g.id, gi - 1)}
+                    disabled={gi === 0}
+                    aria-label="Subir el sistema un lugar"
+                    className="w-9 h-9 rounded-lg border border-line-strong text-ink/80 flex items-center justify-center active:scale-90 transition-transform disabled:opacity-30"
+                  >
+                    <ArrowUp size={16} strokeWidth={2.4} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => moverGrupo(g.id, gi + 1)}
+                    disabled={gi === grupos.length - 1}
+                    aria-label="Bajar el sistema un lugar"
+                    className="w-9 h-9 rounded-lg border border-line-strong text-ink/80 flex items-center justify-center active:scale-90 transition-transform disabled:opacity-30"
+                  >
+                    <ArrowDown size={16} strokeWidth={2.4} />
+                  </button>
+                </div>
+              ) : (
+                <p className={`${cardTitleCls} mb-0`}><span className="w-1.5 h-1.5 rounded-full bg-teal inline-block" /> Sistema 1</p>
+              )}
               {grupos.length > 1 && (
                 <button onClick={() => quitarGrupo(g.id)} className="text-red text-xs font-medium active:scale-95 transition-transform">
                   Quitar sistema
@@ -902,7 +945,7 @@ export default function CotizacionForm({
             <p className="text-right text-[13.5px] mt-3 pt-3 border-t border-dashed border-line-strong">
               Importe {gi + 1}: <span className="font-display font-bold text-teal">{money(subtotalGrupo)}</span>
             </p>
-          </div>
+          </motion.div>
         );
       })}
 

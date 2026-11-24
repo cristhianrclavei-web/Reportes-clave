@@ -7,6 +7,7 @@ import { buscarProductosSyscom, syscomConfigurado } from '@/lib/syscom';
 import { enviarPush } from '@/lib/pushServidor';
 import { cablesDe, soporteriaDe, textoCable, textoSoporteria, textoTuberia, tuberiasDe } from '@/lib/materialesReporte';
 import { calcularTotales, normalizarEnlace, precioUnitarioDesdeCosto } from '@/lib/cotizaciones';
+import { armarFolio, folioActualizado, numeroDeFolio, siguienteNumero } from '@/lib/folioCotizacion';
 import { leerAvance, leerDatos, progresoDe, rangoDePrueba, textoConexion } from '@/lib/guias';
 
 // Funciones de consulta del asistente. Reglas de este archivo:
@@ -751,9 +752,10 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
       }));
       const ivaPct = 16;
       const { subtotal, iva, total } = calcularTotales(lineas, ivaPct);
-      // Mismo consecutivo que usa el formulario de la app.
-      const { count } = await supabase.from('cotizaciones').select('id', { count: 'exact', head: true });
-      const folio = `COT-${String((count || 0) + 1).padStart(4, '0')}`;
+      // Mismo folio que arma el formulario de la app (lib/folioCotizacion.ts).
+      const { data: folios, error: eFolios } = await supabase.from('cotizaciones').select('folio');
+      if (eFolios) return falla(eFolios);
+      const folio = armarFolio(siguienteNumero((folios || []).map((c) => c.folio as string)), lineas.map((l) => l.sistema));
       const { data: cot, error } = await supabase
         .from('cotizaciones')
         .insert({
@@ -787,16 +789,25 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
     },
   });
 
+  // Busca por folio exacto; si no hay, por número: «COT-51» o «51» encuentran
+  // «COT-51-CCTV» (las siglas se agregan solas y quien pregunta no las sabe).
+  async function cotizacionPorFolio(folio: string, columnas: string) {
+    const exacta = await supabase.from('cotizaciones').select(columnas).ilike('folio', limpio(folio)).maybeSingle();
+    if (exacta.error || exacta.data) return exacta as { data: any; error: typeof exacta.error };
+    const numero = numeroDeFolio(/^cot/i.test(folio.trim()) ? folio.trim() : `COT-${folio.trim()}`);
+    if (numero === null) return { data: null, error: null };
+    const { data, error } = await supabase.from('cotizaciones').select(columnas).ilike('folio', 'COT-%');
+    if (error) return { data: null, error };
+    const encontrada = (data || []).find((c: any) => numeroDeFolio(c.folio) === numero) || null;
+    return { data: encontrada as any, error: null };
+  }
+
   const leerBorrador = betaZodTool({
     name: 'leer_borrador_cotizacion',
     description: 'Lee completa una cotización en borrador para poder modificarla: condiciones y todas sus partidas con costo, margen y precio. Úsala siempre antes de actualizar_borrador_cotizacion.',
-    inputSchema: z.object({ folio: texto(20).describe('Folio, p. ej. COT-0016') }),
+    inputSchema: z.object({ folio: texto(20).describe('Folio, p. ej. COT-51-CCTV o solo COT-51') }),
     run: async (i) => {
-      const { data: c, error } = await supabase
-        .from('cotizaciones')
-        .select('id, folio, estado, fecha, empresa, atencion, telefono, correo, direccion, forma_pago, tiempo_entrega, garantia, vigencia_dias, notas, moneda, tipo_cambio, iva_pct, subtotal, iva, total, notas_ia')
-        .ilike('folio', limpio(i.folio))
-        .maybeSingle();
+      const { data: c, error } = await cotizacionPorFolio(i.folio, 'id, folio, estado, fecha, empresa, atencion, telefono, correo, direccion, forma_pago, tiempo_entrega, garantia, vigencia_dias, notas, moneda, tipo_cambio, iva_pct, subtotal, iva, total, notas_ia');
       if (error) return falla(error);
       if (!c) return JSON.stringify({ error: `No existe la cotización ${i.folio}` });
       const { data: lineas } = await supabase.from('cotizacion_lineas').select('sistema, descripcion, unidad, cantidad, costo, margen_pct, precio_unitario, importe, enlace').eq('cotizacion_id', c.id).order('orden');
@@ -820,7 +831,7 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
       cambios_hechos: texto(600).describe('Para quien revisa: qué se cambió en esta edición, en una o dos frases cortas'),
     }),
     run: async (i) => {
-      const { data: c, error } = await supabase.from('cotizaciones').select('id, folio, estado, iva_pct, iva_incluido, moneda, notas_ia').ilike('folio', limpio(i.folio)).maybeSingle();
+      const { data: c, error } = await cotizacionPorFolio(i.folio, 'id, folio, estado, iva_pct, iva_incluido, moneda, notas_ia');
       if (error) return falla(error);
       if (!c) return JSON.stringify({ error: `No existe la cotización ${i.folio}` });
       if (c.estado !== 'borrador') return JSON.stringify({ error: `La ${c.folio} está «${c.estado}»: solo se pueden modificar borradores. Se puede copiar a una nueva desde la app.` });
@@ -836,11 +847,13 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
           .filter((k) => i[k] !== undefined).map((k) => [k, i[k]!.trim() || null]),
       );
       const notasIa = [c.notas_ia, `Editada con el asistente: ${i.cambios_hechos.trim()}`].filter(Boolean).join('\n').slice(-1800);
+      // Las siglas del folio siguen a los sistemas, como en el formulario.
+      const folio = folioActualizado(c.folio, lineas.map((l) => l.sistema));
       // Mismo orden que el formulario de la app: encabezado y luego se
       // reemplazan todas las partidas.
       const { error: eU } = await supabase
         .from('cotizaciones')
-        .update({ ...opcional, ...(i.vigencia_dias ? { vigencia_dias: i.vigencia_dias } : {}), subtotal, iva, total, generada_por_ia: true, notas_ia: notasIa, updated_at: new Date().toISOString() })
+        .update({ ...opcional, folio, ...(i.vigencia_dias ? { vigencia_dias: i.vigencia_dias } : {}), subtotal, iva, total, generada_por_ia: true, notas_ia: notasIa, updated_at: new Date().toISOString() })
         .eq('id', c.id)
         .eq('estado', 'borrador');
       if (eU) {
@@ -862,7 +875,7 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
         })),
       );
       if (eI) return JSON.stringify({ error: 'Se actualizó el encabezado pero no se pudieron guardar las partidas: hay que revisarla en la app', detalle: eI.message, enlace: `/dashboard/cotizaciones/${c.id}` });
-      return JSON.stringify({ actualizada: true, folio: c.folio, enlace: `/dashboard/cotizaciones/${c.id}`, moneda: c.moneda, partidas: lineas.length, subtotal, iva, total });
+      return JSON.stringify({ actualizada: true, folio, enlace: `/dashboard/cotizaciones/${c.id}`, moneda: c.moneda, partidas: lineas.length, subtotal, iva, total });
     },
   });
 

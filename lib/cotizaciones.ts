@@ -1,4 +1,5 @@
 import { createClient } from './supabaseClient';
+import { armarFolio, folioActualizado, siguienteNumero } from './folioCotizacion';
 import type { Avance } from './useAvanceGuardado';
 import { reducirFoto } from './reducirFoto';
 import { generarUUID } from './uuid';
@@ -236,9 +237,13 @@ export function urlFotoConcepto(foto: string): string {
   return `${base}/storage/v1/object/public/${BUCKET_FOTOS}/${foto}`;
 }
 
-async function siguienteFolio(supabase: ReturnType<typeof createClient>): Promise<string> {
-  const { count } = await supabase.from('cotizaciones').select('id', { count: 'exact', head: true });
-  return `COT-${String((count || 0) + 1).padStart(4, '0')}`;
+// Folio con siglas de los sistemas (ver lib/folioCotizacion.ts).
+async function siguienteFolio(supabase: ReturnType<typeof createClient>, lineas: LineaInput[]): Promise<string> {
+  // shortcut: lee todos los folios para sacar el mayor; son pocos cientos, pasar a una función en la base si llegan a miles.
+  const { data, error } = await supabase.from('cotizaciones').select('folio');
+  if (error) throw error;
+  const numero = siguienteNumero((data || []).map((c) => c.folio as string));
+  return armarFolio(numero, lineas.map((l) => l.sistema));
 }
 
 function filasDeLineas(cotizacionId: string, lineas: LineaInput[]) {
@@ -307,7 +312,7 @@ export async function crearCotizacion(input: CotizacionInput, onAvance?: Avance)
   if (!user) throw new Error('No hay sesión activa');
 
   onAvance?.(25, 'Asignando folio');
-  const folio = await siguienteFolio(supabase);
+  const folio = await siguienteFolio(supabase, input.lineas);
   onAvance?.(42, 'Creando la cotización');
 
   const { data: cot, error: e1 } = await supabase
@@ -335,9 +340,15 @@ export async function actualizarCotizacion(id: string, input: CotizacionInput, o
   const supabase = createClient();
   onAvance?.(20, 'Guardando la cotización');
 
+  // En borrador las siglas del folio siguen a los sistemas; ya enviada o
+  // aprobada, el folio queda fijo porque el cliente ya lo conoce.
+  const { data: actual, error: eLeer } = await supabase.from('cotizaciones').select('folio, estado').eq('id', id).single();
+  if (eLeer) throw eLeer;
+  const folio = actual.estado === 'borrador' ? folioActualizado(actual.folio, input.lineas.map((l) => l.sistema)) : actual.folio;
+
   const { error: e1 } = await supabase
     .from('cotizaciones')
-    .update({ ...datosCotizacion(input), updated_at: new Date().toISOString() })
+    .update({ ...datosCotizacion(input), folio, updated_at: new Date().toISOString() })
     .eq('id', id);
   if (e1) throw e1;
 
