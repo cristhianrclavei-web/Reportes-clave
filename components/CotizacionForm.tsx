@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation';
 import {
   Cotizacion, LineaCotizacion, convertirMonto, LineaInput, CotizacionInput, MonedaCotizacion, PresentacionPrecios,
   crearCotizacion, actualizarCotizacion, calcularTotales, precioUnitarioDesdeCosto, modoIvaDe, type ModoIva,
-  subirFotoConcepto, urlFotoConcepto,
+  subirFotoConcepto, urlFotoConcepto, claveDeGrupo,
 } from '@/lib/cotizaciones';
 import { generarUUID } from '@/lib/uuid';
 import { hoyLocal } from '@/lib/fechaHoy';
@@ -162,17 +162,18 @@ export default function CotizacionForm({
     const porSistema = new Map<string, GrupoForm>();
     const orden: string[] = [];
     for (const l of inicial.lineas) {
-      if (!porSistema.has(l.sistema)) {
-        porSistema.set(l.sistema, { id: generarUUID(), sistema: l.sistema, titulo: '', items: [] });
-        orden.push(l.sistema);
+      // Misma regla que el PDF: mismo sistema con otro título es otro grupo.
+      const clave = claveDeGrupo(l);
+      if (!porSistema.has(clave)) {
+        porSistema.set(clave, { id: generarUUID(), sistema: l.sistema, titulo: l.titulo_sistema || '', items: [] });
+        orden.push(clave);
       }
       // Líneas ya guardadas antes de que existiera costo/margen tienen ambos
       // en 0 — en ese caso se parte del precio ya guardado como costo con
       // 0% de margen, para no cambiarle el precio a nadie por el simple
       // hecho de abrir la cotización a editar.
       const tieneMargenGuardado = l.costo > 0 || l.margen_pct > 0;
-      const grupoDeLinea = porSistema.get(l.sistema)!;
-      if (!grupoDeLinea.titulo && l.titulo_sistema) grupoDeLinea.titulo = l.titulo_sistema;
+      const grupoDeLinea = porSistema.get(clave)!;
       grupoDeLinea.items.push({
         id: generarUUID(),
         descripcion: l.descripcion,

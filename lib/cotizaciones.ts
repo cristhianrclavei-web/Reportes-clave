@@ -473,12 +473,20 @@ export function tituloDeSistema(lineas: { titulo_sistema?: string | null }[]): s
 // Agrupa las líneas por sistema en el orden en que cada sistema apareció
 // primero — así el PDF y el formulario muestran los grupos en el mismo
 // orden en que se capturaron, sin depender de un campo extra.
-export function agruparPorSistema<T extends { sistema: string }>(lineas: T[]): { sistema: string; lineas: T[] }[] {
-  const grupos: { sistema: string; lineas: T[] }[] = [];
+// Las partidas se agrupan por sistema y nombre del proyecto: dos sistemas
+// que se llaman igual («CCTV») pero con distinto título (la obra y la póliza
+// de mantenimiento) son grupos aparte, con su tabla y su numeración.
+export function claveDeGrupo(l: { sistema: string; titulo_sistema?: string | null }): string {
+  return `${l.sistema}|${(l.titulo_sistema || '').trim()}`;
+}
+
+export function agruparPorSistema<T extends { sistema: string; titulo_sistema?: string | null }>(lineas: T[]): { clave: string; sistema: string; lineas: T[] }[] {
+  const grupos: { clave: string; sistema: string; lineas: T[] }[] = [];
   for (const l of lineas) {
-    let g = grupos.find((x) => x.sistema === l.sistema);
+    const clave = claveDeGrupo(l);
+    let g = grupos.find((x) => x.clave === clave);
     if (!g) {
-      g = { sistema: l.sistema, lineas: [] };
+      g = { clave, sistema: l.sistema, lineas: [] };
       grupos.push(g);
     }
     g.lineas.push(l);

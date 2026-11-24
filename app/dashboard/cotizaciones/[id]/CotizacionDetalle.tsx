@@ -391,7 +391,7 @@ export default function CotizacionDetalle({
       {grupos.map((g) => {
         const importeGrupo = g.lineas.reduce((acc, l) => acc + l.importe, 0);
         return (
-          <div key={g.sistema} className={`${cardCls} mb-4`}>
+          <div key={g.clave} className={`${cardCls} mb-4`}>
             <p className="font-display font-semibold text-[13px] uppercase tracking-wider text-teal">{g.sistema}</p>
             {tituloDeSistema(g.lineas) && <p className="text-[14px] font-semibold mt-0.5">{tituloDeSistema(g.lineas)}</p>}
             <div className="mb-3" />

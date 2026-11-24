@@ -64,7 +64,7 @@ export default function VistaCotizacionAprobar({ cotizacion: c, lineas }: { coti
         {grupos.map((grupo) => {
           const totalGrupo = grupo.lineas.reduce((suma, l) => suma + Number(l.importe || 0), 0);
           return (
-            <div key={grupo.sistema} className="mb-4 last:mb-0">
+            <div key={grupo.clave} className="mb-4 last:mb-0">
               <div className="border-b border-line pb-1.5 mb-2">
                 <p className="font-semibold text-[14px]">{grupo.sistema}</p>
                 {tituloDeSistema(grupo.lineas) && <p className="text-[13px] text-ink/80">{tituloDeSistema(grupo.lineas)}</p>}
