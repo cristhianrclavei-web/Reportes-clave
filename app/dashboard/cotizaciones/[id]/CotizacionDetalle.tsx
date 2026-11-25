@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import SupervisorShell from '@/components/SupervisorShell';
 import CotizacionForm from '@/components/CotizacionForm';
+import OpcionesCotizacion from '@/components/cotizaciones/OpcionesCotizacion';
 import SignaturePad, { SignaturePadHandle } from '@/components/SignaturePad';
 import {
   Cotizacion, LineaCotizacion, EstadoCotizacion,
@@ -299,7 +300,8 @@ export default function CotizacionDetalle({
   const habilitaEnviar = puedeMarcarEnviada(cotizacion);
   // Solo informativo para quien la arma — nunca se muestra en el PDF que
   // recibe el cliente.
-  const costoTotal = lineas.reduce((acc, l) => acc + l.costo * l.cantidad, 0);
+  // Los opcionales no están en el subtotal: tampoco su costo.
+  const costoTotal = lineas.filter((l) => !l.opcional).reduce((acc, l) => acc + l.costo * l.cantidad, 0);
   const gananciaTotal = cotizacion.subtotal - costoTotal;
 
   return (
@@ -392,7 +394,10 @@ export default function CotizacionDetalle({
         const importeGrupo = g.lineas.reduce((acc, l) => acc + l.importe, 0);
         return (
           <div key={g.clave} className={`${cardCls} mb-4`}>
-            <p className="font-display font-semibold text-[13px] uppercase tracking-wider text-teal">{g.sistema}</p>
+            <p className="font-display font-semibold text-[13px] uppercase tracking-wider text-teal">
+              {g.sistema}
+              {g.opcional && <span className="ml-2 px-2 py-0.5 rounded-full bg-amber/15 text-amber text-[11px] normal-case tracking-normal">Opcional · no suma al total</span>}
+            </p>
             {tituloDeSistema(g.lineas) && <p className="text-[14px] font-semibold mt-0.5">{tituloDeSistema(g.lineas)}</p>}
             <div className="mb-3" />
             <div className="flex flex-col gap-2.5">
@@ -416,7 +421,7 @@ export default function CotizacionDetalle({
               ))}
             </div>
             <p className="text-right text-[13.5px] mt-3 pt-3 border-t border-dashed border-line-strong">
-              Importe: <span className="font-display font-bold text-teal">{money(importeGrupo)}</span>
+              {g.opcional ? 'Importe opcional' : 'Importe'}: <span className="font-display font-bold text-teal">{money(importeGrupo)}</span>
             </p>
           </div>
         );
@@ -450,6 +455,8 @@ export default function CotizacionDetalle({
             ≈ {money(cotizacion.total * cotizacion.tipo_cambio)} MXN <span className="text-faint">(TC {cotizacion.tipo_cambio.toFixed(2)})</span>
           </p>
         )}
+
+        <OpcionesCotizacion cotizacion={cotizacion} lineas={lineas} />
 
         {costoTotal > 0 && (
           <div className="flex justify-between text-[13px] mt-3 pt-3 border-t border-dashed border-line-strong">

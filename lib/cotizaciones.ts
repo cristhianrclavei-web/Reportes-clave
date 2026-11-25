@@ -25,6 +25,8 @@ export type LineaCotizacion = {
   // Nombre del proyecto de este sistema: título arriba de su tabla en el PDF
   // (patch_cotizacion_titulo_sistema.sql). Igual en todas las partidas del sistema.
   titulo_sistema?: string | null;
+  // Sistema opcional: se muestra pero no suma al total (patch_cotizacion_opcional.sql).
+  opcional?: boolean;
   orden: number;
   descripcion: string;
   unidad: string;
@@ -112,6 +114,8 @@ export type Cotizacion = {
 export type LineaInput = {
   sistema: string;
   titulo_sistema?: string | null;
+  // Sistema opcional: se muestra pero no suma al total (patch_cotizacion_opcional.sql).
+  opcional?: boolean;
   descripcion: string;
   unidad: string;
   cantidad: number;
@@ -197,8 +201,10 @@ export function leyendaIva(moneda: MonedaCotizacion, modo: ModoIva, totalNeto = 
 
 // Con IVA incluido, la suma de los conceptos ya es el total: el IVA se saca
 // de adentro (total / 1.16) solo para informarlo, no se agrega.
+// Los sistemas opcionales no suman: se ofrecen aparte (ver opcionesDeCotizacion).
 export function calcularTotales(lineas: LineaInput[], ivaPct: number, ivaIncluido = false) {
-  const sumaConceptos = redondear(lineas.reduce((acc, l) => acc + l.cantidad * l.precio_unitario, 0));
+  const incluidas = lineas.filter((l) => !l.opcional);
+  const sumaConceptos = redondear(incluidas.reduce((acc, l) => acc + l.cantidad * l.precio_unitario, 0));
   if (ivaIncluido) {
     const total = sumaConceptos;
     const subtotal = redondear(total / (1 + ivaPct / 100));
@@ -251,6 +257,7 @@ function filasDeLineas(cotizacionId: string, lineas: LineaInput[]) {
     cotizacion_id: cotizacionId,
     sistema: l.sistema,
     titulo_sistema: l.titulo_sistema?.trim().slice(0, 150) || null,
+    opcional: Boolean(l.opcional),
     orden: i,
     descripcion: l.descripcion,
     unidad: l.unidad,
@@ -484,25 +491,48 @@ export function tituloDeSistema(lineas: { titulo_sistema?: string | null }[]): s
 // Agrupa las líneas por sistema en el orden en que cada sistema apareció
 // primero — así el PDF y el formulario muestran los grupos en el mismo
 // orden en que se capturaron, sin depender de un campo extra.
-// Las partidas se agrupan por sistema y nombre del proyecto: dos sistemas
-// que se llaman igual («CCTV») pero con distinto título (la obra y la póliza
-// de mantenimiento) son grupos aparte, con su tabla y su numeración.
-export function claveDeGrupo(l: { sistema: string; titulo_sistema?: string | null }): string {
-  return `${l.sistema}|${(l.titulo_sistema || '').trim()}`;
+// Las partidas se agrupan por sistema, nombre del proyecto y si es opcional:
+// dos sistemas que se llaman igual («CCTV») pero con distinto título (la obra
+// y la póliza de mantenimiento) son grupos aparte, con su tabla y numeración.
+type ParaAgrupar = { sistema: string; titulo_sistema?: string | null; opcional?: boolean };
+
+export function claveDeGrupo(l: ParaAgrupar): string {
+  return `${l.sistema}|${(l.titulo_sistema || '').trim()}|${l.opcional ? 'opcional' : ''}`;
 }
 
-export function agruparPorSistema<T extends { sistema: string; titulo_sistema?: string | null }>(lineas: T[]): { clave: string; sistema: string; lineas: T[] }[] {
-  const grupos: { clave: string; sistema: string; lineas: T[] }[] = [];
+export function agruparPorSistema<T extends ParaAgrupar>(lineas: T[]): { clave: string; sistema: string; opcional: boolean; lineas: T[] }[] {
+  const grupos: { clave: string; sistema: string; opcional: boolean; lineas: T[] }[] = [];
   for (const l of lineas) {
     const clave = claveDeGrupo(l);
     let g = grupos.find((x) => x.clave === clave);
     if (!g) {
-      g = { clave, sistema: l.sistema, lineas: [] };
+      g = { clave, sistema: l.sistema, opcional: Boolean(l.opcional), lineas: [] };
       grupos.push(g);
     }
     g.lineas.push(l);
   }
   return grupos;
+}
+
+// Cuadro «Opciones» abajo del total: cada sistema opcional con su importe y
+// cómo quedaría el total si el cliente lo elige.
+export type OpcionCotizacion = { nombre: string; importe: number; totalConOpcion: number };
+
+export function opcionesDeCotizacion(
+  lineas: (ParaAgrupar & { cantidad: number; precio_unitario: number })[],
+  cot: { total: number; iva_pct: number; iva_incluido?: boolean },
+): OpcionCotizacion[] {
+  const opcionales = agruparPorSistema(lineas).filter((g) => g.opcional);
+  return opcionales.map((g) => {
+    const importe = redondear(g.lineas.reduce((acc, l) => acc + Number(l.cantidad) * Number(l.precio_unitario), 0));
+    // Con IVA incluido el precio ya lo trae; si no, se le suma el IVA.
+    const conIva = cot.iva_incluido ? importe : importe * (1 + Number(cot.iva_pct) / 100);
+    return {
+      nombre: tituloDeSistema(g.lineas) || g.sistema,
+      importe,
+      totalConOpcion: redondear(Number(cot.total) + conIva),
+    };
+  });
 }
 
 // Copia de una cotización para otro cliente: mismas partidas, precios y

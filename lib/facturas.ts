@@ -361,6 +361,8 @@ export async function lineasDeCotizacion(cotizacionId: string): Promise<Concepto
     .from('cotizacion_lineas')
     .select('descripcion, unidad, cantidad, precio_unitario')
     .eq('cotizacion_id', cotizacionId)
+    // Lo opcional no se vendió (si el cliente lo eligió, ya se desmarcó).
+    .eq('opcional', false)
     .order('orden');
   return (data || []).map((l: any) => {
     const u = unidadDesdeTexto(l.unidad);

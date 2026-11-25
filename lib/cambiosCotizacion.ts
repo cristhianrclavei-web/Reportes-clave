@@ -27,6 +27,7 @@ type Encabezado = {
 type Partida = {
   sistema: string;
   titulo_sistema?: string | null;
+  opcional?: boolean;
   descripcion: string;
   unidad: string;
   cantidad: number;
@@ -112,6 +113,7 @@ function describirPartidas(antes: Partida[], despues: Partida[]): string[] {
     if (Math.abs(Number(vieja.precio_unitario) - Number(nueva.precio_unitario)) >= 0.005) {
       detalles.push(`precio ${dinero(vieja.precio_unitario)} → ${dinero(nueva.precio_unitario)}`);
     }
+    if (Boolean(vieja.opcional) !== Boolean(nueva.opcional)) detalles.push(nueva.opcional ? 'ahora es opcional (no suma)' : 'ya no es opcional (suma al total)');
     if (detalles.length > 0) cambios.push(`Cambió ${nombrePartida(nueva)}: ${detalles.join(', ')}`);
   }
 

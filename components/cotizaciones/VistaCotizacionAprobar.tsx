@@ -1,3 +1,4 @@
+import OpcionesCotizacion from './OpcionesCotizacion';
 import { agruparPorSistema, modoIvaDe, tituloDeSistema, type Cotizacion, type LineaCotizacion } from '@/lib/cotizaciones';
 
 // Toda la cotización en la página del enlace de aprobación (/aprobar/<token>),
@@ -66,7 +67,10 @@ export default function VistaCotizacionAprobar({ cotizacion: c, lineas }: { coti
           return (
             <div key={grupo.clave} className="mb-4 last:mb-0">
               <div className="border-b border-line pb-1.5 mb-2">
-                <p className="font-semibold text-[14px]">{grupo.sistema}</p>
+                <p className="font-semibold text-[14px]">
+                  {grupo.sistema}
+                  {grupo.opcional && <span className="ml-2 text-[11.5px] font-medium text-amber">Opcional · no suma al total</span>}
+                </p>
                 {tituloDeSistema(grupo.lineas) && <p className="text-[13px] text-ink/80">{tituloDeSistema(grupo.lineas)}</p>}
               </div>
               <ol className="space-y-2.5">
@@ -86,9 +90,9 @@ export default function VistaCotizacionAprobar({ cotizacion: c, lineas }: { coti
               </ol>
               {esKit && <p className="text-[12px] text-muted mt-2">Se cotiza como kit: el cliente ve solo el total del sistema.</p>}
               {/* Con un solo sistema su suma es el subtotal de abajo: repetirla confunde. */}
-              {grupos.length > 1 && (
+              {(grupos.length > 1 || grupo.opcional) && (
                 <div className="flex justify-between gap-3 text-[13px] text-ink/80 mt-2 pt-1.5 border-t border-dashed border-line">
-                  <span>Suma del sistema{etiquetaIva}</span>
+                  <span>{grupo.opcional ? 'Importe opcional' : 'Suma del sistema'}{etiquetaIva}</span>
                   <span className="font-semibold tabular-nums">{dinero(totalGrupo, c.moneda)}</span>
                 </div>
               )}
@@ -106,6 +110,7 @@ export default function VistaCotizacionAprobar({ cotizacion: c, lineas }: { coti
           {c.moneda === 'USD' && Number(c.tipo_cambio) > 0 && (
             <p className="text-[12px] text-muted text-right">Tipo de cambio: ${Number(c.tipo_cambio).toFixed(2)} MXN por dólar</p>
           )}
+          <OpcionesCotizacion cotizacion={c} lineas={lineas} />
         </div>
       </section>
 

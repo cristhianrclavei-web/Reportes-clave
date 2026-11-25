@@ -718,6 +718,8 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
     costo: z.number().min(0).describe('Costo unitario para la empresa, sin IVA, en la moneda de la cotización'),
     margen_pct: z.number().min(0).max(300).describe('Margen de ganancia sobre el costo'),
     enlace: texto(300).optional().describe('Dirección https de donde salió el precio, si la hay'),
+    titulo_sistema: texto(150).optional().describe('Nombre del proyecto de ese sistema, si lo tiene; al modificar, consérvalo tal como lo leíste'),
+    opcional: z.boolean().optional().describe('true si el sistema es opcional (se muestra pero no suma al total); al modificar, consérvalo tal como lo leíste'),
   })).min(1).max(60);
 
   const crearBorrador = betaZodTool({
@@ -749,6 +751,8 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
         cantidad: l.cantidad, costo: l.costo, margen_pct: l.margen_pct,
         precio_unitario: precioUnitarioDesdeCosto(l.costo, l.margen_pct),
         enlace: l.enlace && /^https:\/\//i.test(l.enlace) ? l.enlace : null,
+        titulo_sistema: l.titulo_sistema?.trim() || null,
+        opcional: Boolean(l.opcional),
       }));
       const ivaPct = 16;
       const { subtotal, iva, total } = calcularTotales(lineas, ivaPct);
@@ -810,7 +814,7 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
       const { data: c, error } = await cotizacionPorFolio(i.folio, 'id, folio, estado, fecha, empresa, atencion, telefono, correo, direccion, forma_pago, tiempo_entrega, garantia, vigencia_dias, notas, moneda, tipo_cambio, iva_pct, subtotal, iva, total, notas_ia');
       if (error) return falla(error);
       if (!c) return JSON.stringify({ error: `No existe la cotización ${i.folio}` });
-      const { data: lineas } = await supabase.from('cotizacion_lineas').select('sistema, descripcion, unidad, cantidad, costo, margen_pct, precio_unitario, importe, enlace').eq('cotizacion_id', c.id).order('orden');
+      const { data: lineas } = await supabase.from('cotizacion_lineas').select('sistema, titulo_sistema, opcional, descripcion, unidad, cantidad, costo, margen_pct, precio_unitario, importe, enlace').eq('cotizacion_id', c.id).order('orden');
       const { id, ...resto } = c as any;
       return JSON.stringify({ ...resto, se_puede_modificar: c.estado === 'borrador', enlace: `/dashboard/cotizaciones/${id}`, partidas: lineas || [] });
     },
@@ -840,6 +844,8 @@ export function crearHerramientas(supabase: SupabaseClient, yo: QuienPregunta, a
         cantidad: l.cantidad, costo: l.costo, margen_pct: l.margen_pct,
         precio_unitario: precioUnitarioDesdeCosto(l.costo, l.margen_pct),
         enlace: l.enlace && /^https:\/\//i.test(l.enlace) ? l.enlace : null,
+        titulo_sistema: l.titulo_sistema?.trim() || null,
+        opcional: Boolean(l.opcional),
       }));
       const { subtotal, iva, total } = calcularTotales(lineas, Number(c.iva_pct) || 0, Boolean(c.iva_incluido));
       const opcional = Object.fromEntries(

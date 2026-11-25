@@ -49,7 +49,8 @@ const cardTitleCls = 'font-display font-semibold text-[13px] uppercase tracking-
 
 // modelo y marca vienen del producto de SYSCOM ligado (no se capturan a mano).
 type ItemForm = { id: string; descripcion: string; unidad: string; cantidad: string; costo: string; margenPct: string; enlace?: string; foto?: string; modelo?: string; marca?: string };
-type GrupoForm = { id: string; sistema: string; titulo: string; items: ItemForm[] };
+// opcional: se muestra pero no suma al total (cuadro «Opciones» del PDF).
+type GrupoForm = { id: string; sistema: string; titulo: string; opcional?: boolean; items: ItemForm[] };
 
 function nuevoItem(): ItemForm {
   return { id: generarUUID(), descripcion: '', unidad: 'Pza', cantidad: '1', costo: '', margenPct: '0' };
@@ -166,7 +167,7 @@ export default function CotizacionForm({
       // Misma regla que el PDF: mismo sistema con otro título es otro grupo.
       const clave = claveDeGrupo(l);
       if (!porSistema.has(clave)) {
-        porSistema.set(clave, { id: generarUUID(), sistema: l.sistema, titulo: l.titulo_sistema || '', items: [] });
+        porSistema.set(clave, { id: generarUUID(), sistema: l.sistema, titulo: l.titulo_sistema || '', opcional: Boolean(l.opcional), items: [] });
         orden.push(clave);
       }
       // Líneas ya guardadas antes de que existiera costo/margen tienen ambos
@@ -418,6 +419,7 @@ export default function CotizacionForm({
             return {
               sistema: g.sistema.trim() || 'General',
               titulo_sistema: (g.titulo || '').trim() || null,
+              opcional: Boolean(g.opcional),
               descripcion: it.descripcion.trim(),
               unidad: it.unidad.trim() || 'Pza',
               cantidad: parseFloat(it.cantidad) || 0,
@@ -739,7 +741,20 @@ export default function CotizacionForm({
               maxLength={150}
               placeholder="Ej. Detección de humo — Almacén de materia prima"
             />
-            <p className="text-[12px] text-faint mt-1.5 mb-4">Opcional. Sale como título arriba de la tabla de este sistema en el PDF.</p>
+            <p className="text-[12px] text-faint mt-1.5 mb-3">Opcional. Sale como título arriba de la tabla de este sistema en el PDF.</p>
+
+            <label className="flex items-start gap-2.5 mb-4 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={Boolean(g.opcional)}
+                onChange={(e) => actualizarGrupo(g.id, { opcional: e.target.checked })}
+                className="mt-0.5 w-5 h-5 accent-teal shrink-0"
+              />
+              <span className="text-[13.5px]">
+                <b>Opcional: no sumar al total</b>
+                <span className="block text-[12px] text-faint mt-0.5">Para alternativas o extras. Sale en el PDF con su importe y, abajo del total, cuánto quedaría si el cliente la elige.</span>
+              </span>
+            </label>
 
             {g.items.length > 1 && (
               <p className="text-[12.5px] text-muted mb-2 flex items-center gap-1">
@@ -941,7 +956,7 @@ export default function CotizacionForm({
             </button>
 
             <p className="text-right text-[13.5px] mt-3 pt-3 border-t border-dashed border-line-strong">
-              Importe {gi + 1}: <span className="font-display font-bold text-teal">{money(subtotalGrupo)}</span>
+              {g.opcional ? `Importe opcional ${gi + 1} (no suma al total)` : `Importe ${gi + 1}`}: <span className="font-display font-bold text-teal">{money(subtotalGrupo)}</span>
             </p>
           </motion.div>
         );

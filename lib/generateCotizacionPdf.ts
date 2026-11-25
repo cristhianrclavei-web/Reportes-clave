@@ -5,7 +5,7 @@ import {
   MARGIN, PAGE_W, PAGE_H,
   embedBrandFonts, drawBadge, drawWordmark, drawIconStrip, drawWatermark,
 } from './pdfBranding';
-import { Cotizacion, LineaCotizacion, agruparPorSistema, tituloDeSistema, leyendaIva, modoIvaDe, urlFotoConcepto } from './cotizaciones';
+import { Cotizacion, LineaCotizacion, agruparPorSistema, opcionesDeCotizacion, tituloDeSistema, leyendaIva, modoIvaDe, urlFotoConcepto } from './cotizaciones';
 import { MARCA, MARCA_MAYUS } from './marca';
 
 // Mismo formato que las cotizaciones que ya se le mandan a los clientes
@@ -235,8 +235,9 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
   const grupos = agruparPorSistema(lineas);
   const modoIva = modoIvaDe(cot);
   const totalNeto = modoIva === 'incluido' && Boolean(cot.total_neto);
-  // Con un solo grupo, su «Importe» repite el total: en total neto se omite.
-  const omitirImporteGrupo = totalNeto && grupos.length === 1;
+  // Con un solo grupo que suma, su «Importe» repite el total: en total neto
+  // se omite. Los opcionales siempre llevan su importe (no está en el total).
+  const gruposQueSuman = grupos.filter((g) => !g.opcional).length;
 
   for (const grupo of grupos) {
     // Nombre del proyecto de este sistema (opcional), centrado arriba de su
@@ -254,7 +255,7 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
       }
       y -= 8;
     }
-    const tituloTxt = `COTIZACIÓN: ${grupo.sistema.toUpperCase()}`;
+    const tituloTxt = `${grupo.opcional ? 'COTIZACIÓN OPCIONAL' : 'COTIZACIÓN'}: ${grupo.sistema.toUpperCase()}`;
     page.drawRectangle({ x: MARGIN, y: y - 18, width: contentW, height: 18, borderColor: GRAY_LINE, borderWidth: 0.75 });
     centrado(page, tituloTxt, MARGIN, contentW, y - 13, 9.5, bold);
     y -= 18;
@@ -353,16 +354,51 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
       }
     }
 
-    if (omitirImporteGrupo) {
+    if (!grupo.opcional && totalNeto && gruposQueSuman === 1) {
       y -= 14;
       continue;
     }
     ensureSpace(16);
-    page.drawRectangle({ x: xPUnit, y: y - 16, width: colPUnitW, height: 16, borderColor: GRAY_LINE, borderWidth: 0.75 });
+    // El letrero del opcional es largo: su celda crece hacia la izquierda.
+    const etiquetaImporte = grupo.opcional ? 'Importe opcional (no incluido en el total)' : 'Importe';
+    const anchoEtiqueta = Math.max(colPUnitW, bold.widthOfTextAtSize(etiquetaImporte, 8) + 12);
+    const xEtiquetaImporte = xImporte - anchoEtiqueta;
+    page.drawRectangle({ x: xEtiquetaImporte, y: y - 16, width: anchoEtiqueta, height: 16, borderColor: GRAY_LINE, borderWidth: 0.75 });
     page.drawRectangle({ x: xImporte, y: y - 16, width: colImporteW, height: 16, borderColor: GRAY_LINE, borderWidth: 0.75 });
-    page.drawText('Importe', { x: xPUnit + 6, y: y - 11, size: 8, font: bold, color: NAVY });
+    page.drawText(etiquetaImporte, { x: xEtiquetaImporte + 6, y: y - 11, size: 8, font: bold, color: NAVY });
     centrado(page, moneySinDivisa(importeGrupo), xImporte, colImporteW, y - 11, 8, bold);
     y -= 16 + 14;
+  }
+
+  // ================= Opciones (no suman al total) =================
+  // Cada sistema opcional en un renglón: su importe y cómo quedaría el total
+  // si el cliente lo elige.
+  function drawOpciones() {
+    const opciones = opcionesDeCotizacion(lineas, cot);
+    if (opciones.length === 0) return;
+    let sufijoIva = '';
+    if (modoIva === 'sumar') sufijoIva = ' + IVA';
+    if (modoIva === 'incluido') sufijoIva = ' (IVA incluido)';
+    const tamano = 8.5;
+    ensureSpace(34 + opciones.length * 14);
+    y -= 10;
+    page.drawText('OPCIONES (no incluidas en el total)', { x: MARGIN, y, size: 9.5, font: bold, color: NAVY });
+    y -= 6;
+    for (const op of opciones) {
+      const derecha = `+ ${money(op.importe, cot.moneda)}${sufijoIva}   ·   Total con esta opción: ${money(op.totalConOpcion, cot.moneda)}`;
+      const anchoDerecha = font.widthOfTextAtSize(derecha, tamano);
+      const renglonesNombre = wrapText(op.nombre, bold, tamano, contentW - anchoDerecha - 16);
+      const alto = renglonesNombre.length * 11 + 6;
+      ensureSpace(alto);
+      page.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + contentW, y }, thickness: 0.5, color: GRAY_LINE });
+      renglonesNombre.forEach((r, i) => {
+        page.drawText(r, { x: MARGIN, y: y - 11 - i * 11, size: tamano, font: bold, color: NAVY });
+      });
+      page.drawText(derecha, { x: MARGIN + contentW - anchoDerecha, y: y - 11, size: tamano, font, color: NAVY });
+      y -= alto;
+    }
+    page.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + contentW, y }, thickness: 0.5, color: GRAY_LINE });
+    y -= 4;
   }
 
   // ================= Totales =================
@@ -401,6 +437,8 @@ export async function generateCotizacionPdf(cot: Cotizacion, lineas: LineaCotiza
     page.drawText(vt, { x: xValor, y, size: 9.5, font: bold, color: NAVY });
     y -= 16;
   });
+
+  drawOpciones();
 
   const condiciones = [
     leyendaIva(cot.moneda, modoIva, totalNeto),
