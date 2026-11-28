@@ -39,6 +39,10 @@ const cardCls = 'glass rounded-2xl p-4';
 // cortos, el importe quedaba lejísimos de su descripción. En celular no cambia.
 const anchoCotizacion = 'max-w-2xl lg:max-w-3xl mx-auto pb-10 lg:px-8';
 
+// El detalle en computadora: en pantalla mediana las partidas pasan a tabla;
+// desde 1400 px de ancho se agrega a la derecha un panel fijo con acciones y totales.
+const anchoDetalle = 'max-w-2xl lg:max-w-4xl min-[1400px]:max-w-7xl mx-auto pb-10 lg:px-8';
+
 // Primera fila (PDF, Excel, WhatsApp): botones grandes, los de diario.
 const botonArchivoCls = 'flex-1 min-w-0 min-h-[50px] rounded-xl font-display font-semibold text-[14px] flex items-center justify-center gap-1.5 active:scale-95 transition-transform';
 
@@ -64,6 +68,21 @@ function nombreCreador(profiles: Cotizacion['profiles']): string {
   return Array.isArray(profiles) ? profiles[0]?.full_name || '—' : profiles.full_name || '—';
 }
 
+function EnlaceEquipo({ enlace }: { enlace: string }) {
+  let sitio = '';
+  try {
+    sitio = ` · ${new URL(enlace).hostname.replace(/^www\./, '')}`;
+  } catch {
+    // Enlace mal escrito: se muestra sin el nombre del sitio.
+  }
+  return (
+    <a href={arreglarEnlaceSyscom(enlace)} target="_blank" rel="noopener noreferrer"
+      className="inline-flex items-center gap-1 mt-1.5 text-[12px] font-semibold text-teal hover:underline break-all">
+      <ExternalLink size={12} /> Ver equipo{sitio}
+    </a>
+  );
+}
+
 const ESTADO_LABEL: Record<EstadoCotizacion, string> = {
   borrador: 'Borrador', aprobada: 'Aprobada', enviada: 'Enviada', rechazada: 'Rechazada',
 };
@@ -73,6 +92,46 @@ const ESTADO_CLS: Record<EstadoCotizacion, string> = {
   enviada: 'bg-amber/15 text-amber border-amber/30',
   rechazada: 'bg-red/15 text-red border-red/30',
 };
+
+// En computadora las partidas se leen como en el PDF: una tabla con columnas
+// alineadas, numeradas desde 01 en cada sistema. El costo y la ganancia
+// (internos) van debajo de la descripción, en color ámbar.
+function TablaPartidas({ lineas }: { lineas: LineaCotizacion[] }) {
+  return (
+    <div className="hidden lg:block -mx-4">
+      <table className="w-full text-[13px] border-collapse">
+        <thead>
+          <tr className="text-[10.5px] uppercase tracking-wider text-muted border-y border-line-strong bg-surface-2/60">
+            <th className="text-left font-semibold py-2 pl-4 pr-2 w-12">#</th>
+            <th className="text-left font-semibold py-2 pr-3">Descripción</th>
+            <th className="text-center font-semibold py-2 px-2 w-24">Unidad</th>
+            <th className="text-right font-semibold py-2 px-2 w-16">Cant.</th>
+            <th className="text-right font-semibold py-2 px-2 w-32">P. unitario</th>
+            <th className="text-right font-semibold py-2 pl-2 pr-4 w-32">Importe</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lineas.map((l, i) => (
+            <tr key={l.id} className="border-b border-line align-top hover:bg-surface-2/50">
+              <td className="py-2.5 pl-4 pr-2 font-mono text-muted tabular-nums">{String(i + 1).padStart(2, '0')}</td>
+              <td className="py-2.5 pr-3">
+                <p className="leading-relaxed whitespace-pre-wrap">{l.descripcion}</p>
+                {l.costo > 0 && (
+                  <p className="text-amber/80 text-[11.5px] mt-0.5">Costo {money(l.costo)} · {l.margen_pct}% ganancia</p>
+                )}
+                {l.enlace && <EnlaceEquipo enlace={l.enlace} />}
+              </td>
+              <td className="py-2.5 px-2 text-center text-muted">{l.unidad}</td>
+              <td className="py-2.5 px-2 text-right tabular-nums">{l.cantidad}</td>
+              <td className="py-2.5 px-2 text-right tabular-nums">{money(l.precio_unitario)}</td>
+              <td className="py-2.5 pl-2 pr-4 text-right font-semibold tabular-nums">{money(l.importe)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 export default function CotizacionDetalle({
   cotizacionInicial,
@@ -317,12 +376,167 @@ export default function CotizacionDetalle({
   const costoTotal = lineas.filter((l) => !l.opcional).reduce((acc, l) => acc + l.costo * l.cantidad, 0);
   const gananciaTotal = cotizacion.subtotal - costoTotal;
 
+  // Las tres filas de botones. Se pintan dos veces (arriba en celular, en el
+  // panel de la derecha en computadora) y CSS esconde la que no toca.
+  function botonesDeAcciones(enPanel: boolean) {
+    return (
+      <>
+          {/* Acciones arriba para no bajar hasta el final de una cotización
+              larga. Primera fila, los archivos para el cliente: PDF, Excel y
+              WhatsApp (quien aprueba, o cualquiera ya aprobada; la deja como
+              «enviada»). Segunda fila, lo demás: editar (cerrado una vez
+              firmada), copiar para otro cliente y eliminar. */}
+          <div className="flex gap-2 mb-2">
+            <a
+              // La versión sale de updated_at y no de Date.now(): el reloj en el
+              // render da un href distinto en servidor y navegador (hidratación).
+              // El PDF ya se sirve con no-store; esto solo evita reusar la
+              // pestaña vieja después de editar.
+              href={`/api/cotizaciones/${cotizacion.id}/pdf?v=${encodeURIComponent(cotizacion.updated_at || '')}`}
+              onClick={alTocarEnlace}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${botonArchivoCls} bg-teal text-inkOnAccent shadow-glow-teal`}
+            >
+              <FileText size={17} strokeWidth={2.4} />
+              PDF
+            </a>
+            <a
+              href={`/api/cotizaciones/${cotizacion.id}/xlsx?v=${encodeURIComponent(cotizacion.updated_at || '')}`}
+              onClick={alTocarEnlace}
+              download
+              className={`${botonArchivoCls} bg-[#1D6F42] text-white`}
+            >
+              <FileSpreadsheet size={17} strokeWidth={2.4} />
+              Excel
+            </a>
+            {(puedeAprobar || !!cotizacion.aprobada_firma) && (
+              <button onClick={handleEnviarWhatsapp} className={`${botonArchivoCls} bg-[#25D366] text-white`}>
+                <MessageCircle size={17} strokeWidth={2.4} />
+                WhatsApp
+              </button>
+            )}
+          </div>
+          <div className="flex gap-2 mb-4">
+            {!cotizacion.aprobada_firma && (
+              <button onClick={() => setEditando(true)} className={`${botonAccionCls} border border-teal/60 text-teal`}>
+                <Pencil size={16} strokeWidth={2.4} />
+                Editar
+              </button>
+            )}
+            {/* Copiar: la misma cotización como base para otro cliente. */}
+            <Link href={`/dashboard/cotizaciones?copiar=${cotizacion.id}`} className={`${botonAccionCls} border border-line-strong text-ink/80 hover:bg-surface-2`}>
+              <Copy size={16} strokeWidth={2.3} />
+              Copiar
+            </Link>
+            {/* Eliminar: libre mientras sigue en borrador; una vez firmada, solo
+                quien puede aprobar cotizaciones puede seguir cancelándola. */}
+            {(!cotizacion.aprobada_firma || puedeAprobar) && (
+              <button
+                onClick={handleEliminar}
+                disabled={eliminando}
+                className={`${botonAccionCls} border border-red/40 text-red disabled:opacity-60`}
+              >
+                <Trash2 size={16} strokeWidth={2.4} />
+                {eliminando ? 'Eliminando…' : 'Eliminar'}
+              </button>
+            )}
+          </div>
+
+          {/* Tercera fila, también arriba: el estado de la cotización. Marcar
+              como enviada, rechazar y quitar la aprobación son de quien firma o
+              aprueba cotizaciones, no de cualquiera con acceso de supervisor. */}
+          {puedeAprobar && (
+            <div className={enPanel ? 'flex flex-col gap-2' : 'flex gap-2 -mt-2 mb-4'}>
+              {cotizacion.estado === 'enviada' ? (
+                <button disabled className={`${botonEstadoCls} bg-surface-2 border border-line text-muted cursor-not-allowed`}>
+                  <Check size={16} strokeWidth={2.6} />
+                  Enviada
+                </button>
+              ) : (
+                <button
+                  onClick={handleMarcarEnviada}
+                  disabled={!habilitaEnviar || procesandoAccion}
+                  title={!habilitaEnviar ? 'Primero hay que aprobarla y firmarla' : undefined}
+                  className={`${botonEstadoCls} bg-amber text-inkOnAccent`}
+                >
+                  <Send size={16} strokeWidth={2.4} />
+                  Marcar como enviada
+                </button>
+              )}
+              {/* Si se aprobó con errores, se regresa a borrador para corregirla;
+                  la firma se borra y hay que volver a revisarla. */}
+              {cotizacion.aprobada_firma && (
+                <button onClick={handleQuitarAprobacion} disabled={procesandoAccion} className={`${botonEstadoCls} border border-line-strong text-ink/80`}>
+                  <Undo2 size={16} strokeWidth={2.3} />
+                  Quitar aprobación
+                </button>
+              )}
+              {cotizacion.estado !== 'rechazada' && (
+                <button onClick={handleRechazar} disabled={procesandoAccion} className={`${botonEstadoCls} ${enPanel ? '' : 'flex-none px-4'} border border-red/40 text-red`}>
+                  <Ban size={16} strokeWidth={2.4} />
+                  Rechazar
+                </button>
+              )}
+            </div>
+          )}
+      </>
+    );
+  }
+
+  // Subtotal, IVA, total, opciones y ganancia interna; también va en los dos lugares.
+  const tarjetaDeTotales = (
+      <div className={`${cardCls} mb-4`}>
+          {modoIva === 'sumar' && (
+            <div className="flex justify-between text-[14px] mb-1">
+              <span className="text-muted">Subtotal</span>
+              <span className="font-medium">{cotizacion.moneda === 'USD' ? 'USD ' : ''}{money(cotizacion.subtotal)}</span>
+            </div>
+          )}
+          {modoIva === 'sin' && (
+            <div className="flex justify-between text-[14px] mb-1">
+              <span className="text-muted">IVA</span>
+              <span className="font-medium">No lleva</span>
+            </div>
+          )}
+          {modoIva !== 'sin' && !totalNeto && (
+            <div className="flex justify-between text-[14px] mb-1">
+              <span className="text-muted">{modoIva === 'incluido' ? 'IVA incluido' : 'IVA'} ({cotizacion.iva_pct}%)</span>
+              <span className="font-medium">{cotizacion.moneda === 'USD' ? 'USD ' : ''}{money(cotizacion.iva)}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-[19px] pt-2 border-t border-line-strong">
+            <span className="font-display font-bold">{totalNeto ? 'Importe total neto' : 'Total'}</span>
+            <span className="font-display font-bold text-teal">{cotizacion.moneda === 'USD' ? 'USD ' : ''}{money(cotizacion.total)}</span>
+          </div>
+          {cotizacion.moneda === 'USD' && cotizacion.tipo_cambio > 0 && (
+            <p className="text-right text-[12.5px] text-muted mt-1">
+              ≈ {money(cotizacion.total * cotizacion.tipo_cambio)} MXN <span className="text-faint">(TC {cotizacion.tipo_cambio.toFixed(2)})</span>
+            </p>
+          )}
+
+          <OpcionesCotizacion cotizacion={cotizacion} lineas={lineas} />
+
+          {costoTotal > 0 && (
+            <div className="flex justify-between text-[13px] mt-3 pt-3 border-t border-dashed border-line-strong">
+              <span className="text-amber">Ganancia estimada (interno, no sale en el PDF)</span>
+              <span className="font-semibold text-amber">{money(gananciaTotal)}</span>
+            </div>
+          )}
+        </div>
+  );
+
   return (
-    <SupervisorShell active="cotizaciones" title={cotizacion.empresa} userName={userName} wrapperClassName={anchoCotizacion}>
+    <SupervisorShell active="cotizaciones" title={cotizacion.empresa} userName={userName} wrapperClassName={anchoDetalle}>
       <Link href="/dashboard/cotizaciones" className="inline-flex items-center gap-1.5 text-[13.5px] text-teal font-medium mb-4 min-h-[40px]">
         <ChevronLeft size={16} strokeWidth={2.4} />
         Todas las cotizaciones
       </Link>
+
+      {/* Pantalla de 1400 px o más: dos columnas (en una laptop de 1280 la tabla quedaba muy angosta). Izquierda el documento; derecha el
+          panel con acciones y totales, que se queda a la vista al bajar. */}
+      <div className="min-[1400px]:grid min-[1400px]:grid-cols-[minmax(0,1fr)_340px] min-[1400px]:gap-6 min-[1400px]:items-start">
+      <div className="min-w-0">
 
       {cotizacion.levantamiento_id && <OrigenLevantamiento levantamientoId={cotizacion.levantamiento_id} />}
 
@@ -403,105 +617,8 @@ export default function CotizacionDetalle({
         </div>
       </div>
 
-      {/* Acciones arriba para no bajar hasta el final de una cotización
-          larga. Primera fila, los archivos para el cliente: PDF, Excel y
-          WhatsApp (quien aprueba, o cualquiera ya aprobada; la deja como
-          «enviada»). Segunda fila, lo demás: editar (cerrado una vez
-          firmada), copiar para otro cliente y eliminar. */}
-      <div className="flex gap-2 mb-2">
-        <a
-          // La versión sale de updated_at y no de Date.now(): el reloj en el
-          // render da un href distinto en servidor y navegador (hidratación).
-          // El PDF ya se sirve con no-store; esto solo evita reusar la
-          // pestaña vieja después de editar.
-          href={`/api/cotizaciones/${cotizacion.id}/pdf?v=${encodeURIComponent(cotizacion.updated_at || '')}`}
-          onClick={alTocarEnlace}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`${botonArchivoCls} bg-teal text-inkOnAccent shadow-glow-teal`}
-        >
-          <FileText size={17} strokeWidth={2.4} />
-          PDF
-        </a>
-        <a
-          href={`/api/cotizaciones/${cotizacion.id}/xlsx?v=${encodeURIComponent(cotizacion.updated_at || '')}`}
-          onClick={alTocarEnlace}
-          download
-          className={`${botonArchivoCls} bg-[#1D6F42] text-white`}
-        >
-          <FileSpreadsheet size={17} strokeWidth={2.4} />
-          Excel
-        </a>
-        {(puedeAprobar || !!cotizacion.aprobada_firma) && (
-          <button onClick={handleEnviarWhatsapp} className={`${botonArchivoCls} bg-[#25D366] text-white`}>
-            <MessageCircle size={17} strokeWidth={2.4} />
-            WhatsApp
-          </button>
-        )}
-      </div>
-      <div className="flex gap-2 mb-4">
-        {!cotizacion.aprobada_firma && (
-          <button onClick={() => setEditando(true)} className={`${botonAccionCls} border border-teal/60 text-teal`}>
-            <Pencil size={16} strokeWidth={2.4} />
-            Editar
-          </button>
-        )}
-        {/* Copiar: la misma cotización como base para otro cliente. */}
-        <Link href={`/dashboard/cotizaciones?copiar=${cotizacion.id}`} className={`${botonAccionCls} border border-line-strong text-ink/80 hover:bg-surface-2`}>
-          <Copy size={16} strokeWidth={2.3} />
-          Copiar
-        </Link>
-        {/* Eliminar: libre mientras sigue en borrador; una vez firmada, solo
-            quien puede aprobar cotizaciones puede seguir cancelándola. */}
-        {(!cotizacion.aprobada_firma || puedeAprobar) && (
-          <button
-            onClick={handleEliminar}
-            disabled={eliminando}
-            className={`${botonAccionCls} border border-red/40 text-red disabled:opacity-60`}
-          >
-            <Trash2 size={16} strokeWidth={2.4} />
-            {eliminando ? 'Eliminando…' : 'Eliminar'}
-          </button>
-        )}
-      </div>
-
-      {/* Tercera fila, también arriba: el estado de la cotización. Marcar
-          como enviada, rechazar y quitar la aprobación son de quien firma o
-          aprueba cotizaciones, no de cualquiera con acceso de supervisor. */}
-      {puedeAprobar && (
-        <div className="flex gap-2 -mt-2 mb-4">
-          {cotizacion.estado === 'enviada' ? (
-            <button disabled className={`${botonEstadoCls} bg-surface-2 border border-line text-muted cursor-not-allowed`}>
-              <Check size={16} strokeWidth={2.6} />
-              Enviada
-            </button>
-          ) : (
-            <button
-              onClick={handleMarcarEnviada}
-              disabled={!habilitaEnviar || procesandoAccion}
-              title={!habilitaEnviar ? 'Primero hay que aprobarla y firmarla' : undefined}
-              className={`${botonEstadoCls} bg-amber text-inkOnAccent`}
-            >
-              <Send size={16} strokeWidth={2.4} />
-              Marcar como enviada
-            </button>
-          )}
-          {/* Si se aprobó con errores, se regresa a borrador para corregirla;
-              la firma se borra y hay que volver a revisarla. */}
-          {cotizacion.aprobada_firma && (
-            <button onClick={handleQuitarAprobacion} disabled={procesandoAccion} className={`${botonEstadoCls} border border-line-strong text-ink/80`}>
-              <Undo2 size={16} strokeWidth={2.3} />
-              Quitar aprobación
-            </button>
-          )}
-          {cotizacion.estado !== 'rechazada' && (
-            <button onClick={handleRechazar} disabled={procesandoAccion} className={`${botonEstadoCls} flex-none px-4 border border-red/40 text-red`}>
-              <Ban size={16} strokeWidth={2.4} />
-              Rechazar
-            </button>
-          )}
-        </div>
-      )}
+      {/* En celular las acciones van aquí arriba; en computadora, en el panel de la derecha. */}
+      <div className="min-[1400px]:hidden">{botonesDeAcciones(false)}</div>
 
       {grupos.map((g) => {
         const importeGrupo = g.lineas.reduce((acc, l) => acc + l.importe, 0);
@@ -513,7 +630,7 @@ export default function CotizacionDetalle({
             </p>
             {tituloDeSistema(g.lineas) && <p className="text-[14px] font-semibold mt-0.5">{tituloDeSistema(g.lineas)}</p>}
             <div className="mb-3" />
-            <div className="flex flex-col gap-2.5">
+            <div className="flex flex-col gap-2.5 lg:hidden">
               {g.lineas.map((l) => (
                 <div key={l.id} className="flex justify-between gap-3 p-3 rounded-xl bg-surface-2 border border-line text-[13px]">
                   <div className="min-w-0">
@@ -522,17 +639,13 @@ export default function CotizacionDetalle({
                     {l.costo > 0 && (
                       <p className="text-amber/80 text-[11.5px] mt-0.5">Costo {money(l.costo)} · {l.margen_pct}% ganancia</p>
                     )}
-                    {l.enlace && (
-                      <a href={arreglarEnlaceSyscom(l.enlace)} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 mt-1.5 text-[12px] font-semibold text-teal hover:underline break-all">
-                        <ExternalLink size={12} /> Ver equipo{(() => { try { return ` · ${new URL(l.enlace).hostname.replace(/^www\./, '')}`; } catch { return ''; } })()}
-                      </a>
-                    )}
+                    {l.enlace && <EnlaceEquipo enlace={l.enlace} />}
                   </div>
                   <span className="shrink-0 font-semibold">{money(l.importe)}</span>
                 </div>
               ))}
             </div>
+            <TablaPartidas lineas={g.lineas} />
             <p className="text-right text-[13.5px] mt-3 pt-3 border-t border-dashed border-line-strong">
               {g.opcional ? 'Importe opcional' : 'Importe'}: <span className="font-display font-bold text-teal">{money(importeGrupo)}</span>
             </p>
@@ -540,44 +653,7 @@ export default function CotizacionDetalle({
         );
       })}
 
-      <div className={`${cardCls} mb-4`}>
-        {modoIva === 'sumar' && (
-          <div className="flex justify-between text-[14px] mb-1">
-            <span className="text-muted">Subtotal</span>
-            <span className="font-medium">{cotizacion.moneda === 'USD' ? 'USD ' : ''}{money(cotizacion.subtotal)}</span>
-          </div>
-        )}
-        {modoIva === 'sin' && (
-          <div className="flex justify-between text-[14px] mb-1">
-            <span className="text-muted">IVA</span>
-            <span className="font-medium">No lleva</span>
-          </div>
-        )}
-        {modoIva !== 'sin' && !totalNeto && (
-          <div className="flex justify-between text-[14px] mb-1">
-            <span className="text-muted">{modoIva === 'incluido' ? 'IVA incluido' : 'IVA'} ({cotizacion.iva_pct}%)</span>
-            <span className="font-medium">{cotizacion.moneda === 'USD' ? 'USD ' : ''}{money(cotizacion.iva)}</span>
-          </div>
-        )}
-        <div className="flex justify-between text-[19px] pt-2 border-t border-line-strong">
-          <span className="font-display font-bold">{totalNeto ? 'Importe total neto' : 'Total'}</span>
-          <span className="font-display font-bold text-teal">{cotizacion.moneda === 'USD' ? 'USD ' : ''}{money(cotizacion.total)}</span>
-        </div>
-        {cotizacion.moneda === 'USD' && cotizacion.tipo_cambio > 0 && (
-          <p className="text-right text-[12.5px] text-muted mt-1">
-            ≈ {money(cotizacion.total * cotizacion.tipo_cambio)} MXN <span className="text-faint">(TC {cotizacion.tipo_cambio.toFixed(2)})</span>
-          </p>
-        )}
-
-        <OpcionesCotizacion cotizacion={cotizacion} lineas={lineas} />
-
-        {costoTotal > 0 && (
-          <div className="flex justify-between text-[13px] mt-3 pt-3 border-t border-dashed border-line-strong">
-            <span className="text-amber">Ganancia estimada (interno, no sale en el PDF)</span>
-            <span className="font-semibold text-amber">{money(gananciaTotal)}</span>
-          </div>
-        )}
-      </div>
+      <div className="min-[1400px]:hidden">{tarjetaDeTotales}</div>
 
       {/* Aprobación interna: firma de quien revisa antes de que salga al
           cliente. Solo hasta que quede firmada se habilita "Marcar como
@@ -655,6 +731,16 @@ export default function CotizacionDetalle({
       </div>
 
       <HistorialCambios cotizacionId={cotizacion.id} recarga={recargaHistorial} />
+      </div>
+
+      <aside className="hidden min-[1400px]:block min-[1400px]:sticky min-[1400px]:top-6">
+        <div className={`${cardCls} mb-4`}>
+          <p className="font-display font-semibold text-[13px] uppercase tracking-wider text-teal mb-3">Acciones</p>
+          {botonesDeAcciones(true)}
+        </div>
+        {tarjetaDeTotales}
+      </aside>
+      </div>
 
     </SupervisorShell>
   );
