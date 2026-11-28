@@ -19,8 +19,9 @@ import { hoyLocal } from '@/lib/fechaHoy';
 import { showToast } from '@/components/Toast';
 import { useAvanceGuardado, pausaFinal } from '@/lib/useAvanceGuardado';
 import SavingOverlay from '@/components/SavingOverlay';
-import { Plus, Trash2, Link2, FileText, ImagePlus, X, GripVertical, ArrowUp, ArrowDown, BadgeDollarSign, Check, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, Link2, FileText, ImagePlus, X, GripVertical, ArrowUp, ArrowDown, BadgeDollarSign, Check, ChevronDown, Eye } from 'lucide-react';
 import ResumenPartida from '@/components/cotizaciones/ResumenPartida';
+import VistaPreviaCotizacion from '@/components/cotizaciones/VistaPreviaCotizacion';
 import { moverElemento } from '@/lib/moverElemento';
 import { motion } from 'motion/react';
 import { useArrastreLista } from '@/lib/useArrastreLista';
@@ -512,21 +513,11 @@ export default function CotizacionForm({
     aplicar: aplicarDatos,
   });
 
-  async function handleGuardar() {
-    if (faltantes.length > 0) {
-      setMsg('Falta por llenar: ' + faltantes.map((f) => f.texto).join(', '));
-      const destino = document.querySelector<HTMLElement>(`[data-campo="${faltantes[0].campo}"]`);
-      if (destino) {
-        destino.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        const input = destino.matches('input, textarea') ? destino : destino.querySelector<HTMLElement>('input:not([disabled]), textarea');
-        if (input && !(input as HTMLInputElement).value) input.focus({ preventScroll: true });
-      }
-      return;
-    }
-    avance(4, 'Preparando la cotización');
-    setGuardando(true);
-    setMsg(null);
-    const input: CotizacionInput = {
+  const [vistaPrevia, setVistaPrevia] = useState<{ input: CotizacionInput; folio: string } | null>(null);
+
+  // Los datos tal como se guardan; también los usa la vista previa.
+  function armarInput(): CotizacionInput {
+    return {
       fecha,
       titulo_proyecto: tituloProyecto,
       atencion,
@@ -552,6 +543,30 @@ export default function CotizacionForm({
       levantamiento_id: levantamientoId,
       proyecto_id: proyectoId,
     };
+  }
+
+  // Vista previa del PDF con lo capturado, sin guardar. Al editar sale con su
+  // folio; una nueva todavía no tiene folio (se asigna al guardar).
+  function abrirVistaPrevia() {
+    const folio = modo === 'editar' && inicial?.cotizacion.folio ? inicial.cotizacion.folio : 'POR ASIGNAR';
+    setVistaPrevia({ input: armarInput(), folio });
+  }
+
+  async function handleGuardar() {
+    if (faltantes.length > 0) {
+      setMsg('Falta por llenar: ' + faltantes.map((f) => f.texto).join(', '));
+      const destino = document.querySelector<HTMLElement>(`[data-campo="${faltantes[0].campo}"]`);
+      if (destino) {
+        destino.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const input = destino.matches('input, textarea') ? destino : destino.querySelector<HTMLElement>('input:not([disabled]), textarea');
+        if (input && !(input as HTMLInputElement).value) input.focus({ preventScroll: true });
+      }
+      return;
+    }
+    avance(4, 'Preparando la cotización');
+    setGuardando(true);
+    setMsg(null);
+    const input = armarInput();
     try {
       if (modo === 'editar' && cotizacionId) {
         await actualizarCotizacion(cotizacionId, input, avance);
@@ -1240,6 +1255,15 @@ export default function CotizacionForm({
           </p>
         </div>
         <button
+          type="button"
+          onClick={abrirVistaPrevia}
+          aria-label="Vista previa"
+          className="shrink-0 min-h-[48px] px-3 sm:px-4 rounded-xl border border-teal/60 text-teal font-semibold text-[14px] flex items-center gap-1.5 active:scale-95 transition-transform"
+        >
+          <Eye size={18} strokeWidth={2.3} />
+          <span className="hidden sm:inline">Vista previa</span>
+        </button>
+        <button
           onClick={handleGuardar}
           disabled={guardando}
           className="shrink-0 min-h-[48px] px-5 rounded-xl bg-teal text-inkOnAccent font-display font-semibold text-[15px] active:scale-95 transition-transform disabled:opacity-60 shadow-glow-teal"
@@ -1263,6 +1287,9 @@ export default function CotizacionForm({
           onSeleccionar={handleElegirProductoSyscom}
           onClose={() => setBuscandoParaItem(null)}
         />
+      )}
+      {vistaPrevia && (
+        <VistaPreviaCotizacion cotizacion={vistaPrevia.input} folio={vistaPrevia.folio} onClose={() => setVistaPrevia(null)} />
       )}
       {fichaAbierta && (
         <FichaProductoSyscom
@@ -1296,6 +1323,13 @@ export default function CotizacionForm({
           className="w-full min-h-[48px] rounded-xl bg-teal text-inkOnAccent font-display font-semibold text-[15px] active:scale-95 transition-transform disabled:opacity-60 shadow-glow-teal"
         >
           {guardando ? 'Guardando...' : modo === 'editar' ? 'Guardar cambios' : 'Guardar'}
+        </button>
+        <button
+          type="button"
+          onClick={abrirVistaPrevia}
+          className="w-full min-h-[44px] mt-2 rounded-xl border border-teal/60 text-teal font-semibold text-[14px] flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
+        >
+          <Eye size={17} strokeWidth={2.3} /> Vista previa
         </button>
       </div>
       {tarjetaTotales}

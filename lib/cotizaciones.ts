@@ -312,6 +312,26 @@ function datosCotizacion(input: CotizacionInput) {
   };
 }
 
+// Vista previa del PDF sin guardar: la cotización y sus partidas tal como
+// quedarían al guardar (mismo armado que crear/actualizar), sin tocar la base.
+export function cotizacionDeVistaPrevia(input: CotizacionInput, folio: string): { cotizacion: Cotizacion; lineas: LineaCotizacion[] } {
+  const ahora = new Date().toISOString();
+  const cotizacion = {
+    id: 'vista-previa',
+    folio,
+    created_by: '',
+    created_at: ahora,
+    updated_at: ahora,
+    estado: 'borrador',
+    aprobada_por: null,
+    aprobada_firma: null,
+    aprobada_en: null,
+    ...datosCotizacion(input),
+  } as Cotizacion;
+  const lineas = filasDeLineas('vista-previa', input.lineas).map((fila, i) => ({ id: `vista-previa-${i}`, ...fila })) as LineaCotizacion[];
+  return { cotizacion, lineas };
+}
+
 export async function crearCotizacion(input: CotizacionInput, onAvance?: Avance): Promise<string> {
   const supabase = createClient();
   onAvance?.(10, 'Verificando tu sesión');

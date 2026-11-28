@@ -74,9 +74,16 @@ export async function renderizarHoja(pdf: PdfAbierto, numeroPagina: number): Pro
 
 // Miniatura para elegir la hoja.
 export async function miniaturaHoja(pdf: PdfAbierto, numeroPagina: number): Promise<string> {
+  return imagenDeHoja(pdf, numeroPagina, 360);
+}
+
+// Hoja como imagen JPEG con el lado mayor de «ladoMayor» pixeles. La usa
+// también la vista previa de cotizaciones: en el celular y en el APK un PDF
+// dentro de la página no se muestra, una imagen sí.
+export async function imagenDeHoja(pdf: PdfAbierto, numeroPagina: number, ladoMayor: number): Promise<string> {
   const pagina = await pdf.documento.getPage(numeroPagina);
   const base = pagina.getViewport({ scale: 1 });
-  const vista = pagina.getViewport({ scale: 360 / Math.max(base.width, base.height) });
+  const vista = pagina.getViewport({ scale: ladoMayor / Math.max(base.width, base.height) });
   const lienzo = document.createElement('canvas');
   lienzo.width = Math.floor(vista.width);
   lienzo.height = Math.floor(vista.height);
@@ -85,5 +92,5 @@ export async function miniaturaHoja(pdf: PdfAbierto, numeroPagina: number): Prom
   contexto.fillStyle = '#ffffff';
   contexto.fillRect(0, 0, lienzo.width, lienzo.height);
   await pagina.render({ canvasContext: contexto, canvas: lienzo, viewport: vista }).promise;
-  return lienzo.toDataURL('image/jpeg', 0.7);
+  return lienzo.toDataURL('image/jpeg', ladoMayor > 360 ? 0.85 : 0.7);
 }
