@@ -22,7 +22,7 @@ import OrigenLevantamiento from '@/components/cotizaciones/OrigenLevantamiento';
 import HistorialCambios from '@/components/cotizaciones/HistorialCambios';
 import { describirCambiosCotizacion } from '@/lib/cambiosCotizacion';
 import { createClient } from '@/lib/supabaseClient';
-import { FileText, Pencil, Trash2, ChevronLeft, X, Check, Send, Ban, MessageCircle, ExternalLink, Copy, Sparkles, Undo2 } from 'lucide-react';
+import { FileText, Pencil, Trash2, ChevronLeft, X, Check, Send, Ban, MessageCircle, ExternalLink, Copy, Sparkles, Undo2, FileSpreadsheet } from 'lucide-react';
 import { MARCA, MARCA_MAYUS } from '@/lib/marca';
 
 // WhatsApp necesita el código de país adelante — los teléfonos se capturan
@@ -39,12 +39,14 @@ const cardCls = 'glass rounded-2xl p-4';
 // cortos, el importe quedaba lejísimos de su descripción. En celular no cambia.
 const anchoCotizacion = 'max-w-2xl lg:max-w-3xl mx-auto pb-10 lg:px-8';
 
-// Botones de la fila de arriba: ícono sobre el texto, todos del mismo ancho.
-// Botones de estado (enviada, quitar aprobación, rechazar): más bajos y
-// con el texto al lado, para que no compitan con los de arriba.
-const botonEstadoCls = 'flex-1 min-w-0 min-h-[44px] rounded-xl font-semibold text-[13px] leading-tight flex items-center justify-center gap-1.5 text-center active:scale-95 transition-transform disabled:opacity-40';
+// Primera fila (PDF, Excel, WhatsApp): botones grandes, los de diario.
+const botonArchivoCls = 'flex-1 min-w-0 min-h-[50px] rounded-xl font-display font-semibold text-[14px] flex items-center justify-center gap-1.5 active:scale-95 transition-transform';
 
-const botonAccionCls = 'flex-1 min-w-0 min-h-[56px] rounded-xl font-display font-semibold text-[12px] leading-tight flex flex-col items-center justify-center gap-1 active:scale-95 transition-transform';
+// Segunda fila (Editar, Copiar, Eliminar): más bajos, con borde.
+const botonAccionCls = 'flex-1 min-w-0 min-h-[44px] rounded-xl font-semibold text-[13px] flex items-center justify-center gap-1.5 active:scale-95 transition-transform';
+
+// Tercera fila (enviada, quitar aprobación, rechazar): igual de bajos.
+const botonEstadoCls = 'flex-1 min-w-0 min-h-[44px] rounded-xl font-semibold text-[13px] leading-tight flex items-center justify-center gap-1.5 text-center active:scale-95 transition-transform disabled:opacity-40';
 
 function money(n: number): string {
   return '$' + (n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -401,13 +403,12 @@ export default function CotizacionDetalle({
         </div>
       </div>
 
-      {/* Acciones de todos los días arriba, en una sola fila, para no bajar
-          hasta el final de una cotización larga: ver el PDF (todos), mandarlo
-          por WhatsApp (quien aprueba, o cualquiera ya aprobada; la deja como
-          «enviada»), editar (cerrado una vez firmada), copiar para otro
-          cliente y eliminar. Cada botón es ícono + texto corto para que
-          quepan los cinco en el ancho de un celular. */}
-      <div className="flex gap-2 mb-4">
+      {/* Acciones arriba para no bajar hasta el final de una cotización
+          larga. Primera fila, los archivos para el cliente: PDF, Excel y
+          WhatsApp (quien aprueba, o cualquiera ya aprobada; la deja como
+          «enviada»). Segunda fila, lo demás: editar (cerrado una vez
+          firmada), copiar para otro cliente y eliminar. */}
+      <div className="flex gap-2 mb-2">
         <a
           // La versión sale de updated_at y no de Date.now(): el reloj en el
           // render da un href distinto en servidor y navegador (hidratación).
@@ -417,26 +418,37 @@ export default function CotizacionDetalle({
           onClick={alTocarEnlace}
           target="_blank"
           rel="noopener noreferrer"
-          className={`${botonAccionCls} bg-teal text-inkOnAccent shadow-glow-teal`}
+          className={`${botonArchivoCls} bg-teal text-inkOnAccent shadow-glow-teal`}
         >
-          <FileText size={18} strokeWidth={2.4} />
+          <FileText size={17} strokeWidth={2.4} />
           PDF
         </a>
+        <a
+          href={`/api/cotizaciones/${cotizacion.id}/xlsx?v=${encodeURIComponent(cotizacion.updated_at || '')}`}
+          onClick={alTocarEnlace}
+          download
+          className={`${botonArchivoCls} bg-[#1D6F42] text-white`}
+        >
+          <FileSpreadsheet size={17} strokeWidth={2.4} />
+          Excel
+        </a>
         {(puedeAprobar || !!cotizacion.aprobada_firma) && (
-          <button onClick={handleEnviarWhatsapp} className={`${botonAccionCls} bg-[#25D366] text-white`}>
-            <MessageCircle size={18} strokeWidth={2.4} />
+          <button onClick={handleEnviarWhatsapp} className={`${botonArchivoCls} bg-[#25D366] text-white`}>
+            <MessageCircle size={17} strokeWidth={2.4} />
             WhatsApp
           </button>
         )}
+      </div>
+      <div className="flex gap-2 mb-4">
         {!cotizacion.aprobada_firma && (
           <button onClick={() => setEditando(true)} className={`${botonAccionCls} border border-teal/60 text-teal`}>
-            <Pencil size={17} strokeWidth={2.4} />
+            <Pencil size={16} strokeWidth={2.4} />
             Editar
           </button>
         )}
         {/* Copiar: la misma cotización como base para otro cliente. */}
         <Link href={`/dashboard/cotizaciones?copiar=${cotizacion.id}`} className={`${botonAccionCls} border border-line-strong text-ink/80 hover:bg-surface-2`}>
-          <Copy size={17} strokeWidth={2.3} />
+          <Copy size={16} strokeWidth={2.3} />
           Copiar
         </Link>
         {/* Eliminar: libre mientras sigue en borrador; una vez firmada, solo
@@ -447,13 +459,13 @@ export default function CotizacionDetalle({
             disabled={eliminando}
             className={`${botonAccionCls} border border-red/40 text-red disabled:opacity-60`}
           >
-            <Trash2 size={17} strokeWidth={2.4} />
-            {eliminando ? '...' : 'Eliminar'}
+            <Trash2 size={16} strokeWidth={2.4} />
+            {eliminando ? 'Eliminando…' : 'Eliminar'}
           </button>
         )}
       </div>
 
-      {/* Segunda fila, también arriba: el estado de la cotización. Marcar
+      {/* Tercera fila, también arriba: el estado de la cotización. Marcar
           como enviada, rechazar y quitar la aprobación son de quien firma o
           aprueba cotizaciones, no de cualquiera con acceso de supervisor. */}
       {puedeAprobar && (
