@@ -35,6 +35,13 @@ function limpiarTelefonoWhatsapp(telefono: string): string {
 
 const cardCls = 'glass rounded-2xl p-4';
 
+// En computadora la cotización no se estira a todo el ancho: con renglones
+// cortos, el importe quedaba lejísimos de su descripción. En celular no cambia.
+const anchoCotizacion = 'max-w-2xl lg:max-w-3xl mx-auto pb-10 lg:px-8';
+
+// Botones de la fila de arriba: ícono sobre el texto, todos del mismo ancho.
+const botonAccionCls = 'flex-1 min-w-0 min-h-[56px] rounded-xl font-display font-semibold text-[12px] leading-tight flex flex-col items-center justify-center gap-1 active:scale-95 transition-transform';
+
 function money(n: number): string {
   return '$' + (n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -274,7 +281,7 @@ export default function CotizacionDetalle({
 
   if (editando) {
     return (
-      <SupervisorShell active="cotizaciones" title={`Editar · ${cotizacion.folio}`} userName={userName}>
+      <SupervisorShell active="cotizaciones" title={`Editar · ${cotizacion.folio}`} userName={userName} wrapperClassName={anchoCotizacion}>
         <button
           onClick={() => setEditando(false)}
           className="flex items-center gap-1.5 mb-4 text-[13.5px] text-ink/70 font-medium active:scale-95 transition-transform"
@@ -305,7 +312,7 @@ export default function CotizacionDetalle({
   const gananciaTotal = cotizacion.subtotal - costoTotal;
 
   return (
-    <SupervisorShell active="cotizaciones" title={cotizacion.empresa} userName={userName}>
+    <SupervisorShell active="cotizaciones" title={cotizacion.empresa} userName={userName} wrapperClassName={anchoCotizacion}>
       <Link href="/dashboard/cotizaciones" className="inline-flex items-center gap-1.5 text-[13.5px] text-teal font-medium mb-4 min-h-[40px]">
         <ChevronLeft size={16} strokeWidth={2.4} />
         Todas las cotizaciones
@@ -390,10 +397,12 @@ export default function CotizacionDetalle({
         </div>
       </div>
 
-      {/* Acciones de todos los días arriba, para no bajar hasta el final de
-          una cotización larga: ver el PDF (todos), mandarlo por WhatsApp
-          (quien aprueba, o cualquiera ya aprobada; la deja como «enviada») y
-          editar (cerrado una vez firmada). */}
+      {/* Acciones de todos los días arriba, en una sola fila, para no bajar
+          hasta el final de una cotización larga: ver el PDF (todos), mandarlo
+          por WhatsApp (quien aprueba, o cualquiera ya aprobada; la deja como
+          «enviada»), editar (cerrado una vez firmada), copiar para otro
+          cliente y eliminar. Cada botón es ícono + texto corto para que
+          quepan los cinco en el ancho de un celular. */}
       <div className="flex gap-2 mb-4">
         <a
           // La versión sale de updated_at y no de Date.now(): el reloj en el
@@ -404,27 +413,38 @@ export default function CotizacionDetalle({
           onClick={alTocarEnlace}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex-1 min-h-[48px] rounded-xl bg-teal text-inkOnAccent font-display font-semibold text-[14.5px] flex items-center justify-center gap-1.5 active:scale-95 transition-transform shadow-glow-teal"
+          className={`${botonAccionCls} bg-teal text-inkOnAccent shadow-glow-teal`}
         >
-          <FileText size={17} strokeWidth={2.4} />
+          <FileText size={18} strokeWidth={2.4} />
           PDF
         </a>
         {(puedeAprobar || !!cotizacion.aprobada_firma) && (
-          <button
-            onClick={handleEnviarWhatsapp}
-            className="flex-1 min-h-[48px] rounded-xl bg-[#25D366] text-white font-display font-semibold text-[14.5px] flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
-          >
-            <MessageCircle size={17} strokeWidth={2.4} />
+          <button onClick={handleEnviarWhatsapp} className={`${botonAccionCls} bg-[#25D366] text-white`}>
+            <MessageCircle size={18} strokeWidth={2.4} />
             WhatsApp
           </button>
         )}
         {!cotizacion.aprobada_firma && (
-          <button
-            onClick={() => setEditando(true)}
-            className="flex-1 min-h-[48px] rounded-xl border border-teal/60 text-teal font-display font-semibold text-[14.5px] flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
-          >
-            <Pencil size={16} strokeWidth={2.4} />
+          <button onClick={() => setEditando(true)} className={`${botonAccionCls} border border-teal/60 text-teal`}>
+            <Pencil size={17} strokeWidth={2.4} />
             Editar
+          </button>
+        )}
+        {/* Copiar: la misma cotización como base para otro cliente. */}
+        <Link href={`/dashboard/cotizaciones?copiar=${cotizacion.id}`} className={`${botonAccionCls} border border-line-strong text-ink/80 hover:bg-surface-2`}>
+          <Copy size={17} strokeWidth={2.3} />
+          Copiar
+        </Link>
+        {/* Eliminar: libre mientras sigue en borrador; una vez firmada, solo
+            quien puede aprobar cotizaciones puede seguir cancelándola. */}
+        {(!cotizacion.aprobada_firma || puedeAprobar) && (
+          <button
+            onClick={handleEliminar}
+            disabled={eliminando}
+            className={`${botonAccionCls} border border-red/40 text-red disabled:opacity-60`}
+          >
+            <Trash2 size={17} strokeWidth={2.4} />
+            {eliminando ? '...' : 'Eliminar'}
           </button>
         )}
       </div>
@@ -642,28 +662,6 @@ export default function CotizacionDetalle({
         Crear guía de conexión con estos equipos
       </Link>
 
-      {/* Copiar: la misma cotización como base para otro cliente. */}
-      <Link
-        href={`/dashboard/cotizaciones?copiar=${cotizacion.id}`}
-        className="w-full min-h-[48px] mb-3 rounded-xl border border-teal/50 text-teal font-semibold text-[14.5px] flex items-center justify-center gap-2 active:scale-95 transition-transform hover:bg-teal/5"
-      >
-        <Copy size={16} strokeWidth={2.3} />
-        Copiar para otro cliente
-      </Link>
-
-      {/* Cancelar (eliminar): libre mientras sigue en borrador; una vez
-          firmada, solo quien puede aprobar cotizaciones
-          puede seguir cancelándola. */}
-      {(!cotizacion.aprobada_firma || puedeAprobar) && (
-        <button
-          onClick={handleEliminar}
-          disabled={eliminando}
-          className="w-full min-h-[48px] rounded-xl border border-red/40 text-red text-[14.5px] font-semibold flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
-        >
-          <Trash2 size={16} strokeWidth={2.4} />
-          {eliminando ? 'Eliminando...' : 'Eliminar esta cotización'}
-        </button>
-      )}
     </SupervisorShell>
   );
 }

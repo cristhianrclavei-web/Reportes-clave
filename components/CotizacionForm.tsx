@@ -579,7 +579,8 @@ export default function CotizacionForm({
   }
 
   return (
-    <div className="flex flex-col gap-4 pb-10">
+    // Ancho tope para que en computadora los bloques no se estiren de lado a lado.
+    <div className="flex flex-col gap-4 pb-10 w-full max-w-3xl mx-auto">
       <SavingOverlay show={guardando} pct={progreso.pct} label={progreso.etapa} />
       {borrador.recuperadoEn && (
         <AvisoBorrador
