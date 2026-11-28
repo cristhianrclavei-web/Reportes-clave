@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import { MARCA } from './marca';
+import { encabezadoDeMarca, marcaDeAgua } from './logoParaExcel';
 import {
   Cotizacion,
   LineaCotizacion,
@@ -83,9 +84,9 @@ function totalesDe(cot: Cotizacion): [string, number][] {
 }
 
 function escribirEncabezado(hoja: ExcelJS.Worksheet, cot: Cotizacion) {
-  const filaMarca = hoja.addRow([MARCA.nombre.toUpperCase(), '', '', '', '', 'COTIZACIÓN']);
-  hoja.mergeCells(filaMarca.number, 1, filaMarca.number, 4);
-  filaMarca.getCell(1).font = { bold: true, size: 14, color: { argb: NAVY } };
+  // A la izquierda va la imagen del logo (ver agregarLogos); aquí solo el
+  // título, folio y fecha a la derecha, como en el PDF.
+  const filaMarca = hoja.addRow(['', '', '', '', '', 'COTIZACIÓN']);
   filaMarca.getCell(6).font = { bold: true, size: 14, color: { argb: NAVY } };
   filaMarca.getCell(6).alignment = { horizontal: 'right' };
   filaMarca.height = 22;
@@ -94,6 +95,8 @@ function escribirEncabezado(hoja: ExcelJS.Worksheet, cot: Cotizacion) {
   filaFolio.getCell(6).alignment = { horizontal: 'right' };
   const filaFecha = hoja.addRow(['', '', '', '', '', fechaLarga(cot.fecha)]);
   filaFecha.getCell(6).alignment = { horizontal: 'right' };
+  // Espacio para la tira de íconos del logo.
+  hoja.addRow([]);
 
   const datosCliente: [string, string | null][] = [
     ["At'n", cot.atencion],
@@ -212,6 +215,36 @@ function escribirCondiciones(hoja: ExcelJS.Worksheet, cot: Cotizacion) {
   });
 }
 
+// Excel mide las imágenes en pixeles (96 por pulgada); el logo, en puntos (72).
+const PX_POR_PUNTO = 96 / 72;
+
+// Logo arriba a la izquierda y el escudo tenue en diagonal al centro de la
+// hoja, igual que en el PDF. Si no se pudieran armar las imágenes, el Excel
+// sale igual sin ellas: es mejor que no poder descargarlo.
+async function agregarLogos(libro: ExcelJS.Workbook, hoja: ExcelJS.Worksheet) {
+  try {
+    const logo = await encabezadoDeMarca();
+    const idLogo = libro.addImage({ buffer: logo.png as any, extension: 'png' });
+    hoja.addImage(idLogo, {
+      tl: { col: 0.1, row: 0.15 },
+      ext: { width: logo.ancho * PX_POR_PUNTO, height: logo.alto * PX_POR_PUNTO },
+    });
+
+    // A todo lo ancho de las seis columnas (con el escudo centrado dentro de
+    // la imagen), a media altura de la primera hoja impresa. La imagen ya
+    // trae la transparencia, así que no tapa las tablas.
+    const anchoHojaPx = hoja.columns.reduce((suma, columna) => suma + (columna.width || 10) * 7 + 5, 0);
+    const agua = await marcaDeAgua(anchoHojaPx / PX_POR_PUNTO, 260);
+    const idAgua = libro.addImage({ buffer: agua.png as any, extension: 'png' });
+    hoja.addImage(idAgua, {
+      tl: { col: 0, row: 12 },
+      ext: { width: anchoHojaPx, height: agua.alto * PX_POR_PUNTO },
+    });
+  } catch (e) {
+    console.error('[cotizaciones-xlsx] No se pudo agregar el logo:', e);
+  }
+}
+
 export async function generateCotizacionXlsx(cot: Cotizacion, lineas: LineaCotizacion[]): Promise<Buffer> {
   const libro = new ExcelJS.Workbook();
   libro.creator = MARCA.nombre;
@@ -228,6 +261,7 @@ export async function generateCotizacionXlsx(cot: Cotizacion, lineas: LineaCotiz
   ];
 
   escribirEncabezado(hoja, cot);
+  await agregarLogos(libro, hoja);
 
   const grupos = agruparPorSistema(lineas);
   const modoIva = modoIvaDe(cot);
