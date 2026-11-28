@@ -41,7 +41,9 @@ const anchoCotizacion = 'max-w-2xl lg:max-w-3xl mx-auto pb-10 lg:px-8';
 
 // El detalle en computadora: en pantalla mediana las partidas pasan a tabla;
 // desde 1400 px de ancho se agrega a la derecha un panel fijo con acciones y totales.
-const anchoDetalle = 'max-w-2xl lg:max-w-4xl min-[1400px]:max-w-7xl mx-auto pb-10 lg:px-8';
+// Ocupa todo el ancho disponible en computadora (lo que sobra a los lados se
+// desperdiciaba); en celular sigue igual.
+const anchoDetalle = 'max-w-2xl lg:max-w-none mx-auto pb-10 lg:px-8 2xl:px-10';
 
 // Primera fila (PDF, Excel, WhatsApp): botones grandes, los de diario.
 const botonArchivoCls = 'flex-1 min-w-0 min-h-[50px] rounded-xl font-display font-semibold text-[14px] flex items-center justify-center gap-1.5 active:scale-95 transition-transform';
@@ -535,7 +537,7 @@ export default function CotizacionDetalle({
 
       {/* Pantalla de 1400 px o más: dos columnas (en una laptop de 1280 la tabla quedaba muy angosta). Izquierda el documento; derecha el
           panel con acciones y totales, que se queda a la vista al bajar. */}
-      <div className="min-[1400px]:grid min-[1400px]:grid-cols-[minmax(0,1fr)_340px] min-[1400px]:gap-6 min-[1400px]:items-start">
+      <div className="min-[1400px]:grid min-[1400px]:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_400px] min-[1400px]:gap-6 min-[1400px]:items-start">
       <div className="min-w-0">
 
       {cotizacion.levantamiento_id && <OrigenLevantamiento levantamientoId={cotizacion.levantamiento_id} />}
