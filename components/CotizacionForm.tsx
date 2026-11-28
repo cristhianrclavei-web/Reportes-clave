@@ -637,8 +637,10 @@ export default function CotizacionForm({
   </div>
   );
 
-  const tarjetaTotales = (
-  <div className={cardCls}>
+  // Filas de subtotal, IVA y total: en celular van en su propia tarjeta; en el
+  // panel derecho, dentro de «Resumen».
+  const filasDeTotales = (
+  <>
     {modoIva === 'sumar' && (
       <div className="flex justify-between text-[14px] mb-1">
         <span className="text-muted">Subtotal</span>
@@ -669,13 +671,28 @@ export default function CotizacionForm({
     {msg && (
       <div className="text-sm px-4 py-3 mt-3 rounded-xl bg-red/10 text-red border border-red/30">{msg}</div>
     )}
-  </div>
+  </>
   );
+
+  // Opciones de IVA: en celular dentro de «Condiciones comerciales»; en el
+  // panel derecho, en su propia tarjeta.
+  const selectorDeIva = (
+    <SelectorIva
+      modo={modoIva}
+      tasa={ivaPctNum}
+      onModo={elegirModoIva}
+      onTasa={(t) => setIvaPct(String(t))}
+      totalNeto={totalNeto}
+      onTotalNeto={setTotalNeto}
+    />
+  );
+
+  const tarjetaTotales = <div className={cardCls}>{filasDeTotales}</div>;
 
   return (
     // En celular, una sola columna. En computadora usa todo el ancho; desde
     // 1400 px se divide: a la izquierda la captura y a la derecha un panel fijo
-    // con el resumen por sistema, el total y «Guardar».
+    // con presentación de precios, IVA y el resumen (sistemas, total, «Guardar»).
     <div className="w-full max-w-3xl lg:max-w-none mx-auto min-[1400px]:grid min-[1400px]:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_380px] min-[1400px]:gap-6 min-[1400px]:items-start">
     <div className="flex flex-col gap-4 pb-10 min-w-0">
       <SavingOverlay show={guardando} pct={progreso.pct} label={progreso.etapa} />
@@ -1120,14 +1137,7 @@ export default function CotizacionForm({
               <input type="number" className={inputCls} value={vigenciaDias} onChange={(e) => setVigenciaDias(e.target.value)} />
             </div>
           </div>
-          <SelectorIva
-            modo={modoIva}
-            tasa={ivaPctNum}
-            onModo={elegirModoIva}
-            onTasa={(t) => setIvaPct(String(t))}
-            totalNeto={totalNeto}
-            onTotalNeto={setTotalNeto}
-          />
+          <div className="min-[1400px]:hidden">{selectorDeIva}</div>
           <div data-campo="moneda" className={`scroll-mt-24 ${moneda === 'USD' ? 'grid grid-cols-2 gap-3.5' : ''}`}>
             <div>
               <label className={labelCls}>Moneda</label>
@@ -1303,8 +1313,16 @@ export default function CotizacionForm({
       )}
     </div>
 
-    <aside className="hidden min-[1400px]:flex flex-col gap-4 sticky top-6 max-h-[calc(100vh-3rem)] overflow-y-auto pb-2">
+    {/* El panel mide lo mismo que la columna de la izquierda (self-stretch)
+        para que «Resumen» se quede fijo a la vista mientras se baja;
+        presentación e IVA se desplazan normal. */}
+    <aside className="hidden min-[1400px]:flex flex-col gap-4 self-stretch">
+      {tarjetaPresentacion}
       <div className={cardCls}>
+        <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Opciones de IVA</p>
+        {selectorDeIva}
+      </div>
+      <div className={`${cardCls} sticky top-6`}>
         <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-teal inline-block" /> Resumen</p>
         <ul className="flex flex-col gap-2 mb-3">
           {grupos.map((g, gi) => (
@@ -1317,6 +1335,7 @@ export default function CotizacionForm({
             </li>
           ))}
         </ul>
+        <div className="pt-3 mb-4 border-t border-dashed border-line-strong">{filasDeTotales}</div>
         <button
           onClick={handleGuardar}
           disabled={guardando}
@@ -1332,8 +1351,6 @@ export default function CotizacionForm({
           <Eye size={17} strokeWidth={2.3} /> Vista previa
         </button>
       </div>
-      {tarjetaTotales}
-      {tarjetaPresentacion}
     </aside>
     </div>
   );
