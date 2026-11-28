@@ -22,7 +22,7 @@ import OrigenLevantamiento from '@/components/cotizaciones/OrigenLevantamiento';
 import HistorialCambios from '@/components/cotizaciones/HistorialCambios';
 import { describirCambiosCotizacion } from '@/lib/cambiosCotizacion';
 import { createClient } from '@/lib/supabaseClient';
-import { FileText, Pencil, Trash2, ChevronLeft, X, Check, Send, Ban, MessageCircle, ExternalLink, Copy, Network, Sparkles, Undo2 } from 'lucide-react';
+import { FileText, Pencil, Trash2, ChevronLeft, X, Check, Send, Ban, MessageCircle, ExternalLink, Copy, Sparkles, Undo2 } from 'lucide-react';
 import { MARCA, MARCA_MAYUS } from '@/lib/marca';
 
 // WhatsApp necesita el código de país adelante — los teléfonos se capturan
@@ -40,6 +40,10 @@ const cardCls = 'glass rounded-2xl p-4';
 const anchoCotizacion = 'max-w-2xl lg:max-w-3xl mx-auto pb-10 lg:px-8';
 
 // Botones de la fila de arriba: ícono sobre el texto, todos del mismo ancho.
+// Botones de estado (enviada, quitar aprobación, rechazar): más bajos y
+// con el texto al lado, para que no compitan con los de arriba.
+const botonEstadoCls = 'flex-1 min-w-0 min-h-[44px] rounded-xl font-semibold text-[13px] leading-tight flex items-center justify-center gap-1.5 text-center active:scale-95 transition-transform disabled:opacity-40';
+
 const botonAccionCls = 'flex-1 min-w-0 min-h-[56px] rounded-xl font-display font-semibold text-[12px] leading-tight flex flex-col items-center justify-center gap-1 active:scale-95 transition-transform';
 
 function money(n: number): string {
@@ -449,6 +453,44 @@ export default function CotizacionDetalle({
         )}
       </div>
 
+      {/* Segunda fila, también arriba: el estado de la cotización. Marcar
+          como enviada, rechazar y quitar la aprobación son de quien firma o
+          aprueba cotizaciones, no de cualquiera con acceso de supervisor. */}
+      {puedeAprobar && (
+        <div className="flex gap-2 -mt-2 mb-4">
+          {cotizacion.estado === 'enviada' ? (
+            <button disabled className={`${botonEstadoCls} bg-surface-2 border border-line text-muted cursor-not-allowed`}>
+              <Check size={16} strokeWidth={2.6} />
+              Enviada
+            </button>
+          ) : (
+            <button
+              onClick={handleMarcarEnviada}
+              disabled={!habilitaEnviar || procesandoAccion}
+              title={!habilitaEnviar ? 'Primero hay que aprobarla y firmarla' : undefined}
+              className={`${botonEstadoCls} bg-amber text-inkOnAccent`}
+            >
+              <Send size={16} strokeWidth={2.4} />
+              Marcar como enviada
+            </button>
+          )}
+          {/* Si se aprobó con errores, se regresa a borrador para corregirla;
+              la firma se borra y hay que volver a revisarla. */}
+          {cotizacion.aprobada_firma && (
+            <button onClick={handleQuitarAprobacion} disabled={procesandoAccion} className={`${botonEstadoCls} border border-line-strong text-ink/80`}>
+              <Undo2 size={16} strokeWidth={2.3} />
+              Quitar aprobación
+            </button>
+          )}
+          {cotizacion.estado !== 'rechazada' && (
+            <button onClick={handleRechazar} disabled={procesandoAccion} className={`${botonEstadoCls} flex-none px-4 border border-red/40 text-red`}>
+              <Ban size={16} strokeWidth={2.4} />
+              Rechazar
+            </button>
+          )}
+        </div>
+      )}
+
       {grupos.map((g) => {
         const importeGrupo = g.lineas.reduce((acc, l) => acc + l.importe, 0);
         return (
@@ -601,66 +643,6 @@ export default function CotizacionDetalle({
       </div>
 
       <HistorialCambios cotizacionId={cotizacion.id} recarga={recargaHistorial} />
-
-      {/* Marcar como enviada, rechazar y mandar por WhatsApp son acciones de
-          quien firma/aprueba cotizaciones — no de cualquiera que solo tenga
-          acceso de supervisor a esta pantalla. Ver el PDF sigue siendo de
-          todos. */}
-      {puedeAprobar && (
-        <div className="flex gap-2.5 mb-1.5">
-          {cotizacion.estado === 'enviada' ? (
-            <button
-              disabled
-              className="flex-1 min-h-[52px] rounded-2xl bg-surface-2 border border-line text-muted font-display font-semibold text-[15px] flex items-center justify-center gap-2 cursor-not-allowed"
-            >
-              <Check size={17} strokeWidth={2.6} />
-              Enviada
-            </button>
-          ) : (
-            <button
-              onClick={handleMarcarEnviada}
-              disabled={!habilitaEnviar || procesandoAccion}
-              title={!habilitaEnviar ? 'Primero hay que aprobarla y firmarla' : undefined}
-              className="flex-1 min-h-[52px] rounded-2xl bg-amber text-inkOnAccent font-display font-semibold text-[15px] flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-40"
-            >
-              <Send size={17} strokeWidth={2.4} />
-              Marcar como enviada
-            </button>
-          )}
-          {cotizacion.estado !== 'rechazada' && (
-            <button
-              onClick={handleRechazar}
-              disabled={procesandoAccion}
-              className="min-h-[52px] px-4 rounded-2xl border border-red/40 text-red font-semibold text-[14.5px] flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
-            >
-              <Ban size={16} strokeWidth={2.4} />
-              Rechazar
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Si se aprobó con errores, quien puede aprobar la regresa a borrador
-          para corregirla; la firma se borra y hay que volver a revisarla. */}
-      {cotizacion.aprobada_firma && puedeAprobar && (
-        <button
-          onClick={handleQuitarAprobacion}
-          disabled={procesandoAccion}
-          className="w-full min-h-[48px] mb-3 rounded-xl border border-line-strong text-ink/80 font-semibold text-[14.5px] flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
-        >
-          <Undo2 size={16} strokeWidth={2.3} />
-          Quitar aprobación para corregir
-        </button>
-      )}
-
-      {/* Guía de conexión para los técnicos, con los equipos ya cotizados. */}
-      <Link
-        href={`/dashboard/diagramas?cotizacion=${cotizacion.id}`}
-        className="w-full min-h-[48px] mb-3 rounded-xl border border-teal/50 text-teal font-semibold text-[14.5px] flex items-center justify-center gap-2 active:scale-95 transition-transform hover:bg-teal/5"
-      >
-        <Network size={16} strokeWidth={2.3} />
-        Crear guía de conexión con estos equipos
-      </Link>
 
     </SupervisorShell>
   );
