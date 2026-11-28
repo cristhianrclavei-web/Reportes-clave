@@ -35,10 +35,6 @@ function limpiarTelefonoWhatsapp(telefono: string): string {
 
 const cardCls = 'glass rounded-2xl p-4';
 
-// En computadora la cotización no se estira a todo el ancho: con renglones
-// cortos, el importe quedaba lejísimos de su descripción. En celular no cambia.
-const anchoCotizacion = 'max-w-2xl lg:max-w-3xl mx-auto pb-10 lg:px-8';
-
 // El detalle en computadora: en pantalla mediana las partidas pasan a tabla;
 // desde 1400 px de ancho se agrega a la derecha un panel fijo con acciones y totales.
 // Ocupa todo el ancho disponible en computadora (lo que sobra a los lados se
@@ -348,7 +344,7 @@ export default function CotizacionDetalle({
 
   if (editando) {
     return (
-      <SupervisorShell active="cotizaciones" title={`Editar · ${cotizacion.folio}`} userName={userName} wrapperClassName={anchoCotizacion}>
+      <SupervisorShell active="cotizaciones" title={`Editar · ${cotizacion.folio}`} userName={userName} wrapperClassName={anchoDetalle}>
         <button
           onClick={() => setEditando(false)}
           className="flex items-center gap-1.5 mb-4 text-[13.5px] text-ink/70 font-medium active:scale-95 transition-transform"

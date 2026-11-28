@@ -578,9 +578,91 @@ export default function CotizacionForm({
     }
   }
 
+  // Importe de un sistema con los precios capturados (cantidad × precio).
+  function importeDelSistema(g: (typeof grupos)[number]): number {
+    let suma = 0;
+    for (const it of g.items) {
+      const precio = precioUnitarioDesdeCosto(parseFloat(it.costo) || 0, parseFloat(it.margenPct) || 0);
+      suma += (parseFloat(it.cantidad) || 0) * precio;
+    }
+    return suma;
+  }
+
+  // Estas dos tarjetas se pintan dos veces: en celular en su lugar de siempre y,
+  // en pantalla de 1400 px o más, en el panel de la derecha. CSS esconde la otra.
+  const tarjetaPresentacion = (
+  <div className={cardCls}>
+    <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-teal inline-block" /> Presentación de precios</p>
+    <label className={labelCls}>Cómo se muestra el precio en el PDF</label>
+    <select
+      className={inputCls}
+      value={presentacionPrecios}
+      onChange={(e) => setPresentacionPrecios(e.target.value as PresentacionPrecios)}
+    >
+      <option value="desglose">Desglosada por partida — precio unitario visible en cada concepto</option>
+      <option value="kit">Precio único por kit — sin desglose por partida, solo el total de cada sección</option>
+    </select>
+    <p className="text-[12px] text-faint mt-1.5">
+      Solo cambia cómo se ve el precio en el PDF.
+    </p>
+    <label className="flex items-start gap-2.5 mt-3.5 cursor-pointer">
+      <input
+        type="checkbox"
+        className="mt-0.5 w-5 h-5 accent-teal shrink-0"
+        checked={mostrarFotos}
+        onChange={(e) => setMostrarFotos(e.target.checked)}
+      />
+      <span className="text-[14px]">
+        Mostrar fotos en el PDF
+        <span className="block text-[12px] text-faint mt-0.5">
+          Agrega una columna con la foto de cada concepto. Al activarla aparece «Agregar foto» en cada concepto; los productos de SYSCOM traen su foto.
+        </span>
+      </span>
+    </label>
+  </div>
+  );
+
+  const tarjetaTotales = (
+  <div className={cardCls}>
+    {modoIva === 'sumar' && (
+      <div className="flex justify-between text-[14px] mb-1">
+        <span className="text-muted">Subtotal</span>
+        <span className="font-medium">{moneda === 'USD' ? 'USD ' : ''}{money(totales.subtotal)}</span>
+      </div>
+    )}
+    {modoIva === 'sin' && (
+      <div className="flex justify-between text-[14px] mb-1">
+        <span className="text-muted">IVA</span>
+        <span className="font-medium">No lleva</span>
+      </div>
+    )}
+    {modoIva !== 'sin' && !totalNetoVisible && (
+      <div className="flex justify-between text-[14px] mb-1">
+        <span className="text-muted">{modoIva === 'incluido' ? 'IVA incluido' : 'IVA'} ({ivaPctNum}%)</span>
+        <span className="font-medium">{moneda === 'USD' ? 'USD ' : ''}{money(totales.iva)}</span>
+      </div>
+    )}
+    <div className="flex justify-between text-[19px] pt-2 border-t border-line-strong">
+      <span className="font-display font-bold">{totalNetoVisible ? 'Importe total neto' : 'Total'}</span>
+      <span className="font-display font-bold text-teal">{moneda === 'USD' ? 'USD ' : ''}{money(totales.total)}</span>
+    </div>
+    {moneda === 'USD' && tipoCambioNum > 0 && (
+      <p className="text-right text-[12.5px] text-muted mt-1">
+        ≈ {money(totales.total * tipoCambioNum)} MXN <span className="text-faint">(TC {tipoCambioNum.toFixed(2)})</span>
+      </p>
+    )}
+    {msg && (
+      <div className="text-sm px-4 py-3 mt-3 rounded-xl bg-red/10 text-red border border-red/30">{msg}</div>
+    )}
+  </div>
+  );
+
   return (
-    // Ancho tope para que en computadora los bloques no se estiren de lado a lado.
-    <div className="flex flex-col gap-4 pb-10 w-full max-w-3xl mx-auto">
+    // En celular, una sola columna. En computadora usa todo el ancho; desde
+    // 1400 px se divide: a la izquierda la captura y a la derecha un panel fijo
+    // con el resumen por sistema, el total y «Guardar».
+    <div className="w-full max-w-3xl lg:max-w-none mx-auto min-[1400px]:grid min-[1400px]:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_380px] min-[1400px]:gap-6 min-[1400px]:items-start">
+    <div className="flex flex-col gap-4 pb-10 min-w-0">
       <SavingOverlay show={guardando} pct={progreso.pct} label={progreso.etapa} />
       {borrador.recuperadoEn && (
         <AvisoBorrador
@@ -589,40 +671,12 @@ export default function CotizacionForm({
           onDescartar={async () => { aplicarDatos(datosIniciales.current); await borrador.limpiar(); }}
         />
       )}
-      <div className={cardCls}>
-        <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-teal inline-block" /> Presentación de precios</p>
-        <label className={labelCls}>Cómo se muestra el precio en el PDF</label>
-        <select
-          className={inputCls}
-          value={presentacionPrecios}
-          onChange={(e) => setPresentacionPrecios(e.target.value as PresentacionPrecios)}
-        >
-          <option value="desglose">Desglosada por partida — precio unitario visible en cada concepto</option>
-          <option value="kit">Precio único por kit — sin desglose por partida, solo el total de cada sección</option>
-        </select>
-        <p className="text-[12px] text-faint mt-1.5">
-          Solo cambia cómo se ve el precio en el PDF.
-        </p>
-        <label className="flex items-start gap-2.5 mt-3.5 cursor-pointer">
-          <input
-            type="checkbox"
-            className="mt-0.5 w-5 h-5 accent-teal shrink-0"
-            checked={mostrarFotos}
-            onChange={(e) => setMostrarFotos(e.target.checked)}
-          />
-          <span className="text-[14px]">
-            Mostrar fotos en el PDF
-            <span className="block text-[12px] text-faint mt-0.5">
-              Agrega una columna con la foto de cada concepto. Al activarla aparece «Agregar foto» en cada concepto; los productos de SYSCOM traen su foto.
-            </span>
-          </span>
-        </label>
-      </div>
+      <div className="min-[1400px]:hidden">{tarjetaPresentacion}</div>
 
       <div className={cardCls}>
         <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Datos del cliente</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-          <div className="sm:col-span-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3.5">
+          <div className="sm:col-span-2 xl:col-span-3">
             <label className={labelCls}>Nombre del proyecto (título de la cotización)</label>
             <input
               type="text"
@@ -686,10 +740,7 @@ export default function CotizacionForm({
       <BarraSyscom grupos={grupos} usadas={uso.usadas} onAbrir={setAyudaAbierta} />
 
       {grupos.map((g, gi) => {
-        const subtotalGrupo = g.items.reduce((acc, it) => {
-          const precio = precioUnitarioDesdeCosto(parseFloat(it.costo) || 0, parseFloat(it.margenPct) || 0);
-          return acc + (parseFloat(it.cantidad) || 0) * precio;
-        }, 0);
+        const subtotalGrupo = importeDelSistema(g);
         return (
           <motion.div key={g.id} layout="position" transition={{ duration: 0.28, ease: 'easeOut' }} data-sistema={g.id} className={`${cardCls} scroll-mt-40`}>
             <div className="flex items-center justify-between gap-2 mb-3.5">
@@ -736,27 +787,33 @@ export default function CotizacionForm({
               )}
             </div>
 
-            <label className={labelCls}>¿Para qué sistema es? *</label>
-            <input
-              list={`sistemas-${g.id}`}
-              className={`${inputCls} mb-4`}
-              value={g.sistema}
-              onChange={(e) => actualizarGrupo(g.id, { sistema: e.target.value })}
-              placeholder="Ej. CCTV"
-            />
-            <datalist id={`sistemas-${g.id}`}>
-              {SISTEMAS_SUGERIDOS.map((s) => <option key={s} value={s} />)}
-            </datalist>
-
-            <label className={labelCls}>Nombre del proyecto de este sistema</label>
-            <input
-              className={inputCls}
-              value={g.titulo || ''}
-              onChange={(e) => actualizarGrupo(g.id, { titulo: e.target.value })}
-              maxLength={150}
-              placeholder="Ej. Detección de humo — Almacén de materia prima"
-            />
-            <p className="text-[12px] text-faint mt-1.5 mb-3">Opcional. Sale como título arriba de la tabla de este sistema en el PDF.</p>
+            {/* En computadora, sistema y nombre del proyecto van en una sola fila. */}
+            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:gap-4 mb-3">
+              <div>
+                <label className={labelCls}>¿Para qué sistema es? *</label>
+                <input
+                  list={`sistemas-${g.id}`}
+                  className={`${inputCls} mb-4 lg:mb-0`}
+                  value={g.sistema}
+                  onChange={(e) => actualizarGrupo(g.id, { sistema: e.target.value })}
+                  placeholder="Ej. CCTV"
+                />
+                <datalist id={`sistemas-${g.id}`}>
+                  {SISTEMAS_SUGERIDOS.map((s) => <option key={s} value={s} />)}
+                </datalist>
+              </div>
+              <div>
+                <label className={labelCls}>Nombre del proyecto de este sistema</label>
+                <input
+                  className={inputCls}
+                  value={g.titulo || ''}
+                  onChange={(e) => actualizarGrupo(g.id, { titulo: e.target.value })}
+                  maxLength={150}
+                  placeholder="Ej. Detección de humo — Almacén de materia prima"
+                />
+                <p className="text-[12px] text-faint mt-1.5">Opcional. Sale como título arriba de la tabla de este sistema en el PDF.</p>
+              </div>
+            </div>
 
             <label className="flex items-start gap-2.5 mb-4 cursor-pointer">
               <input
@@ -1028,13 +1085,15 @@ export default function CotizacionForm({
       <div className={cardCls}>
         <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" /> Condiciones comerciales</p>
         <div className="flex flex-col gap-3.5">
-          <div>
-            <label className={labelCls}>Forma de pago</label>
-            <input className={inputCls} value={formaPago} onChange={(e) => setFormaPago(e.target.value)} />
-          </div>
-          <div>
-            <label className={labelCls}>Tiempo de entrega</label>
-            <textarea className={`${inputCls} min-h-[60px]`} value={tiempoEntrega} onChange={(e) => setTiempoEntrega(e.target.value)} />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
+            <div>
+              <label className={labelCls}>Forma de pago</label>
+              <input className={inputCls} value={formaPago} onChange={(e) => setFormaPago(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Tiempo de entrega</label>
+              <textarea className={`${inputCls} min-h-[60px]`} value={tiempoEntrega} onChange={(e) => setTiempoEntrega(e.target.value)} />
+            </div>
           </div>
           <div>
             <label className={labelCls}>Garantía</label>
@@ -1168,43 +1227,12 @@ export default function CotizacionForm({
         </div>
       </div>
 
-      <div className={cardCls}>
-        {modoIva === 'sumar' && (
-          <div className="flex justify-between text-[14px] mb-1">
-            <span className="text-muted">Subtotal</span>
-            <span className="font-medium">{moneda === 'USD' ? 'USD ' : ''}{money(totales.subtotal)}</span>
-          </div>
-        )}
-        {modoIva === 'sin' && (
-          <div className="flex justify-between text-[14px] mb-1">
-            <span className="text-muted">IVA</span>
-            <span className="font-medium">No lleva</span>
-          </div>
-        )}
-        {modoIva !== 'sin' && !totalNetoVisible && (
-          <div className="flex justify-between text-[14px] mb-1">
-            <span className="text-muted">{modoIva === 'incluido' ? 'IVA incluido' : 'IVA'} ({ivaPctNum}%)</span>
-            <span className="font-medium">{moneda === 'USD' ? 'USD ' : ''}{money(totales.iva)}</span>
-          </div>
-        )}
-        <div className="flex justify-between text-[19px] pt-2 border-t border-line-strong">
-          <span className="font-display font-bold">{totalNetoVisible ? 'Importe total neto' : 'Total'}</span>
-          <span className="font-display font-bold text-teal">{moneda === 'USD' ? 'USD ' : ''}{money(totales.total)}</span>
-        </div>
-        {moneda === 'USD' && tipoCambioNum > 0 && (
-          <p className="text-right text-[12.5px] text-muted mt-1">
-            ≈ {money(totales.total * tipoCambioNum)} MXN <span className="text-faint">(TC {tipoCambioNum.toFixed(2)})</span>
-          </p>
-        )}
-        {msg && (
-          <div className="text-sm px-4 py-3 mt-3 rounded-xl bg-red/10 text-red border border-red/30">{msg}</div>
-        )}
-      </div>
+      <div className="min-[1400px]:hidden">{tarjetaTotales}</div>
 
       {/* Barra fija abajo: el total y «Guardar» siempre a la mano, aunque la
           cotización sea muy larga. El hueco a la derecha es para el botón
           del asistente, que flota en esa esquina. */}
-      <div className="sticky bottom-3 z-30 mt-4 mr-[4.5rem] lg:mr-20 flex items-center gap-3 rounded-2xl border border-line-strong bg-surface/95 backdrop-blur px-3 py-2.5 shadow-[0_10px_30px_-8px_rgba(0,0,0,0.45)]">
+      <div className="sticky bottom-3 z-30 mt-4 mr-[4.5rem] lg:mr-20 min-[1400px]:hidden flex items-center gap-3 rounded-2xl border border-line-strong bg-surface/95 backdrop-blur px-3 py-2.5 shadow-[0_10px_30px_-8px_rgba(0,0,0,0.45)]">
         <div className="min-w-0 flex-1">
           <p className="text-[11px] uppercase tracking-wider text-muted leading-tight">{totalNetoVisible ? 'Total neto' : 'Total'}</p>
           <p className="font-display font-bold text-[17px] text-teal tabular-nums leading-tight truncate">
@@ -1246,6 +1274,33 @@ export default function CotizacionForm({
           onClose={() => setFichaAbierta(null)}
         />
       )}
+    </div>
+
+    <aside className="hidden min-[1400px]:flex flex-col gap-4 sticky top-6 max-h-[calc(100vh-3rem)] overflow-y-auto pb-2">
+      <div className={cardCls}>
+        <p className={cardTitleCls}><span className="w-1.5 h-1.5 rounded-full bg-teal inline-block" /> Resumen</p>
+        <ul className="flex flex-col gap-2 mb-3">
+          {grupos.map((g, gi) => (
+            <li key={g.id} className="flex justify-between gap-3 text-[13px]">
+              <span className="min-w-0 truncate">
+                <span className="text-muted tabular-nums">{gi + 1}.</span> {g.sistema.trim() || 'Sin sistema'}
+                {g.opcional && <span className="ml-1.5 text-amber text-[11.5px]">opcional</span>}
+              </span>
+              <span className={`shrink-0 tabular-nums ${g.opcional ? 'text-muted' : 'font-medium'}`}>{money(importeDelSistema(g))}</span>
+            </li>
+          ))}
+        </ul>
+        <button
+          onClick={handleGuardar}
+          disabled={guardando}
+          className="w-full min-h-[48px] rounded-xl bg-teal text-inkOnAccent font-display font-semibold text-[15px] active:scale-95 transition-transform disabled:opacity-60 shadow-glow-teal"
+        >
+          {guardando ? 'Guardando...' : modo === 'editar' ? 'Guardar cambios' : 'Guardar'}
+        </button>
+      </div>
+      {tarjetaTotales}
+      {tarjetaPresentacion}
+    </aside>
     </div>
   );
 }
