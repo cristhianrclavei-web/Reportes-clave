@@ -19,7 +19,8 @@ import { hoyLocal } from '@/lib/fechaHoy';
 import { showToast } from '@/components/Toast';
 import { useAvanceGuardado, pausaFinal } from '@/lib/useAvanceGuardado';
 import SavingOverlay from '@/components/SavingOverlay';
-import { Plus, Trash2, Link2, FileText, ImagePlus, X, GripVertical, ArrowUp, ArrowDown, BadgeDollarSign } from 'lucide-react';
+import { Plus, Trash2, Link2, FileText, ImagePlus, X, GripVertical, ArrowUp, ArrowDown, BadgeDollarSign, Check, ChevronDown } from 'lucide-react';
+import ResumenPartida from '@/components/cotizaciones/ResumenPartida';
 import { moverElemento } from '@/lib/moverElemento';
 import { motion } from 'motion/react';
 import { useArrastreLista } from '@/lib/useArrastreLista';
@@ -362,8 +363,21 @@ export default function CotizacionForm({
     showToast(`Precios convertidos de ${de} a ${moneda} (T.C. ${tipoCambioNum.toFixed(2)})`, 'success');
   }
 
+  // Solo una partida abierta a la vez; las demás se ven como renglón corto.
+  const [partidaAbierta, setPartidaAbierta] = useState<string | null>(null);
+  function abrirPartida(itemId: string) {
+    setPartidaAbierta(itemId);
+    // Al cerrarse la anterior la página se recorre: se acompaña a la nueva.
+    setTimeout(() => {
+      document.querySelector(`[data-concepto="${itemId}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 80);
+  }
+
   function agregarItem(grupoId: string) {
-    setGrupos((prev) => prev.map((g) => (g.id === grupoId ? { ...g, items: [...g.items, nuevoItem()] } : g)));
+    const item = nuevoItem();
+    setGrupos((prev) => prev.map((g) => (g.id === grupoId ? { ...g, items: [...g.items, item] } : g)));
+    // La nueva queda abierta para llenarla (y se cierra la que estaba abierta).
+    setPartidaAbierta(item.id);
   }
   function quitarItem(grupoId: string, itemId: string) {
     setGrupos((prev) =>
@@ -759,20 +773,41 @@ export default function CotizacionForm({
             {g.items.length > 1 && (
               <p className="text-[12.5px] text-muted mb-2 flex items-center gap-1">
                 <GripVertical size={14} strokeWidth={2.4} className="text-teal" />
-                Cambia el orden arrastrando desde ⠿, eligiendo otro número en «Partida» o con las flechas; las demás se recorren solas.
+                Toca una partida para editarla. Para cambiar el orden arrastra desde ⠿ o, con la partida abierta, usa el número o las flechas.
               </p>
             )}
-            <div data-grupo={g.id} className="flex flex-col gap-3">
-              {g.items.map((it, ii) => (
+            <div data-grupo={g.id} data-campo={gi === 0 ? 'partidas' : undefined} className="flex flex-col gap-2.5 scroll-mt-40">
+              {g.items.map((it, ii) => {
+                const precioUnitario = precioUnitarioDesdeCosto(parseFloat(it.costo) || 0, parseFloat(it.margenPct) || 0);
+                const importe = (parseFloat(it.cantidad) || 0) * precioUnitario;
+                // Una partida vacía (recién agregada) siempre está abierta:
+                // hay que llenarla. Las demás se abren de una en una.
+                const abierta = partidaAbierta === it.id || !it.descripcion.trim();
+                const puedeCerrar = Boolean(it.descripcion.trim());
+                return (
                 // layout: al cambiar de lugar (arrastre, menú o flechas) el
                 // bloque se desliza a su nueva posición en vez de saltar.
                 <motion.div key={it.id} layout transition={{ duration: 0.28, ease: 'easeOut' }} className="relative">
                 <div
                   data-concepto={it.id}
-                  className={`rounded-xl bg-surface-2 border border-line-strong border-l-4 border-l-teal overflow-hidden transition-shadow ${
+                  className={`scroll-mt-40 scroll-mb-28 rounded-xl bg-surface-2 border border-line-strong border-l-4 border-l-teal overflow-hidden transition-shadow ${
                     arrastre.arrastrando === it.id ? 'ring-2 ring-teal shadow-[0_12px_32px_rgba(0,0,0,0.35)]' : ''
                   }`}
                 >
+                  {!abierta ? (
+                    <ResumenPartida
+                      numero={ii + 1}
+                      descripcion={it.descripcion}
+                      unidad={it.unidad}
+                      cantidad={it.cantidad}
+                      precioUnitario={money(precioUnitario)}
+                      importe={money(importe)}
+                      onIniciarArrastre={g.items.length > 1 ? (e) => arrastre.iniciar(e, g.id, it.id) : undefined}
+                      tieneSugerencia={Boolean(sugerencias[it.id] && !it.enlace)}
+                      onAbrir={() => abrirPartida(it.id)}
+                    />
+                  ) : (
+                  <>
                   <div className="flex items-center gap-2 px-2 py-1.5 bg-teal/10 border-b border-line">
                     {g.items.length > 1 ? (
                       <>
@@ -819,7 +854,7 @@ export default function CotizacionForm({
                           type="button"
                           onClick={() => quitarItem(g.id, it.id)}
                           aria-label="Quitar partida"
-                          className="ml-auto w-9 h-9 rounded-lg border border-line-strong text-red flex items-center justify-center active:scale-90 transition-transform"
+                          className="w-9 h-9 rounded-lg border border-line-strong text-red flex items-center justify-center active:scale-90 transition-transform"
                         >
                           <Trash2 size={16} strokeWidth={2.3} />
                         </button>
@@ -830,73 +865,89 @@ export default function CotizacionForm({
                         <span className="font-display font-bold text-[17px] text-teal tabular-nums">01</span>
                       </span>
                     )}
+                    <span className="flex-1" />
+                    {puedeCerrar && (
+                      <button
+                        type="button"
+                        onClick={() => setPartidaAbierta(null)}
+                        className="min-h-[36px] px-3 rounded-lg bg-teal text-inkOnAccent text-[13px] font-semibold flex items-center gap-1 active:scale-95 transition-transform"
+                      >
+                        <Check size={15} strokeWidth={2.6} /> Listo
+                      </button>
+                    )}
                   </div>
-                  <div className="p-3.5">
-                  <div className="flex items-start gap-2 mb-2.5">
+                  <div className="p-3.5 sm:p-4 space-y-3">
                     <textarea
-                      data-campo={gi === 0 && ii === 0 ? 'partidas' : undefined}
                       value={it.descripcion}
                       onChange={(e) => actualizarItem(g.id, it.id, { descripcion: e.target.value })}
                       onKeyDown={(e) => teclaEnDescripcion(e, g.id, it)}
+                      // Al escribir en una partida vacía se queda abierta
+                      // (si no, se cerraría con la primera letra).
+                      onFocus={() => setPartidaAbierta(it.id)}
                       onBlur={() => revisarConcepto(it)}
                       placeholder="Descripción del concepto: equipo, mano de obra, tubería… (Enter busca en SYSCOM)"
-                      className={`${inputCls} min-h-[70px] flex-1`}
+                      className={`${inputCls} min-h-[76px]`}
                     />
-                    <div className="flex flex-col gap-1.5 shrink-0">
-                      <BotonSyscom onClick={() => setBuscandoParaItem({ grupoId: g.id, itemId: it.id, texto: it.descripcion })} />
-                      <BotonAscencio onClick={() => setBuscandoAscencio({ grupoId: g.id, itemId: it.id, texto: it.descripcion })} />
+                    <div className="flex items-center gap-2">
+                      <span className="text-[12px] text-muted">Buscar en:</span>
+                      <BotonSyscom compacto onClick={() => setBuscandoParaItem({ grupoId: g.id, itemId: it.id, texto: it.descripcion })} />
+                      <BotonAscencio compacto onClick={() => setBuscandoAscencio({ grupoId: g.id, itemId: it.id, texto: it.descripcion })} />
                     </div>
-                  </div>
-                  {sugerencias[it.id] && !it.enlace && (
+                    {sugerencias[it.id] && !it.enlace && (
                     <TarjetaSugerencia sugerencia={sugerencias[it.id]} onUsar={() => usarSugerencia(g.id, it)} onDescartar={() => quitarSugerencia(it.id)} />
                   )}
-                  <div className="grid grid-cols-2 gap-2.5 mb-2.5">
-                    <div>
-                      <label className={labelCls}>Unidad</label>
-                      <SelectorUnidad
-                        className={inputCls}
-                        value={it.unidad}
-                        opciones={UNIDADES_SUGERIDAS}
-                        onChange={(unidad) => actualizarItem(g.id, it.id, { unidad })}
-                      />
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div>
+                        <label className={labelCls}>Unidad</label>
+                        <SelectorUnidad
+                          className={inputCls}
+                          value={it.unidad}
+                          opciones={UNIDADES_SUGERIDAS}
+                          onChange={(unidad) => actualizarItem(g.id, it.id, { unidad })}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelCls}>Cantidad</label>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          className={inputCls}
+                          value={it.cantidad}
+                          onChange={(e) => actualizarItem(g.id, it.id, { cantidad: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelCls}>Costo</label>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          placeholder="0.00"
+                          className={inputCls}
+                          value={it.costo}
+                          onChange={(e) => actualizarItem(g.id, it.id, { costo: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelCls}>% Ganancia</label>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          min={0}
+                          max={100}
+                          className={inputCls}
+                          value={it.margenPct}
+                          onChange={(e) => actualizarItem(g.id, it.id, { margenPct: e.target.value })}
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className={labelCls}>Cantidad</label>
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        className={inputCls}
-                        value={it.cantidad}
-                        onChange={(e) => actualizarItem(g.id, it.id, { cantidad: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <div>
-                      <label className={labelCls}>Costo</label>
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        placeholder="0.00"
-                        className={inputCls}
-                        value={it.costo}
-                        onChange={(e) => actualizarItem(g.id, it.id, { costo: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <label className={labelCls}>% Ganancia</label>
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        min={0}
-                        max={100}
-                        className={inputCls}
-                        value={it.margenPct}
-                        onChange={(e) => actualizarItem(g.id, it.id, { margenPct: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                  <div className="mt-2.5">
+                    {/* Enlace y foto se usan poco: plegados salvo que ya traigan algo. */}
+                    <details open={Boolean(it.enlace || it.foto) || undefined} className="group rounded-lg border border-line">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 min-h-[40px] text-[13px] font-medium text-ink/80 [&::-webkit-details-marker]:hidden">
+                        <span className="flex items-center gap-1.5"><Link2 size={13} /> Enlace del equipo{mostrarFotos ? ' y foto' : ''}</span>
+                        <ChevronDown size={15} strokeWidth={2.4} className="text-muted transition-transform group-open:rotate-180" />
+                      </summary>
+                      <div className="px-3 pb-3">
+                  <div>
                     <label className={`${labelCls} flex items-center gap-1.5`}>
                       <Link2 size={12} /> Enlace del equipo <span className="normal-case tracking-normal font-normal text-faint">· solo interno, no sale en el PDF</span>
                     </label>
@@ -934,17 +985,20 @@ export default function CotizacionForm({
                       onQuitar={() => actualizarItem(g.id, it.id, { foto: '' })}
                     />
                   )}
-                  <p className="text-right text-[13px] text-muted mt-2">
-                    P. Unitario: <span className="font-medium text-ink">{money(precioUnitarioDesdeCosto(parseFloat(it.costo) || 0, parseFloat(it.margenPct) || 0))}</span>
-                    {' · '}
-                    Importe: <span className="font-semibold text-ink">
-                      {money((parseFloat(it.cantidad) || 0) * precioUnitarioDesdeCosto(parseFloat(it.costo) || 0, parseFloat(it.margenPct) || 0))}
-                    </span>
-                  </p>
+                      </div>
+                    </details>
+                    <p className="text-right text-[13px] text-muted">
+                      P. Unitario: <span className="font-medium text-ink">{money(precioUnitario)}</span>
+                      {' · '}
+                      Importe: <span className="font-semibold text-ink">{money(importe)}</span>
+                    </p>
                   </div>
+                  </>
+                  )}
                 </div>
                 </motion.div>
-              ))}
+                );
+              })}
             </div>
 
             <button
@@ -1141,18 +1195,27 @@ export default function CotizacionForm({
             ≈ {money(totales.total * tipoCambioNum)} MXN <span className="text-faint">(TC {tipoCambioNum.toFixed(2)})</span>
           </p>
         )}
-        <div className="mb-3" />
-
         {msg && (
-          <div className="text-sm px-4 py-3 mb-3 rounded-xl bg-red/10 text-red border border-red/30">{msg}</div>
+          <div className="text-sm px-4 py-3 mt-3 rounded-xl bg-red/10 text-red border border-red/30">{msg}</div>
         )}
+      </div>
 
+      {/* Barra fija abajo: el total y «Guardar» siempre a la mano, aunque la
+          cotización sea muy larga. El hueco a la derecha es para el botón
+          del asistente, que flota en esa esquina. */}
+      <div className="sticky bottom-3 z-30 mt-4 mr-[4.5rem] lg:mr-20 flex items-center gap-3 rounded-2xl border border-line-strong bg-surface/95 backdrop-blur px-3 py-2.5 shadow-[0_10px_30px_-8px_rgba(0,0,0,0.45)]">
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] uppercase tracking-wider text-muted leading-tight">{totalNetoVisible ? 'Total neto' : 'Total'}</p>
+          <p className="font-display font-bold text-[17px] text-teal tabular-nums leading-tight truncate">
+            {moneda === 'USD' ? 'USD ' : ''}{money(totales.total)}
+          </p>
+        </div>
         <button
           onClick={handleGuardar}
           disabled={guardando}
-          className="w-full min-h-[54px] rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[16px] active:scale-95 transition-transform disabled:opacity-60 shadow-glow-teal"
+          className="shrink-0 min-h-[48px] px-5 rounded-xl bg-teal text-inkOnAccent font-display font-semibold text-[15px] active:scale-95 transition-transform disabled:opacity-60 shadow-glow-teal"
         >
-          {guardando ? 'Guardando...' : modo === 'editar' ? 'Guardar cambios' : 'Guardar cotización'}
+          {guardando ? 'Guardando...' : modo === 'editar' ? 'Guardar cambios' : 'Guardar'}
         </button>
       </div>
 

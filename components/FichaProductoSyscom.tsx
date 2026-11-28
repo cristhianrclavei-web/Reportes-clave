@@ -12,7 +12,22 @@ function money(n: number | null): string {
 
 // Botón de SYSCOM junto a la descripción del concepto: azul, con su nombre,
 // para que se distinga de una lupa cualquiera.
-export function BotonSyscom({ onClick }: { onClick: () => void }) {
+// compacto: botón bajo en fila (partida abierta); el grande es cuadrado.
+export function BotonSyscom({ onClick, compacto = false }: { onClick: () => void; compacto?: boolean }) {
+  if (compacto) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label="Buscar en el catálogo de SYSCOM"
+        title="Buscar en el catálogo de SYSCOM"
+        className="min-h-[38px] px-3 rounded-lg flex items-center gap-1.5 text-white font-display font-bold text-[11.5px] tracking-[0.08em] active:scale-95 transition-transform bg-[linear-gradient(150deg,#1d7cf2_0%,#0b4fa8_100%)]"
+      >
+        <Search size={15} strokeWidth={2.6} />
+        SYSCOM
+      </button>
+    );
+  }
   return (
     <button
       type="button"

@@ -390,6 +390,45 @@ export default function CotizacionDetalle({
         </div>
       </div>
 
+      {/* Acciones de todos los días arriba, para no bajar hasta el final de
+          una cotización larga: ver el PDF (todos), mandarlo por WhatsApp
+          (quien aprueba, o cualquiera ya aprobada; la deja como «enviada») y
+          editar (cerrado una vez firmada). */}
+      <div className="flex gap-2 mb-4">
+        <a
+          // La versión sale de updated_at y no de Date.now(): el reloj en el
+          // render da un href distinto en servidor y navegador (hidratación).
+          // El PDF ya se sirve con no-store; esto solo evita reusar la
+          // pestaña vieja después de editar.
+          href={`/api/cotizaciones/${cotizacion.id}/pdf?v=${encodeURIComponent(cotizacion.updated_at || '')}`}
+          onClick={alTocarEnlace}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex-1 min-h-[48px] rounded-xl bg-teal text-inkOnAccent font-display font-semibold text-[14.5px] flex items-center justify-center gap-1.5 active:scale-95 transition-transform shadow-glow-teal"
+        >
+          <FileText size={17} strokeWidth={2.4} />
+          PDF
+        </a>
+        {(puedeAprobar || !!cotizacion.aprobada_firma) && (
+          <button
+            onClick={handleEnviarWhatsapp}
+            className="flex-1 min-h-[48px] rounded-xl bg-[#25D366] text-white font-display font-semibold text-[14.5px] flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
+          >
+            <MessageCircle size={17} strokeWidth={2.4} />
+            WhatsApp
+          </button>
+        )}
+        {!cotizacion.aprobada_firma && (
+          <button
+            onClick={() => setEditando(true)}
+            className="flex-1 min-h-[48px] rounded-xl border border-teal/60 text-teal font-display font-semibold text-[14.5px] flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
+          >
+            <Pencil size={16} strokeWidth={2.4} />
+            Editar
+          </button>
+        )}
+      </div>
+
       {grupos.map((g) => {
         const importeGrupo = g.lineas.reduce((acc, l) => acc + l.importe, 0);
         return (
@@ -579,47 +618,6 @@ export default function CotizacionDetalle({
             </button>
           )}
         </div>
-      )}
-
-      {/* Compartir: ver el PDF (para todos) o mandarlo por WhatsApp al
-          cliente: quien aprueba, siempre; los demás, ya que está aprobada.
-          Mandarla ya aprobada la deja como «enviada». */}
-      <div className="flex gap-2.5 mb-1.5">
-        <a
-          // La versión sale de updated_at y no de Date.now(): el reloj en el
-          // render da un href distinto en servidor y navegador (hidratación).
-          // El PDF ya se sirve con no-store; esto solo evita reusar la
-          // pestaña vieja después de editar.
-          href={`/api/cotizaciones/${cotizacion.id}/pdf?v=${encodeURIComponent(cotizacion.updated_at || '')}`}
-          onClick={alTocarEnlace}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex-1 min-h-[52px] rounded-2xl bg-teal text-inkOnAccent font-display font-semibold text-[15px] flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-glow-teal"
-        >
-          <FileText size={18} strokeWidth={2.4} />
-          Ver PDF
-        </a>
-        {(puedeAprobar || !!cotizacion.aprobada_firma) && (
-          <button
-            onClick={handleEnviarWhatsapp}
-            className="flex-1 min-h-[52px] rounded-2xl bg-[#25D366] text-white font-display font-semibold text-[15px] flex items-center justify-center gap-2 active:scale-95 transition-transform"
-          >
-            <MessageCircle size={18} strokeWidth={2.4} />
-            WhatsApp
-          </button>
-        )}
-      </div>
-
-      {/* Editar: una vez firmada la cotización, el documento queda cerrado —
-          nadie la edita ya, ni siquiera quien la aprobó. */}
-      {!cotizacion.aprobada_firma && (
-        <button
-          onClick={() => setEditando(true)}
-          className="w-full min-h-[48px] mb-3 rounded-xl border border-line-strong text-ink/80 font-semibold text-[14.5px] flex items-center justify-center gap-2 active:scale-95 transition-transform"
-        >
-          <Pencil size={16} strokeWidth={2.3} />
-          Editar
-        </button>
       )}
 
       {/* Si se aprobó con errores, quien puede aprobar la regresa a borrador

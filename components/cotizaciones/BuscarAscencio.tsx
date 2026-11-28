@@ -9,7 +9,22 @@ import type { ProductoAscencio } from '@/lib/ascencio';
 // concepto (descripción, modelo, marca, foto y ficha técnica). El precio no
 // viene: se captura a mano.
 
-export function BotonAscencio({ onClick }: { onClick: () => void }) {
+// compacto: botón bajo en fila (partida abierta); el grande es cuadrado.
+export function BotonAscencio({ onClick, compacto = false }: { onClick: () => void; compacto?: boolean }) {
+  if (compacto) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label="Buscar en el catálogo de Grupo Ascencio"
+        title="Buscar en el catálogo de Grupo Ascencio (material eléctrico)"
+        className="min-h-[38px] px-3 rounded-lg flex items-center gap-1.5 bg-amber text-white font-display font-bold text-[11.5px] tracking-[0.06em] active:scale-95 transition-transform"
+      >
+        <Zap size={15} strokeWidth={2.6} />
+        ASCENCIO
+      </button>
+    );
+  }
   return (
     <button
       type="button"
